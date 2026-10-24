@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+# Keep machine-specific tool paths out of project.godot and the C# solution.
+if ! command -v dotnet >/dev/null 2>&1; then
+  if [[ -x "$HOME/.local/share/mech-tools/dotnet/dotnet" ]]; then
+    export DOTNET_ROOT="$HOME/.local/share/mech-tools/dotnet"
+    export PATH="$DOTNET_ROOT:$PATH"
+  else
+    echo 'Install the .NET SDK specified by global.json, and put dotnet on PATH.' >&2
+    exit 1
+  fi
+fi
+
+engine="${GODOT_BIN:-}"
+if [[ -z "$engine" ]]; then
+  for candidate in godot-mono godot4-mono godot godot4 \
+    "$HOME/.local/share/mech-tools/godot/Godot_v4.7.2-stable_mono_linux_x86_64/Godot_v4.7.2-stable_mono_linux.x86_64" \
+    /Applications/Godot_mono.app/Contents/MacOS/Godot; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      case "$("$candidate" --version)" in
+        4.7.2.stable.mono.*) engine="$candidate"; break ;;
+      esac
+    fi
+  done
+fi
+if [[ -z "$engine" ]]; then
+  echo 'Set GODOT_BIN to the Godot 4.7.2 .NET executable. See README.md.' >&2
+  exit 1
+fi
+case "$("$engine" --version)" in
+  4.7.2.stable.mono.*) ;;
+  *) echo 'GODOT_BIN must point to Godot 4.7.2 .NET (mono), not the standard editor.' >&2; exit 1 ;;
+esac
+
+build() {
+  mkdir -p Builds TestResults
+  touch Builds/.gdignore TestResults/.gdignore
+  dotnet build Mech.csproj --nologo
+  "$engine" --headless --path . --editor --import
+}
+export_linux() {
+  mkdir -p Builds/Linux
+  "$engine" --headless --path . --export-release 'Linux x64' Builds/Linux/Mech.x86_64
+  tar -czf Builds/Mech-linux-x64.tar.gz -C Builds/Linux .
+}
+export_macos() {
+  mkdir -p Builds/macOS
+  "$engine" --headless --path . --export-release 'macOS Universal' Builds/macOS/Mech.zip
+}
+
+export_windows() {
+  if ! command -v zip >/dev/null 2>&1; then
+    echo 'Install the zip command to package the Windows export.' >&2
+    return 1
+  fi
+  mkdir -p Builds/Windows
+  "$engine" --headless --path . --export-release 'Windows x64' Builds/Windows/Mech.exe
+  local archive="$PWD/Builds/Mech-windows-x64.zip"
+  # Recreate the archive so files removed from the export are not retained.
+  rm -f "$archive"
+  (cd Builds/Windows && zip -q -r "$archive" .)
+}
+
+case "${1:-run}" in
+  build) build ;;
+  run) build; exec "$engine" --path . ;;
+  editor) exec "$engine" --editor --path . ;;
+  test) build; exec "$engine" --headless --path . --scene res://Tests/SmokeTests.tscn ;;
+  capture) build; exec "$engine" --path . --scene res://Tests/SmokeTests.tscn -- --screenshots ;;
+  export-linux) build; export_linux ;;
+  export-macos) build; export_macos ;;
+  export-windows) build; export_windows ;;
+  exports) build; export_linux; export_macos; export_windows ;;
+  *) echo "Usage: $0 {run|editor|build|test|capture|export-linux|export-macos|export-windows|exports}" >&2; exit 2 ;;
+esac

@@ -8,10 +8,20 @@
 - Strategy and combat have agreed inputs and outputs and can be developed somewhat independently.
 - First milestone: create a mercenary force, accept a contract, deploy to its mission, and apply mission results without playable combat.
 
+# First interface slice
+
+- Open in a painted captain’s office aboard a worn mercenary DropShip.
+- Standalone Windows 11 x64, Linux x64, and macOS (Apple Silicon and Intel) applications are the initial targets, built with Godot and C#. Resizing keeps the complete office image and wall-map hotspot aligned.
+- A subtle persistent marker identifies the clickable wall map. Hover and keyboard focus highlight it and reveal “Star map”.
+- The wall map opens a separate screen displaying the official 3025 map of the entire Inner Sphere, with pan, zoom, and “Back to office”.
+- The full reference chart is presentation artwork; the later playable travel network remains a separate authored set of systems and routes.
+- This slice is an interface foundation; campaign simulation follows in the first strategy milestone.
+- Acceptance: office → open map → pan and zoom → return to office, including keyboard navigation and resized windows.
+
 # First strategy milestone
 
 - Personal playable development is the immediate target.
-- Setting: Late Succession Wars–Renaissance, 3020–3049, across the entire Inner Sphere and Periphery.
+- Setting: Late Succession Wars–Renaissance, 3025–3049, across the entire Inner Sphere and Periphery.
 - Create and name a mercenary force by drafting four BattleMechs and four MechWarriors concurrently. Each individual selection offers three options; all eight pools are visible simultaneously, with no rounds. Options within each pool are of similar caliber. Any MechWarrior can pilot any owned mech; assignments persist until changed.
 - Supply mission results through authored outcomes with editable details.
 - Contracts and missions are distinct; initially offer single-mission contracts.
@@ -21,7 +31,7 @@
 
 # Campaign and travel
 
-- Campaigns begin in 3020.
+- Campaigns begin in 3025.
 - Initially represent the Inner Sphere and Periphery with a sparse network of individual systems, expanding density later.
 - Offer a small selection of starting systems and a fixed starting cash reserve.
 - Hire transport with an upfront cost and elapsed travel time; transport vessel management is outside the first milestone.
@@ -65,11 +75,11 @@
 - Initial MechWarrior skills are Gunnery and Piloting; progression and special abilities are deferred.
 - Systems form a connected map with authored travel times and fares; charge for the chosen route. Explicit regions determine regional offer visibility.
 - Damaged mechs and wrecks have guaranteed local sale at a displayed condition-adjusted price. Selling cancels associated repair orders under the cancellation rules.
-- The first playable interface is browser-based and written in TypeScript.
+- The first playable interface is a standalone Godot game written in C#, targeting Windows 11 x64, Linux x64, and macOS on Apple Silicon and Intel.
 
 # Quarterly accounting
 
-- Campaigns start January 1, 3020. First payment is due April 1, followed by July 1, October 1, and January 1.
+- Campaigns start January 1, 3025. First payment is due April 1, followed by July 1, October 1, and January 1.
 - Salaries accrue for actual days employed, including obligations retained after death or dismissal. Fixed overhead also accrues daily. Collection occurs quarterly.
 - If funds are insufficient, collect the available balance and carry only the shortfall as debt.
 - Incoming cash during grace remains available for normal spending; arrears are collected at the next quarterly due date.

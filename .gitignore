@@ -1,0 +1,14 @@
+.godot/
+.dotnet/
+bin/
+obj/
+Builds/
+TestResults/
+*.user
+*.userprefs
+.DS_Store
+# Previous browser build artifacts are not part of the native project.
+node_modules/
+dist/
+test-results/
+playwright-report/

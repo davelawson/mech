@@ -1,0 +1,29 @@
+; Open with the .NET edition of Godot. See README.md for pinned tools.
+config_version=5
+
+[application]
+config/name="Mech"
+run/main_scene="res://Scenes/Command.tscn"
+config/features=PackedStringArray("4.7", "C#", "GL Compatibility")
+config/description="Mercenary command aboard a DropShip, January 1, 3025."
+
+[display]
+window/size/viewport_width=1440
+window/size/viewport_height=900
+window/size/window_width_override=1440
+window/size/window_height_override=900
+window/size/resizable=true
+
+; Retain C# script paths in text scenes when exporting without source content.
+[editor]
+export/convert_text_resources_to_binary=false
+
+[dotnet]
+project/assembly_name="Mech"
+
+[rendering]
+textures/vram_compression/import_etc2_astc=true
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+environment/defaults/default_clear_color=Color(0.063, 0.078, 0.071, 1)
