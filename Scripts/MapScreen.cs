@@ -4,6 +4,7 @@ namespace Mech;
 
 public partial class MapScreen : Control
 {
+    public event Action<Texture2D?>? TextureChanged;
     [Signal] public delegate void BackRequestedEventHandler();
     [Export(PropertyHint.File, "*.jpg")] public string MapPath { get; set; } = "res://Assets/inner-sphere-3025.jpg";
     public MapViewport Viewport { get; private set; } = null!;
@@ -63,6 +64,7 @@ public partial class MapScreen : Control
     public void SetMap(string path)
     {
         Viewport.SetMap(Ui.LoadTexture(path));
+        TextureChanged?.Invoke(Viewport.Texture);
         Status.Text = Viewport.MapLoaded ? "" : "The star chart could not load. Return to the office and check the game assets.";
         Status.Visible = !Viewport.MapLoaded;
         RefreshControls();

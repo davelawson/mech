@@ -2,7 +2,7 @@
 
 A standalone BattleTech mercenary company management game built with **Godot and C#**, targeting Windows 11 x64, Linux x64, and macOS on Apple Silicon and Intel.
 
-The first interface slice opens in a painted DropShip captain’s office. Select the wall chart to open the official 3025 Inner Sphere map, pan and zoom, then return to the office. The campaign begins January 1, 3025. Campaign simulation and combat follow later.
+The game opens at a main menu with New Company, Load Game, and Quit. A new company begins in a painted DropShip captain’s office on January 1, 3025, with 2.5 million C-bills. The wall calendar advances time, the safe manages quarterly bills, and the filing cabinet saves and loads the company. The wall chart opens the official 3025 Inner Sphere map. Other campaign simulation and combat follow later.
 
 ## Development prerequisites
 
@@ -28,7 +28,10 @@ Both images are packaged locally. Running the game requires no network connectio
 
 ## Controls
 
-- Office: click the wall chart or focus it with Tab and press Enter/Space. A persistent marker identifies it; hover or keyboard focus reveals “Star map”.
+- Office: click the wall chart or focus it with Tab and press Enter/Space. Hover or keyboard focus outlines the painted frame. Its miniature always shows the complete reference chart, independently of the opened map’s zoom and pan.
+- Calendar: click for one day. Click its “Reminder...” post-it to tick through days until the next event, at 100 ms per day. Any click stops time and activates the clicked object; calendar/post-it clicks only stop it. The painted display shows the current date and “bills due in XX days” (or “day” when one remains), and stays synchronized with the header on both screens. Hover the calendar for its date and countdown in small windows.
+- Safe: open quarterly finances. A 100,000 C-bill charge falls due on April 1, July 1, October 1, and January 1. The safe’s digital display shows live cash, such as “₡ 2,500,000”. Time blocks and that readout blinks until you pay in full or confirm Pay Later. Hover the safe for the current balance in small windows. Deferral preserves cash, carries the full bill, and keeps the countdown red. At the following quarter, insufficient funds for both bills cause bankruptcy and return you to the main menu after its dialog.
+- Filing cabinet: manually save or load the single campaign slot. Confirm before overwriting or discarding current progress. There is no autosave; use Load Game at the menu or cabinet to resume. Saves are stored in Godot’s per-user application-data directory as `campaign.json`, outside the installation folder.
 - Map: drag to pan; scroll or use the + / − buttons to zoom. With the map focused, + / − zoom, arrow keys pan, and Home fits the complete chart.
 - Return with “Back to office” or Escape. Map position survives navigation, and keyboard focus returns to the wall chart.
 - 100% zoom fits the whole chart; maximum zoom is 1200%. Resizing preserves the image aspect ratio, hotspot alignment, and map location.
@@ -42,7 +45,7 @@ Both images are packaged locally. Running the game requires no network connectio
 ./scripts/mech capture
 ```
 
-`test` runs a C# headless Godot test scene with a nonzero exit code on failure. It checks navigation, actual mouse/keyboard input, focus restoration, cursor-anchored zoom, limits, pan bounds, image alignment across window sizes, and failed image loading. `capture` runs the same checks with a graphical display and saves office/map screenshots to `TestResults/`.
+`test` runs a C# headless Godot test scene with a nonzero exit code on failure. It checks campaign dates and event ordering, quarterly payments and deferral, bankruptcy, save validation and disk round trips, plus navigation, actual mouse/keyboard input, modal focus, zoom, pan, resizing, and failed image loading. Tests use isolated temporary saves. `capture` runs the same checks with a graphical display and saves office, map, menu, finance, and payment screenshots to `TestResults/`.
 
 The equivalent direct commands, once tools are on PATH, are:
 
@@ -83,11 +86,11 @@ The native acceptance loop is: launch without a separately installed .NET runtim
 
 ## Structure and design
 
-`Scenes/` contains the command shell, office, and map scenes. `Scripts/` contains their C# behavior, shared native Control styling, and the map geometry model. `Assets/` holds the reused artwork and its import settings. `Tests/` contains the native acceptance scene. There is no browser application or Node.js dependency.
+`Scenes/` contains the command shell, office, and map scenes. `Scripts/` contains their C# behavior, native menus/dialogs, shared Control styling, the map geometry model, and a scene-independent campaign/date/event model with atomic manual saves. `Assets/` holds the reused artwork and its import settings. `Tests/` contains the native acceptance scene and campaign checks. There is no browser application or Node.js dependency.
 
 - [Confirmed design](docs/design.md)
 - [Domain glossary](CONTEXT.md)
 - [Strategy and combat boundary](docs/adr/0001-strategy-and-combat-boundary.md)
-- [Artwork sources and original generation prompt](docs/artwork.md)
+- [Artwork sources, image-edit prompts, and measured display regions](docs/artwork.md)
 
 Godot Engine is distributed under the [MIT license](https://godotengine.org/license/). The third-party BattleTech map retains its original rights and attribution.
