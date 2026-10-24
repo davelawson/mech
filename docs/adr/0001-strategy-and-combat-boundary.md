@@ -1,0 +1,3 @@
+# Develop strategy and combat around an agreed handoff
+
+Strategy and combat may be developed somewhat independently around agreed inputs and outputs. The first playable version focuses on creating a mercenary force, accepting a contract, deploying to a mission, and applying mission results before playable combat exists; this makes the strategy loop testable while real-time combat with pausing is developed separately. Launch commits a deployment snapshot consumed by either combat or the interim authored-outcome tool. Both return battlefield facts; strategy owns payment, contractual penalties, and repair quotes, keeping economic rules consistent regardless of how a mission is resolved.
