@@ -41,7 +41,7 @@ public partial class MechModel : Node3D
             var root = new Node3D { Name = location.ToString() };
             model.AddChild(root); model._locations[location] = root;
         }
-        if (model.IsAwesome) model.BuildAwesome(); else model.BuildGeneric(side);
+        if (model.IsAwesome) { model.BuildAwesome(); model.BuildLocomotionRig(); } else model.BuildGeneric(side);
         model.Height = (model.IsAwesome ? 2.52f : 2.14f) * model.Scale.Y;
         return model;
     }

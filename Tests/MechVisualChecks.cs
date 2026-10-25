@@ -30,10 +30,53 @@ public partial class SmokeTests
             GetWindow().Size = size; await Frames();
             Check(hangar.GetGlobalRect().Encloses(hangar.Preview.GetGlobalRect()) && hangar.Preview.Size.X > 200,
                 $"AWESOME preview remains inside hangar at {size}");
+            Check(hangar.GetGlobalRect().Encloses(hangar.GaitPicker.GetGlobalRect()) && hangar.GaitPicker.Size.X >= 100,
+                $"gait preview controls fit the hangar at {size}");
             await Capture($"awesome-hangar-{size.X}x{size.Y}");
         }
         GetWindow().Size = new(1440, 900); await Frames();
+        Check(hangar.GaitPicker.Visible && hangar.GaitPicker.ItemCount == 3, "Awesome exposes Idle/Walk/Run preview choices");
+        var legs = new[] { model.Locations[MechLocation.LeftLeg], model.Locations[MechLocation.RightLeg] };
+        var ankles = legs.Select(leg => (Node3D)leg.FindChild("AnklePivot", true, false)).ToArray();
+        var feet = legs.Select(leg => (MeshInstance3D)leg.FindChild("Foot", true, false)).ToArray();
+        float Bottom(MeshInstance3D foot)
+        {
+            var bounds = foot.Mesh.GetAabb();
+            return Enumerable.Range(0, 8).Min(i => (foot.GlobalTransform * bounds.GetEndpoint(i)).Y);
+        }
+        foreach (var gait in new[] { 1, 2 })
+        {
+            hangar.GaitPicker.Select(gait); hangar.GaitPicker.EmitSignal(OptionButton.SignalName.ItemSelected, (long)gait);
+            Check(hangar.Preview.Gait == (PreviewGait)gait, "preview selector drives the shared locomotion controller");
+            var articulated = false; var grounded = true;
+            for (var frame = 0; frame < 120; frame++)
+            {
+                hangar.Preview._Process(1d / 60);
+                articulated |= Math.Abs(ankles[0].Position.Y - ankles[1].Position.Y) > .001f
+                    || Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .02f;
+                grounded &= feet.All(foot => Bottom(foot) >= -.002f) && feet.Any(foot => Bottom(foot) < .02f);
+                if (frame is 15 or 35 or 55) await Capture($"awesome-{(gait == 1 ? "walk" : "run")}-{frame}");
+            }
+            Check(articulated && grounded, $"Awesome gait {gait} articulates legs with ground clearance and a planted support foot");
+            Check(gait == 1 ? model.RunBlend < .01f : model.RunBlend > .99f, "actual preview speed selects the expected walk/run blend");
+        }
+        model.AnimateLocomotion(.1f, -.36f, .36f, .6f);
+        Check(model.RunBlend < .5f, "reverse walking blends away from the running gait");
+        var pivotStepping = false;
+        for (var i = 0; i < 90; i++)
+        {
+            model.AnimateLocomotion(1f / 60, 0, .36f, .6f, Mathf.DegToRad(45));
+            pivotStepping |= Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .02f;
+        }
+        Check(pivotStepping, "stationary turning produces alternating pivot steps");
+        await Capture("awesome-pivot");
+        for (var i = 0; i < 180; i++) model.AnimateLocomotion(1f / 60, 0, .36f, .6f);
+        Check(legs.All(leg => ((Node3D)leg.FindChild("HipPivot", true, false)).Rotation.Length() < .001f),
+            "stopping settles the Awesome back to its neutral pose");
+        var frozen = ankles[0].GlobalTransform; model.AnimateLocomotion(0, .6f, .36f, .6f);
+        Check(ankles[0].GlobalTransform.IsEqualApprox(frozen), "zero animation time preserves the exact pose");
         hangar.Select(1); Check(!hangar.Preview.Model!.IsAwesome, "other chassis retain generic geometry");
+        Check(!hangar.GaitPicker.Visible, "generic chassis do not advertise unsupported gait previews");
         // Owned condition is reflected before any battle starts.
         var snapshot = roster.Snapshot(); var saved = snapshot.Mechs[0];
         var damaged = saved with { Locations = saved.Locations.Select(loc => loc.Location == MechLocation.LeftArm
@@ -61,6 +104,13 @@ public partial class SmokeTests
         var combatModels = combat.Battlefield.FindChildren("*", "Node3D", true, false).OfType<MechModel>().ToArray();
         Check(combatModels.Length == 2 && combatModels.All(item => item.IsAwesome), "combat and hangar share the AWESOME model builder");
         await Capture("awesome-combat-friendly");
+        foreach (var unit in sim.Units) foreach (var weapon in unit.Weapons) weapon.Enabled = false;
+        sim.Move([friendly.Id], friendly.Position + Vector2.Down * 5); sim.Paused = false; sim.Advance(.5);
+        combat.Battlefield._Process(.5);
+        var friendlyModel = combatModels.Single(item => item.Position.X < 0);
+        var combatAnkle = (Node3D)friendlyModel.Locations[MechLocation.LeftLeg].FindChild("AnklePivot", true, false);
+        sim.Paused = true; frozen = combatAnkle.Transform; combat.Battlefield._Process(.5);
+        Check(combatAnkle.Transform.IsEqualApprox(frozen), "combat pause freezes gait even while viewport processing continues");
         var leftArm = enemy.Locations[MechLocation.LeftArm];
         enemy.ApplyDamage(MechLocation.LeftArm, leftArm.Armor + leftArm.Structure);
         enemy.Locations[MechLocation.LeftTorso].Armor = 0;

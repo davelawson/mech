@@ -75,6 +75,9 @@ public sealed class CombatUnit
     public Vector2 Destination { get; internal set; }
     public Vector2 Facing { get; internal set; }
     public bool Moving { get; internal set; }
+    /// <summary>Signed travel along Facing: negative means reversing.</summary>
+    public float CurrentSpeed { get; internal set; }
+    public float AngularVelocity { get; internal set; }
     public CombatOrder Order { get; internal set; }
     public string? AttackTarget { get; internal set; }
     public string? PriorityTarget { get; internal set; }
@@ -110,8 +113,14 @@ public sealed class CombatUnit
         ? CombatStatus.Destroyed : (!Intact(MechLocation.LeftLeg) && !Intact(MechLocation.RightLeg))
             || !Weapons.Any(WeaponUsable) ? CombatStatus.Disabled : CombatStatus.Active;
     public bool Active => Status == CombatStatus.Active;
-    public float Speed => !Active ? 0 : (Movement == MovementMode.Run ? Spec.Run : Spec.Walk)
-        * CombatRules.MovementScale * ((!Intact(MechLocation.LeftLeg) || !Intact(MechLocation.RightLeg)) ? .5f : 1);
+    private float Mobility => !Active ? 0 : (!Intact(MechLocation.LeftLeg) || !Intact(MechLocation.RightLeg)) ? .5f : 1;
+    public float WalkingSpeed => Spec.Walk * CombatRules.MovementScale * Mobility;
+    public float RunningSpeed => Spec.Run * CombatRules.MovementScale * Mobility;
+    public float Speed => Movement == MovementMode.Run ? RunningSpeed : WalkingSpeed;
+    // Nine / Walk seconds to full run, half that to stop. No independent mass modifier.
+    public float Acceleration => RunningSpeed * Spec.Walk / 9f;
+    public float Braking => Acceleration * 2;
+    public float TurnRate => Mathf.DegToRad(15 * Spec.Walk);
     public int ArmorLost => Locations.Values.Sum(item => item.InitialArmor - item.Armor);
     public int StructureLost => Locations.Values.Sum(item => item.InitialStructure - item.Structure);
 
@@ -273,7 +282,7 @@ public sealed class CombatSimulation
         Elapsed += CombatRules.StepSeconds;
         RefreshDetection();
         if (EnemyAiEnabled) UpdateAi();
-        foreach (var unit in Units) unit.Moving = false;
+        foreach (var unit in Units) { unit.Moving = false; unit.AngularVelocity = 0; }
         foreach (var unit in Units.Where(item => item.Active)) MoveUnit(unit, delta);
         RefreshDetection();
         var shots = new List<CombatShot>();
@@ -282,7 +291,6 @@ public sealed class CombatSimulation
             foreach (var weapon in unit.Weapons) weapon.Remaining = Math.Max(0, weapon.Remaining - delta);
             var target = SelectTarget(unit); unit.CurrentTarget = target?.Id;
             if (target is null) continue;
-            if (!unit.Moving) unit.Facing = (target.Position - unit.Position).Normalized();
             foreach (var weapon in unit.Weapons.Where(item => item.Enabled && item.Remaining <= 1e-6 && unit.WeaponUsable(item)))
             {
                 if (unit.Position.DistanceTo(target.Position) > weapon.Spec.Long) continue;
@@ -297,7 +305,8 @@ public sealed class CombatSimulation
         foreach (var shot in shots)
             if (shot.Hit) Unit(shot.TargetId).ApplyDamage(shot.Location, shot.Damage);
         foreach (var shot in shots) ShotFired?.Invoke(shot);
-        foreach (var unit in Units.Where(item => !item.Active)) { unit.Moving = false; unit.CurrentTarget = null; }
+        foreach (var unit in Units.Where(item => !item.Active))
+        { unit.Moving = false; unit.CurrentSpeed = unit.AngularVelocity = 0; unit.CurrentTarget = null; }
         var friendly = Units.Any(item => item.Side == CombatSide.Friendly && item.Active);
         var enemy = Units.Any(item => item.Side == CombatSide.Enemy && item.Active);
         if (!friendly || !enemy)
@@ -320,40 +329,92 @@ public sealed class CombatSimulation
     private void MoveUnit(CombatUnit unit, float delta)
     {
         Vector2? goal = null;
+        var reverse = false;
         if (unit.Order == CombatOrder.Move) goal = unit.Destination;
         else if (unit.Order == CombatOrder.Attack && unit.AttackTarget is { } id)
         {
             if (Detected(unit.Side, id))
             {
                 var target = Unit(id);
-                if (!target.Active) { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; return; }
-                var away = unit.Position - target.Position;
-                if (away.Length() < .01f) away = unit.Side == CombatSide.Friendly ? Vector2.Down : Vector2.Up;
-                if (Math.Abs(away.Length() - unit.PreferredDistance) > .4f)
-                    goal = CombatRules.Clamp(target.Position + away.Normalized() * unit.PreferredDistance);
+                if (!target.Active) { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
+                else
+                {
+                    var away = unit.Position - target.Position;
+                    if (away.Length() < .01f) away = unit.Side == CombatSide.Friendly ? Vector2.Down : Vector2.Up;
+                    if (Math.Abs(away.Length() - unit.PreferredDistance) > .4f)
+                    {
+                        goal = CombatRules.Clamp(target.Position + away.Normalized() * unit.PreferredDistance);
+                        reverse = away.Length() < unit.PreferredDistance;
+                    }
+                }
             }
             else if (_contacts[unit.Side].TryGetValue(id, out var contact)) goal = contact.LastKnownPosition;
             else { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
         }
-        if (goal is null) return;
-        var remaining = goal.Value - unit.Position;
-        if (remaining.Length() < .2f)
+        var remaining = goal is { } point ? point - unit.Position : Vector2.Zero;
+        if (goal is not null && remaining.Length() < .2f)
         {
             if (unit.Order == CombatOrder.Move || (unit.AttackTarget is { } lost && !Detected(unit.Side, lost)))
             { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
-            return;
+            goal = null;
         }
-        var travel = Math.Min(remaining.Length(), unit.Speed * delta);
-        var direction = remaining.Normalized();
-        // Steer around occupied discs. Check swept segments so large deltas cannot tunnel through units.
+
+        var desiredSpeed = 0f;
+        if (goal is not null)
+        {
+            var direction = Steer(unit, remaining.Normalized());
+            var heading = reverse ? -direction : direction;
+            var error = Math.Abs(unit.Facing.AngleTo(heading));
+            Turn(unit, heading, delta);
+            // Brake into sharp turns. Broad moving turns retain forward travel, never lateral sliding.
+            if (error < Mathf.DegToRad(60))
+            {
+                var limit = reverse ? unit.WalkingSpeed : unit.Speed;
+                var arrivalSpeed = Mathf.Sqrt(2 * unit.Braking * Math.Max(0, remaining.Length() - .18f));
+                desiredSpeed = Math.Min(limit * Mathf.Cos(error), arrivalSpeed) * (reverse ? -1 : 1);
+            }
+        }
+        else if (Math.Abs(unit.CurrentSpeed) < .001f && SelectTarget(unit) is { } target)
+            Turn(unit, (target.Position - unit.Position).Normalized(), delta);
+
+        // A reversal must first spend its momentum; it cannot cross zero in the same step.
+        if (unit.CurrentSpeed * desiredSpeed < 0) desiredSpeed = 0;
+        var rate = Math.Abs(desiredSpeed) > Math.Abs(unit.CurrentSpeed) ? unit.Acceleration : unit.Braking;
+        var nextSpeed = Mathf.MoveToward(unit.CurrentSpeed, desiredSpeed, rate * delta);
+        var travel = (unit.CurrentSpeed + nextSpeed) * .5f * delta;
+        var candidate = unit.Position + unit.Facing * travel;
+        if (Math.Abs(travel) > 1e-8f)
+        {
+            if (CombatRules.Clamp(candidate).DistanceSquaredTo(candidate) > 1e-10f || Blocked(unit, candidate))
+                nextSpeed = 0; // Contact is a hard constraint, including wrecks and arena edges.
+            else { unit.Position = candidate; unit.Moving = true; }
+        }
+        unit.CurrentSpeed = nextSpeed;
+    }
+    private void Turn(CombatUnit unit, Vector2 heading, float delta)
+    {
+        if (heading.LengthSquared() < .001f) return;
+        var fast = unit.RunningSpeed > 0 ? Math.Clamp(Math.Abs(unit.CurrentSpeed) / unit.RunningSpeed, 0, 1) : 0;
+        var angle = Math.Clamp(unit.Facing.AngleTo(heading), -unit.TurnRate * (1 - .55f * fast) * delta,
+            unit.TurnRate * (1 - .55f * fast) * delta);
+        unit.Facing = unit.Facing.Rotated(angle).Normalized();
+        unit.AngularVelocity = angle / delta;
+    }
+    private Vector2 Steer(CombatUnit unit, Vector2 direction)
+    {
+        var stopping = unit.Braking > 0 ? unit.CurrentSpeed * unit.CurrentSpeed / (2 * unit.Braking) : 0;
+        var lookAhead = Math.Clamp(stopping + .25f, .35f, 1.5f);
         foreach (var angle in new[] { 0f, .52f, -.52f, 1.05f, -1.05f, 1.57f, -1.57f })
         {
-            var candidate = CombatRules.Clamp(unit.Position + direction.Rotated(angle) * travel);
-            if (candidate.DistanceSquaredTo(unit.Position) < 1e-10f) continue;
-            if (Units.Any(other => other != unit && DistanceToSegment(other.Position, unit.Position, candidate) < CombatRules.UnitRadius * 2)) continue;
-            unit.Facing = (candidate - unit.Position).Normalized(); unit.Position = candidate; unit.Moving = true; break;
+            var steered = direction.Rotated(angle);
+            var candidate = unit.Position + steered * lookAhead;
+            if (CombatRules.Clamp(candidate).DistanceSquaredTo(candidate) < 1e-10f && !Blocked(unit, candidate))
+                return steered;
         }
+        return direction;
     }
+    private bool Blocked(CombatUnit unit, Vector2 candidate) => Units.Any(other => other != unit
+        && DistanceToSegment(other.Position, unit.Position, candidate) < CombatRules.UnitRadius * 2);
     private static float DistanceToSegment(Vector2 point, Vector2 from, Vector2 to)
     {
         var segment = to - from;

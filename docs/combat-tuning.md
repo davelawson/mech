@@ -11,14 +11,23 @@ The first tactical slice implements [the confirmed combat design](combat-design.
 | Starts | Z = +32 / −32; four-hex spacing |
 | Occupied radius | 0.65 hex, with swept-disc collision checks |
 | Shared detection | 15 hexes, shorter than PPC/LRM reach |
-| Movement | Stock Walk / Run MP × 0.12 hexes per second |
+| Movement limits | Stock Walk / Run MP × 0.12 hexes per second |
+| Acceleration | Running speed × Walk MP / 9 hexes per second² |
+| Braking | Twice acceleration |
+| Stationary turn rate | Walk MP × 15 degrees per second |
+| Moving turn rate | Stationary rate × (1 − 0.55 × actual speed / running speed) |
+| Reverse limit | Walking speed, including when Run is selected |
 | One leg lost | Half movement speed |
 | Simulation step | 0.05 seconds, independent of rendering rate |
 | Preferred distance | Damage-weighted average usable short range, clamped to 1–15 hexes |
 | Distance control | 1.5–21 hexes; 0.5-hex increments |
 | Position tolerances | 0.4 hex engagement distance; 0.2 hex arrival |
 
-Move toward the center to make contact. Enemy AI advances there until it detects a target. Steering tries direct movement then ±30°, ±60° and ±90° alternatives around occupied space. Wrecks remain occupied space. Arena bounds and separate group destinations apply to both forces. Preferred distance never prevents an otherwise valid shot.
+Acceleration and turning depend only on movement stats, without an independent tonnage modifier. The Awesome (3/5 MP) reaches full run in three seconds, stops from it in 1.5 seconds, and turns 180° in place in four seconds. The Jenner (7/11 MP) takes approximately 1.29, 0.64 and 1.71 seconds respectively. Walk/Run selects the speed limit; changing modes does not snap actual speed.
+
+Mechs travel along their leg facing. Moving turns become wider as speed rises; direction changes of 60° or more command braking while the chassis turns. Destination approach uses braking distance to stop within the arrival tolerance. Stop clears the order immediately and brakes existing momentum. Attack orders reverse at up to walking speed to open engagement distance, maintaining facing toward the target; forward/reverse transitions brake to zero first. Stationary target-facing uses the same turn rate. Facing still imposes no firing arcs or rear-hit rules. Collisions and arena boundaries can halt travel immediately.
+
+Move toward the center to make contact. Enemy AI advances there until it detects a target. Steering looks ahead by stopping distance and tries direct movement then ±30°, ±60° and ±90° alternatives around occupied space. Each candidate supplies a desired heading; the mech must turn toward it before traveling. Wrecks remain occupied space. Arena bounds and separate group destinations apply to both forces. Preferred distance never prevents an otherwise valid shot.
 
 ## Weapons and hit rolls
 
@@ -56,7 +65,7 @@ Hit locations use a separate 2d6 roll:
 
 Each step captures every due discharge and hit roll before applying damage. Outcomes follow the entire batch, permitting simultaneous lethal return fire and draws. Visual effects illustrate already-resolved results.
 
-Five-to-ten minutes remains a provisional ordinary-engagement target. The initial mixed-lance check finishes in 285 simulated seconds (about five minutes); one-on-one Jenner, Griffin and Awesome checks finish in 105, 211 and 168 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
+Five-to-ten minutes remains a provisional ordinary-engagement target. The initial mixed-lance check finishes in 335 simulated seconds (about five minutes); one-on-one Jenner, Griffin and Awesome checks finish in 105, 211 and 169 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
 
 ## Interaction defaults
 

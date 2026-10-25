@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace Mech.Tests;
 
-internal static class CombatChecks
+internal static partial class CombatChecks
 {
     private static ForceRoster Roster(int count = 1, string definition = "awesome")
     {
@@ -19,6 +19,7 @@ internal static class CombatChecks
     {
         sim.EnemyAiEnabled = false;
         Friendly(sim).Position = Vector2.Zero; Enemy(sim).Position = new Vector2(distance, 0);
+        Friendly(sim).Facing = Vector2.Right; Enemy(sim).Facing = Vector2.Left;
         sim.RefreshDetection();
     }
     public static void Run(Action<bool, string> check)
@@ -78,6 +79,7 @@ internal static class CombatChecks
         sim.SetPriority([f.Id], e.Id); sim.Paused = false; sim.Advance(.1);
         check(f.Position == Vector2.Zero && f.PriorityTarget == e.Id && f.Order == CombatOrder.Hold, "priority target alone does not cause pursuit");
         sim.Paused = true; sim.Attack([f.Id], e.Id); f.PreferredDistance = 3;
+        f.Facing = Vector2.Down; // Already aligned: this check isolates order/target independence.
         sim.Move([f.Id], new Vector2(0, 8));
         check(f.AttackTarget is null && f.PriorityTarget == e.Id, "Move replaces Attack but retains persistent priority");
         sim.Paused = false; sim.Advance(.1);
@@ -91,6 +93,7 @@ internal static class CombatChecks
         CheckDetection(check);
         CheckDamage(check);
         CheckNavigation(check);
+        CheckLocomotion(check);
         CheckOutcomes(check);
 
         sim = CombatSimulation.Deploy(roster, roster.Mechs.Select(item => item.Id), 12);
@@ -139,7 +142,8 @@ internal static class CombatChecks
     {
         var sim = Battle(2); sim.EnemyAiEnabled = false;
         var friends = sim.Units.Where(item => item.Side == CombatSide.Friendly).ToArray(); var enemy = Enemy(sim);
-        friends[0].Position = Vector2.Zero; friends[1].Position = new Vector2(12, 3); enemy.Position = new Vector2(17, 0);
+        friends[0].Position = Vector2.Zero; friends[0].Facing = Vector2.Right;
+        friends[1].Position = new Vector2(12, 3); enemy.Position = new Vector2(17, 0);
         sim.RefreshDetection();
         check(friends[0].Position.DistanceTo(enemy.Position) > CombatRules.DetectionRadius
             && sim.Detected(CombatSide.Friendly, enemy.Id) && sim.SelectTarget(friends[0]) == enemy, "shared detection enables fire outside shooter's own detection radius");

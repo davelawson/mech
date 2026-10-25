@@ -103,7 +103,7 @@ public partial class CombatViewport : Control
         var model = MechModel.Create(unit.Spec, unit.Side);
         _world.AddChild(model); _models[unit.Id] = model;
     }
-    private void SyncModels()
+    private void SyncModels(float animationDelta = 0)
     {
         if (Simulation is null) return;
         foreach (var unit in Simulation.Units)
@@ -114,6 +114,8 @@ public partial class CombatViewport : Control
             model.Rotation = new Vector3(unit.Status == CombatStatus.Destroyed ? Mathf.Pi / 2 : 0,
                 Mathf.Atan2(-unit.Facing.X, -unit.Facing.Y), 0);
             model.SetCondition(unit.Intact);
+            model.AnimateLocomotion(animationDelta, unit.Active ? unit.CurrentSpeed : 0,
+                unit.WalkingSpeed, unit.RunningSpeed, unit.Active ? unit.AngularVelocity : 0);
         }
     }
     public static Vector3 World(Vector2 point, float height = 0) => new(point.X, height, point.Y);
@@ -210,7 +212,7 @@ public partial class CombatViewport : Control
         }
         for (var i = _effects.Count - 1; i >= 0; i--)
         { var effect = _effects[i]; _effects[i] = (effect.Shot, effect.Life - (float)delta); if (_effects[i].Life <= 0) _effects.RemoveAt(i); }
-        SyncModels(); QueueRedraw();
+        SyncModels(!Simulation.Paused && Simulation.Outcome == CombatOutcome.Ongoing ? (float)delta : 0); QueueRedraw();
     }
     private void Pan(Vector2 amount)
     {

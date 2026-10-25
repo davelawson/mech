@@ -2,10 +2,13 @@ using Godot;
 
 namespace Mech;
 
-/// <summary>A passive, rotating view of the same location-owned geometry used in combat.</summary>
+public enum PreviewGait { Idle, Walk, Run }
+
+/// <summary>A rotating view of the shared combat geometry with Awesome gait previews.</summary>
 public partial class MechPreview : Control
 {
     public MechModel? Model { get; private set; }
+    public PreviewGait Gait { get; set; }
     private Node3D _world = null!;
     private Camera3D _camera = null!;
     private OwnedMech? _owned;
@@ -66,6 +69,10 @@ public partial class MechPreview : Control
     }
     public override void _Process(double delta)
     {
-        if (IsVisibleInTree() && Model is not null) Model.RotateY((float)delta * .28f);
+        if (!IsVisibleInTree() || Model is null || _owned is null) return;
+        Model.RotateY((float)delta * .28f);
+        var walk = _owned.Spec.Walk * CombatRules.MovementScale;
+        var run = _owned.Spec.Run * CombatRules.MovementScale;
+        Model.AnimateLocomotion((float)delta, Gait == PreviewGait.Walk ? walk : Gait == PreviewGait.Run ? run : 0, walk, run);
     }
 }
