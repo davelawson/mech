@@ -1,0 +1,257 @@
+using Godot;
+
+namespace Mech;
+
+/// <summary>Procedural 3D stand-ins with a screen-space command/visibility overlay.</summary>
+public partial class CombatViewport : Control
+{
+    public event Action<IReadOnlyList<string>, bool>? SelectionRequested;
+    public event Action<Vector2, string?>? CommandRequested;
+    public CombatSimulation? Simulation { get; private set; }
+    public IReadOnlyCollection<string> Selection { get; set; } = Array.Empty<string>();
+    public string? InspectedEnemy { get; set; }
+    public bool CommandsEnabled { get; set; } = true;
+    public Camera3D Camera { get; private set; } = null!;
+    private SubViewport _viewport = null!;
+    private Node3D _world = null!;
+    private readonly Dictionary<string, Node3D> _models = [];
+    private readonly Dictionary<string, Dictionary<MechLocation, MeshInstance3D>> _parts = [];
+    private readonly List<(CombatShot Shot, float Life)> _effects = [];
+    private Vector3 _focus = new(0, 0, 12);
+    private float _yaw;
+    private bool _selecting;
+    private bool _panning;
+    private bool _rotating;
+    private Vector2 _dragStart;
+    private Vector2 _dragEnd;
+
+    public override void _Ready()
+    {
+        ClipContents = true; FocusMode = FocusModeEnum.All; MouseDefaultCursorShape = CursorShape.Cross;
+        var surface = new SubViewportContainer { Stretch = true, MouseFilter = MouseFilterEnum.Ignore, ShowBehindParent = true };
+        surface.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(surface);
+        _viewport = new SubViewport { OwnWorld3D = true, GuiDisableInput = true,
+            RenderTargetUpdateMode = SubViewport.UpdateMode.WhenVisible, HandleInputLocally = false };
+        surface.AddChild(_viewport);
+        _world = new Node3D(); _viewport.AddChild(_world);
+        Camera = new Camera3D { Projection = Camera3D.ProjectionType.Orthogonal, Size = 50, Far = 400, Current = true };
+        _world.AddChild(Camera);
+        var light = new DirectionalLight3D { RotationDegrees = new Vector3(-60, -30, 0), LightEnergy = 1.1f };
+        _world.AddChild(light);
+        _world.AddChild(new WorldEnvironment { Environment = new Godot.Environment
+        {
+            BackgroundMode = Godot.Environment.BGMode.Color, BackgroundColor = new Color("111b21"),
+            AmbientLightSource = Godot.Environment.AmbientSource.Color, AmbientLightColor = new Color("b1c1cc"), AmbientLightEnergy = .65f,
+            TonemapMode = Godot.Environment.ToneMapper.Filmic
+        } });
+        Box(_world, new Vector3(0, -.15f, 0), new Vector3(96, .2f, 96), new Color("26363b"));
+        var mesh = new ImmediateMesh();
+        mesh.SurfaceBegin(Mesh.PrimitiveType.Lines, new StandardMaterial3D
+        { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = new Color("3b5055") });
+        for (var n = -48; n <= 48; n += 8)
+        {
+            mesh.SurfaceAddVertex(new Vector3(n, 0, -48)); mesh.SurfaceAddVertex(new Vector3(n, 0, 48));
+            mesh.SurfaceAddVertex(new Vector3(-48, 0, n)); mesh.SurfaceAddVertex(new Vector3(48, 0, n));
+        }
+        mesh.SurfaceEnd(); _world.AddChild(new MeshInstance3D { Mesh = mesh });
+        Resized += QueueRedraw;
+        UpdateCamera();
+    }
+    public void Display(CombatSimulation simulation)
+    {
+        if (Simulation is not null) Simulation.ShotFired -= OnShot;
+        foreach (var model in _models.Values) { _world.RemoveChild(model); model.QueueFree(); }
+        _models.Clear(); _parts.Clear(); _effects.Clear();
+        Simulation = simulation; Simulation.ShotFired += OnShot;
+        _focus = new Vector3(0, 0, 12); _yaw = 0; Camera.Size = 50; UpdateCamera();
+        foreach (var unit in simulation.Units) CreateMech(unit);
+        CancelDrag(); SyncModels(); QueueRedraw();
+    }
+    private void OnShot(CombatShot shot)
+    {
+        if (Simulation is null) return;
+        if (Simulation.Unit(shot.AttackerId).Side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, shot.AttackerId))
+            _effects.Add((shot, .45f));
+    }
+    private static MeshInstance3D Box(Node3D parent, Vector3 position, Vector3 size, Color color)
+    {
+        var part = new MeshInstance3D { Position = position, Mesh = new BoxMesh { Size = size },
+            MaterialOverride = new StandardMaterial3D { AlbedoColor = color, Roughness = .85f } };
+        parent.AddChild(part); return part;
+    }
+    private void CreateMech(CombatUnit unit)
+    {
+        var root = new Node3D(); _world.AddChild(root); _models[unit.Id] = root;
+        var color = unit.Side == CombatSide.Friendly ? new Color("6bafbd") : new Color("d17c66");
+        var scale = .9f + unit.Spec.Tonnage / 200f; root.Scale = Vector3.One * scale;
+        var parts = new Dictionary<MechLocation, MeshInstance3D>
+        {
+            [MechLocation.CenterTorso] = Box(root, new(0, 1.45f, 0), new(.5f, .75f, .5f), color),
+            [MechLocation.Head] = Box(root, new(0, 2, -.08f), new(.3f, .28f, .35f), Ui.Gold),
+            [MechLocation.LeftTorso] = Box(root, new(-.4f, 1.5f, 0), new(.3f, .65f, .5f), color.Darkened(.12f)),
+            [MechLocation.RightTorso] = Box(root, new(.4f, 1.5f, 0), new(.3f, .65f, .5f), color.Darkened(.12f)),
+            [MechLocation.LeftArm] = Box(root, new(-.7f, 1.25f, -.1f), new(.22f, .8f, .35f), color),
+            [MechLocation.RightArm] = Box(root, new(.7f, 1.25f, -.1f), new(.22f, .8f, .35f), color),
+            [MechLocation.LeftLeg] = Box(root, new(-.23f, .55f, 0), new(.26f, 1.05f, .4f), color.Darkened(.25f)),
+            [MechLocation.RightLeg] = Box(root, new(.23f, .55f, 0), new(.26f, 1.05f, .4f), color.Darkened(.25f))
+        };
+        Box(root, new(0, 1.8f, -.3f), new(.35f, .12f, .12f), new Color("101c28"));
+        _parts[unit.Id] = parts;
+    }
+    private void SyncModels()
+    {
+        if (Simulation is null) return;
+        foreach (var unit in Simulation.Units)
+        {
+            var model = _models[unit.Id];
+            model.Visible = unit.Side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, unit.Id);
+            model.Position = World(unit.Position);
+            model.Rotation = new Vector3(unit.Status == CombatStatus.Destroyed ? Mathf.Pi / 2 : 0,
+                Mathf.Atan2(-unit.Facing.X, -unit.Facing.Y), 0);
+            foreach (var (location, part) in _parts[unit.Id]) part.Visible = unit.Intact(location);
+        }
+    }
+    public static Vector3 World(Vector2 point, float height = 0) => new(point.X, height, point.Y);
+    public Vector2 ScreenPoint(Vector2 point, float height = 0) => Camera.UnprojectPosition(World(point, height));
+    public Vector2 GroundPoint(Vector2 screen)
+    {
+        var from = Camera.ProjectRayOrigin(screen); var direction = Camera.ProjectRayNormal(screen);
+        var point = from + direction * (-from.Y / direction.Y);
+        return CombatRules.Clamp(new Vector2(point.X, point.Z));
+    }
+    public void CancelDrag() { _selecting = _panning = _rotating = false; QueueRedraw(); }
+    private void UpdateCamera()
+    {
+        Camera.Position = _focus + new Vector3(Mathf.Sin(_yaw) * 70, 80, Mathf.Cos(_yaw) * 70);
+        Camera.LookAt(_focus); QueueRedraw();
+    }
+    public override void _Process(double delta)
+    {
+        if (!IsVisibleInTree() || Simulation is null) return;
+        if (HasFocus() && CommandsEnabled)
+        {
+            var pan = Vector2.Zero;
+            if (Input.IsPhysicalKeyPressed(Key.W) || Input.IsPhysicalKeyPressed(Key.Up)) pan.Y--;
+            if (Input.IsPhysicalKeyPressed(Key.S) || Input.IsPhysicalKeyPressed(Key.Down)) pan.Y++;
+            if (Input.IsPhysicalKeyPressed(Key.A) || Input.IsPhysicalKeyPressed(Key.Left)) pan.X--;
+            if (Input.IsPhysicalKeyPressed(Key.D) || Input.IsPhysicalKeyPressed(Key.Right)) pan.X++;
+            if (pan != Vector2.Zero) Pan(pan * (float)delta * Camera.Size * .5f);
+            if (Input.IsPhysicalKeyPressed(Key.Q)) { _yaw -= (float)delta; UpdateCamera(); }
+            if (Input.IsPhysicalKeyPressed(Key.E)) { _yaw += (float)delta; UpdateCamera(); }
+        }
+        for (var i = _effects.Count - 1; i >= 0; i--)
+        { var effect = _effects[i]; _effects[i] = (effect.Shot, effect.Life - (float)delta); if (_effects[i].Life <= 0) _effects.RemoveAt(i); }
+        SyncModels(); QueueRedraw();
+    }
+    private void Pan(Vector2 amount)
+    {
+        var rotated = amount.Rotated(-_yaw);
+        _focus.X = Math.Clamp(_focus.X + rotated.X, -48, 48);
+        _focus.Z = Math.Clamp(_focus.Z + rotated.Y, -48, 48); UpdateCamera();
+    }
+    private CombatUnit? Pick(Vector2 at, CombatSide side) => Simulation?.Units
+        .Where(unit => unit.Side == side && (side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, unit.Id)))
+        .Where(unit => ScreenPoint(unit.Position, 1).DistanceTo(at) < 20)
+        .OrderBy(unit => ScreenPoint(unit.Position, 1).DistanceSquaredTo(at)).FirstOrDefault();
+    public override void _GuiInput(InputEvent input)
+    {
+        if (!CommandsEnabled || Simulation is null) return;
+        if (input is InputEventMouseButton mouse)
+        {
+            GrabFocus();
+            if (mouse.ButtonIndex is MouseButton.WheelUp or MouseButton.WheelDown && mouse.Pressed)
+            { Camera.Size = Math.Clamp(Camera.Size * (mouse.ButtonIndex == MouseButton.WheelUp ? .85f : 1.18f), 12, 140); AcceptEvent(); }
+            if (mouse.ButtonIndex == MouseButton.Middle)
+            { _panning = mouse.Pressed && !mouse.ShiftPressed; _rotating = mouse.Pressed && mouse.ShiftPressed; AcceptEvent(); }
+            if (mouse.ButtonIndex == MouseButton.Left)
+            {
+                if (mouse.Pressed) { _selecting = true; _dragStart = _dragEnd = mouse.Position; }
+                else if (_selecting)
+                {
+                    _selecting = false;
+                    if (_dragStart.DistanceTo(mouse.Position) < 6)
+                    {
+                        var friendly = Pick(mouse.Position, CombatSide.Friendly);
+                        InspectedEnemy = friendly is null ? Pick(mouse.Position, CombatSide.Enemy)?.Id : null;
+                        SelectionRequested?.Invoke(friendly is null ? Array.Empty<string>() : [friendly.Id], mouse.ShiftPressed);
+                    }
+                    else
+                    {
+                        InspectedEnemy = null;
+                        var rect = new Rect2(_dragStart, mouse.Position - _dragStart).Abs();
+                        SelectionRequested?.Invoke(Simulation.Units.Where(unit => unit.Side == CombatSide.Friendly
+                            && rect.HasPoint(ScreenPoint(unit.Position, 1))).Select(unit => unit.Id).ToArray(), mouse.ShiftPressed);
+                    }
+                }
+                AcceptEvent();
+            }
+            if (mouse.ButtonIndex == MouseButton.Right && mouse.Pressed)
+            { var target = Pick(mouse.Position, CombatSide.Enemy); CommandRequested?.Invoke(GroundPoint(mouse.Position), target?.Id); AcceptEvent(); }
+        }
+        if (input is InputEventMouseMotion motion)
+        {
+            if (_selecting) _dragEnd = motion.Position;
+            if (_panning) Pan(-motion.Relative * Camera.Size / Math.Max(1, Size.Y));
+            if (_rotating) { _yaw -= motion.Relative.X * .008f; UpdateCamera(); }
+        }
+        if (input is InputEventKey { Pressed: true, Keycode: Key.Home })
+        { _focus = Vector3.Zero; _yaw = 0; Camera.Size = 110; UpdateCamera(); AcceptEvent(); }
+    }
+    public override void _Draw()
+    {
+        if (Simulation is null || Camera is null) return;
+        var font = ThemeDB.FallbackFont;
+        var center = ScreenPoint(Vector2.Zero);
+        DrawString(font, center + new Vector2(-42, -8), "ARENA CENTER", HorizontalAlignment.Left, -1, 12, new Color(Ui.Muted, .7f));
+        var friendlyIndex = 0;
+        foreach (var unit in Simulation.Units)
+        {
+            var friendly = unit.Side == CombatSide.Friendly;
+            if (friendly) friendlyIndex++;
+            if (!friendly && !Simulation.Detected(CombatSide.Friendly, unit.Id)) continue;
+            var at = ScreenPoint(unit.Position);
+            var color = friendly ? new Color("85d0df") : new Color("ee9c85");
+            if (!unit.Active) color = Ui.Muted;
+            if (Selection.Contains(unit.Id))
+            {
+                if (Selection.Count == 1 && unit.Active)
+                {
+                    var radius = CombatRules.DetectionRadius;
+                    for (var segment = 0; segment < 64; segment++)
+                        DrawLine(ScreenPoint(unit.Position + Vector2.FromAngle(segment * Mathf.Tau / 64) * radius),
+                            ScreenPoint(unit.Position + Vector2.FromAngle((segment + 1) * Mathf.Tau / 64) * radius), new Color(color, .25f), 1, true);
+                }
+                DrawArc(at, Math.Max(10, 1.15f * Size.Y / Camera.Size), 0, Mathf.Tau, 32, Ui.Gold, 2, true);
+                DrawCircle(at, 3, Ui.Gold);
+                var to = unit.Order == CombatOrder.Move ? unit.Destination : unit.AttackTarget is { } id
+                    && Simulation.Contacts(unit.Side).TryGetValue(id, out var contact) ? contact.LastKnownPosition : unit.Position;
+                if (to.DistanceTo(unit.Position) > .4f) { var end = ScreenPoint(to); DrawLine(at, end, new Color(Ui.Gold, .65f), 1, true); DrawArc(end, 5, 0, Mathf.Tau, 16, Ui.Gold); }
+                if (unit.PriorityTarget is { } priority && Simulation.Contacts(unit.Side).TryGetValue(priority, out var preferred))
+                    DrawArc(ScreenPoint(preferred.LastKnownPosition), 16, 0, Mathf.Tau, 24, Ui.Gold, 1, true);
+            }
+            var forward = ScreenPoint(unit.Position + unit.Facing * 1.5f);
+            DrawLine(at, forward, color, 2, true);
+            var label = ScreenPoint(unit.Position, 3);
+            var text = friendly ? Selection.Count == 1 && Selection.Contains(unit.Id) ? $"{friendlyIndex} · {unit.Warrior.Callsign}" : friendlyIndex.ToString()
+                : InspectedEnemy == unit.Id ? unit.Spec.DisplayName : unit.Id.Replace("enemy-", "E", StringComparison.Ordinal);
+            var labelOffset = new Vector2(-font.GetStringSize(text, fontSize: 12).X / 2, -4);
+            DrawStringOutline(font, label + labelOffset, text, HorizontalAlignment.Left, -1, 12, 4, new Color("101820"));
+            DrawString(font, label + labelOffset, text, HorizontalAlignment.Left, -1, 12, color);
+        }
+        foreach (var contact in Simulation.Contacts(CombatSide.Friendly).Values.Where(item => !item.Detected))
+        {
+            var at = ScreenPoint(contact.LastKnownPosition);
+            DrawArc(at, 10, 0, Mathf.Tau, 16, Ui.Muted, 1, true);
+            DrawString(font, at + new Vector2(13, 4), $"? Last seen {Math.Max(0, Simulation.Elapsed - contact.LastSeenAt):0}s", HorizontalAlignment.Left, -1, 12, Ui.Muted);
+        }
+        foreach (var (shot, life) in _effects)
+        {
+            var color = shot.Hit ? Ui.Gold : Ui.Muted;
+            var to = shot.Hit ? shot.To : shot.To + new Vector2(1, 1);
+            DrawLine(ScreenPoint(shot.From, 1.5f), ScreenPoint(to, 1), new Color(color, life / .45f), shot.Weapon.Contains("Laser") || shot.Weapon == "PPC" ? 3 : 1, true);
+            if (shot.Hit) DrawArc(ScreenPoint(to, 1), (1 - life / .45f) * 14 + 3, 0, Mathf.Tau, 16, new Color(color, life / .45f), 2, true);
+        }
+        if (_selecting && _dragStart.DistanceTo(_dragEnd) > 5)
+        { var rect = new Rect2(_dragStart, _dragEnd - _dragStart).Abs(); DrawRect(rect, new Color(Ui.Gold, .12f)); DrawRect(rect, Ui.Gold, false); }
+    }
+}

@@ -7,8 +7,10 @@ public partial class HangarScreen : Control
     public event Action? BackRequested;
     public event Action<string, string?>? AssignmentRequested;
     public event Action? WarriorDetailsRequested;
+    public event Action? DeploymentRequested;
     public Button BackButton { get; private set; } = null!;
     public Button WarriorsButton { get; private set; } = null!;
+    public Button DeploymentButton { get; private set; } = null!;
     public OptionButton PilotPicker { get; private set; } = null!;
     public Button AssignButton { get; private set; } = null!;
     public Button UnassignButton { get; private set; } = null!;
@@ -38,6 +40,7 @@ public partial class HangarScreen : Control
         tint.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(tint);
         _mech = RosterUi.Picture(this, "", Vector2.Zero);
         _title = Ui.Label(this, "MECH HANGAR", 25, Ui.Gold);
+        _title.ClipText = true;
         BackButton = Ui.Button(this, "Back to office"); BackButton.Pressed += () => BackRequested?.Invoke();
         _pilotPanel = Panel(); _detailsPanel = Panel();
         var pilotBody = RosterUi.Scroll(_pilotPanel);
@@ -51,6 +54,8 @@ public partial class HangarScreen : Control
         AssignButton.Pressed += () => { if (PilotPicker.Selected >= 0 && PilotPicker.Selected < _pilotIds.Count) AssignmentRequested?.Invoke(SelectedMech.Id, _pilotIds[PilotPicker.Selected]); };
         UnassignButton = Ui.Button(pilotBody, "Unassign"); UnassignButton.Pressed += () => AssignmentRequested?.Invoke(SelectedMech.Id, null);
         WarriorsButton = Ui.Button(pilotBody, "View MechWarriors"); WarriorsButton.Pressed += () => WarriorDetailsRequested?.Invoke();
+        DeploymentButton = Ui.Button(this, "Simulate Deployment");
+        DeploymentButton.Pressed += () => DeploymentRequested?.Invoke();
         _details = new MechDetails { SizeFlagsVertical = SizeFlags.ExpandFill }; _detailsPanel.AddChild(_details);
         _rosterScroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Auto, VerticalScrollMode = ScrollContainer.ScrollMode.Disabled };
         AddChild(_rosterScroll); _rosterButtons = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; _rosterButtons.AddThemeConstantOverride("separation", 8); _rosterScroll.AddChild(_rosterButtons);
@@ -108,7 +113,8 @@ public partial class HangarScreen : Control
     {
         if (_background is null) return;
         Ui.Place(_background, 0, 0, Size.X, Size.Y);
-        Ui.Place(_title, 24, 8, Size.X - 220, 48); Ui.Place(BackButton, Size.X - 174, 14, 150, 36);
+        Ui.Place(_title, 24, 8, Size.X - 438, 48);
+        Ui.Place(DeploymentButton, Size.X - 394, 14, 210, 36); Ui.Place(BackButton, Size.X - 174, 14, 150, 36);
         var leftWidth = Size.X < 1050 ? 196 : 246; var rightWidth = Size.X < 1050 ? 330 : 390;
         Ui.Place(_pilotPanel, 24, 70, leftWidth, Size.Y - 164);
         Ui.Place(_detailsPanel, Size.X - rightWidth - 24, 70, rightWidth, Size.Y - 164);

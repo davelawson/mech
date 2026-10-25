@@ -19,6 +19,7 @@ public partial class SmokeTests : Node
             TravelChecks.Run(Check);
             RosterChecks.Run(Check);
             MissionChecks.Run(Check);
+            CombatChecks.Run(Check);
             _app = ResourceLoader.Load<PackedScene>("res://Scenes/Command.tscn").Instantiate<CommandApp>();
             _app.SavePath = $"user://smoke-{Guid.NewGuid():N}.json";
             _saveFile = ProjectSettings.GlobalizePath(_app.SavePath);
@@ -69,6 +70,7 @@ public partial class SmokeTests : Node
             _app.StarMap.BackButton.EmitSignal(BaseButton.SignalName.Pressed);
             await Frames();
             Check(_app.Office.Hotspot.HasFocus(), "Back button restores wall-map focus");
+            await TestCombatUi();
             await TestRosterUi();
             await TestMissionsUi();
             await TestBackNavigationUi();
@@ -81,7 +83,7 @@ public partial class SmokeTests : Node
             await Frames();
             _app.QueueFree();
             await Frames();
-            GD.Print($"PASS: {_checks} checks; draft, rosters, assignments, health, migration, missions, star travel, quarterly transit billing, navigation, input and resizing.");
+            GD.Print($"PASS: {_checks} checks; tactical combat, deployment, campaign isolation, draft, rosters, missions, travel, finances, navigation, input and resizing.");
             GetTree().Quit(0);
         }
         catch (Exception error)

@@ -1,0 +1,392 @@
+using Godot;
+using System.Globalization;
+
+namespace Mech;
+
+public enum CombatSide { Friendly, Enemy }
+public enum CombatOrder { Hold, Move, Attack }
+public enum MovementMode { Walk, Run }
+public enum FiringMode { FireAtWill, HoldFire }
+public enum CombatOutcome { Ongoing, Victory, Defeat, Draw, Ended }
+public enum CombatStatus { Active, Disabled, Destroyed }
+
+/// <summary>Authored first-slice values. Distances are stock range hexes, time is seconds.</summary>
+public static class CombatRules
+{
+    public const float ArenaHalfSize = 48;
+    public const float DetectionRadius = 15;
+    public const float UnitRadius = .65f;
+    public const float MovementScale = .12f;
+    public const int AimModifier = 3;
+    public const double StepSeconds = .05;
+    public static float Cooldown(WeaponSpec weapon) => weapon.Name switch
+    {
+        "Machine Gun" => 4, "Flamer" => 6, "Small Laser" => 6, "Medium Laser" => 8,
+        _ => 10
+    };
+    public static int Damage(WeaponSpec weapon)
+    {
+        var packet = int.Parse(weapon.Damage.Split(' ')[0], CultureInfo.InvariantCulture);
+        // Missiles use a single roll/packet for the entire rack in this slice.
+        if (weapon.Damage.Contains("/ missile", StringComparison.Ordinal))
+            packet *= int.Parse(weapon.Name.Split(' ')[^1], CultureInfo.InvariantCulture);
+        return packet;
+    }
+    public static Vector2 Clamp(Vector2 point) => point.Clamp(
+        Vector2.One * (-ArenaHalfSize + UnitRadius), Vector2.One * (ArenaHalfSize - UnitRadius));
+}
+
+public sealed class CombatLocation
+{
+    public MechLocation Location { get; }
+    public int Armor { get; internal set; }
+    public int RearArmor { get; }
+    public int Structure { get; internal set; }
+    public int InitialArmor { get; }
+    public int InitialStructure { get; }
+    internal CombatLocation(LocationCondition source)
+    {
+        Location = source.Location; Armor = InitialArmor = source.Armor;
+        Structure = InitialStructure = source.Structure; RearArmor = source.RearArmor;
+    }
+}
+
+public sealed class CombatWeapon
+{
+    public WeaponSpec Spec { get; }
+    public bool Enabled { get; set; } = true;
+    public double Remaining { get; internal set; }
+    public int Damage => CombatRules.Damage(Spec);
+    internal CombatWeapon(WeaponSpec spec) { Spec = spec; }
+}
+
+/// <summary>A private copy of deployed condition. No reference to an owned mech or campaign is retained.</summary>
+public sealed class CombatUnit
+{
+    public string Id { get; }
+    public MechSpec Spec { get; }
+    public WarriorSpec Warrior { get; }
+    public CombatSide Side { get; }
+    public IReadOnlyDictionary<MechLocation, CombatLocation> Locations { get; }
+    public IReadOnlyList<CombatWeapon> Weapons { get; }
+    public IReadOnlyDictionary<string, ComponentCondition> Equipment { get; }
+    public IReadOnlyList<AmmoCondition> Ammo { get; }
+    public Vector2 Position { get; internal set; }
+    public Vector2 Destination { get; internal set; }
+    public Vector2 Facing { get; internal set; }
+    public bool Moving { get; internal set; }
+    public CombatOrder Order { get; internal set; }
+    public string? AttackTarget { get; internal set; }
+    public string? PriorityTarget { get; internal set; }
+    public string? CurrentTarget { get; internal set; }
+    public MovementMode Movement { get; set; }
+    public FiringMode Firing { get; set; }
+    public float PreferredDistance { get; set; }
+    public int ShotsFired { get; internal set; }
+    public int Hits { get; internal set; }
+    public int DamageDealt { get; internal set; }
+    internal CombatUnit(string id, MechSpec spec, WarriorSpec warrior, CombatSide side,
+        IEnumerable<LocationCondition> locations, IEnumerable<EquipmentCondition> equipment,
+        IEnumerable<AmmoCondition> ammo, Vector2 position)
+    {
+        Id = id; Spec = spec; Warrior = warrior; Side = side; Position = Destination = position;
+        Facing = side == CombatSide.Friendly ? Vector2.Up : Vector2.Down;
+        Locations = locations.ToDictionary(item => item.Location, item => new CombatLocation(item));
+        Equipment = equipment.ToDictionary(item => item.Id, item => item.Condition);
+        Ammo = Array.AsReadOnly(ammo.ToArray());
+        Weapons = Array.AsReadOnly(spec.Weapons.Select(item => new CombatWeapon(item)).ToArray());
+        // A damage-weighted short-range preference keeps mixed loadouts relevant.
+        var usable = Weapons.Where(WeaponUsable).ToArray();
+        PreferredDistance = usable.Length == 0 ? 3 : Math.Clamp(
+            usable.Sum(item => item.Spec.Short * item.Damage) / (float)usable.Sum(item => item.Damage), 1, 15);
+    }
+    public bool Intact(MechLocation location) => Locations[location].Structure > 0;
+    public bool WeaponUsable(CombatWeapon weapon) => Intact(weapon.Spec.Location)
+        && Equipment[weapon.Spec.Id] != ComponentCondition.Destroyed
+        && (weapon.Spec.AmmoType is null || Spec.Ammo.Any(bin => bin.AmmoType == weapon.Spec.AmmoType
+            && Intact(bin.Location) && Equipment[bin.Id] != ComponentCondition.Destroyed
+            && Ammo.Any(item => item.Id == bin.Id && item.Shots > 0)));
+    public CombatStatus Status => !Intact(MechLocation.Head) || !Intact(MechLocation.CenterTorso)
+        ? CombatStatus.Destroyed : (!Intact(MechLocation.LeftLeg) && !Intact(MechLocation.RightLeg))
+            || !Weapons.Any(WeaponUsable) ? CombatStatus.Disabled : CombatStatus.Active;
+    public bool Active => Status == CombatStatus.Active;
+    public float Speed => !Active ? 0 : (Movement == MovementMode.Run ? Spec.Run : Spec.Walk)
+        * CombatRules.MovementScale * ((!Intact(MechLocation.LeftLeg) || !Intact(MechLocation.RightLeg)) ? .5f : 1);
+    public int ArmorLost => Locations.Values.Sum(item => item.InitialArmor - item.Armor);
+    public int StructureLost => Locations.Values.Sum(item => item.InitialStructure - item.Structure);
+
+    public void ApplyDamage(MechLocation location, int damage)
+    {
+        if (damage < 0) throw new ArgumentOutOfRangeException(nameof(damage));
+        while (damage > 0)
+        {
+            var part = Locations[location];
+            if (part.Structure > 0)
+            {
+                var armor = Math.Min(damage, part.Armor); part.Armor -= armor; damage -= armor;
+                var structure = Math.Min(damage, part.Structure); part.Structure -= structure; damage -= structure;
+                if (part.Structure == 0)
+                {
+                    if (location == MechLocation.LeftTorso) DestroyAttachedArm(MechLocation.LeftArm);
+                    if (location == MechLocation.RightTorso) DestroyAttachedArm(MechLocation.RightArm);
+                }
+            }
+            var next = location switch
+            {
+                MechLocation.LeftArm => MechLocation.LeftTorso,
+                MechLocation.RightArm => MechLocation.RightTorso,
+                MechLocation.LeftTorso or MechLocation.RightTorso or MechLocation.LeftLeg or MechLocation.RightLeg => MechLocation.CenterTorso,
+                _ => (MechLocation?)null
+            };
+            if (next is null) break;
+            location = next.Value;
+        }
+    }
+    private void DestroyAttachedArm(MechLocation location)
+    { Locations[location].Armor = 0; Locations[location].Structure = 0; }
+}
+
+public sealed class CombatContact
+{
+    public string UnitId { get; }
+    public bool Detected { get; internal set; }
+    public Vector2 LastKnownPosition { get; internal set; }
+    public double LastSeenAt { get; internal set; }
+    internal CombatContact(string id) { UnitId = id; }
+}
+
+public sealed record CombatShot(string AttackerId, string TargetId, Vector2 From, Vector2 To,
+    string Weapon, bool Hit, MechLocation Location, int Damage);
+
+/// <summary>Deterministic fixed-step combat with shared detection and simultaneous weapon resolution.</summary>
+public sealed class CombatSimulation
+{
+    public IReadOnlyList<CombatUnit> Units { get; }
+    public bool Paused { get; set; } = true;
+    public double Elapsed { get; private set; }
+    public CombatOutcome Outcome { get; private set; }
+    public event Action<CombatShot>? ShotFired;
+    private readonly Random _random;
+    private readonly Dictionary<CombatSide, Dictionary<string, CombatContact>> _contacts = new()
+    { [CombatSide.Friendly] = [], [CombatSide.Enemy] = [] };
+    private double _accumulator;
+    internal bool EnemyAiEnabled { get; set; } = true;
+
+    public static string? UnavailableReason(ForceRoster roster, OwnedMech mech)
+    {
+        var reasons = new List<string>(); var warrior = roster.Pilot(mech);
+        if (!mech.Operational) reasons.Add("BattleMech not operational");
+        if (warrior is null) reasons.Add("No assigned MechWarrior");
+        else if (!warrior.Ready) reasons.Add(warrior.Status);
+        return reasons.Count == 0 ? null : string.Join(" · ", reasons);
+    }
+
+    public static CombatSimulation Deploy(ForceRoster roster, IEnumerable<string> selected, int? seed = null)
+    {
+        var ids = selected.ToArray();
+        if (ids.Length is < 1 or > 4 || ids.Distinct().Count() != ids.Length)
+            throw new ArgumentException("Select one to four different BattleMechs.");
+        var units = new List<CombatUnit>();
+        for (var i = 0; i < ids.Length; i++)
+        {
+            var source = roster.Mechs.SingleOrDefault(item => item.Id == ids[i])
+                ?? throw new ArgumentException("Unknown BattleMech.");
+            if (UnavailableReason(roster, source) is { } reason) throw new ArgumentException(reason);
+            var pilot = roster.Pilot(source)!.Spec;
+            var x = (i - (ids.Length - 1) / 2f) * 4;
+            units.Add(new(source.Id, source.Spec, pilot, CombatSide.Friendly, source.Locations,
+                source.Equipment, source.Ammo, new Vector2(x, 32)));
+            var spec = source.Spec;
+            units.Add(new($"enemy-{i + 1}", spec, pilot, CombatSide.Enemy,
+                spec.Locations.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)),
+                source.Equipment.Select(item => new EquipmentCondition(item.Id, ComponentCondition.Operational)),
+                spec.Ammo.Select(item => new AmmoCondition(item.Id, item.Shots)), new Vector2(x, -32)));
+        }
+        return new CombatSimulation(units, seed ?? Random.Shared.Next());
+    }
+    internal CombatSimulation(IEnumerable<CombatUnit> units, int seed)
+    { Units = Array.AsReadOnly(units.ToArray()); _random = new Random(seed); RefreshDetection(); }
+    public CombatUnit Unit(string id) => Units.Single(item => item.Id == id);
+    public IReadOnlyDictionary<string, CombatContact> Contacts(CombatSide side) => _contacts[side];
+    public bool Detected(CombatSide side, string id) => _contacts[side].TryGetValue(id, out var contact) && contact.Detected;
+
+    internal void RefreshDetection()
+    {
+        foreach (var side in Enum.GetValues<CombatSide>())
+        {
+            var observers = Units.Where(item => item.Side == side && item.Active).ToArray();
+            foreach (var target in Units.Where(item => item.Side != side))
+            {
+                var visible = observers.Any(item => item.Position.DistanceTo(target.Position) <= CombatRules.DetectionRadius);
+                if (!_contacts[side].TryGetValue(target.Id, out var contact))
+                {
+                    if (!visible) continue;
+                    contact = new CombatContact(target.Id); _contacts[side].Add(target.Id, contact);
+                }
+                contact.Detected = visible;
+                if (visible) { contact.LastKnownPosition = target.Position; contact.LastSeenAt = Elapsed; }
+            }
+        }
+    }
+    public void Move(IEnumerable<string> ids, Vector2 destination)
+    {
+        var group = ids.Distinct().Select(Unit).Where(item => item.Active).ToArray();
+        var assigned = new List<Vector2>();
+        for (var i = 0; i < group.Length; i++)
+        {
+            // Reserve separate destinations even when the clicked point is against a boundary.
+            var offset = new Vector2((i % 2 - (group.Length > 1 ? .5f : 0)) * 2.4f, i / 2 * 2.4f);
+            var goal = CombatRules.Clamp(destination + offset);
+            for (var attempt = 0; assigned.Any(point => point.DistanceTo(goal) < CombatRules.UnitRadius * 2.1f) && attempt < 100; attempt++)
+                goal = CombatRules.Clamp(destination + Vector2.FromAngle(attempt * 2.4f) * (2 + attempt * .15f));
+            assigned.Add(goal); group[i].Destination = goal; group[i].Order = CombatOrder.Move; group[i].AttackTarget = null;
+        }
+    }
+    public void Attack(IEnumerable<string> ids, string targetId)
+    {
+        var target = Unit(targetId);
+        foreach (var unit in ids.Distinct().Select(Unit).Where(item => item.Active && item.Side != target.Side && Detected(item.Side, targetId) && target.Active))
+        { unit.Order = CombatOrder.Attack; unit.AttackTarget = targetId; }
+    }
+    public void SetPriority(IEnumerable<string> ids, string? targetId)
+    {
+        foreach (var unit in ids.Distinct().Select(Unit).Where(item => item.Active))
+            if (targetId is null || (Unit(targetId).Side != unit.Side && Detected(unit.Side, targetId) && Unit(targetId).Active))
+                unit.PriorityTarget = targetId;
+    }
+    public void Hold(IEnumerable<string> ids)
+    {
+        foreach (var unit in ids.Distinct().Select(Unit).Where(item => item.Active))
+        { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
+    }
+    public void End() { if (Outcome == CombatOutcome.Ongoing) { Outcome = CombatOutcome.Ended; Paused = true; } }
+    public void Advance(double delta)
+    {
+        if (!double.IsFinite(delta) || delta < 0) throw new ArgumentOutOfRangeException(nameof(delta));
+        if (Paused || Outcome != CombatOutcome.Ongoing) return;
+        _accumulator += delta;
+        while (_accumulator + 1e-9 >= CombatRules.StepSeconds && Outcome == CombatOutcome.Ongoing)
+        { _accumulator -= CombatRules.StepSeconds; Step((float)CombatRules.StepSeconds); }
+    }
+    private void Step(float delta)
+    {
+        Elapsed += CombatRules.StepSeconds;
+        RefreshDetection();
+        if (EnemyAiEnabled) UpdateAi();
+        foreach (var unit in Units) unit.Moving = false;
+        foreach (var unit in Units.Where(item => item.Active)) MoveUnit(unit, delta);
+        RefreshDetection();
+        var shots = new List<CombatShot>();
+        foreach (var unit in Units.Where(item => item.Active))
+        {
+            foreach (var weapon in unit.Weapons) weapon.Remaining = Math.Max(0, weapon.Remaining - delta);
+            var target = SelectTarget(unit); unit.CurrentTarget = target?.Id;
+            if (target is null) continue;
+            if (!unit.Moving) unit.Facing = (target.Position - unit.Position).Normalized();
+            foreach (var weapon in unit.Weapons.Where(item => item.Enabled && item.Remaining <= 1e-6 && unit.WeaponUsable(item)))
+            {
+                if (unit.Position.DistanceTo(target.Position) > weapon.Spec.Long) continue;
+                var hit = _random.NextDouble() < HitChance(unit, target, weapon);
+                var location = RollLocation();
+                shots.Add(new(unit.Id, target.Id, unit.Position, target.Position, weapon.Spec.Name, hit, location, hit ? weapon.Damage : 0));
+                weapon.Remaining = CombatRules.Cooldown(weapon.Spec); unit.ShotsFired++;
+                if (hit) { unit.Hits++; unit.DamageDealt += weapon.Damage; }
+            }
+        }
+        // All shooters and rolls are captured before any damage or casualty can invalidate a return shot.
+        foreach (var shot in shots)
+            if (shot.Hit) Unit(shot.TargetId).ApplyDamage(shot.Location, shot.Damage);
+        foreach (var shot in shots) ShotFired?.Invoke(shot);
+        foreach (var unit in Units.Where(item => !item.Active)) { unit.Moving = false; unit.CurrentTarget = null; }
+        var friendly = Units.Any(item => item.Side == CombatSide.Friendly && item.Active);
+        var enemy = Units.Any(item => item.Side == CombatSide.Enemy && item.Active);
+        if (!friendly || !enemy)
+        {
+            Outcome = friendly ? CombatOutcome.Victory : enemy ? CombatOutcome.Defeat : CombatOutcome.Draw;
+            Paused = true;
+        }
+    }
+    private void UpdateAi()
+    {
+        foreach (var unit in Units.Where(item => item.Side == CombatSide.Enemy && item.Active))
+        {
+            var nearest = Units.Where(item => item.Side != unit.Side && item.Active && Detected(unit.Side, item.Id))
+                .OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
+            if (nearest is not null) { unit.Order = CombatOrder.Attack; unit.AttackTarget = nearest.Id; }
+            else if (unit.Order != CombatOrder.Attack && unit.Position.Length() > 2)
+            { unit.Order = CombatOrder.Move; unit.Destination = new Vector2(unit.Position.X * .1f, 0); }
+        }
+    }
+    private void MoveUnit(CombatUnit unit, float delta)
+    {
+        Vector2? goal = null;
+        if (unit.Order == CombatOrder.Move) goal = unit.Destination;
+        else if (unit.Order == CombatOrder.Attack && unit.AttackTarget is { } id)
+        {
+            if (Detected(unit.Side, id))
+            {
+                var target = Unit(id);
+                if (!target.Active) { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; return; }
+                var away = unit.Position - target.Position;
+                if (away.Length() < .01f) away = unit.Side == CombatSide.Friendly ? Vector2.Down : Vector2.Up;
+                if (Math.Abs(away.Length() - unit.PreferredDistance) > .4f)
+                    goal = CombatRules.Clamp(target.Position + away.Normalized() * unit.PreferredDistance);
+            }
+            else if (_contacts[unit.Side].TryGetValue(id, out var contact)) goal = contact.LastKnownPosition;
+            else { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
+        }
+        if (goal is null) return;
+        var remaining = goal.Value - unit.Position;
+        if (remaining.Length() < .2f)
+        {
+            if (unit.Order == CombatOrder.Move || (unit.AttackTarget is { } lost && !Detected(unit.Side, lost)))
+            { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
+            return;
+        }
+        var travel = Math.Min(remaining.Length(), unit.Speed * delta);
+        var direction = remaining.Normalized();
+        // Steer around occupied discs. Check swept segments so large deltas cannot tunnel through units.
+        foreach (var angle in new[] { 0f, .52f, -.52f, 1.05f, -1.05f, 1.57f, -1.57f })
+        {
+            var candidate = CombatRules.Clamp(unit.Position + direction.Rotated(angle) * travel);
+            if (candidate.DistanceSquaredTo(unit.Position) < 1e-10f) continue;
+            if (Units.Any(other => other != unit && DistanceToSegment(other.Position, unit.Position, candidate) < CombatRules.UnitRadius * 2)) continue;
+            unit.Facing = (candidate - unit.Position).Normalized(); unit.Position = candidate; unit.Moving = true; break;
+        }
+    }
+    private static float DistanceToSegment(Vector2 point, Vector2 from, Vector2 to)
+    {
+        var segment = to - from;
+        var t = segment.LengthSquared() < 1e-10f ? 0 : Math.Clamp((point - from).Dot(segment) / segment.LengthSquared(), 0, 1);
+        return point.DistanceTo(from + segment * t);
+    }
+    public CombatUnit? SelectTarget(CombatUnit unit)
+    {
+        bool Engageable(CombatUnit target) => target.Side != unit.Side && target.Active && Detected(unit.Side, target.Id)
+            && unit.Weapons.Any(weapon => weapon.Enabled && unit.WeaponUsable(weapon) && unit.Position.DistanceTo(target.Position) <= weapon.Spec.Long);
+        if (unit.AttackTarget is { } attack && unit.Order == CombatOrder.Attack && Engageable(Unit(attack))) return Unit(attack);
+        if (unit.Firing == FiringMode.HoldFire) return null;
+        if (unit.PriorityTarget is { } priority && Engageable(Unit(priority))) return Unit(priority);
+        if (unit.CurrentTarget is { } current && Engageable(Unit(current))) return Unit(current);
+        return Units.Where(Engageable).OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
+    }
+    public static double HitChance(CombatUnit attacker, CombatUnit target, CombatWeapon weapon)
+    {
+        var distance = attacker.Position.DistanceTo(target.Position);
+        if (distance > weapon.Spec.Long || !attacker.WeaponUsable(weapon)) return 0;
+        var range = distance <= weapon.Spec.Short ? 0 : distance <= weapon.Spec.Medium ? 2 : 4;
+        var minimum = distance < weapon.Spec.Minimum ? (int)Math.Ceiling(weapon.Spec.Minimum - distance) : 0;
+        var threshold = attacker.Warrior.Gunnery + CombatRules.AimModifier + range + minimum
+            + (attacker.Moving ? attacker.Movement == MovementMode.Run ? 2 : 1 : 0)
+            + (target.Moving ? target.Movement == MovementMode.Run ? 2 : 1 : 0);
+        var successes = 0;
+        for (var a = 1; a <= 6; a++) for (var b = 1; b <= 6; b++) if (a + b >= threshold) successes++;
+        return successes / 36.0;
+    }
+    private MechLocation RollLocation() => (_random.Next(1, 7) + _random.Next(1, 7)) switch
+    {
+        2 or 7 => MechLocation.CenterTorso, 3 or 4 => MechLocation.RightArm, 5 => MechLocation.RightLeg,
+        6 => MechLocation.RightTorso, 8 => MechLocation.LeftTorso, 9 => MechLocation.LeftLeg,
+        10 or 11 => MechLocation.LeftArm, _ => MechLocation.Head
+    };
+}

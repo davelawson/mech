@@ -58,3 +58,28 @@ The forced dissolution of the mercenary force when, at the end of its three-mont
 
 **Wreck**:
 A destroyed BattleMech recovered from a mission, distinct from an unrecoverable mech, which may retain sale value.
+
+**Attack order**:
+A command to reach and attack a specified target, with the MechWarrior finding a path as necessary.
+
+**Priority target**:
+A preferred target for a MechWarrior to select when an opportunity presents, without itself directing movement or pursuit.
+_Avoid_: Attack order
+
+**Preferred engagement distance**:
+The player-adjustable distance a MechWarrior attempts to establish and maintain from the target of an attack order.
+
+**Last-known position**:
+The position at which an enemy was last detected, which does not track its movement after detection is lost.
+
+**Simulated deployment**:
+A practice battle launched from the mech hangar that reports a combat outcome without changing the mercenary force or campaign.
+
+**Force selection**:
+The choice of BattleMechs and assigned MechWarriors to participate in a deployment, including a simulated deployment.
+
+**Disabled BattleMech**:
+A BattleMech unable to continue fighting because it has lost both legs or all usable weapons, distinct from a destroyed BattleMech.
+
+**Destroyed BattleMech**:
+A BattleMech whose head or center torso has been destroyed, distinct from a disabled BattleMech. If recovered from a mission, it is a wreck.

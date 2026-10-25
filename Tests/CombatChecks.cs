@@ -1,0 +1,273 @@
+using Godot;
+using System.Text.Json;
+
+namespace Mech.Tests;
+
+internal static class CombatChecks
+{
+    private static ForceRoster Roster(int count = 1, string definition = "awesome")
+    {
+        var roster = ForceRoster.Create("Tactical checks", Enumerable.Repeat(DraftCatalog.Mech(definition), count), DraftCatalog.Warriors.Take(count));
+        for (var i = 0; i < count; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
+        return roster;
+    }
+    private static CombatSimulation Battle(int count = 1, string definition = "awesome", int seed = 41)
+    { var roster = Roster(count, definition); return CombatSimulation.Deploy(roster, roster.Mechs.Select(item => item.Id), seed); }
+    private static CombatUnit Friendly(CombatSimulation sim) => sim.Units.First(item => item.Side == CombatSide.Friendly);
+    private static CombatUnit Enemy(CombatSimulation sim) => sim.Units.First(item => item.Side == CombatSide.Enemy);
+    private static void Arrange(CombatSimulation sim, float distance = 8)
+    {
+        sim.EnemyAiEnabled = false;
+        Friendly(sim).Position = Vector2.Zero; Enemy(sim).Position = new Vector2(distance, 0);
+        sim.RefreshDetection();
+    }
+    public static void Run(Action<bool, string> check)
+    {
+        void Reject(Action action, string message)
+        {
+            var rejected = false;
+            try { action(); } catch (ArgumentException) { rejected = true; }
+            check(rejected, message);
+        }
+        var roster = Roster(4); var before = JsonSerializer.Serialize(roster.Snapshot());
+        var sim = CombatSimulation.Deploy(roster, roster.Mechs.Select(item => item.Id), 12);
+        check(sim.Paused && sim.Units.Count == 8 && sim.Units.All(item => item.Weapons.All(weapon => weapon.Remaining == 0)), "deployment starts paused with ready independent weapons and mirrored force");
+        check(sim.Units.All(item => item.Movement == MovementMode.Walk) && sim.Contacts(CombatSide.Friendly).Count == 0, "deployment starts walking outside detection");
+        check(sim.Units.Where(item => item.Side == CombatSide.Enemy).Zip(sim.Units.Where(item => item.Side == CombatSide.Friendly))
+            .All(pair => pair.First.Spec == pair.Second.Spec && pair.First.Warrior == pair.Second.Warrior), "opposition mirrors definitions and warrior skills");
+        Reject(() => CombatSimulation.Deploy(roster, []), "empty deployment rejected");
+        Reject(() => CombatSimulation.Deploy(roster, ["mech-1", "mech-1"]), "duplicate deployment rejected");
+        Reject(() => CombatSimulation.Deploy(roster, ["unknown"]), "unknown deployment rejected");
+        var tooMany = Roster(5);
+        Reject(() => CombatSimulation.Deploy(tooMany, tooMany.Mechs.Select(item => item.Id)), "more than four rejected");
+        roster.Assign("mech-1", null);
+        check(CombatSimulation.UnavailableReason(roster, roster.Mechs[0])!.Contains("No assigned"), "uncrewed mech explains exclusion");
+        Reject(() => CombatSimulation.Deploy(roster, ["mech-1"]), "uncrewed deployment rejected");
+        roster.Assign("mech-1", roster.Warriors[0].Id);
+        roster.SetHealth(roster.Warriors[0].Id, WarriorHealth.Injured, new DateOnly(3025, 1, 3), Campaign.StartDate);
+        check(CombatSimulation.UnavailableReason(roster, roster.Mechs[0])!.Contains("Injured"), "injured assignment explains exclusion");
+        Reject(() => CombatSimulation.Deploy(roster, ["mech-1"]), "injured pilot deployment rejected");
+        roster.SetHealth(roster.Warriors[0].Id, WarriorHealth.Healthy, null, Campaign.StartDate);
+        var saved = roster.Snapshot(); var stock = saved.Mechs[0];
+        var damaged = stock with
+        {
+            Locations = stock.Locations.Select(loc => loc.Location == MechLocation.CenterTorso ? loc with { Armor = loc.Armor - 3 } : loc).ToArray(),
+            Equipment = stock.Equipment.Select(item => item.Id == roster.Mechs[0].Spec.Weapons[0].Id ? item with { Condition = ComponentCondition.Destroyed } : item).ToArray(),
+            Ammo = stock.Ammo.Select(item => item with { Shots = item.Shots / 2 }).ToArray()
+        };
+        var damagedRoster = ForceRoster.Restore(saved with { Mechs = [damaged] }, Campaign.StartDate);
+        var copied = CombatSimulation.Deploy(damagedRoster, [damaged.Id]);
+        check(Friendly(copied).Locations[MechLocation.CenterTorso].Armor + 3 == Enemy(copied).Locations[MechLocation.CenterTorso].Armor
+            && !Friendly(copied).WeaponUsable(Friendly(copied).Weapons[0]) && Enemy(copied).WeaponUsable(Enemy(copied).Weapons[0]), "current condition and equipment copied; enemy is undamaged");
+        var nonoperational = ForceRoster.Restore(saved with { Mechs = [stock with { Locations = stock.Locations.Select(loc => loc.Location == MechLocation.LeftLeg ? loc with { Structure = 0 } : loc).ToArray() }] }, Campaign.StartDate);
+        check(CombatSimulation.UnavailableReason(nonoperational, nonoperational.Mechs[0])!.Contains("not operational"), "nonoperational mech explains exclusion");
+
+        var f = Friendly(sim); var e = Enemy(sim);
+        var group = sim.Units.Where(item => item.Side == CombatSide.Friendly).Select(item => item.Id).ToArray();
+        sim.Move(group, new Vector2(48, 48));
+        var destinations = group.Select(id => sim.Unit(id).Destination).ToArray();
+        check(destinations.All(point => CombatRules.Clamp(point) == point) && destinations.SelectMany((point, i) => destinations.Skip(i + 1).Select(other => point.DistanceTo(other))).All(distance => distance >= CombatRules.UnitRadius * 2), "group destinations remain separated at arena corner");
+        var original = f.Position; sim.Advance(1);
+        check(f.Position == original && sim.Elapsed == 0, "paused commands do not advance combat");
+        f.Movement = MovementMode.Run; sim.Move([f.Id], new Vector2(-10, 25));
+        check(f.Destination == new Vector2(-10, 25) && f.Movement == MovementMode.Run, "new Move replaces order and preserves run mode");
+        sim.Paused = false; sim.Advance(.5);
+        check(f.Position != original && f.Moving, "resume executes queued movement");
+
+        sim = Battle(); Arrange(sim); f = Friendly(sim); e = Enemy(sim);
+        sim.SetPriority([f.Id], e.Id); sim.Paused = false; sim.Advance(.1);
+        check(f.Position == Vector2.Zero && f.PriorityTarget == e.Id && f.Order == CombatOrder.Hold, "priority target alone does not cause pursuit");
+        sim.Paused = true; sim.Attack([f.Id], e.Id); f.PreferredDistance = 3;
+        sim.Move([f.Id], new Vector2(0, 8));
+        check(f.AttackTarget is null && f.PriorityTarget == e.Id, "Move replaces Attack but retains persistent priority");
+        sim.Paused = false; sim.Advance(.1);
+        check(f.Position.Y > 0 && Math.Abs(f.Position.X) < .001 && f.ShotsFired > 0, "Move fires opportunistically without diverting");
+        sim.Attack([f.Id], e.Id); sim.Advance(.5);
+        check(f.Position.X > 0 && f.Order == CombatOrder.Attack, "Attack pursues preferred distance");
+        sim.Move([f.Id], f.Position); sim.Advance(.1);
+        check(f.Order == CombatOrder.Hold, "completed Move holds position");
+
+        CheckTargeting(check);
+        CheckDetection(check);
+        CheckDamage(check);
+        CheckNavigation(check);
+        CheckOutcomes(check);
+
+        sim = CombatSimulation.Deploy(roster, roster.Mechs.Select(item => item.Id), 12);
+        foreach (var unit in sim.Units.Where(item => item.Side == CombatSide.Friendly)) unit.ApplyDamage(MechLocation.CenterTorso, 500);
+        sim.Paused = false; sim.Advance(.1); sim.End();
+        check(JsonSerializer.Serialize(roster.Snapshot()) == before, "deployment, damage and completion never mutate source roster or equipment");
+        check(CombatRules.Damage(DraftCatalog.Mech("jenner").Weapons.Single(item => item.Name == "SRM 4")) == 8, "missile rack delivers one full damage packet");
+        check(CombatRules.Damage(DraftCatalog.Mech("catapult").Weapons.First(item => item.Name == "LRM 15")) == 15, "LRM packet retains stock per-missile damage");
+        var a = Battle(seed: 73); var b = Battle(seed: 73); Arrange(a); Arrange(b); a.Paused = b.Paused = false;
+        a.Advance(10); for (var i = 0; i < 100; i++) b.Advance(.1);
+        check(a.Units.Zip(b.Units).All(pair => pair.First.Hits == pair.Second.Hits && pair.First.ArmorLost == pair.Second.ArmorLost), "fixed-step combat is independent of frame partitioning");
+        RunEngagements(check);
+    }
+    private static void CheckTargeting(Action<bool, string> check)
+    {
+        var sim = Battle(2); sim.EnemyAiEnabled = false;
+        var f = Friendly(sim); var enemies = sim.Units.Where(item => item.Side == CombatSide.Enemy).ToArray();
+        f.Position = Vector2.Zero; enemies[0].Position = new Vector2(8, 0); enemies[1].Position = new Vector2(10, 0); sim.RefreshDetection();
+        sim.SetPriority([f.Id], enemies[1].Id);
+        check(sim.SelectTarget(f) == enemies[1], "priority wins over nearest target");
+        sim.Attack([f.Id], enemies[0].Id);
+        check(sim.SelectTarget(f) == enemies[0], "explicit Attack wins over priority");
+        sim.Hold([f.Id]); f.PriorityTarget = null; f.CurrentTarget = enemies[1].Id;
+        check(sim.SelectTarget(f) == enemies[1], "valid current target retained over nearer equivalent target");
+        f.CurrentTarget = null;
+        check(sim.SelectTarget(f) == enemies[0], "nearest target selected without higher preference");
+        f.Firing = FiringMode.HoldFire;
+        check(sim.SelectTarget(f) is null, "Hold fire suppresses opportunity and priority targets");
+        sim.Attack([f.Id], enemies[0].Id);
+        check(sim.SelectTarget(f) == enemies[0], "explicit Attack permits fire during Hold fire");
+        foreach (var weapon in f.Weapons) weapon.Enabled = false;
+        check(f.Active && sim.SelectTarget(f) is null, "weapon toggles do not disable mech but suppress shots");
+        f.Weapons[0].Enabled = true; f.PreferredDistance = 8;
+        sim.Paused = false; sim.Advance(.05);
+        check(f.ShotsFired == 1 && f.Weapons[0].Remaining > 0 && f.Weapons[1].Remaining == 0, "only enabled ready weapons fire and receive cooldown");
+        var remaining = f.Weapons[0].Remaining;
+        sim.Paused = true; sim.Advance(5);
+        check(f.Weapons[0].Remaining == remaining, "cooldowns stop while paused");
+        f.Weapons[1].Enabled = true; sim.Paused = false; sim.Advance(.05);
+        check(f.ShotsFired == 2 && f.Weapons[0].Remaining < f.Weapons[1].Remaining, "newly enabled weapon fires on its independent clock");
+        var walking = CombatSimulation.HitChance(f, enemies[0], f.Weapons[0]);
+        f.Moving = true; f.Movement = MovementMode.Run;
+        check(CombatSimulation.HitChance(f, enemies[0], f.Weapons[0]) < walking, "running reduces firing accuracy");
+    }
+    private static void CheckDetection(Action<bool, string> check)
+    {
+        var sim = Battle(2); sim.EnemyAiEnabled = false;
+        var friends = sim.Units.Where(item => item.Side == CombatSide.Friendly).ToArray(); var enemy = Enemy(sim);
+        friends[0].Position = Vector2.Zero; friends[1].Position = new Vector2(12, 3); enemy.Position = new Vector2(17, 0);
+        sim.RefreshDetection();
+        check(friends[0].Position.DistanceTo(enemy.Position) > CombatRules.DetectionRadius
+            && sim.Detected(CombatSide.Friendly, enemy.Id) && sim.SelectTarget(friends[0]) == enemy, "shared detection enables fire outside shooter's own detection radius");
+        sim.Attack([friends[0].Id], enemy.Id); sim.Paused = false; sim.Advance(.05);
+        check(friends[0].ShotsFired > 0, "shared out-of-radius contact can actually be fired upon");
+        var seen = sim.Contacts(CombatSide.Friendly)[enemy.Id].LastKnownPosition;
+        enemy.Position = new Vector2(45, -45); sim.RefreshDetection();
+        check(!sim.Detected(CombatSide.Friendly, enemy.Id) && sim.Contacts(CombatSide.Friendly)[enemy.Id].LastKnownPosition == seen, "lost contact leaves stationary last-known marker");
+        enemy.Position = new Vector2(-45, -45); sim.Advance(.1);
+        check(sim.Contacts(CombatSide.Friendly)[enemy.Id].LastKnownPosition == seen && friends[0].Position.X > 0, "lost-target pursuit follows recorded position without tracking hidden movement");
+        friends[0].Position = seen; sim.Advance(.05);
+        check(friends[0].Order == CombatOrder.Hold && friends[0].AttackTarget is null, "arrival at unreacquired last-known position ends Attack");
+        enemy.Position = new Vector2(12, -2); sim.RefreshDetection(); sim.Attack([friends[0].Id], enemy.Id);
+        enemy.Position = new Vector2(-45, -45); sim.RefreshDetection(); enemy.Position = new Vector2(12, -2); sim.Advance(.05);
+        check(sim.Detected(CombatSide.Friendly, enemy.Id) && friends[0].Order == CombatOrder.Attack, "reacquisition resumes Attack pursuit");
+    }
+    private static void CheckDamage(Action<bool, string> check)
+    {
+        var sim = Battle(); var unit = Friendly(sim);
+        var rear = unit.Locations.Values.Select(item => item.RearArmor).ToArray();
+        var arm = unit.Locations[MechLocation.LeftArm]; var torso = unit.Locations[MechLocation.LeftTorso];
+        var torsoArmor = torso.Armor;
+        unit.ApplyDamage(MechLocation.LeftArm, arm.Armor + arm.Structure + 3);
+        check(arm.Structure == 0 && torso.Armor == torsoArmor - 3, "arm overkill transfers immediately into side torso front armor");
+        unit.ApplyDamage(MechLocation.LeftArm, 2);
+        check(torso.Armor == torsoArmor - 5, "subsequent destroyed-arm hit transfers inward");
+        check(unit.Weapons.Where(item => item.Spec.Location == MechLocation.LeftArm).All(item => !unit.WeaponUsable(item)), "destroyed location loses mounted weapons");
+        unit.ApplyDamage(MechLocation.RightTorso, 1000);
+        check(!unit.Intact(MechLocation.RightArm) && !unit.Intact(MechLocation.RightTorso), "side torso loss also destroys attached arm");
+        check(unit.Locations.Values.Select(item => item.RearArmor).SequenceEqual(rear), "damage never changes rear armor");
+        sim = Battle(); unit = Friendly(sim); var speed = unit.Speed;
+        var leg = unit.Locations[MechLocation.LeftLeg]; var center = unit.Locations[MechLocation.CenterTorso]; var centerArmor = center.Armor;
+        var sideArmor = unit.Locations[MechLocation.LeftTorso].Armor;
+        unit.ApplyDamage(MechLocation.LeftLeg, leg.Armor + leg.Structure + 2);
+        check(center.Armor == centerArmor - 2 && unit.Locations[MechLocation.LeftTorso].Armor == sideArmor, "leg overkill goes directly to center torso front armor");
+        check(Math.Abs(unit.Speed - speed / 2) < .001 && unit.Active, "one lost leg halves movement without defeat");
+        unit.ApplyDamage(MechLocation.RightLeg, unit.Locations[MechLocation.RightLeg].Armor + unit.Locations[MechLocation.RightLeg].Structure);
+        check(unit.Status == CombatStatus.Disabled && unit.Speed == 0, "both legs lost disables rather than destroys");
+        sim = Battle(definition: "griffin"); unit = Friendly(sim);
+        foreach (var location in unit.Weapons.Select(item => item.Spec.Location).Distinct())
+            unit.ApplyDamage(location, unit.Locations[location].Armor + unit.Locations[location].Structure);
+        check(unit.Status == CombatStatus.Disabled, "loss of all physical weapons disables mech");
+        sim = Battle(); unit = Friendly(sim); unit.ApplyDamage(MechLocation.Head, 100);
+        check(unit.Status == CombatStatus.Destroyed, "head destruction destroys mech");
+        sim = Battle(); unit = Friendly(sim);
+        unit.ApplyDamage(MechLocation.LeftTorso, unit.Locations[MechLocation.LeftTorso].Armor + unit.Locations[MechLocation.LeftTorso].Structure);
+        unit.ApplyDamage(MechLocation.LeftArm, 3);
+        check(unit.Locations[MechLocation.CenterTorso].Armor == unit.Locations[MechLocation.CenterTorso].InitialArmor - 3, "transfer continues through destroyed side torso");
+        unit.ApplyDamage(MechLocation.CenterTorso, 1000);
+        check(unit.Status == CombatStatus.Destroyed, "center torso loss destroys mech");
+    }
+    private static void CheckNavigation(Action<bool, string> check)
+    {
+        var sim = Battle(4); sim.EnemyAiEnabled = false;
+        var friends = sim.Units.Where(item => item.Side == CombatSide.Friendly).ToArray();
+        var ids = friends.Select(item => item.Id).ToArray();
+        sim.Move(ids, new Vector2(0, 15)); sim.Paused = false;
+        var separated = true;
+        for (var tick = 0; tick < 400; tick++)
+        {
+            sim.Advance(.1);
+            separated &= sim.Units.All(item => CombatRules.Clamp(item.Position).DistanceTo(item.Position) < .001)
+                && sim.Units.SelectMany((unit, i) => sim.Units.Skip(i + 1).Select(other => unit.Position.DistanceTo(other.Position))).All(distance => distance >= CombatRules.UnitRadius * 2 - .001);
+        }
+        check(separated && friends.All(item => item.Position.Y < 20), "moving groups stay in arena and avoid overlap while advancing");
+        sim = Battle(); Arrange(sim, 4); var f = Friendly(sim); var e = Enemy(sim);
+        f.Position = new Vector2(46, 0); e.Position = new Vector2(42, 0); f.PreferredDistance = 21;
+        sim.RefreshDetection(); sim.Attack([f.Id], e.Id); sim.Paused = false; sim.Advance(.2);
+        check(f.ShotsFired > 0 && CombatRules.Clamp(f.Position) == f.Position, "unachievable distance does not prevent valid fire or escape arena");
+        sim = Battle(); f = Friendly(sim); e = Enemy(sim); sim.Paused = false; var start = e.Position;
+        sim.Advance(1);
+        check(e.Order == CombatOrder.Move && e.Position.DistanceTo(Vector2.Zero) < start.DistanceTo(Vector2.Zero), "AI advances toward center before contact");
+        f.Position = e.Position + new Vector2(10, 0); sim.Advance(.05);
+        check(e.Order == CombatOrder.Attack && e.AttackTarget == f.Id && sim.Detected(CombatSide.Enemy, f.Id), "AI attacks detected contacts using same rules");
+    }
+    private static void CheckOutcomes(Action<bool, string> check)
+    {
+        foreach (var outcome in new[] { CombatOutcome.Victory, CombatOutcome.Defeat, CombatOutcome.Draw })
+        {
+            var sim = Battle(); sim.EnemyAiEnabled = false;
+            if (outcome != CombatOutcome.Defeat) Enemy(sim).ApplyDamage(MechLocation.CenterTorso, 1000);
+            if (outcome != CombatOutcome.Victory) Friendly(sim).ApplyDamage(MechLocation.CenterTorso, 1000);
+            sim.Paused = false; sim.Advance(.05);
+            check(sim.Outcome == outcome && sim.Paused, $"{outcome} stops combat");
+        }
+        // Every location is one structure point: any successful shot is lethal. Both have a single ready gun.
+        var source = Battle();
+        var lethal = source.Units.Select((unit, i) => new CombatUnit(unit.Id, unit.Spec, unit.Warrior with { Gunnery = -10 }, unit.Side,
+            unit.Locations.Values.Select(loc => new LocationCondition(loc.Location, 0, loc.RearArmor, 1)),
+            unit.Equipment.Select(item => new EquipmentCondition(item.Key, item.Value)), unit.Ammo, new Vector2(i * 2, 0))).ToArray();
+        foreach (var unit in lethal) { foreach (var weapon in unit.Weapons) weapon.Enabled = false; unit.Weapons[0].Enabled = true; }
+        // Damage packet 10 transfers through any nonfatal part into the one-point center torso.
+        var simultaneous = new CombatSimulation(lethal, 5) { EnemyAiEnabled = false, Paused = false };
+        simultaneous.Advance(.05);
+        check(simultaneous.Outcome == CombatOutcome.Draw && lethal.All(item => item.ShotsFired == 1), "same-instant lethal return shots resolve before outcome");
+        var ended = Battle(); ended.End(); ended.Advance(2);
+        check(ended.Outcome == CombatOutcome.Ended && ended.Elapsed == 0, "End Simulation works before any combat and freezes state");
+    }
+    private static void RunEngagements(Action<bool, string> check)
+    {
+        foreach (var definition in new[] { "jenner", "griffin", "awesome" })
+        {
+            var sim = Battle(definition: definition, seed: 183); sim.EnemyAiEnabled = true; sim.Paused = false;
+            sim.Move([Friendly(sim).Id], Vector2.Zero);
+            for (var second = 0; second < 1200 && sim.Outcome == CombatOutcome.Ongoing; second++)
+            {
+                var friendly = Friendly(sim); var enemy = Enemy(sim);
+                if (sim.Detected(CombatSide.Friendly, enemy.Id)) sim.Attack([friendly.Id], enemy.Id);
+                sim.Advance(1);
+            }
+            check(sim.Outcome is CombatOutcome.Victory or CombatOutcome.Defeat or CombatOutcome.Draw, $"{definition} full engagement reaches a result");
+            GD.Print($"Combat tuning: {definition} {sim.Elapsed:0}s, {sim.Outcome}");
+        }
+        var roster = ForceRoster.Create("Mixed lance", new[] { "firestarter", "griffin", "catapult", "awesome" }.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(4));
+        for (var i = 0; i < 4; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
+        var lance = CombatSimulation.Deploy(roster, roster.Mechs.Select(item => item.Id), 183); lance.Paused = false;
+        lance.Move(lance.Units.Where(item => item.Side == CombatSide.Friendly).Select(item => item.Id), Vector2.Zero);
+        for (var second = 0; second < 1200 && lance.Outcome == CombatOutcome.Ongoing; second++)
+        {
+            foreach (var unit in lance.Units.Where(item => item.Side == CombatSide.Friendly && item.Active))
+            {
+                var target = lance.Units.Where(item => item.Side == CombatSide.Enemy && item.Active && lance.Detected(unit.Side, item.Id))
+                    .OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
+                if (target is not null) lance.Attack([unit.Id], target.Id);
+            }
+            lance.Advance(1);
+        }
+        check(lance.Outcome != CombatOutcome.Ongoing, "mixed four-on-four engagement reaches a result");
+        GD.Print($"Combat tuning: mixed lance {lance.Elapsed:0}s, {lance.Outcome}");
+    }
+}

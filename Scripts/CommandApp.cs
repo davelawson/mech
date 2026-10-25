@@ -10,6 +10,7 @@ public partial class CommandApp : Control
     public CampaignDialog Dialog { get; private set; } = null!;
     public DraftScreen Drafting { get; private set; } = null!;
     public HangarScreen Hangar { get; private set; } = null!;
+    public CombatScreen Tactical { get; private set; } = null!;
     public RolodexPanel Rolodex { get; private set; } = null!;
     public MissionsPanel Missions { get; private set; } = null!;
     public Campaign State { get; private set; } = new();
@@ -47,6 +48,7 @@ public partial class CommandApp : Control
         _menuButton = Ui.Button(_header, "Main menu");
         _menuButton.Pressed += () => Confirm("Return to main menu?", "Unsaved progress will be discarded when you start or load another company.", ShowMainMenu, CloseDialog);
         Hangar = new HangarScreen { Name = "Hangar" }; AddChild(Hangar);
+        Tactical = new CombatScreen { Name = "Tactical" }; AddChild(Tactical);
         Drafting = new DraftScreen { Name = "InitialDraft" }; AddChild(Drafting);
         MainMenu = new MainMenuScreen { Name = "MainMenu" };
         AddChild(MainMenu);
@@ -81,6 +83,13 @@ public partial class CommandApp : Control
         Hangar.BackRequested += ShowOffice;
         Hangar.WarriorDetailsRequested += ShowWarriors;
         Hangar.AssignmentRequested += AssignWarrior;
+        Hangar.DeploymentRequested += ShowDeployment;
+        Tactical.Closed += () =>
+        {
+            _header.Show(); Hangar.Show();
+            Hangar.DeploymentButton.CallDeferred(Control.MethodName.GrabFocus);
+            DisplayServer.WindowSetTitle("Mech · Mech Hangar");
+        };
         Drafting.Completed += () =>
         {
             State.EstablishCompany(Drafting.Draft); Drafting.Hide(); ShowOffice(); RefreshCampaign();
@@ -111,6 +120,7 @@ public partial class CommandApp : Control
         Ui.Place(Office, 0, 72, Size.X, Size.Y - 72);
         Ui.Place(StarMap, 0, 72, Size.X, Size.Y - 72);
         Ui.Place(Hangar, 0, 72, Size.X, Size.Y - 72);
+        Ui.Place(Tactical, 0, 0, Size.X, Size.Y);
         Ui.Place(Drafting, 0, 0, Size.X, Size.Y);
         Ui.Place(MainMenu, 0, 0, Size.X, Size.Y);
     }
@@ -131,6 +141,7 @@ public partial class CommandApp : Control
     public void ShowOffice()
     {
         StopAdvancing();
+        Tactical.Hide();
         _warriorsFromHangar = false; _warriorsReturnFocus = null;
         MainMenu.Hide();
         Rolodex.Hide(); Missions.Hide(); Hangar.Hide();
@@ -147,6 +158,7 @@ public partial class CommandApp : Control
     public void ShowMainMenu()
     {
         StopAdvancing();
+        Tactical.Hide();
         Dialog.Hide();
         Drafting.Hide(); Rolodex.Hide(); Missions.Hide(); Hangar.Hide();
         StarMap.Viewport.EndDrag();
@@ -213,6 +225,12 @@ public partial class CommandApp : Control
 
     public override void _Input(InputEvent @event)
     {
+        // Tactical right-click is an order. Never send it through campaign back navigation.
+        if (Tactical.Visible)
+        {
+            if (Tactical.HandleKey(@event)) GetViewport().SetInputAsHandled();
+            return;
+        }
         if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Right } back)
         {
             if (back.Pressed)
@@ -437,6 +455,14 @@ public partial class CommandApp : Control
         DisplayServer.WindowSetTitle("Mech · Mech Hangar");
     }
 
+    public void ShowDeployment()
+    {
+        if (!Hangar.Visible || Dialog.Visible || Rolodex.Visible || State.RequiresDraft || Tactical.Visible) return;
+        StopAdvancing(); Hangar.Hide(); _header.Hide();
+        Tactical.Open(State.Roster!, Hangar.SelectedMech.Id);
+        DisplayServer.WindowSetTitle("Mech · Simulated Deployment");
+    }
+
     private void AssignWarrior(string mechId, string? warriorId)
     {
         var roster = State.Roster!;
@@ -461,7 +487,7 @@ public partial class CommandApp : Control
 
     public override void _UnhandledKeyInput(InputEvent @event)
     {
-        if (Dialog.Visible || Drafting.Visible || Rolodex.Visible || Missions.Visible || @event is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }) return;
+        if (Tactical.Visible || Dialog.Visible || Drafting.Visible || Rolodex.Visible || Missions.Visible || @event is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }) return;
         if (StarMap.Visible || Hangar.Visible) ShowOffice();
         else if (Office.Visible) ShowMainMenu();
         else return;
