@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="Data/mech-catalog.json" />
+    <EmbeddedResource Include="Data/star-systems.json" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' == 'ExportRelease'">
     <Compile Remove="Tests/**/*.cs" />

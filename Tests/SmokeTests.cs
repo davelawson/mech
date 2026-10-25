@@ -16,7 +16,9 @@ public partial class SmokeTests : Node
             _screenshots = OS.GetCmdlineUserArgs().Contains("--screenshots");
             TestGeometry();
             CampaignChecks.Run(Check);
+            TravelChecks.Run(Check);
             RosterChecks.Run(Check);
+            MissionChecks.Run(Check);
             _app = ResourceLoader.Load<PackedScene>("res://Scenes/Command.tscn").Instantiate<CommandApp>();
             _app.SavePath = $"user://smoke-{Guid.NewGuid():N}.json";
             _saveFile = ProjectSettings.GlobalizePath(_app.SavePath);
@@ -68,14 +70,18 @@ public partial class SmokeTests : Node
             await Frames();
             Check(_app.Office.Hotspot.HasFocus(), "Back button restores wall-map focus");
             await TestRosterUi();
+            await TestMissionsUi();
+            await TestBackNavigationUi();
+            await TestShipLocatorUi();
             await TestResizing();
             TestMissingArtwork();
             await TestCampaignUi();
+            await TestTravelUi();
             await TestLegacyDraftUi();
             await Frames();
             _app.QueueFree();
             await Frames();
-            GD.Print($"PASS: {_checks} checks; draft, rosters, assignments, health, migration, campaign finances, navigation, input and resizing.");
+            GD.Print($"PASS: {_checks} checks; draft, rosters, assignments, health, migration, missions, star travel, quarterly transit billing, navigation, input and resizing.");
             GetTree().Quit(0);
         }
         catch (Exception error)
@@ -159,7 +165,7 @@ public partial class SmokeTests : Node
                 (hotspot, OfficeScreen.ChartRegion), (office.CalendarButton, OfficeScreen.CalendarRegion),
                 (office.ReminderButton, OfficeScreen.ReminderRegion), (office.SafeButton, OfficeScreen.SafeRegion),
                 (office.FilingButton, OfficeScreen.FilingRegion), (office.WallMap, OfficeScreen.MapRegion),
-                (office.RolodexButton, OfficeScreen.RolodexRegion), (office.HangarButton, OfficeScreen.HangarRegion)
+                (office.PhoneButton, OfficeScreen.PhoneRegion), (office.RolodexButton, OfficeScreen.RolodexRegion), (office.HangarButton, OfficeScreen.HangarRegion)
             })
             {
                 Check(((control.Position - art.Position) / scale).DistanceTo(region.Position) < .1f
@@ -171,6 +177,11 @@ public partial class SmokeTests : Node
             Check(office.CalendarButton.GetGlobalRect().Encloses(office.CalendarDate.GetGlobalRect())
                 && office.SafeButton.GetGlobalRect().Encloses(office.SafeReadout.GetGlobalRect()), $"readouts stay inside painted objects at {size}");
             await Capture($"office-{size.X}x{size.Y}");
+            await Click(office.PhoneButton);
+            Check(_app.Missions.Visible && _app.Missions.GetGlobalRect().Encloses(_app.Missions.CloseButton.GetGlobalRect())
+                && _app.Missions.GetGlobalRect().Encloses(_app.Missions.AcceptButton.GetGlobalRect()), $"phone and mission actions remain usable at {size}");
+            await Capture($"missions-{size.X}x{size.Y}");
+            await PressKey(Key.Escape);
             await Click(hotspot);
             Check(_app.StarMap.Visible, $"actual hotspot click opens the chart at {size}");
             var viewport = _app.StarMap.Viewport;
@@ -196,6 +207,177 @@ public partial class SmokeTests : Node
         GetWindow().Size = new Vector2I(1440, 900);
     }
 
+    private async Task TestMissionsUi()
+    {
+        _app.StartNewCompany(); await FinishDraft();
+        var office = _app.Office;
+        var board = _app.State.Missions;
+        Check(office.PhoneFlashing && board.HasUnseenOffers, "phone indicates the initial unseen offer");
+        office.RefreshCampaign(_app.State);
+        for (var tick = 0; tick < 6; tick++) { office.RefreshCampaign(_app.State); office._Process(.1); }
+        Check(!office.PhoneLight.Visible && office.PhoneButton.Modulate == Colors.White, "silent phone light keeps flashing through campaign refreshes");
+        office.RefreshCampaign(_app.State);
+        await Click(office.PhoneButton);
+        Check(_app.Missions.Visible && office.Visible && !board.HasUnseenOffers && !office.PhoneFlashing && !office.PhoneLight.Visible,
+            "painted phone opens mission overlay and marks list seen");
+        Check(_app.Missions.MissionName.Text == "Easy Peasy" && board.Current is null, "initial briefing opens without accepting mission");
+        Check(_app.Missions.GetGlobalRect().Encloses(_app.Missions.AcceptButton.GetGlobalRect()), "first-open mission action stays inside the window");
+        await Click(office.SafeButton);
+        Check(!_app.Dialog.Visible && _app.Missions.Visible, "mission overlay blocks office clicks and does not dismiss on backdrop click");
+        _app.StartAdvancing(false);
+        Check(!_app.IsAdvancing, "mission panel blocks time controls");
+        _app.Missions.CloseButton.GrabFocus();
+        foreach (var key in new[] { Key.Tab, Key.Tab, Key.Right, Key.Down, Key.Tab })
+        {
+            await PressKey(key);
+            Check(_app.Missions.IsAncestorOf(GetViewport().GuiGetFocusOwner()), "mission panel traps keyboard focus");
+        }
+        await Capture("missions-available");
+        await PressKey(Key.Escape);
+        Check(!_app.Missions.Visible && !_app.MainMenu.Visible && office.PhoneButton.HasFocus(), "Escape closes mission panel and restores phone focus");
+        var cash = _app.State.Cash; var date = _app.State.Date;
+        await PressKey(Key.Enter); await Click(_app.Missions.AcceptButton);
+        Check(board.Current?.Name == "Easy Peasy" && !_app.Missions.Visible && office.Visible && office.PhoneButton.HasFocus(),
+            "acceptance returns to office with selected mission");
+        Check(_app.State.Cash == cash && _app.State.Date == date, "acceptance changes neither money nor time");
+        await Click(office.FilingButton); await Click(DialogButton("Save Game")); await Click(DialogButton("Close"));
+        await Click(office.PhoneButton);
+        Check(_app.Missions.MissionButtons.Count == 1 && _app.Missions.AbandonButton.Visible && !_app.Missions.AcceptButton.Visible,
+            "reopening defaults to current mission without duplicate offer");
+        await Capture("missions-current");
+        await Click(_app.Missions.AbandonButton);
+        Check(_app.Dialog.Heading == "Abandon mission?" && board.Current is not null, "abandonment requires confirmation");
+        await PressKey(Key.Escape);
+        Check(!_app.Dialog.Visible && _app.Missions.Visible && board.Current is not null && _app.Missions.AbandonButton.HasFocus(),
+            "Escape cancels only abandonment confirmation and restores mission focus");
+        await Click(_app.Missions.AbandonButton); await Click(DialogButton("Abandon Mission"));
+        Check(board.Current is null && _app.Missions.Visible && _app.Missions.AcceptButton.Visible && !office.PhoneFlashing,
+            "confirmed abandonment returns offer to available list without flashing again");
+        Check(_app.State.Cash == cash && _app.State.Date == date, "abandonment has no penalty or time cost");
+        await Click(_app.Missions.CloseButton);
+        await Click(office.FilingButton); await Click(DialogButton("Load Game")); await Click(DialogButton("Load Game"));
+        Check(_app.State.Missions.Current?.Name == "Easy Peasy" && !office.PhoneFlashing, "manual load restores current mission and seen state");
+        await Click(office.PhoneButton);
+        var second = MissionCatalog.EasyPeasy with { Id = "second-offer", Name = "Second Offer" };
+        var expanded = MissionBoard.Restore(_app.State.Missions.Snapshot(), [MissionCatalog.EasyPeasy, second]);
+        _app.Missions.Open(expanded); await Frames();
+        Check(!expanded.HasUnseenOffers && _app.Missions.MissionName.Text == "Easy Peasy", "opening expanded pool marks new offers seen and defaults to current mission");
+        await Click(_app.Missions.MissionButtons.Single(button => button.Text == "Second Offer"));
+        Check(_app.Missions.MissionName.Text == "Second Offer" && _app.Missions.AcceptButton.Visible && _app.Missions.AcceptButton.Disabled
+            && !_app.Missions.AbandonButton.Visible && expanded.Current?.Name == "Easy Peasy", "other offers can be perused without replacing current mission");
+        await Capture("missions-other-offer");
+        await Click(_app.Missions.CloseButton);
+        _app.State.Missions.Abandon(); _app.ShowOffice(); await Frames();
+        System.IO.File.Delete(_saveFile);
+    }
+
+    private async Task TestBackNavigationUi()
+    {
+        _app.ShowOffice(); await Frames();
+        var date = _app.State.Date;
+        _app.StartAdvancing(true);
+        await RightClick(_app.Office.CalendarButton.GetGlobalRect().GetCenter());
+        Check(!_app.IsAdvancing && _app.State.Date == date && _app.Office.Visible && !_app.MainMenu.Visible,
+            "office right-click stops time without opening another screen");
+        _app.ShowMap(); await Frames();
+        await RightClick(_app.StarMap.Search.GetGlobalRect().GetCenter());
+        Check(_app.Office.Visible && !_app.StarMap.Visible && _app.Office.Hotspot.HasFocus(),
+            "right-click over map search returns to office and restores wall-chart focus");
+        _app.ShowMap(); await Frames();
+        var viewport = _app.StarMap.Viewport;
+        var at = viewport.GlobalPosition + viewport.Size / 2;
+        MouseButton(at, Godot.MouseButton.Left, true); await Frames();
+        Check(viewport.IsDragging, "map captures a held pan before back navigation");
+        await RightClick(at); MouseButton(at, Godot.MouseButton.Left, false); await Frames();
+        Check(!viewport.IsDragging && _app.Office.Visible, "right-click ends dragging and consumes the navigation click");
+        _app.ShowWarriors(); await Frames(); await RightClick(_app.Rolodex.CardName.GetGlobalRect().GetCenter());
+        Check(!_app.Rolodex.Visible && _app.Office.RolodexButton.HasFocus(), "office personnel right-click restores the rolodex hotspot");
+        _app.ShowHangar(); await Frames(); _app.Hangar.Select(1);
+        var tabs = _app.Hangar.FindChildren("*", "TabContainer", true, false).OfType<TabContainer>().Single();
+        tabs.CurrentTab = 2;
+        var selected = _app.Hangar.SelectedMech;
+        await Click(_app.Hangar.WarriorsButton);
+        Check(_app.Rolodex.Visible && _app.Hangar.Visible && _app.Rolodex.BackButton.Text == "Back to hangar", "hangar personnel remembers its parent");
+        await RightClick(_app.Rolodex.CardName.GetGlobalRect().GetCenter());
+        Check(!_app.Rolodex.Visible && _app.Hangar.Visible && !_app.Office.Visible
+            && _app.Hangar.SelectedMech == selected && tabs.CurrentTab == 2 && _app.Hangar.WarriorsButton.HasFocus(),
+            "one right-click returns to unchanged hangar selection and tab");
+        await Click(_app.Hangar.WarriorsButton); await PressKey(Key.Escape);
+        Check(!_app.Rolodex.Visible && _app.Hangar.Visible && tabs.CurrentTab == 2, "nested personnel Escape also returns one level");
+        await Click(_app.Hangar.WarriorsButton); await Click(_app.Rolodex.BackButton);
+        Check(!_app.Rolodex.Visible && _app.Hangar.Visible, "nested personnel Back button uses the same parent");
+        await Click(_app.Hangar.PilotPicker);
+        var popup = _app.Hangar.PilotPicker.GetPopup();
+        Check(popup.Visible, "pilot picker opens a popup above the hangar");
+        await RightClick(_app.Hangar.PilotPicker.GetGlobalRect().GetCenter());
+        Check(!popup.Visible && _app.Hangar.Visible && !_app.Office.Visible, "right-click closes only the topmost popup");
+        await RightClick(_app.Hangar.BackButton.GetGlobalRect().GetCenter());
+        Check(!_app.Hangar.Visible && _app.Office.Visible && _app.Office.HangarButton.HasFocus(), "second back returns from hangar to office");
+        _app.ShowMissions(); await Frames(); await RightClick(_app.Missions.CloseButton.GetGlobalRect().GetCenter());
+        Check(!_app.Missions.Visible && _app.Office.PhoneButton.HasFocus(), "mission right-click returns to phone in office");
+        _app.ShowFinances(); await Frames(); await RightClick(DialogButton("Close").GetGlobalRect().GetCenter());
+        Check(!_app.Dialog.Visible && _app.Office.SafeButton.HasFocus(), "finance right-click closes without taking an action");
+        var store = new CampaignStore(_saveFile); store.Save(_app.State);
+        var saved = System.IO.File.ReadAllText(_saveFile);
+        _app.ShowFiling(); await Frames(); await Click(DialogButton("Save Game"));
+        Check(_app.Dialog.Heading == "Overwrite campaign save?", "filing confirmation forms a second navigation level");
+        await RightClick(DialogButton("Save Game").GetGlobalRect().GetCenter());
+        Check(_app.Dialog.Visible && _app.Dialog.Heading == "Campaign files" && System.IO.File.ReadAllText(_saveFile) == saved,
+            "right-click cancels overwrite and returns only to filing without changing save");
+        await RightClick(DialogButton("Close").GetGlobalRect().GetCenter());
+        Check(!_app.Dialog.Visible && _app.Office.FilingButton.HasFocus(), "another right-click closes filing and restores cabinet focus");
+        System.IO.File.Delete(_saveFile);
+        _app.ShowMainMenu(); await Frames(); await RightClick(new Vector2(20, 20));
+        Check(_app.MainMenu.Visible && !_app.Office.Visible, "main menu right-click has no navigation action");
+        _app.ShowOffice(); await Frames();
+    }
+
+    private async Task TestShipLocatorUi()
+    {
+        _app.ShowMap(); await Frames();
+        var map = _app.StarMap; var viewport = map.Viewport;
+        var travel = System.Text.Json.JsonSerializer.Serialize(_app.State.Travel.Snapshot());
+        viewport.Fit(); await Capture("dropship-overview");
+        viewport.ZoomBy(12); viewport.FindDropShip();
+        Check(viewport.ShipViewportPosition.DistanceTo(viewport.Size / 2) < .1f, "Find DropShip centers current orbit at detail zoom");
+        var zoom = viewport.Transform.Zoom;
+        viewport.Transform.Pan(new Vector2(100000, 100000)); viewport.ZoomBy(1); await Frames();
+        Check(viewport.ShipIsOffscreen && new Rect2(Vector2.Zero, viewport.Size).Encloses(viewport.ShipIndicatorRect),
+            "offscreen DropShip has a fully visible edge locator");
+        await Capture("dropship-offscreen");
+        var arrow = viewport.GlobalPosition + viewport.ShipIndicatorPosition;
+        MouseMotion(arrow, Vector2.Zero); MouseButton(arrow, Godot.MouseButton.Left, true);
+        MouseButton(arrow, Godot.MouseButton.Left, false); await Frames();
+        Check(!viewport.ShipIsOffscreen && viewport.ShipViewportPosition.DistanceTo(viewport.Size / 2) < .1f,
+            "clicking edge locator centers the ship");
+        Near(viewport.Transform.Zoom, zoom, "edge locator keeps zoom");
+        viewport.Transform.Pan(new Vector2(0, 100000)); viewport.ZoomBy(1); await Frames();
+        var controls = map.FindShipButton.GetParent<Control>();
+        var controlsOnMap = new Rect2(controls.GlobalPosition - viewport.GlobalPosition, controls.Size);
+        Check(viewport.ShipIsOffscreen && !viewport.ShipIndicatorRect.Intersects(controlsOnMap),
+            "bottom-edge ship locator remains clear of zoom controls");
+        await Click(map.FindShipButton);
+        viewport.Transform.Pan(new Vector2(-100000, -100000)); viewport.ZoomBy(1); await Frames();
+        await Click(map.FindShipButton);
+        Check(!viewport.ShipIsOffscreen, "Find DropShip button locates a ship outside the viewed region");
+        Near(viewport.Transform.Zoom, zoom, "Find DropShip button keeps zoom");
+        Check(System.Text.Json.JsonSerializer.Serialize(_app.State.Travel.Snapshot()) == travel, "locating ship leaves candidate and embarked routes unchanged");
+        var offset = viewport.Transform.Offset;
+        await RightClick(viewport.GlobalPosition + viewport.Size / 2); _app.ShowMap(); await Frames();
+        Check(viewport.Transform.Offset.IsEqualApprox(offset) && viewport.Transform.Zoom == zoom, "reopening chart preserves chosen view");
+        foreach (var size in new[] { new Vector2I(900, 500), new Vector2I(1440, 900) })
+        {
+            GetWindow().Size = size; await Frames(); await Click(map.FindShipButton);
+            Check(viewport.ShipViewportPosition.DistanceTo(viewport.Size / 2) < .1f && !viewport.ShipIsOffscreen,
+                $"ship stays visible when centered at {size}");
+            Check(map.FindShipButton.GetGlobalRect().Position.X >= viewport.GlobalPosition.X
+                && map.FindShipButton.GetGlobalRect().End.X <= viewport.GetGlobalRect().End.X,
+                $"Find DropShip control fits chart at {size}");
+            await Capture($"dropship-{size.X}x{size.Y}");
+        }
+        viewport.Fit(); await RightClick(viewport.GlobalPosition + viewport.Size / 2);
+    }
+
     private void TestMissingArtwork()
     {
         _app.Office.SetArtwork("res://Assets/missing-office.png");
@@ -207,11 +389,95 @@ public partial class SmokeTests : Node
         Check(_app.Office.WallMap.Texture is null, "wall chart clears when the shared reference cannot load");
         Check(_app.StarMap.Status.Visible && _app.StarMap.Status.Text.Contains("could not load"), "missing map is explained");
         Check(_app.StarMap.ZoomIn.Disabled && _app.StarMap.ZoomOut.Disabled && _app.StarMap.FitButton.Disabled, "map controls are disabled on load failure");
+        Check(_app.StarMap.FindShipButton.Disabled, "ship locator disables when map asset is missing");
         _app.StarMap.BackButton.EmitSignal(BaseButton.SignalName.Pressed);
         Check(_app.Office.Visible, "office remains reachable after a map load failure");
         _app.StarMap.SetMap(_app.StarMap.MapPath);
         Check(_app.StarMap.Viewport.MapLoaded, "map can be restored after a load failure");
         Check(_app.Office.WallMap.Texture == _app.StarMap.Viewport.Texture, "restored reference texture returns to the wall chart");
+    }
+
+    private async Task TestTravelUi()
+    {
+        var chart = StarChart.Instance;
+        var origin = _app.State.Travel.OrbitSystemId;
+        var route = chart.Systems.Select(system => chart.Plot(origin, system.Id))
+            .First(path => path is { Length: 3 } && chart.JumpDays(path[0], path[1]) > 1)!;
+        var destination = chart[route[^1]];
+        _app.ShowMap(); await Frames();
+        var map = _app.StarMap;
+        var viewport = map.Viewport;
+        viewport.ZoomBy(12);
+        var point = new Vector2((float)destination.X, (float)destination.Y);
+        viewport.Transform.Pan(viewport.Size / 2 - (viewport.Transform.Offset + point * viewport.Transform.Scale));
+        viewport.ZoomBy(1); await Frames();
+        var at = viewport.GlobalPosition + viewport.Transform.Offset + point * viewport.Transform.Scale;
+        MouseMotion(at, Vector2.Zero); MouseButton(at, Godot.MouseButton.Left, true);
+        MouseButton(at, Godot.MouseButton.Left, false); await Frames();
+        Check(_app.State.Travel.Candidate?[^1] == destination.Id && map.EmbarkButton.Visible,
+            $"actual system marker click plots candidate and exposes Embark: expected={destination.Name}/{destination.Id}, actual={_app.State.Travel.Candidate?[^1]}, hover={GetViewport().GuiGetHoveredControl()?.GetPath()}, point={at}, viewport={viewport.GetGlobalRect()}, hit={viewport.HitSystem(at - viewport.GlobalPosition)?.Id}, notice={map.CandidateLabel.Text}");
+        Check(!_app.State.Travel.HasJourney && map.CandidateLabel.Text.Contains("CANDIDATE"), "candidate is separate from active journey");
+        var bounds = destination.LabelBounds;
+        var labelAt = viewport.GlobalPosition + viewport.Transform.Offset
+            + new Vector2((float)(bounds[0] + bounds[2] / 2), (float)(bounds[1] + bounds[3] / 2)) * viewport.Transform.Scale;
+        MouseMotion(labelAt, Vector2.Zero); MouseButton(labelAt, Godot.MouseButton.Left, true);
+        MouseButton(labelAt, Godot.MouseButton.Left, false); await Frames();
+        Check(_app.State.Travel.Candidate?[^1] == destination.Id, "system label click selects the correct destination");
+        await Capture("map-candidate");
+        await Click(map.EmbarkButton);
+        Check(_app.State.Travel.InOrbit && _app.State.Travel.HasJourney && map.CancelButton.Visible,
+            "Embark remains in orbit and exposes cancellation");
+        map.SelectSystem(route[1]); await Frames();
+        Check(_app.State.Travel.Journey![^1] == destination.Id && _app.State.Travel.Candidate![^1] == route[1],
+            "new blue candidate leaves green journey unchanged");
+        await Capture("map-journeys");
+        await Click(map.CancelButton);
+        Check(!_app.State.Travel.HasJourney && _app.State.Travel.Candidate![^1] == route[1], "Cancel Journey preserves candidate in UI");
+        map.SelectSystem(destination.Id); await Frames(); await Click(map.EmbarkButton);
+        _app.StartAdvancing(true);
+        Check(!_app.IsAdvancing, "time cannot advance from map");
+        var departedOn = _app.State.Date;
+        _app.ShowOffice(); await Click(_app.Office.CalendarButton); await Delay(.15);
+        Check(!_app.State.Travel.InOrbit && _app.State.AccruedTransitDays == 1, "office calendar departs and accrues first transit day");
+        _app.ShowMap(); await Frames();
+        Check(!map.EmbarkButton.Visible && !map.CancelButton.Visible && !map.Search.Editable && map.Destinations.Disabled,
+            "transit disables plotting, embarking and cancellation controls");
+        map.SelectSystem(origin);
+        Check(_app.State.Travel.Candidate is null, "map rejects plotting in transit");
+        var from = chart[route[0]]; var to = chart[route[1]];
+        var expectedShip = new Vector2((float)from.X, (float)from.Y).Lerp(new Vector2((float)to.X, (float)to.Y),
+            1f / chart.JumpDays(route[0], route[1]));
+        Check(viewport.ShipImagePosition.DistanceTo(expectedShip) < .01f, "DropShip locator tracks actual progress between systems");
+        var zoomInTransit = viewport.Transform.Zoom;
+        await Click(map.FindShipButton);
+        Near(viewport.Transform.Zoom, zoomInTransit, "locating in-transit ship keeps zoom");
+        Check(viewport.ShipViewportPosition.DistanceTo(viewport.Size / 2) < .1f && _app.State.Travel.Journey![^1] == destination.Id,
+            "in-transit ship can be located without changing destination");
+        await Capture("map-transit");
+        _app.ShowOffice(); await Click(_app.Office.ReminderButton); await Delay(.65);
+        Check(!_app.IsAdvancing && _app.State.Travel.InOrbit && _app.State.Travel.OrbitSystemId == route[1]
+            && _app.State.Date == departedOn.AddDays(chart.JumpDays(origin, route[1])) && _app.Dialog.Visible,
+            "calendar stops at intermediate arrival on expected day");
+        await Click(DialogButton("Continue")); _app.ShowMap(); await Frames();
+        Check(map.CancelButton.Visible && _app.State.Travel.HasJourney, "intermediate orbit permits cancelling onward journey");
+        map.SelectSystem(origin); await Frames();
+        await Capture("map-intermediate-orbit");
+        GetWindow().Size = new Vector2I(900, 500); await Frames();
+        map.CancelButton.GrabFocus(); await Frames();
+        var scroll = map.FindChildren("*", "ScrollContainer", true, false).OfType<ScrollContainer>().Single(container => container.IsAncestorOf(map.CancelButton));
+        Check(scroll.GetGlobalRect().Encloses(map.CancelButton.GetGlobalRect()), "small-window travel panel scrolls focused actions into view");
+        await Capture("map-travel-900x500");
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        var transitDays = _app.State.AccruedTransitDays;
+        _app.ShowOffice(); await Click(_app.Office.CalendarButton); await Delay(.15);
+        Check(_app.State.AccruedTransitDays == transitDays + 1 && _app.State.Travel.Candidate is null,
+            "next day automatically continues green journey and clears blue candidate");
+        if (_app.Dialog.Visible) await Click(DialogButton("Continue"));
+        await Click(_app.Office.SafeButton);
+        Check(_app.Dialog.FindChildren("*", "Label", true, false).OfType<Label>()
+            .Any(label => label.Text.Contains("Transit") && label.Text.Contains("2,000")), "quarterly finances itemize accrued transit");
+        await Capture("finances-transit");
+        await Click(DialogButton("Close"));
     }
 
     private async Task TestCampaignUi()
@@ -293,7 +559,8 @@ public partial class SmokeTests : Node
         await Click(_app.Office.SafeButton);
         await Click(DialogButton("Pay Later"));
         Check(_app.Dialog.Heading == "Defer quarterly payment?" && _app.State.PaymentPending, "warning precedes deferral");
-        await Click(DialogButton("Cancel"));
+        await RightClick(DialogButton("Cancel").GetGlobalRect().GetCenter());
+        Check(_app.Dialog.Heading == "Quarterly finances", "right-click deferral warning returns to finances");
         Check(_app.State.PaymentPending && _app.State.Cash == 2_500_000, "cancel warning preserves payment block");
         await Click(DialogButton("Pay Later"));
         await Click(DialogButton("Pay Later"));
@@ -393,8 +660,12 @@ public partial class SmokeTests : Node
         await Click(inspect);
         Check(_app.Drafting.FindChildren("*", "Control", true, false).OfType<MechDetails>().Any(), "candidate can be inspected before selection");
         await Capture("draft-inspect");
-        await PressKey(Key.Escape);
-        Check(!_app.Dialog.Visible && _app.Drafting.Draft.Choice(0) == 1, "Escape closes inspection without abandoning draft");
+        await RightClick(inspect.GetGlobalRect().GetCenter());
+        Check(!_app.Dialog.Visible && _app.Drafting.Draft.Choice(0) == 1 && inspect.HasFocus(), "right-click closes only candidate inspection and restores focus");
+        await RightClick(_app.Drafting.NameInput.GetGlobalRect().GetCenter());
+        Check(_app.Dialog.Heading == "Abandon initial draft?", "draft right-click preserves abandonment confirmation");
+        await RightClick(DialogButton("Cancel").GetGlobalRect().GetCenter());
+        Check(!_app.Dialog.Visible && _app.Drafting.Visible && _app.Drafting.Draft.Choice(0) == 1, "right-click cancels draft abandonment without losing selections");
         await FinishDraft();
         Check(!_app.Drafting.Visible && !_app.State.RequiresDraft && _app.State.Roster!.Mechs.Count == 4 && _app.State.Roster.Warriors.Count == 4,
             "Establish Company commits four mechs and four warriors");
@@ -460,7 +731,7 @@ public partial class SmokeTests : Node
     {
         var legacy = CampaignChecks.NewCompany().Snapshot() with
         {
-            Version = 1, Roster = null, Cash = 1_234_567, Date = new DateOnly(3025, 2, 10),
+            Version = 1, Roster = null, Missions = null, Cash = 1_234_567, Date = new DateOnly(3025, 2, 10),
             Events = [new("legacy-arrival", new DateOnly(3025, 2, 12), CampaignEventKind.Arrival, "Legacy arrival")]
         };
         System.IO.File.WriteAllText(_saveFile, System.Text.Json.JsonSerializer.Serialize(legacy));
@@ -487,6 +758,14 @@ public partial class SmokeTests : Node
 
     private Button DialogButton(string text) => _app.Dialog.FindChildren("*", "Button", true, false)
         .OfType<Button>().Single(button => button.Text == text && button.IsInsideTree());
+
+    private async Task RightClick(Vector2 at)
+    {
+        MouseMotion(at, Vector2.Zero);
+        MouseButton(at, Godot.MouseButton.Right, true);
+        MouseButton(at, Godot.MouseButton.Right, false);
+        await Frames();
+    }
 
     private async Task Click(Control control)
     {

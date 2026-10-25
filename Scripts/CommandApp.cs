@@ -11,6 +11,7 @@ public partial class CommandApp : Control
     public DraftScreen Drafting { get; private set; } = null!;
     public HangarScreen Hangar { get; private set; } = null!;
     public RolodexPanel Rolodex { get; private set; } = null!;
+    public MissionsPanel Missions { get; private set; } = null!;
     public Campaign State { get; private set; } = new();
     public bool IsAdvancing { get; private set; }
     [Export] public string SavePath { get; set; } = "user://campaign.json";
@@ -23,6 +24,10 @@ public partial class CommandApp : Control
     private bool _untilEvent;
     private Control? _dialogReturnFocus;
     private Control? _officeReturnFocus;
+    private bool _warriorsFromHangar;
+    private Control? _warriorsReturnFocus;
+    private bool _swallowRightRelease;
+    private readonly List<PopupMenu> _backPopups = [];
 
     public override void _Ready()
     {
@@ -46,6 +51,7 @@ public partial class CommandApp : Control
         MainMenu = new MainMenuScreen { Name = "MainMenu" };
         AddChild(MainMenu);
         Rolodex = new RolodexPanel { Name = "Rolodex" }; AddChild(Rolodex);
+        Missions = new MissionsPanel { Name = "Missions" }; AddChild(Missions);
         Dialog = new CampaignDialog { Name = "CampaignDialog" };
         AddChild(Dialog);
         MainMenu.NewRequested += () =>
@@ -61,7 +67,17 @@ public partial class CommandApp : Control
         MainMenu.ResumeRequested += ShowOffice;
         Office.WarriorsRequested += ShowWarriors;
         Office.HangarRequested += ShowHangar;
-        Rolodex.Closed += ShowOffice;
+        Rolodex.Closed += CloseWarriors;
+        Office.MissionsRequested += ShowMissions;
+        Missions.Closed += ShowOffice;
+        Missions.AcceptRequested += id => { State.Missions.Accept(id); ShowOffice(); };
+        Missions.AbandonRequested += () => Confirm("Abandon mission?",
+            $"Abandon {State.Missions.Current!.Name}?\n\nThere is no penalty. The mission will remain available.",
+            () =>
+            {
+                State.Missions.Abandon(); Dialog.Hide(); Missions.Refresh(); RefreshCampaign();
+                Missions.MissionButtons.First().CallDeferred(Control.MethodName.GrabFocus);
+            }, CloseDialog, "Abandon Mission");
         Hangar.BackRequested += ShowOffice;
         Hangar.WarriorDetailsRequested += ShowWarriors;
         Hangar.AssignmentRequested += AssignWarrior;
@@ -76,6 +92,10 @@ public partial class CommandApp : Control
         Office.FinancesRequested += ShowFinances;
         Office.FilingRequested += ShowFiling;
         StarMap.BackRequested += ShowOffice;
+        StarMap.TravelChanged += RefreshCampaign;
+        foreach (var popup in new[] { Hangar.PilotPicker.GetPopup(), Rolodex.Section.GetPopup(),
+            StarMap.Destinations.GetPopup(), StarMap.Search.GetMenu(), Drafting.NameInput.GetMenu() })
+            RegisterBackPopup(popup);
         Resized += Layout;
         Layout();
         RefreshCampaign();
@@ -97,11 +117,12 @@ public partial class CommandApp : Control
 
     public void ShowMap()
     {
-        if (State.RequiresDraft || Drafting.Visible || Rolodex.Visible || Dialog.Visible) return;
+        if (State.RequiresDraft || Drafting.Visible || Rolodex.Visible || Missions.Visible || Dialog.Visible) return;
         StopAdvancing();
         _officeReturnFocus = Office.Hotspot;
         Office.Hide();
         Hangar.Hide();
+        StarMap.SetCampaign(State);
         StarMap.Show();
         StarMap.Viewport.CallDeferred(Control.MethodName.GrabFocus);
         DisplayServer.WindowSetTitle("Mech · Inner Sphere");
@@ -110,8 +131,9 @@ public partial class CommandApp : Control
     public void ShowOffice()
     {
         StopAdvancing();
+        _warriorsFromHangar = false; _warriorsReturnFocus = null;
         MainMenu.Hide();
-        Rolodex.Hide(); Hangar.Hide();
+        Rolodex.Hide(); Missions.Hide(); Hangar.Hide();
         _header.Show();
         StarMap.Viewport.EndDrag();
         StarMap.Hide();
@@ -126,7 +148,7 @@ public partial class CommandApp : Control
     {
         StopAdvancing();
         Dialog.Hide();
-        Drafting.Hide(); Rolodex.Hide(); Hangar.Hide();
+        Drafting.Hide(); Rolodex.Hide(); Missions.Hide(); Hangar.Hide();
         StarMap.Viewport.EndDrag();
         Office.Hide();
         StarMap.Hide();
@@ -151,7 +173,7 @@ public partial class CommandApp : Control
     public void StartAdvancing(bool untilEvent)
     {
         if (IsAdvancing) { StopAdvancing(); return; }
-        if (!State.CanAdvance || Dialog.Visible || Rolodex.Visible || Drafting.Visible || !Office.Visible) return;
+        if (!State.CanAdvance || Dialog.Visible || Rolodex.Visible || Missions.Visible || Drafting.Visible || !Office.Visible) return;
         IsAdvancing = true;
         _untilEvent = untilEvent;
         _dayElapsed = 0;
@@ -163,8 +185,52 @@ public partial class CommandApp : Control
         _dayElapsed = 0;
     }
 
+    private void RegisterBackPopup(PopupMenu popup)
+    {
+        _backPopups.Add(popup);
+        popup.WindowInput += input =>
+        {
+            if (input is not InputEventMouseButton { ButtonIndex: MouseButton.Right } mouse) return;
+            if (mouse.Pressed)
+            {
+                StopAdvancing(); StarMap.Viewport.EndDrag(); _swallowRightRelease = true;
+                popup.Hide();
+            }
+            else _swallowRightRelease = false;
+            popup.SetInputAsHandled();
+        };
+    }
+
+    private void BackOneLevel()
+    {
+        var popup = _backPopups.LastOrDefault(item => item.Visible);
+        if (popup is not null) popup.Hide();
+        else if (Dialog.Visible) Dialog.RequestBack();
+        else if (Drafting.Visible) Drafting.HandleEscape();
+        else if (Rolodex.Visible) Rolodex.RequestBack();
+        else if (Missions.Visible || StarMap.Visible || Hangar.Visible) ShowOffice();
+    }
+
     public override void _Input(InputEvent @event)
     {
+        if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Right } back)
+        {
+            if (back.Pressed)
+            {
+                StopAdvancing(); StarMap.Viewport.EndDrag(); _swallowRightRelease = true;
+                BackOneLevel();
+                GetViewport().SetInputAsHandled(); return;
+            }
+            if (_swallowRightRelease)
+            {
+                _swallowRightRelease = false;
+                GetViewport().SetInputAsHandled(); return;
+            }
+        }
+        if (Missions.Visible && !Dialog.Visible && @event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape })
+        {
+            ShowOffice(); GetViewport().SetInputAsHandled(); return;
+        }
         // LineEdit consumes Escape during GUI input, so route the draft's exit before that phase.
         if (Drafting.Visible && !Dialog.Visible && @event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape })
         {
@@ -195,6 +261,7 @@ public partial class CommandApp : Control
     {
         _date.Text = $"●   {State.DateText}";
         Office.RefreshCampaign(State);
+        StarMap.SetCampaign(State);
     }
 
     private static string Money(long amount) => $"{amount.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)} C-bills";
@@ -204,8 +271,8 @@ public partial class CommandApp : Control
         if (State.RequiresDraft || Drafting.Visible) return;
         StopAdvancing();
         _dialogReturnFocus = Office.SafeButton;
-        var body = $"Company cash: {Money(State.Cash)}\n\nQuarterly company charge: {Money(Campaign.QuarterlyCharge)}\nDeferred debt: {Money(State.DeferredDebt)}\nPayment due now: {Money(State.PaymentDue)}\nNext quarter: {State.NextQuarter:dd MMM yyyy}";
-        if (!State.PaymentPending) body += $"\nNext bill: {Money(Campaign.QuarterlyCharge + State.DeferredDebt)}";
+        var body = $"Company cash: {Money(State.Cash)}\n\nQuarterly company charge: {Money(Campaign.QuarterlyCharge)}\nTransit ({(State.PaymentPending ? State.BilledTransitDays : State.AccruedTransitDays)} days × {Money(Campaign.TransitDailyCharge)}): {Money(State.PaymentPending ? State.BilledTransitCost : State.AccruedTransitCost)}\nDeferred debt: {Money(State.DeferredDebt)}\nPayment due now: {Money(State.PaymentDue)}\nNext quarter: {State.NextQuarter:dd MMM yyyy}";
+        if (!State.PaymentPending) body += $"\nNext bill: {Money(State.ProjectedBill)}";
         else if (!State.CanPay) body += "\n\nInsufficient cash to pay the bill in full.";
         else if (State.DeferredDebt > 0) body += "\n\nBoth quarters must be paid in full. No further deferral is available.";
         var actions = new List<DialogAction> { new("Close", CloseDialog) };
@@ -323,21 +390,49 @@ public partial class CommandApp : Control
 
     private void ShowDraft()
     {
-        StopAdvancing(); _header.Hide(); MainMenu.Hide(); StarMap.Hide(); Hangar.Hide(); Rolodex.Hide();
+        StopAdvancing(); _header.Hide(); MainMenu.Hide(); StarMap.Hide(); Hangar.Hide(); Rolodex.Hide(); Missions.Hide();
         if (!Drafting.Visible) Drafting.Begin();
         DisplayServer.WindowSetTitle("Mech · Establish Company");
     }
 
+    public void ShowMissions()
+    {
+        if (State.RequiresDraft || Dialog.Visible || Rolodex.Visible || !Office.Visible) return;
+        StopAdvancing(); _officeReturnFocus = Office.PhoneButton;
+        Missions.Open(State.Missions); RefreshCampaign();
+    }
+
     public void ShowWarriors()
     {
-        if (State.RequiresDraft || Dialog.Visible) return;
-        ShowOffice(); _officeReturnFocus = Office.RolodexButton; Rolodex.Open(State.Roster!);
+        if (State.RequiresDraft || Dialog.Visible || Missions.Visible || Rolodex.Visible) return;
+        StopAdvancing();
+        if (Hangar.Visible)
+        {
+            _warriorsFromHangar = true; _warriorsReturnFocus = Hangar.WarriorsButton;
+            Rolodex.Open(State.Roster!, "Back to hangar");
+        }
+        else
+        {
+            ShowOffice(); _officeReturnFocus = Office.RolodexButton; Rolodex.Open(State.Roster!);
+        }
+    }
+
+    private void CloseWarriors()
+    {
+        Rolodex.Hide();
+        if (_warriorsFromHangar && Hangar.Visible)
+        {
+            _warriorsFromHangar = false;
+            _warriorsReturnFocus?.CallDeferred(Control.MethodName.GrabFocus);
+            _warriorsReturnFocus = null;
+        }
+        else ShowOffice();
     }
 
     public void ShowHangar()
     {
-        if (State.RequiresDraft || Dialog.Visible) return;
-        StopAdvancing(); _officeReturnFocus = Office.HangarButton; Office.Hide(); StarMap.Hide(); Rolodex.Hide(); MainMenu.Hide();
+        if (State.RequiresDraft || Dialog.Visible || Missions.Visible) return;
+        StopAdvancing(); _officeReturnFocus = Office.HangarButton; Office.Hide(); StarMap.Hide(); Rolodex.Hide(); Missions.Hide(); MainMenu.Hide();
         _header.Show(); Hangar.Open(State.Roster!);
         DisplayServer.WindowSetTitle("Mech · Mech Hangar");
     }
@@ -366,7 +461,7 @@ public partial class CommandApp : Control
 
     public override void _UnhandledKeyInput(InputEvent @event)
     {
-        if (Dialog.Visible || Drafting.Visible || Rolodex.Visible || @event is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }) return;
+        if (Dialog.Visible || Drafting.Visible || Rolodex.Visible || Missions.Visible || @event is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }) return;
         if (StarMap.Visible || Hangar.Visible) ShowOffice();
         else if (Office.Visible) ShowMainMenu();
         else return;

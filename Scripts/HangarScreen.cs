@@ -8,6 +8,7 @@ public partial class HangarScreen : Control
     public event Action<string, string?>? AssignmentRequested;
     public event Action? WarriorDetailsRequested;
     public Button BackButton { get; private set; } = null!;
+    public Button WarriorsButton { get; private set; } = null!;
     public OptionButton PilotPicker { get; private set; } = null!;
     public Button AssignButton { get; private set; } = null!;
     public Button UnassignButton { get; private set; } = null!;
@@ -49,7 +50,7 @@ public partial class HangarScreen : Control
         AssignButton = Ui.Button(pilotBody, "Assign warrior"); AssignButton.CustomMinimumSize = new Vector2(0, 36);
         AssignButton.Pressed += () => { if (PilotPicker.Selected >= 0 && PilotPicker.Selected < _pilotIds.Count) AssignmentRequested?.Invoke(SelectedMech.Id, _pilotIds[PilotPicker.Selected]); };
         UnassignButton = Ui.Button(pilotBody, "Unassign"); UnassignButton.Pressed += () => AssignmentRequested?.Invoke(SelectedMech.Id, null);
-        var warriors = Ui.Button(pilotBody, "View MechWarriors"); warriors.Pressed += () => WarriorDetailsRequested?.Invoke();
+        WarriorsButton = Ui.Button(pilotBody, "View MechWarriors"); WarriorsButton.Pressed += () => WarriorDetailsRequested?.Invoke();
         _details = new MechDetails { SizeFlagsVertical = SizeFlags.ExpandFill }; _detailsPanel.AddChild(_details);
         _rosterScroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Auto, VerticalScrollMode = ScrollContainer.ScrollMode.Disabled };
         AddChild(_rosterScroll); _rosterButtons = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; _rosterButtons.AddThemeConstantOverride("separation", 8); _rosterScroll.AddChild(_rosterButtons);

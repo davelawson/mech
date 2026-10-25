@@ -13,3 +13,12 @@ python3 scripts/import-mech-catalog.py
 ```
 
 An explicit `--revision SHA` updates the source revision. The game embeds the resulting JSON into its assembly and does not access the network at runtime. Owned unit damage, ammunition and pilot assignments are separate campaign state. MechWarrior identities and portraits are original project content. The role profiles use G/P 4/5, 3/6 and 5/4 for regular pools and G/P 3/4, 2/5 and 4/3 for the veteran pool; these are authored choices rather than special abilities.
+
+
+## Star system geography
+
+`star-systems.json` is generated from the pinned official 3025 vector chart in `docs/sources/inner-sphere-3025.pdf`. The source SHA-256 and distance-ruler calibration are recorded in the catalog and checked by `scripts/extract-star-systems.py`. Regenerate with `python3 scripts/extract-star-systems.py` (Python 3 and Poppler's `pdftotext` required). The game consumes the embedded JSON and needs neither tool at runtime.
+
+Each system stores its original name, symbol center, clickable label bounds, and a stable ID derived from source coordinates. Names are not unique identifiers. Positions map directly to the 7000 × 6000 starscape image; the source 120-light-year ruler spans 169.302 PDF points, or 4.898784722 image pixels per light-year. Decorative stars, faction labels, legend samples, and annotations without destination symbols are excluded. The named Brocchi and Enders cluster markers remain selectable destinations. Multiline names and capital symbols require explicit handling in the extractor; regenerating against a changed PDF requires reviewing those associations.
+
+The geography retains the original BattleTech map's rights and attribution; see [artwork sources](../docs/artwork.md).

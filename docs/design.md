@@ -14,7 +14,7 @@
 - Standalone Windows 11 x64, Linux x64, and macOS (Apple Silicon and Intel) applications are the initial targets, built with Godot and C#. Resizing keeps the complete office image and wall-map hotspot aligned.
 - A subtle persistent marker identifies the clickable wall map. Hover and keyboard focus highlight it and reveal “Star map”.
 - The wall map opens a separate screen displaying the official 3025 map of the entire Inner Sphere, with pan, zoom, and “Back to office”.
-- The full reference chart is presentation artwork; the later playable travel network remains a separate authored set of systems and routes.
+- Every named system on the full reference chart participates in travel; geography and clickable labels are extracted from its pinned vector source.
 - The office now includes a digital wall calendar and attached “Reminder...” post-it, a company safe, and a filing cabinet. Other campaign simulation follows in the first strategy milestone.
 - Acceptance includes office/map navigation, animated time controls, quarterly payment and bankruptcy flows, and manual save/load, including keyboard navigation and resized windows.
 
@@ -32,9 +32,9 @@
 # Campaign and travel
 
 - Campaigns begin in 3025.
-- Initially represent the Inner Sphere and Periphery with a sparse network of individual systems, expanding density later.
-- Offer a small selection of starting systems. Start new companies with 2,500,000 C-bills.
-- Hire transport with an upfront cost and elapsed travel time; transport vessel management is outside the first milestone.
+- Use the named systems of the full 3025 chart, connected by jumps of at most 30 light-years.
+- Start new companies in orbit at Galatea with 2,500,000 C-bills. Older saves without travel state also start at Galatea.
+- Accrue transport costs at 2,000 C-bills per whole transit day and collect them with the quarterly company bill. Transport vessel management is outside the first milestone.
 - Present regional contract offers with fixed terms: payment, destination, deadline, and expected opposition. Negotiation is deferred.
 - Allow asset sales for financial recovery. Recovery contracts are deferred. Losing the deployable force does not immediately end the campaign; players may sell assets, buy replacements, and hire pilots. Quarterly bankruptcy is the financial game-over condition.
 
@@ -51,8 +51,8 @@
 - The interim authored-outcome tool consumes the same snapshot intended for combat.
 - Combat reports battlefield facts; strategy calculates payment, contractual penalties, and repair quotes.
 - Contracts have a mission completion deadline. Missing it fails the contract; payment occurs on settlement.
-- Quarterly obligations block time at calendar boundaries, including during transit, until explicitly paid or deferred. The current finance slice charges a fixed 100,000 C-bills per quarter; personnel salaries and detailed operating costs follow later.
-- Show projected cash at arrival before committing to travel.
+- Quarterly obligations block time at calendar boundaries, including during transit, until explicitly paid or deferred. The company charge is 100,000 C-bills per quarter, plus accrued transit costs; personnel salaries and detailed operating costs follow later.
+- Preview the selected route, transit days, and transit cost before embarking; no cash is collected upfront.
 
 # Markets and recovery
 
@@ -73,18 +73,18 @@
 
 - Select an authored set of eight draft pools at campaign creation, without a reroll button.
 - Initial MechWarrior skills are Gunnery and Piloting; progression and special abilities are deferred.
-- Systems form a connected map with authored travel times and fares; charge for the chosen route. Explicit regions determine regional offer visibility.
+- Systems connect when separated by at most 30 light-years. Choose the fewest jumps, breaking ties by total distance. Each jump takes ceil(distance / 6) whole days. Explicit regions will determine regional offer visibility.
 - Damaged mechs and wrecks have guaranteed local sale at a displayed condition-adjusted price. Selling cancels associated repair orders under the cancellation rules.
 - The first playable interface is a standalone Godot game written in C#, targeting Windows 11 x64, Linux x64, and macOS on Apple Silicon and Intel.
 
 # Quarterly accounting
 
 - Campaigns start January 1, 3025. First payment is due April 1, followed by July 1, October 1, and January 1.
-- The current finance model is one flat charge of 100,000 C-bills every quarter, with no monthly or daily accrual. Detailed salaries and overhead are deferred.
+- Each quarterly bill includes the flat 100,000 C-bill company charge, accrued transit days at 2,000 C-bills each, and any carried bill. Detailed salaries and overhead are deferred.
 - On a due date, stop advancing time, replace the calendar countdown with red “Payment Due”, and blink the safe. Clicking the safe opens the quarterly finances; while payment is pending, offer Pay Now and Pay Later.
 - Pay Now collects the entire bill and clears debt. Disable it when funds are insufficient. Pay Later requires confirming a bankruptcy warning, preserves all cash, and carries the entire bill to the following quarter. It stops the safe blinking and resumes the countdown, which stays red until the bill is paid in full. Advancement remains stopped until the player requests it again.
 - Incoming cash during grace remains available for normal spending. The next quarterly bill includes the deferred bill; a second deferral is unavailable.
-- Quarterly payment is evaluated at the start of the day, before other same-day events such as mission settlement. Hold those events until payment is resolved. If funds cannot cover debt plus the new charge at the end of grace, show a bankruptcy dialog and return to the main menu when dismissed. Preserve the manual save.
+- Accrue the completed transit day before calculating a boundary-day bill. Quarterly payment blocks presentation of other same-day events, including arrivals and mission settlement. Hold those events until payment is resolved. If funds cannot cover debt plus the new charge at the end of grace, show a bankruptcy dialog and return to the main menu when dismissed. Preserve the manual save.
 
 # Time controls and initial content
 
@@ -93,7 +93,7 @@
 - Any click stops advancement and activates the clicked object, except calendar and post-it clicks, which only stop advancement. Clicking empty space also stops advancement.
 - Stop at arrivals, repair completions, mission results, contract deadlines, and quarterly payments.
 - Quarterly payments always guarantee an upcoming event. Other event producers will connect to the scheduling foundation as their systems are implemented.
-- Begin with three starting locations, approximately twelve connected systems distributed across the intended geography, one authored draft configuration, and a small set of repeatable contract templates.
+- Begin at Galatea, with all named chart systems available for route plotting, one authored draft configuration, and a small set of repeatable contract templates.
 
 # Acceptance scenarios
 
@@ -126,3 +126,21 @@ A new company enters the office and immediately opens the shared initial draft b
 The company name and all eight choices remain editable until **Establish Company** commits the complete roster. Escape from an unfinished draft asks to abandon it and return to the main menu. Unfinished drafts cannot be saved, and established drafts cannot reopen. Existing finance-only saves require this same draft while retaining their date, cash, obligations and scheduled events; loading or drafting does not overwrite the manual save.
 
 Opening roster interfaces pauses time. Escape returns to the office; Escape in the office opens the main menu. The main menu offers **Resume** when an established, solvent company remains in memory. Resume returns to the office without saving or discarding progress. Starting or loading another company asks before replacing an existing live company. The original single-slot manual-save policy remains in force.
+
+
+## Star travel (confirmed October 25, 2026)
+
+Click a named system or select a destination while in orbit to plot a blue candidate route. This does not replace an embarked green journey. Embark commits the candidate as the active journey but leaves the company in orbit until the next day. Cancel Journey clears only the embarked journey; a candidate can be ignored and remains available while in orbit.
+
+Time advances only in the office. Advancing a day departs orbit, clears any unembarked candidate, and counts the first transit day. Plotting, embarking, and cancellation are unavailable partway through a jump. Arrival is a calendar-stopping event at every system, including intermediate stops. The company spends that date in orbit and automatically continues its embarked journey when time advances to the next day. Final arrival completes the journey.
+
+A 30-light-year jump takes five days; shorter jumps scale linearly and round up independently to whole days, with a minimum of one day. Embarking on day 10 for a 30-light-year jump produces arrival on day 15. Every transit day costs 2,000 C-bills, including a completed day on a quarterly boundary. Orbit incurs no transit charge. Transit costs join the current calendar-quarter bill and use the same full-payment, one-deferral, and bankruptcy rules. Same-day arrival notifications wait for payment or deferral.
+
+Persist location, candidate and embarked routes, current jump progress, accrued transit days, and the frozen transit component of a pending bill. Use the source map's coordinates and scale; duplicated system names retain distinct stable identities. Unreachable destinations cannot be embarked.
+
+
+## Back navigation and DropShip visibility
+
+Right-click closes the topmost popup, confirmation, or subscreen and returns one level toward the office. Reuse the existing cancel/back action, restore focus, and consume both press and release. Right-click stops time without opening another screen when already in the office; it does not navigate from the main menu. Draft abandonment and bankruptcy retain their existing confirmation and dismissal rules. Personnel opened from the hangar returns to the same hangar selection and detail tab; its visible Back action and Escape follow that parent too.
+
+A fixed-size gold DropShip silhouette, dark backing, halo, and permanent location label identify the current orbit or interpolated position in transit on the chart. Offscreen position is indicated by a clickable direction arrow. The arrow and Find DropShip button center the current position at the existing zoom, within map bounds, without changing candidate or embarked journeys. Preserve the chosen camera view when reopening the chart. Keep the marker label and locator clear of the zoom controls and usable at 900 × 500.

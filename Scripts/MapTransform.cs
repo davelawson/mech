@@ -39,6 +39,12 @@ public sealed class MapTransform
         Clamp();
     }
 
+    public void CenterOn(Vector2 imagePoint)
+    {
+        Offset = ViewSize / 2 - imagePoint * Scale;
+        Clamp();
+    }
+
     public void Pan(Vector2 delta)
     {
         Offset += delta;

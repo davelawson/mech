@@ -61,7 +61,7 @@ Use case: stylized-concept. Asset type: finished background illustration for a d
 
 ## Inner Sphere map
 
-- App asset: `Assets/inner-sphere-3025.jpg` (7000 × 6000), a JPEG rendering of the one-page official PDF.
+- Original reference: `Assets/inner-sphere-3025.jpg` (7000 × 6000), a JPEG rendering of the one-page official PDF. The active shared chart is the starscape edit described below.
 - Source: [Inner Sphere at War: 3025](https://battletech.com/wp-content/uploads/sites/6/2025/03/BattleTech-Inner-Spher-at-War-3025.pdf), linked from the [official BattleTech downloads page](https://battletech.com/downloads/).
 - Retrieved October 24, 2026. The original copyright and attribution remain visible in the image; the map screen also links to the original PDF.
 - Third-party BattleTech map artwork retains its original rights; this project does not assert ownership or a new license over it. Download availability does not establish a redistribution license.
@@ -71,6 +71,30 @@ To regenerate the map asset with Poppler after downloading the PDF:
 
 ```sh
 pdftoppm -singlefile -jpeg -jpegopt quality=94 -scale-to 7000 BattleTech-Inner-Spher-at-War-3025.pdf Assets/inner-sphere-3025
+```
+
+### Starscape edit (October 25, 2026)
+
+The active shared chart is `Assets/inner-sphere-3025-starscape.jpg` (7000 × 6000). The original JPEG is retained. The new version removes the hex outlines, 2,256 coordinate numbers (including the legend example), the legend hex symbol, and its interstellar-hex explanation. A static near-black navy background carries 1,100 faint decorative stars, smaller and dimmer than named systems. Muted faction fills, lighter borders, labels and compass details retain the original map geometry and lettering. The office wall and opened chart share the new texture, with lossless Godot import and mipmaps.
+
+The final artwork is rendered from the original vector PDF, pinned in `docs/sources/inner-sphere-3025.pdf` with SHA-256 `40966bc3a317e7c7cc071b4c34ed6638a78eac8a659b237ef110393deaedb238`. This allows clean removal of the grid and coordinate forms without reconstructing any systems or labels. The source's capital symbols, title, compass, distance scale, remaining legend, logo and attribution are retained. Poppler text-and-position comparison confirmed that all 2,528 remaining words have exactly their original text and coordinates; the only omitted words are the hex coordinates and six words in the removed explanation.
+
+Regenerate offline from the pinned source with Node.js and Poppler installed:
+
+```sh
+node scripts/render-star-map.cjs
+```
+
+The script checks the source hash, removes the original grid forms, adjusts vector colors, and adds fixed-seed background stars before rendering the JPEG at its original resolution. Its intermediate PDF is saved under ignored `TestResults/star-map-work/`.
+
+A built-in `image_gen.imagegen` edit was tried first. The full-resolution input was rejected; a smaller reference generated an edit that altered names and positions, so that generated output is **not used by the game**. The final asset uses the original vector drawing commands instead. The attempted built-in prompt was:
+
+```text
+Use case: precise-object-edit.
+Asset type: production map texture for a Godot game, shared by a zoomable star chart and a framed office wall map.
+Input image 1 is the edit target: a full-composition reference of the complete Inner Sphere map.
+Primary request: remove the entire baked-in hex grid, every hex coordinate number, and the hex symbol and "INTERSTELLAR HEX = 30 LIGHT YEARS" entry in the legend. Replace the gray backdrop with a near-black navy sparse starscape. Carry this dark treatment through all faction territories: use subdued, translucent-looking versions of their existing blue, red, purple, green, yellow, tan, and teal fills over the dark background. Keep faction borders clearly visible. Add only a few tiny, very dim white background stars, less prominent than the actual named systems. Static artwork; no nebulae, glow clouds, gradients, lens flares or bright decorative stars.
+CRITICAL PRESERVATION: This is an edit of the existing map, not a redesign or an approximation. Retain the exact full 7:6 image composition with no crop or stretch. Preserve every actual system dot, its original location and correct readable name, every capital symbol, every faction boundary and island, and all existing map geography. Preserve the title "INNER SPHERE AT WAR: 3025", remaining legend, compass, distance scale, maximum-jump text, credits, BattleTech logo and bottom copyright/attribution. Adapt text, symbols, and borders to clear light colors as necessary for readability against the dark ground. Make the legend dark and visually integrated, with readable light lettering. Use the highest practical resolution and tiny cartographic lettering as faithfully as possible, suitable for close zoom. Do not invent, move, omit, blur, or replace systems or system names. No hexagons, hex numbering, coordinate mesh or grid lines anywhere.
 ```
 
 ## Roster artwork
@@ -85,3 +109,13 @@ The roster implementation adds 26 project-local raster assets generated with the
 All new textures are imported losslessly with mipmaps. Cutout transparency is preserved. No project asset depends on an image remaining in the generator's output directory.
 
 The new office hotspot rectangles in the existing 1672×940 source coordinate system are: rolodex `(695,552,124,104)` and hangar porthole `(1470,70,202,390)`. The live ready-count readout sits on the rolodex plaque and scales with the same artwork transform.
+
+## Mission phone artwork
+
+`Assets/dropship-office-missions.png` is a non-destructive edit of `Assets/dropship-office-rosters.png`, generated with the built-in `image_gen.imagegen` tool on October 24, 2026. Both files are 1673 × 940; existing controls retain the established 1672 × 940 logical artwork coordinates. The existing office composition and openings are preserved. The phone hotspot is `(1116,558,129,83)`; an amber light at local `(85,49,8,6)` flashes in the live interface for unseen offers. The phone is silent. The texture is imported losslessly with mipmaps.
+
+Final prompt:
+
+```text
+Use case: precise-object-edit. Asset type: painted point-and-click game office backdrop. Input image 1 is the edit target. Add ONE compact old industrial olive-green corded desk telephone with a clearly visible small dark amber notification lamp on its front face, resting on the rear edge of the desk just to the right of the captain chair and left of the existing lamp, approximately x=1110..1285, y=545..655 in this 1672x940 source. Handset resting on cradle, coiled cord, recognizable physical telephone; lamp unlit so the game can animate it. Match the existing painted retro-futurist industrial style, worn metal, warm amber lighting and perspective. Preserve the exact image dimensions 1672x940 and all existing scene geometry and objects, especially the rolodex at x695..819 y552..656, map frame and blank opening, calendar and post-it, safe and its blank screen, filing cabinet, porthole repair bay, chair, CRT, papers, and desk. Change only the small region needed for this phone; no new lettering, no other props, no people, no red launch button, no UI, no watermark.
+```

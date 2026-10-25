@@ -7,7 +7,8 @@ public enum CampaignEventKind { Arrival, RepairCompletion, MissionResult, Contra
 public sealed record CampaignEvent(string Id, DateOnly Date, CampaignEventKind Kind, string Title);
 public sealed record DayResult(bool Advanced, bool QuarterReached, IReadOnlyList<CampaignEvent> Events);
 public sealed record CampaignSnapshot(int Version, DateOnly Date, long Cash, long PaymentDue,
-    long DeferredDebt, DateOnly NextQuarter, bool Bankrupt, CampaignEvent[] Events, RosterSnapshot? Roster = null);
+    long DeferredDebt, DateOnly NextQuarter, bool Bankrupt, CampaignEvent[] Events, RosterSnapshot? Roster = null, MissionSnapshot? Missions = null,
+    TravelSnapshot? Travel = null, int AccruedTransitDays = 0, int BilledTransitDays = 0);
 
 /// <summary>Campaign time and obligations, independent of the scene tree and animation.</summary>
 public sealed class Campaign
@@ -15,6 +16,13 @@ public sealed class Campaign
     public static readonly DateOnly StartDate = new(3025, 1, 1);
     public const long StartingCash = 2_500_000;
     public const long QuarterlyCharge = 100_000;
+    public const long TransitDailyCharge = 2_000;
+    public Travel Travel { get; private set; } = new(StarChart.Instance);
+    public int AccruedTransitDays { get; private set; }
+    public int BilledTransitDays { get; private set; }
+    public long AccruedTransitCost => AccruedTransitDays * TransitDailyCharge;
+    public long BilledTransitCost => BilledTransitDays * TransitDailyCharge;
+    public long ProjectedBill => QuarterlyCharge + DeferredDebt + AccruedTransitCost;
     private readonly List<CampaignEvent> _events = [];
 
     public DateOnly Date { get; private set; } = StartDate;
@@ -26,6 +34,7 @@ public sealed class Campaign
     public bool PaymentPending => PaymentDue > 0;
     public ForceRoster? Roster { get; private set; }
     public bool RequiresDraft => Roster is null;
+    public MissionBoard Missions { get; private set; } = new();
     public void EstablishCompany(InitialDraft draft)
     {
         if (!RequiresDraft) throw new InvalidOperationException("The initial draft is already complete.");
@@ -36,7 +45,23 @@ public sealed class Campaign
     public bool CanDefer => !RequiresDraft && PaymentPending && !Bankrupt && DeferredDebt == 0;
     public int DaysUntilQuarter => NextQuarter.DayNumber - Date.DayNumber;
     public string DateText => Date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture).ToUpperInvariant();
-    public DateOnly NextEventDate => _events.Aggregate(NextQuarter, (date, item) => item.Date < date ? item.Date : date);
+    public DateOnly NextEventDate
+    {
+        get
+        {
+            var next = _events.Aggregate(NextQuarter, (date, item) => item.Date < date ? item.Date : date);
+            return Travel.HasJourney && Travel.DaysToArrival < next.DayNumber - Date.DayNumber
+                ? Date.AddDays(Travel.DaysToArrival) : next;
+        }
+    }
+
+    public bool PlotJourney(string destination) { RequireTravelAccess(); return Travel.Plot(destination); }
+    public void Embark() { RequireTravelAccess(); Travel.Embark(); }
+    public void CancelJourney() { RequireTravelAccess(); Travel.Cancel(); }
+    private void RequireTravelAccess()
+    {
+        if (RequiresDraft || Bankrupt) throw new InvalidOperationException("An established, solvent company is required.");
+    }
 
     public void Schedule(CampaignEvent item)
     {
@@ -53,11 +78,20 @@ public sealed class Campaign
         if (!CanAdvance) return new(false, false, Array.Empty<CampaignEvent>());
         Date = Date.AddDays(1);
         Roster?.Recover(Date);
+        if (Travel.HasJourney)
+        {
+            AccruedTransitDays++;
+            var arrived = Travel.AdvanceDay();
+            if (arrived is not null) _events.Add(new($"travel-arrival-{Date.DayNumber}", Date,
+                CampaignEventKind.Arrival, $"Arrived at {StarChart.Instance[arrived].Name}. In orbit for today."));
+        }
         var quarterReached = Date == NextQuarter;
         // Accounting is evaluated before any other event on the same date.
         if (quarterReached)
         {
-            PaymentDue = QuarterlyCharge + DeferredDebt;
+            BilledTransitDays = AccruedTransitDays;
+            AccruedTransitDays = 0;
+            PaymentDue = QuarterlyCharge + DeferredDebt + BilledTransitCost;
             NextQuarter = NextQuarter.AddMonths(3);
             Bankrupt = DeferredDebt > 0 && Cash < PaymentDue;
         }
@@ -71,6 +105,7 @@ public sealed class Campaign
         if (!CanPay) throw new InvalidOperationException("The full payment must be affordable.");
         Cash -= PaymentDue;
         PaymentDue = 0;
+        BilledTransitDays = 0;
         DeferredDebt = 0;
         return TakeDueEvents();
     }
@@ -80,6 +115,7 @@ public sealed class Campaign
         if (!CanDefer) throw new InvalidOperationException("A deferred bill cannot be deferred again.");
         DeferredDebt = PaymentDue;
         PaymentDue = 0;
+        BilledTransitDays = 0;
         return TakeDueEvents();
     }
 
@@ -91,27 +127,38 @@ public sealed class Campaign
         return due;
     }
 
-    public CampaignSnapshot Snapshot() => new(2, Date, Cash, PaymentDue, DeferredDebt, NextQuarter, Bankrupt, _events.ToArray(), Roster?.Snapshot());
+    public CampaignSnapshot Snapshot() => new(4, Date, Cash, PaymentDue, DeferredDebt, NextQuarter, Bankrupt, _events.ToArray(), Roster?.Snapshot(), Missions.Snapshot(), Travel.Snapshot(), AccruedTransitDays, BilledTransitDays);
 
     public static Campaign Restore(CampaignSnapshot save)
     {
         ArgumentNullException.ThrowIfNull(save);
         var date = save.Date;
-        if (save.Version is not (1 or 2) || date < StartDate || date.Year >= 9999 || save.Cash < 0
-            || save.DeferredDebt is not (0 or QuarterlyCharge)
-            || save.PaymentDue != 0 && save.PaymentDue != QuarterlyCharge + save.DeferredDebt
-            || save.NextQuarter != new DateOnly(date.Year, (date.Month - 1) / 3 * 3 + 1, 1).AddMonths(3)
+        var quarterStart = date == default ? StartDate : new DateOnly(date.Year, (date.Month - 1) / 3 * 3 + 1, 1);
+        if (save.Version is not (1 or 2 or 3 or 4) || date < StartDate || date.Year >= 9999 || save.Cash < 0
+            || save.DeferredDebt < 0 || save.DeferredDebt > 284_000
+            || save.DeferredDebt != 0 && (save.DeferredDebt < QuarterlyCharge || save.DeferredDebt % TransitDailyCharge != 0)
+            || save.AccruedTransitDays < 0 || save.AccruedTransitDays > date.DayNumber - quarterStart.DayNumber
+            || save.BilledTransitDays is < 0 or > 92
+            || save.PaymentDue == 0 && save.BilledTransitDays != 0
+            || save.PaymentDue > 0 && save.AccruedTransitDays != 0
+            || save.PaymentDue != 0 && save.PaymentDue != QuarterlyCharge + save.DeferredDebt + save.BilledTransitDays * TransitDailyCharge
+            || save.NextQuarter != quarterStart.AddMonths(3)
             || save.PaymentDue > 0 && (date.Day != 1 || (date.Month - 1) % 3 != 0 || date == StartDate)
             || save.Bankrupt != (save.PaymentDue > 0 && save.DeferredDebt > 0 && save.Cash < save.PaymentDue)
-            || save.Events is null || save.Version == 1 && save.Roster is not null || save.Version == 2 && save.Roster is null)
+            || save.Events is null || save.Version == 1 && save.Roster is not null || save.Version >= 2 && save.Roster is null
+            || save.Version < 3 && save.Missions is not null || save.Version >= 3 && save.Missions is null
+            || save.Version == 4 && save.Travel is null)
             throw new ArgumentException("The campaign save contains invalid state.");
 
         var campaign = new Campaign
         {
             Date = date, Cash = save.Cash, PaymentDue = save.PaymentDue,
-            DeferredDebt = save.DeferredDebt, NextQuarter = save.NextQuarter, Bankrupt = save.Bankrupt
+            DeferredDebt = save.DeferredDebt, NextQuarter = save.NextQuarter, Bankrupt = save.Bankrupt,
+            AccruedTransitDays = save.AccruedTransitDays, BilledTransitDays = save.BilledTransitDays
         };
+        if (save.Version >= 4) campaign.Travel = Mech.Travel.Restore(save.Travel!, StarChart.Instance);
         if (save.Roster is not null) campaign.Roster = ForceRoster.Restore(save.Roster, date);
+        if (save.Missions is not null) campaign.Missions = MissionBoard.Restore(save.Missions);
         foreach (var item in save.Events)
         {
             if (item is null || string.IsNullOrWhiteSpace(item.Id) || string.IsNullOrWhiteSpace(item.Title)

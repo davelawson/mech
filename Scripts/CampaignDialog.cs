@@ -73,6 +73,8 @@ public partial class CampaignDialog : Control
         first?.CallDeferred(Control.MethodName.GrabFocus);
     }
 
+    public void RequestBack() => _cancel?.Invoke();
+
     private void Layout()
     {
         if (_panel is null) return;
@@ -85,7 +87,7 @@ public partial class CampaignDialog : Control
     {
         if (Visible && @event is InputEventKey { Pressed: true, Keycode: Key.Escape })
         {
-            _cancel?.Invoke();
+            RequestBack();
             GetViewport().SetInputAsHandled();
         }
     }

@@ -57,13 +57,13 @@ internal static class RosterChecks
         corruptMech = savedRoster.Mechs[0] with { WarriorId = first.Id };
         Reject(() => Campaign.Restore(snapshot with { Roster = savedRoster with { Mechs = [corruptMech] } }), "dead pilot assignment rejected on load");
         Reject(() => Campaign.Restore(snapshot with { Roster = null }), "current save must contain an established roster");
-        var legacy = Campaign.Restore(snapshot with { Version = 1, Roster = null, Cash = 1_234_567, Date = new DateOnly(3025, 2, 10) });
+        var legacy = Campaign.Restore(snapshot with { Version = 1, Roster = null, Missions = null, Cash = 1_234_567, Date = new DateOnly(3025, 2, 10) });
         check(legacy.RequiresDraft && legacy.Cash == 1_234_567 && legacy.Date == new DateOnly(3025, 2, 10), "legacy save preserves money and date before drafting");
         legacy.EstablishCompany(draft);
         check(legacy.Cash == 1_234_567 && legacy.Roster!.ForceName == "Iron Lanterns", "legacy draft preserves finances");
         var pendingLegacy = Campaign.Restore(snapshot with
         {
-            Version = 1, Roster = null, Date = new DateOnly(3025, 4, 1), NextQuarter = new DateOnly(3025, 7, 1), PaymentDue = Campaign.QuarterlyCharge
+            Version = 1, Roster = null, Missions = null, Date = new DateOnly(3025, 4, 1), NextQuarter = new DateOnly(3025, 7, 1), PaymentDue = Campaign.QuarterlyCharge
         });
         check(pendingLegacy.PaymentPending && !pendingLegacy.CanPay && !pendingLegacy.CanDefer, "legacy payment operations wait for draft completion");
         pendingLegacy.EstablishCompany(draft);
