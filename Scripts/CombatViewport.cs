@@ -10,7 +10,11 @@ public partial class CombatViewport : Control
     public CombatSimulation? Simulation { get; private set; }
     public IReadOnlyCollection<string> Selection { get; set; } = Array.Empty<string>();
     public string? InspectedEnemy { get; set; }
-    public bool CommandsEnabled { get; set; } = true;
+    public bool CommandsEnabled
+    {
+        get => _commandsEnabled;
+        set { _commandsEnabled = value; if (!value) CancelDrag(); }
+    }
     public Camera3D Camera { get; private set; } = null!;
     private SubViewport _viewport = null!;
     private Node3D _world = null!;
@@ -18,7 +22,19 @@ public partial class CombatViewport : Control
     private readonly Dictionary<string, Dictionary<MechLocation, MeshInstance3D>> _parts = [];
     private readonly List<(CombatShot Shot, float Life)> _effects = [];
     private Vector3 _focus = new(0, 0, 12);
+    private static readonly float DefaultPitch = Mathf.Atan2(80, 70);
+    private static readonly float OrbitRadius = new Vector2(70, 80).Length();
+    private const float RightDragThreshold = 5;
+    private static readonly float OrbitSensitivity = Mathf.DegToRad(.25f);
     private float _yaw;
+    private float _pitch = DefaultPitch;
+    private bool _commandsEnabled = true;
+    private bool _windowFocused = true;
+    private bool _rightPressed;
+    private bool _rightDragging;
+    private Vector2 _rightCursorStart;
+    private Vector2 _rightDisplacement;
+    private Input.MouseModeEnum _previousMouseMode;
     private bool _selecting;
     private bool _panning;
     private bool _rotating;
@@ -55,6 +71,10 @@ public partial class CombatViewport : Control
         }
         mesh.SurfaceEnd(); _world.AddChild(new MeshInstance3D { Mesh = mesh });
         Resized += QueueRedraw;
+        FocusExited += CancelDrag;
+        VisibilityChanged += () => { if (!IsVisibleInTree()) CancelDrag(); };
+        GetWindow().FocusExited += WindowFocusExited;
+        GetWindow().FocusEntered += WindowFocusEntered;
         UpdateCamera();
     }
     public void Display(CombatSimulation simulation)
@@ -63,7 +83,7 @@ public partial class CombatViewport : Control
         foreach (var model in _models.Values) { _world.RemoveChild(model); model.QueueFree(); }
         _models.Clear(); _parts.Clear(); _effects.Clear();
         Simulation = simulation; Simulation.ShotFired += OnShot;
-        _focus = new Vector3(0, 0, 12); _yaw = 0; Camera.Size = 50; UpdateCamera();
+        _focus = new Vector3(0, 0, 12); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 50; UpdateCamera();
         foreach (var unit in simulation.Units) CreateMech(unit);
         CancelDrag(); SyncModels(); QueueRedraw();
     }
@@ -119,23 +139,87 @@ public partial class CombatViewport : Control
         var point = from + direction * (-from.Y / direction.Y);
         return CombatRules.Clamp(new Vector2(point.X, point.Z));
     }
-    public void CancelDrag() { _selecting = _panning = _rotating = false; QueueRedraw(); }
+    public void CancelDrag()
+    {
+        _selecting = _panning = _rotating = _rightPressed = false;
+        if (_rightDragging)
+        {
+            _rightDragging = false;
+            Input.MouseMode = _previousMouseMode;
+            GetViewport().WarpMouse(_rightCursorStart);
+        }
+        QueueRedraw();
+    }
+    private void WindowFocusExited() { _windowFocused = false; CancelDrag(); }
+    private void WindowFocusEntered() => _windowFocused = true;
+    public override void _ExitTree()
+    {
+        CancelDrag();
+        GetWindow().FocusExited -= WindowFocusExited;
+        GetWindow().FocusEntered -= WindowFocusEntered;
+    }
+    // A captured mouse is routed through _Input rather than relying on GUI hit testing.
+    // Consume the whole gesture, including releases outside the battlefield.
+    public override void _Input(InputEvent input)
+    {
+        if (!_rightPressed) return;
+        if (!CommandsEnabled || !IsVisibleInTree() || !_windowFocused) { CancelDrag(); return; }
+        if (input is InputEventMouseMotion motion)
+        {
+            if (_rightDragging)
+            {
+                _yaw -= motion.ScreenRelative.X * OrbitSensitivity;
+                _pitch = Math.Clamp(_pitch - motion.ScreenRelative.Y * OrbitSensitivity,
+                    Mathf.DegToRad(15), Mathf.DegToRad(85));
+                UpdateCamera();
+            }
+            else
+            {
+                _rightDisplacement += motion.ScreenRelative;
+                if (_rightDisplacement.LengthSquared() > RightDragThreshold * RightDragThreshold)
+                {
+                    _rightDragging = true;
+                    _previousMouseMode = Input.MouseMode;
+                    Input.MouseMode = Input.MouseModeEnum.Captured;
+                    // Discard the threshold movement so capture never jumps the camera.
+                }
+            }
+            GetViewport().SetInputAsHandled();
+        }
+        else if (input is InputEventMouseButton { ButtonIndex: MouseButton.Right, Pressed: false } mouse)
+        {
+            var displacement = GetViewport().GetScreenTransform().BasisXform(mouse.Position - _rightCursorStart);
+            var click = !_rightDragging && displacement.LengthSquared() <= RightDragThreshold * RightDragThreshold
+                && GetGlobalRect().HasPoint(mouse.Position);
+            CancelDrag();
+            if (click)
+            {
+                var at = GetGlobalTransformWithCanvas().AffineInverse() * mouse.Position;
+                var target = Pick(at, CombatSide.Enemy);
+                CommandRequested?.Invoke(GroundPoint(at), target?.Id);
+            }
+            GetViewport().SetInputAsHandled();
+        }
+        else if (input is InputEventMouseButton) GetViewport().SetInputAsHandled();
+    }
     private void UpdateCamera()
     {
-        Camera.Position = _focus + new Vector3(Mathf.Sin(_yaw) * 70, 80, Mathf.Cos(_yaw) * 70);
+        var horizontal = OrbitRadius * Mathf.Cos(_pitch);
+        Camera.Position = _focus + new Vector3(Mathf.Sin(_yaw) * horizontal,
+            OrbitRadius * Mathf.Sin(_pitch), Mathf.Cos(_yaw) * horizontal);
         Camera.LookAt(_focus); QueueRedraw();
     }
     public override void _Process(double delta)
     {
         if (!IsVisibleInTree() || Simulation is null) return;
-        if (HasFocus() && CommandsEnabled)
+        if (HasFocus() && CommandsEnabled && _windowFocused)
         {
             var pan = Vector2.Zero;
             if (Input.IsPhysicalKeyPressed(Key.W) || Input.IsPhysicalKeyPressed(Key.Up)) pan.Y--;
             if (Input.IsPhysicalKeyPressed(Key.S) || Input.IsPhysicalKeyPressed(Key.Down)) pan.Y++;
             if (Input.IsPhysicalKeyPressed(Key.A) || Input.IsPhysicalKeyPressed(Key.Left)) pan.X--;
             if (Input.IsPhysicalKeyPressed(Key.D) || Input.IsPhysicalKeyPressed(Key.Right)) pan.X++;
-            if (pan != Vector2.Zero) Pan(pan * (float)delta * Camera.Size * .5f);
+            if (pan != Vector2.Zero) Pan(pan.Normalized() * (float)delta * Camera.Size * .5f);
             if (Input.IsPhysicalKeyPressed(Key.Q)) { _yaw -= (float)delta; UpdateCamera(); }
             if (Input.IsPhysicalKeyPressed(Key.E)) { _yaw += (float)delta; UpdateCamera(); }
         }
@@ -155,7 +239,7 @@ public partial class CombatViewport : Control
         .OrderBy(unit => ScreenPoint(unit.Position, 1).DistanceSquaredTo(at)).FirstOrDefault();
     public override void _GuiInput(InputEvent input)
     {
-        if (!CommandsEnabled || Simulation is null) return;
+        if (!CommandsEnabled || Simulation is null || !_windowFocused) return;
         if (input is InputEventMouseButton mouse)
         {
             GrabFocus();
@@ -186,7 +270,12 @@ public partial class CombatViewport : Control
                 AcceptEvent();
             }
             if (mouse.ButtonIndex == MouseButton.Right && mouse.Pressed)
-            { var target = Pick(mouse.Position, CombatSide.Enemy); CommandRequested?.Invoke(GroundPoint(mouse.Position), target?.Id); AcceptEvent(); }
+            {
+                CancelDrag(); _rightPressed = true;
+                _rightCursorStart = GetGlobalTransformWithCanvas() * mouse.Position;
+                _rightDisplacement = Vector2.Zero;
+                AcceptEvent();
+            }
         }
         if (input is InputEventMouseMotion motion)
         {
@@ -194,8 +283,10 @@ public partial class CombatViewport : Control
             if (_panning) Pan(-motion.Relative * Camera.Size / Math.Max(1, Size.Y));
             if (_rotating) { _yaw -= motion.Relative.X * .008f; UpdateCamera(); }
         }
+        // Arrow navigation belongs to the camera, not Control's directional focus traversal.
+        if (input is InputEventKey { Pressed: true, Keycode: Key.Up or Key.Down or Key.Left or Key.Right }) AcceptEvent();
         if (input is InputEventKey { Pressed: true, Keycode: Key.Home })
-        { _focus = Vector3.Zero; _yaw = 0; Camera.Size = 110; UpdateCamera(); AcceptEvent(); }
+        { CancelDrag(); _focus = Vector3.Zero; _yaw = 0; _pitch = DefaultPitch; Camera.Size = 110; UpdateCamera(); AcceptEvent(); }
     }
     public override void _Draw()
     {

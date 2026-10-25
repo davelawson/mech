@@ -271,7 +271,7 @@ public partial class CombatScreen : Control
         _status.Text = $"{(Simulation.Paused ? "PAUSED · orders available" : "LIVE")}  |  {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}";
         PauseButton.Text = Simulation.Paused ? "Resume  [Space]" : "Pause  [Space]";
         _help.Text = SettingPriority ? "PRIORITY TARGET: right-click a detected enemy. This changes target preference without ordering pursuit. Escape cancels."
-            : "Click / drag: select · Shift: add · Right-click: Move / Attack · Space: pause · WASD / arrows / middle-drag: pan · Wheel: zoom · Q/E / Shift-middle: rotate · Home: arena";
+            : "Click / drag: select · Shift: add · Right-click: Move / Attack · Space: pause · WASD / arrows / middle-drag: pan · Wheel: zoom · Right-drag: orbit · Q/E / Shift-middle: rotate · Home: arena";
         var primary = _selected.FirstOrDefault(); var unit = primary is null ? null : Simulation.Unit(primary);
         var active = _selected.Select(Simulation.Unit).Where(item => item.Active).ToArray();
         _settings.Visible = active.Length > 0;

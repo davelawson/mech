@@ -29,7 +29,7 @@ public partial class DraftScreen : Control
         var background = new ColorRect { Color = new Color("101713") };
         background.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); background.MouseFilter = MouseFilterEnum.Ignore; AddChild(background);
         _title = Ui.Label(this, "ESTABLISH YOUR COMPANY", 24, Ui.Gold);
-        _instructions = Ui.Label(this, "Choose one from every pool · Inspect with … · Selections remain editable until confirmation", 12, Ui.Muted);
+        _instructions = Ui.Label(this, "Review one selection per pool · Inspect with … · Selections remain editable until confirmation", 12, Ui.Muted);
         NameInput = new LineEdit { PlaceholderText = "Company name", MaxLength = 40, SelectAllOnFocus = true };
         AddChild(NameInput); NameInput.TextChanged += value => { Draft.ForceName = value; Refresh(); };
         for (var pool = 0; pool < 8; pool++)
@@ -68,7 +68,7 @@ public partial class DraftScreen : Control
     }
     public void Begin()
     {
-        Draft = new InitialDraft(); NameInput.Text = ""; _preview.Hide(); Refresh(); Show();
+        Draft = InitialDraft.CreateRandom(); NameInput.Text = Draft.ForceName; _preview.Hide(); Refresh(); Show();
         RosterUi.TrapFocus(this); NameInput.CallDeferred(Control.MethodName.GrabFocus);
     }
     public void RefreshArtwork()

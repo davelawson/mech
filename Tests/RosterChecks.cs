@@ -18,6 +18,29 @@ internal static class RosterChecks
         }
         check(DraftCatalog.Warriors.Take(9).All(item => item.Gunnery + item.Piloting == 9)
             && DraftCatalog.Warriors.Skip(9).All(item => item.Gunnery + item.Piloting == 7), "one veteran pool and three regular pools");
+        var seeded = InitialDraft.CreateRandom(new Random(3025));
+        var replay = InitialDraft.CreateRandom(new Random(3025));
+        check(seeded.ForceName == replay.ForceName && Enumerable.Range(0, 8).All(pool => seeded.Choice(pool) == replay.Choice(pool)),
+            "random draft can be reproduced with a seeded source");
+        var generatedNames = new HashSet<string>();
+        var generatedChoices = Enumerable.Range(0, 8).Select(_ => new HashSet<int>()).ToArray();
+        for (var seed = 0; seed < 64; seed++)
+        {
+            var generated = InitialDraft.CreateRandom(new Random(seed));
+            check(generated.Complete && generated.SelectedCount == 8 && InitialDraft.ValidName(generated.ForceName),
+                "random draft has eight selections and a valid company name");
+            var generatedRoster = generated.Establish();
+            check(generatedRoster.Mechs.Select(item => item.Spec.Id).SequenceEqual(Enumerable.Range(0, 4)
+                    .Select(pool => DraftCatalog.Mechs[pool * 3 + generated.Choice(pool)].Id))
+                && generatedRoster.Warriors.Select(item => item.Spec.Id).SequenceEqual(Enumerable.Range(4, 4)
+                    .Select(pool => DraftCatalog.Warriors[(pool - 4) * 3 + generated.Choice(pool)].Id))
+                && generatedRoster.ForceName == generated.ForceName && generatedRoster.Mechs.All(item => item.WarriorId is null),
+                "random draft establishes its selected candidates from each pool with unassigned pilots");
+            generatedNames.Add(generated.ForceName);
+            for (var pool = 0; pool < 8; pool++) generatedChoices[pool].Add(generated.Choice(pool));
+        }
+        check(generatedNames.Count > 1 && generatedChoices.All(choices => choices.SetEquals([0, 1, 2])),
+            "seeded samples vary company names and reach every candidate in every pool");
         var fresh = new Campaign();
         check(fresh.RequiresDraft && !fresh.CanAdvance && !fresh.AdvanceOneDay().Advanced, "undrafted campaign cannot advance");
         Reject(() => fresh.EstablishCompany(new InitialDraft()), "incomplete draft cannot establish a force");

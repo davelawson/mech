@@ -53,6 +53,7 @@ public partial class SmokeTests
         MouseButton(center, Godot.MouseButton.WheelUp, true);
         MouseButton(center, Godot.MouseButton.WheelUp, false); await Frames();
         Check(field.Camera.Size < oldSize, "battlefield wheel zoom works while paused");
+        await TestCombatCamera();
         await PressKey(Key.Home);
         await PressKey(Key.Space);
         await Delay(.15);
@@ -79,6 +80,11 @@ public partial class SmokeTests
         var scroll = priorityButton.GetParent().GetParent().GetParent<ScrollContainer>();
         scroll.EnsureControlVisible(priorityButton); await Frames();
         await Click(priorityButton); Check(tactical.SettingPriority, "separate priority control arms target selection");
+        MouseButton(enemyAt, Godot.MouseButton.Right, true);
+        CameraMotion(enemyAt + new Vector2(6, 0), new Vector2(6, 0));
+        MouseButton(enemyAt, Godot.MouseButton.Right, false); await Frames();
+        Check(tactical.SettingPriority && tactical.Selected.Select(sim.Unit).All(item => item.PriorityTarget is null),
+            "right-drag leaves priority targeting armed without choosing a target");
         await RightClick(enemyAt);
         Check(tactical.Selected.Select(sim.Unit).All(item => item.PriorityTarget == enemy.Id) && !tactical.SettingPriority, "priority control stores target independently of active orders");
         MouseButton(enemyAt, Godot.MouseButton.Left, true); MouseButton(enemyAt, Godot.MouseButton.Left, false); await Delay(.15);

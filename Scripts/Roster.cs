@@ -75,7 +75,21 @@ public static class DraftCatalog
 /// <summary>A reversible selection; nothing reaches the campaign until all eight pools and its name are confirmed.</summary>
 public sealed class InitialDraft
 {
+    private static readonly string[] NamePrefixes = ["Iron", "Ashen", "Crimson", "Silver", "Steel", "Ember", "Storm", "Obsidian"];
+    private static readonly string[] NameSuffixes = ["Jackals", "Lancers", "Falcons", "Wolves", "Sentinels", "Dragoons", "Marauders", "Wardens"];
     private readonly int[] _choices = Enumerable.Repeat(-1, 8).ToArray();
+
+    public static InitialDraft CreateRandom(Random? random = null)
+    {
+        random ??= Random.Shared;
+        var draft = new InitialDraft
+        {
+            ForceName = $"{NamePrefixes[random.Next(NamePrefixes.Length)]} {NameSuffixes[random.Next(NameSuffixes.Length)]}"
+        };
+        for (var pool = 0; pool < draft._choices.Length; pool++) draft.Select(pool, random.Next(3));
+        return draft;
+    }
+
     public string ForceName { get; set; } = "";
     public int SelectedCount => _choices.Count(item => item >= 0);
     public bool Complete => ValidName(ForceName) && SelectedCount == 8;

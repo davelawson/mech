@@ -637,7 +637,21 @@ public partial class SmokeTests : Node
     private async Task TestDraftUi()
     {
         Check(_app.Drafting.Visible && _app.State.RequiresDraft && !_app.State.CanAdvance, "new company must draft before operations");
-        Check(_app.Drafting.EstablishButton.Disabled, "incomplete draft cannot be committed");
+        var initialDraft = _app.Drafting.Draft;
+        var initialChoices = Enumerable.Range(0, 8).Select(initialDraft.Choice).ToArray();
+        Check(initialDraft.Complete && initialDraft.SelectedCount == 8 && !_app.Drafting.EstablishButton.Disabled,
+            "new draft defaults are ready to establish");
+        Check(InitialDraft.ValidName(_app.Drafting.NameInput.Text) && _app.Drafting.NameInput.Text == initialDraft.ForceName,
+            "generated company name matches the draft model");
+        for (var pool = 0; pool < 8; pool++)
+            Check(Enumerable.Range(0, 3).Count(choice => _app.Drafting.Choices[pool, choice].ButtonPressed) == 1
+                && _app.Drafting.Choices[pool, initialChoices[pool]].ButtonPressed, "each pool displays its randomized selection");
+        _app.Drafting.NameInput.Text = "";
+        _app.Drafting.NameInput.EmitSignal(LineEdit.SignalName.TextChanged, "");
+        Check(_app.Drafting.EstablishButton.Disabled && !initialDraft.Complete, "clearing the generated name prevents establishment");
+        _app.Drafting.NameInput.Text = "Edited Company";
+        _app.Drafting.NameInput.EmitSignal(LineEdit.SignalName.TextChanged, "Edited Company");
+        Check(!_app.Drafting.EstablishButton.Disabled, "editing the generated name restores establishment");
         _app.StartAdvancing(false);
         Check(!_app.IsAdvancing, "draft gates time advancement");
         foreach (var size in new[] { new Vector2I(1440, 900), new Vector2I(900, 500) })
@@ -652,18 +666,25 @@ public partial class SmokeTests : Node
             await Capture($"draft-{size.X}x{size.Y}");
         }
         GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        Check(ReferenceEquals(initialDraft, _app.Drafting.Draft) && Enumerable.Range(0, 8).All(pool => initialDraft.Choice(pool) == initialChoices[pool])
+            && initialDraft.ForceName == "Edited Company", "resizing preserves random selections and the edited company name");
         await Click(_app.Drafting.Choices[0, 1]);
         await PressKey(Key.Escape);
         Check(_app.Dialog.Heading == "Abandon initial draft?", "draft Escape asks before abandonment");
         await Click(DialogButton("Cancel"));
-        Check(_app.Drafting.Draft.Choice(0) == 1 && _app.Drafting.Visible, "cancel abandonment preserves selections");
+        Check(_app.Drafting.Draft.Choice(0) == 1 && _app.Drafting.Visible && _app.Drafting.NameInput.Text == "Edited Company"
+            && _app.Drafting.Draft.ForceName == "Edited Company", "cancel abandonment preserves selections and the edited name");
         Check(!System.IO.File.Exists(_saveFile), "partial draft never writes a save");
         var inspect = _app.Drafting.FindChildren("*", "Button", true, false).OfType<Button>().First(button => button.Text == "…");
         await Click(inspect);
         Check(_app.Drafting.FindChildren("*", "Control", true, false).OfType<MechDetails>().Any(), "candidate can be inspected before selection");
         await Capture("draft-inspect");
         await RightClick(inspect.GetGlobalRect().GetCenter());
-        Check(!_app.Dialog.Visible && _app.Drafting.Draft.Choice(0) == 1 && inspect.HasFocus(), "right-click closes only candidate inspection and restores focus");
+        Check(!_app.Dialog.Visible && _app.Drafting.Draft.Choice(0) == 1 && inspect.HasFocus()
+            && ReferenceEquals(initialDraft, _app.Drafting.Draft) && initialDraft.ForceName == "Edited Company"
+            && _app.Drafting.NameInput.Text == "Edited Company"
+            && Enumerable.Range(1, 7).All(pool => initialDraft.Choice(pool) == initialChoices[pool]),
+            "candidate inspection preserves draft choices and name while restoring focus");
         await RightClick(_app.Drafting.NameInput.GetGlobalRect().GetCenter());
         Check(_app.Dialog.Heading == "Abandon initial draft?", "draft right-click preserves abandonment confirmation");
         await RightClick(DialogButton("Cancel").GetGlobalRect().GetCenter());
@@ -740,14 +761,26 @@ public partial class SmokeTests : Node
         var original = System.IO.File.ReadAllText(_saveFile);
         _app.ShowMainMenu(); await Frames(); await Click(_app.MainMenu.LoadButton); await Click(DialogButton("Load Game"));
         Check(_app.Drafting.Visible && _app.State.RequiresDraft && _app.State.Cash == legacy.Cash, "loading a legacy save routes through mandatory draft");
+        var abandonedDraft = _app.Drafting.Draft;
+        Check(abandonedDraft.Complete && !_app.Drafting.EstablishButton.Disabled && _app.Drafting.NameInput.Text == abandonedDraft.ForceName,
+            "legacy draft also starts with valid random defaults");
         Check(System.IO.File.ReadAllText(_saveFile) == original, "loading a legacy save does not rewrite it");
         await PressKey(Key.Escape);
         Check(_app.Dialog.Visible && _app.Dialog.Heading == "Abandon initial draft?", "Escape from focused company-name field still offers abandonment");
         await Click(DialogButton("Abandon draft"));
         Check(_app.MainMenu.Visible && !_app.MainMenu.ResumeButton.Visible && System.IO.File.ReadAllText(_saveFile) == original,
             "abandon legacy draft hides Resume and preserves the save");
-        await Click(_app.MainMenu.LoadButton); await FinishDraft();
-        Check(_app.State.Roster!.ForceName == "Test Company" && _app.State.Cash == legacy.Cash && _app.State.Date == legacy.Date && _app.State.NextEventDate == legacy.Events[0].Date,
+        await Click(_app.MainMenu.LoadButton);
+        Check(!ReferenceEquals(abandonedDraft, _app.Drafting.Draft) && _app.Drafting.Draft.Complete
+            && _app.Drafting.NameInput.Text == _app.Drafting.Draft.ForceName && !_app.Drafting.EstablishButton.Disabled,
+            "entering a new draft creates fresh valid defaults");
+        var expectedRoster = _app.Drafting.Draft.Establish();
+        await Click(_app.Drafting.EstablishButton);
+        Check(!_app.State.RequiresDraft && !_app.Drafting.Visible && _app.State.Roster!.ForceName == expectedRoster.ForceName
+            && _app.State.Roster.Mechs.Select(item => item.Spec.Id).SequenceEqual(expectedRoster.Mechs.Select(item => item.Spec.Id))
+            && _app.State.Roster.Warriors.Select(item => item.Spec.Id).SequenceEqual(expectedRoster.Warriors.Select(item => item.Spec.Id)),
+            "establishment commits the displayed random defaults without requiring edits");
+        Check(_app.State.Cash == legacy.Cash && _app.State.Date == legacy.Date && _app.State.NextEventDate == legacy.Events[0].Date,
             "completing legacy draft preserves finances and calendar");
         Check(System.IO.File.ReadAllText(_saveFile) == original, "completing legacy draft waits for a manual save");
         _app.ShowFiling(); await Frames(); await Click(DialogButton("Save Game"));
