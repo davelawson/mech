@@ -16,6 +16,15 @@ A formation of three lances, used as a rough scale for the game rather than a st
 **Roster**:
 The BattleMechs owned by the mercenary force, distinct from those committed to a particular mission.
 
+**MechWarrior roster**:
+The mercenary force’s personnel, including healthy warriors, injured warriors, and deceased warriors retained in memoriam.
+
+**Pilot assignment**:
+The persistent pairing of one living MechWarrior with one owned BattleMech, independent of deployment.
+
+**Ready MechWarrior**:
+A healthy MechWarrior available for immediate deployment, whether currently assigned to a BattleMech or unassigned.
+
 **Deployment**:
 The force committed to a particular mission.
 

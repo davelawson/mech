@@ -16,6 +16,7 @@ public partial class SmokeTests : Node
             _screenshots = OS.GetCmdlineUserArgs().Contains("--screenshots");
             TestGeometry();
             CampaignChecks.Run(Check);
+            RosterChecks.Run(Check);
             _app = ResourceLoader.Load<PackedScene>("res://Scenes/Command.tscn").Instantiate<CommandApp>();
             _app.SavePath = $"user://smoke-{Guid.NewGuid():N}.json";
             _saveFile = ProjectSettings.GlobalizePath(_app.SavePath);
@@ -25,6 +26,7 @@ public partial class SmokeTests : Node
             Check(_app.MainMenu.LoadButton.Disabled, "load disabled before first manual save");
             await Capture("main-menu");
             await PressKey(Key.Enter);
+            await TestDraftUi();
             Check(_app.Office.Visible && !_app.StarMap.Visible, "starts in the office");
             Check(_app.Office.ArtworkLoaded && _app.StarMap.Viewport.MapLoaded, "both local images load");
             Check(_app.Office.Hotspot.HasFocus(), "initial keyboard focus is on the wall map");
@@ -65,13 +67,15 @@ public partial class SmokeTests : Node
             _app.StarMap.BackButton.EmitSignal(BaseButton.SignalName.Pressed);
             await Frames();
             Check(_app.Office.Hotspot.HasFocus(), "Back button restores wall-map focus");
+            await TestRosterUi();
             await TestResizing();
             TestMissingArtwork();
             await TestCampaignUi();
+            await TestLegacyDraftUi();
             await Frames();
             _app.QueueFree();
             await Frames();
-            GD.Print($"PASS: {_checks} checks; campaign time, payments, bankruptcy, saves, menus, office/map input and resizing.");
+            GD.Print($"PASS: {_checks} checks; draft, rosters, assignments, health, migration, campaign finances, navigation, input and resizing.");
             GetTree().Quit(0);
         }
         catch (Exception error)
@@ -154,7 +158,8 @@ public partial class SmokeTests : Node
             {
                 (hotspot, OfficeScreen.ChartRegion), (office.CalendarButton, OfficeScreen.CalendarRegion),
                 (office.ReminderButton, OfficeScreen.ReminderRegion), (office.SafeButton, OfficeScreen.SafeRegion),
-                (office.FilingButton, OfficeScreen.FilingRegion), (office.WallMap, OfficeScreen.MapRegion)
+                (office.FilingButton, OfficeScreen.FilingRegion), (office.WallMap, OfficeScreen.MapRegion),
+                (office.RolodexButton, OfficeScreen.RolodexRegion), (office.HangarButton, OfficeScreen.HangarRegion)
             })
             {
                 Check(((control.Position - art.Position) / scale).DistanceTo(region.Position) < .1f
@@ -212,7 +217,7 @@ public partial class SmokeTests : Node
     private async Task TestCampaignUi()
     {
         _app.StartNewCompany();
-        await Frames();
+        await FinishDraft();
         Check(_app.Office.CalendarDate.Text == "01 JAN 3025" && _app.Office.QuarterText.Text == "bills due in 90 days", "calendar shows date and bills countdown");
         Check(_app.Office.SafeReadout.Text == "₡ 2,500,000", "new company balance appears in the painted safe");
         _app.State.Schedule(new("arrival", new DateOnly(3025, 1, 4), CampaignEventKind.Arrival, "Arrived at destination"));
@@ -314,7 +319,7 @@ public partial class SmokeTests : Node
         Check(new CampaignStore(_saveFile).Load().Cash == 2_400_000, "confirmed overwrite persists changed finances");
         await Click(DialogButton("Close"));
 
-        var deadline = Campaign.Restore(new Campaign().Snapshot() with
+        var deadline = Campaign.Restore(CampaignChecks.NewCompany().Snapshot() with
         {
             Date = new DateOnly(3025, 6, 30), Cash = 199_999,
             DeferredDebt = 100_000, NextQuarter = new DateOnly(3025, 7, 1)
@@ -337,6 +342,8 @@ public partial class SmokeTests : Node
         _app.ShowMainMenu();
         await Frames();
         await Click(_app.MainMenu.NewButton);
+        await Click(DialogButton("New Company"));
+        await FinishDraft();
         Check(_app.State.Date == Campaign.StartDate && _app.State.Cash == Campaign.StartingCash, "New Company resets state");
         Check(_app.Office.SafeReadout.Text == "₡ 2,500,000" && _app.Office.SafeReadout.Modulate == Colors.White, "New Company resets the painted balance and stops blinking");
         Check(System.IO.File.ReadAllText(_saveFile) == beforeBankruptcy, "New Company preserves manual save");
@@ -346,6 +353,135 @@ public partial class SmokeTests : Node
         await Click(DialogButton("Load Game"));
         await Click(DialogButton("Load Game"));
         Check(_app.Dialog.Heading == "Unable to load" && ReferenceEquals(_app.State, live), "corrupt load keeps live company intact");
+        await Click(DialogButton("Close"));
+    }
+
+    private async Task FinishDraft()
+    {
+        await Frames();
+        _app.Drafting.NameInput.Text = "Test Company";
+        _app.Drafting.NameInput.EmitSignal(LineEdit.SignalName.TextChanged, "Test Company");
+        for (var pool = 0; pool < 8; pool++) await Click(_app.Drafting.Choices[pool, 0]);
+        await Click(_app.Drafting.EstablishButton);
+    }
+
+    private async Task TestDraftUi()
+    {
+        Check(_app.Drafting.Visible && _app.State.RequiresDraft && !_app.State.CanAdvance, "new company must draft before operations");
+        Check(_app.Drafting.EstablishButton.Disabled, "incomplete draft cannot be committed");
+        _app.StartAdvancing(false);
+        Check(!_app.IsAdvancing, "draft gates time advancement");
+        foreach (var size in new[] { new Vector2I(1440, 900), new Vector2I(900, 500) })
+        {
+            GetWindow().Size = size; await Frames();
+            for (var pool = 0; pool < 8; pool++) for (var choice = 0; choice < 3; choice++)
+            {
+                var button = _app.Drafting.Choices[pool, choice];
+                Check(button.IsVisibleInTree() && _app.Drafting.GetGlobalRect().Encloses(button.GetGlobalRect()) && button.Size.Y >= 36,
+                    $"all 24 draft candidates visible and clickable at {size}");
+            }
+            await Capture($"draft-{size.X}x{size.Y}");
+        }
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        await Click(_app.Drafting.Choices[0, 1]);
+        await PressKey(Key.Escape);
+        Check(_app.Dialog.Heading == "Abandon initial draft?", "draft Escape asks before abandonment");
+        await Click(DialogButton("Cancel"));
+        Check(_app.Drafting.Draft.Choice(0) == 1 && _app.Drafting.Visible, "cancel abandonment preserves selections");
+        Check(!System.IO.File.Exists(_saveFile), "partial draft never writes a save");
+        var inspect = _app.Drafting.FindChildren("*", "Button", true, false).OfType<Button>().First(button => button.Text == "…");
+        await Click(inspect);
+        Check(_app.Drafting.FindChildren("*", "Control", true, false).OfType<MechDetails>().Any(), "candidate can be inspected before selection");
+        await Capture("draft-inspect");
+        await PressKey(Key.Escape);
+        Check(!_app.Dialog.Visible && _app.Drafting.Draft.Choice(0) == 1, "Escape closes inspection without abandoning draft");
+        await FinishDraft();
+        Check(!_app.Drafting.Visible && !_app.State.RequiresDraft && _app.State.Roster!.Mechs.Count == 4 && _app.State.Roster.Warriors.Count == 4,
+            "Establish Company commits four mechs and four warriors");
+        Check(_app.State.Roster!.Mechs.All(item => item.WarriorId is null) && _app.Office.ReadyCount.Text == "4", "new roster is unassigned with four healthy warriors");
+    }
+
+    private async Task TestRosterUi()
+    {
+        await Click(_app.Office.RolodexButton);
+        Check(_app.Rolodex.Visible && _app.Office.Visible && !_app.Hangar.Visible, "rolodex overlays the office");
+        _app.StartAdvancing(false); Check(!_app.IsAdvancing, "rolodex pauses company time");
+        var first = _app.Rolodex.CardName.Text; await Click(_app.Rolodex.NextButton);
+        Check(first != _app.Rolodex.CardName.Text, "rolodex flips between personnel cards");
+        await Capture("rolodex");
+        for (var i = 0; i < 8; i++) { await PressKey(Key.Tab); Check(_app.Rolodex.IsAncestorOf(GetViewport().GuiGetFocusOwner()), "rolodex retains keyboard focus"); }
+        await PressKey(Key.Escape); Check(!_app.Rolodex.Visible && _app.Office.Visible, "rolodex Escape returns to office");
+        await Click(_app.Office.HangarButton);
+        Check(_app.Hangar.Visible && !_app.Office.Visible && _app.Hangar.ArtworkLoaded, "porthole opens separate illustrated hangar");
+        await Click(_app.Hangar.AssignButton);
+        Check(_app.State.Roster!.Mechs[0].WarriorId is not null, "hangar assigns an unassigned warrior");
+        await Click(_app.Hangar.RosterButtons[1]); await Click(_app.Hangar.AssignButton);
+        var roster = _app.State.Roster!;
+        Check(roster.Mechs[1].WarriorId is not null && roster.Mechs[0].WarriorId != roster.Mechs[1].WarriorId, "second mech gets a different available warrior");
+        _app.Hangar.PilotPicker.Select(0); _app.Hangar.PilotPicker.EmitSignal(OptionButton.SignalName.ItemSelected, 0L);
+        await Click(_app.Hangar.AssignButton);
+        Check(_app.Dialog.Heading == "Swap MechWarriors?", "occupied assignment requires an explicit swap");
+        var before = roster.Mechs[1].WarriorId;
+        await Click(DialogButton("Cancel")); Check(roster.Mechs[1].WarriorId == before, "cancel swap leaves both assignments intact");
+        await Click(_app.Hangar.AssignButton); await Click(DialogButton("Swap"));
+        Check(roster.Mechs[1].WarriorId == roster.Warriors[0].Id && roster.Mechs[0].WarriorId == before, "confirmed swap updates both assignments");
+        foreach (var size in new[] { new Vector2I(1440, 900), new Vector2I(900, 500) })
+        {
+            GetWindow().Size = size; await Frames(); await Capture($"hangar-{size.X}x{size.Y}");
+            Check(_app.Hangar.GetGlobalRect().Encloses(_app.Hangar.BackButton.GetGlobalRect()) && _app.Hangar.GetGlobalRect().Encloses(_app.Hangar.RosterButtons[0].GetGlobalRect()), "hangar navigation survives resizing");
+            await PressKey(Key.Escape); await Click(_app.Office.RolodexButton); await Capture($"rolodex-{size.X}x{size.Y}");
+            await PressKey(Key.Escape); await Click(_app.Office.HangarButton);
+        }
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        var tabs = _app.Hangar.FindChildren("*", "TabContainer", true, false).OfType<TabContainer>().Single();
+        foreach (var (tab, name) in new[] { (1, "armor"), (2, "weapons"), (3, "systems") })
+        {
+            var bar = tabs.GetTabBar(); var at = bar.GlobalPosition + bar.GetTabRect(tab).GetCenter();
+            MouseButton(at, Godot.MouseButton.Left, true); MouseButton(at, Godot.MouseButton.Left, false); await Frames();
+            Check(tabs.CurrentTab == tab, $"hangar {name} tab accepts mouse input"); await Capture($"hangar-{name}");
+        }
+        await PressKey(Key.Escape); await PressKey(Key.Escape);
+        Check(_app.MainMenu.Visible && _app.MainMenu.ResumeButton.Visible && _app.MainMenu.ResumeButton.Text == "Resume", "office Escape opens menu with Resume");
+        await Click(_app.MainMenu.ResumeButton);
+        Check(_app.Office.Visible && ReferenceEquals(roster, _app.State.Roster), "Resume retains unsaved roster and assignments");
+        roster.SetHealth(roster.Warriors[0].Id, WarriorHealth.Injured, _app.State.Date.AddDays(2), _app.State.Date);
+        _app.ShowOffice(); Check(_app.Office.ReadyCount.Text == "3", "rolodex counter excludes injured warriors");
+        await Click(_app.Office.RolodexButton); await Capture("rolodex-injured"); await PressKey(Key.Escape);
+        roster.SetHealth(roster.Warriors[0].Id, WarriorHealth.Healthy, null, _app.State.Date); _app.ShowOffice();
+        roster.SetHealth(roster.Warriors[1].Id, WarriorHealth.Dead, null, _app.State.Date);
+        _app.ShowWarriors(); _app.Rolodex.Section.Select(1); _app.Rolodex.Section.EmitSignal(OptionButton.SignalName.ItemSelected, 1L); await Frames();
+        Check(_app.Rolodex.CardName.Text.Contains(roster.Warriors[1].Spec.Name) && roster.Assignment(roster.Warriors[1].Id) is null,
+            "memorial section retains a deceased warrior and clears assignment");
+        Check(_app.Office.ReadyCount.Text == "3", "office count excludes memorial records");
+        await Capture("rolodex-memorial"); await PressKey(Key.Escape);
+    }
+
+    private async Task TestLegacyDraftUi()
+    {
+        var legacy = CampaignChecks.NewCompany().Snapshot() with
+        {
+            Version = 1, Roster = null, Cash = 1_234_567, Date = new DateOnly(3025, 2, 10),
+            Events = [new("legacy-arrival", new DateOnly(3025, 2, 12), CampaignEventKind.Arrival, "Legacy arrival")]
+        };
+        System.IO.File.WriteAllText(_saveFile, System.Text.Json.JsonSerializer.Serialize(legacy));
+        var original = System.IO.File.ReadAllText(_saveFile);
+        _app.ShowMainMenu(); await Frames(); await Click(_app.MainMenu.LoadButton); await Click(DialogButton("Load Game"));
+        Check(_app.Drafting.Visible && _app.State.RequiresDraft && _app.State.Cash == legacy.Cash, "loading a legacy save routes through mandatory draft");
+        Check(System.IO.File.ReadAllText(_saveFile) == original, "loading a legacy save does not rewrite it");
+        await PressKey(Key.Escape);
+        Check(_app.Dialog.Visible && _app.Dialog.Heading == "Abandon initial draft?", "Escape from focused company-name field still offers abandonment");
+        await Click(DialogButton("Abandon draft"));
+        Check(_app.MainMenu.Visible && !_app.MainMenu.ResumeButton.Visible && System.IO.File.ReadAllText(_saveFile) == original,
+            "abandon legacy draft hides Resume and preserves the save");
+        await Click(_app.MainMenu.LoadButton); await FinishDraft();
+        Check(_app.State.Roster!.ForceName == "Test Company" && _app.State.Cash == legacy.Cash && _app.State.Date == legacy.Date && _app.State.NextEventDate == legacy.Events[0].Date,
+            "completing legacy draft preserves finances and calendar");
+        Check(System.IO.File.ReadAllText(_saveFile) == original, "completing legacy draft waits for a manual save");
+        _app.ShowFiling(); await Frames(); await Click(DialogButton("Save Game"));
+        Check(_app.Dialog.Heading == "Overwrite campaign save?", "legacy upgrade asks before replacing the save");
+        await Click(DialogButton("Save Game"));
+        Check(_app.Dialog.Heading == "Company saved", "legacy upgrade reports a successful manual save");
+        Check(new CampaignStore(_saveFile).Load().Roster!.Warriors.Count == 4, "explicit save upgrades legacy roster");
         await Click(DialogButton("Close"));
     }
 

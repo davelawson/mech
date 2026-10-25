@@ -15,6 +15,7 @@ public sealed class CampaignStore(string path)
 
     public void Save(Campaign campaign)
     {
+        if (campaign.RequiresDraft) throw new InvalidOperationException("Finish the initial draft before saving the company.");
         var snapshot = campaign.Snapshot();
         _ = Campaign.Restore(snapshot);
         var directory = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path))!;

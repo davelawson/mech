@@ -61,6 +61,6 @@ internal static class Ui
 
     public static Texture2D? LoadTexture(string path)
     {
-        return ResourceLoader.Exists(path) ? ResourceLoader.Load<Texture2D>(path) : null;
+        return !string.IsNullOrWhiteSpace(path) && ResourceLoader.Exists(path) ? ResourceLoader.Load<Texture2D>(path) : null;
     }
 }

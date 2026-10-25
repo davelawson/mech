@@ -110,4 +110,19 @@ The user confirmed shared understanding of this design on October 24, 2026. The 
 
 - Select specific starting systems and catalog entries appropriate to the setting.
 - Tune prices, salaries, future detailed overhead, repair costs and durations, travel fares, and contract rewards. The current slice fixes starting cash at 2,500,000 C-bills and the quarterly charge at 100,000 C-bills.
-- Author draft options, route data, market inventory, mission templates, and outcome examples.
+- Author route data, market inventory, mission templates, and outcome examples. The first draft configuration is authored in the roster slice.
+
+
+## Roster and initial draft interface (confirmed October 24, 2026)
+
+The desk rolodex displays the number of healthy MechWarriors ready for immediate deployment, including assigned warriors. Clicking it opens a panel over the office: one personnel card at a time, previous/next controls and a name index. Cards show portrait, name/callsign, Gunnery, Piloting, health/recovery date and assigned BattleMech. Injured warriors retain assignments. Deceased warriors are automatically unassigned and retained separately in memoriam.
+
+The existing right porthole looks into an enclosed repair bay. Clicking it opens a dedicated hangar interface with a new painted background, a large selected BattleMech, roster selection along the bottom, classic specifications and pilot assignment controls. Assignment is one-to-one; transfers and swaps require explicit confirmation. New rosters start unassigned. This slice provides viewing and assignment, without sales, dismissal, renaming, repair controls or combat resolution.
+
+All roster art matches the painted office: a maintenance-bay background, twelve recognizable stock mech illustrations and twelve original warrior portraits. Unit detail includes classic stock 3025 loadouts, front/rear armor and internal structure by location, component condition, weapons and ammunition, movement and heat information.
+
+A new company enters the office and immediately opens the shared initial draft before normal operations. Eight pools of three candidates are simultaneously visible: Light, Medium, Heavy and Assault BattleMechs, plus three regular MechWarrior pools and one more experienced pool. Each warrior pool offers balanced skills, Gunnery emphasis and Piloting emphasis. Individual candidate records can be inspected without selecting. There are no rounds or rerolls.
+
+The company name and all eight choices remain editable until **Establish Company** commits the complete roster. Escape from an unfinished draft asks to abandon it and return to the main menu. Unfinished drafts cannot be saved, and established drafts cannot reopen. Existing finance-only saves require this same draft while retaining their date, cash, obligations and scheduled events; loading or drafting does not overwrite the manual save.
+
+Opening roster interfaces pauses time. Escape returns to the office; Escape in the office opens the main menu. The main menu offers **Resume** when an established, solvent company remains in memory. Resume returns to the office without saving or discarding progress. Starting or loading another company asks before replacing an existing live company. The original single-slot manual-save policy remains in force.

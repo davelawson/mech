@@ -72,3 +72,16 @@ To regenerate the map asset with Poppler after downloading the PDF:
 ```sh
 pdftoppm -singlefile -jpeg -jpegopt quality=94 -scale-to 7000 BattleTech-Inner-Spher-at-War-3025.pdf Assets/inner-sphere-3025
 ```
+
+## Roster artwork
+
+The roster implementation adds 26 project-local raster assets generated with the built-in `image_gen.imagegen` tool on October 24, 2026. The exact prompt for every asset is recorded in [roster-art-prompts.json](roster-art-prompts.json).
+
+- `Assets/dropship-office-rosters.png` is a non-destructive edit of the integrated office. Existing map, calendar and safe openings retain their alignment. It adds a physical rolodex and replaces the space beyond the porthole with an enclosed repair-bay view. The original office assets remain available.
+- `Assets/Roster/hangar-background.png` is an empty maintenance bay with matching olive steel, amber lamps and painted industrial textures.
+- `Assets/Roster/{firestarter,jenner,panther,griffin,shadow-hawk,wolverine,catapult,crusader,thunderbolt,awesome,victor,zeus}.png` are individually generated transparent mech illustrations. They are visual interpretations of the chassis, not technical record sheets; the adjacent classic specifications are authoritative.
+- The other twelve PNGs in `Assets/Roster/` are individually generated original personnel portraits, named by the warrior IDs in `DraftCatalog`.
+
+All new textures are imported losslessly with mipmaps. Cutout transparency is preserved. No project asset depends on an image remaining in the generator's output directory.
+
+The new office hotspot rectangles in the existing 1672×940 source coordinate system are: rolodex `(695,552,124,104)` and hangar porthole `(1470,70,202,390)`. The live ready-count readout sits on the rolodex plaque and scales with the same artwork transform.

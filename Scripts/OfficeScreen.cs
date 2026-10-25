@@ -5,11 +5,16 @@ namespace Mech;
 public partial class OfficeScreen : Control
 {
     [Signal] public delegate void MapRequestedEventHandler();
+    [Signal] public delegate void WarriorsRequestedEventHandler();
+    [Signal] public delegate void HangarRequestedEventHandler();
     [Signal] public delegate void DayRequestedEventHandler();
     [Signal] public delegate void EventRequestedEventHandler();
     [Signal] public delegate void FinancesRequestedEventHandler();
     [Signal] public delegate void FilingRequestedEventHandler();
-    [Export(PropertyHint.File, "*.png")] public string ArtworkPath { get; set; } = "res://Assets/dropship-office-integrated.png";
+    [Export(PropertyHint.File, "*.png")] public string ArtworkPath { get; set; } = "res://Assets/dropship-office-rosters.png";
+    public Button RolodexButton { get; private set; } = null!;
+    public Button HangarButton { get; private set; } = null!;
+    public Label ReadyCount { get; private set; } = null!;
     public Button Hotspot { get; private set; } = null!;
     public Button CalendarButton { get; private set; } = null!;
     public Button ReminderButton { get; private set; } = null!;
@@ -29,6 +34,8 @@ public partial class OfficeScreen : Control
     public static readonly Rect2 ReminderRegion = new(767, 271, 95, 40);
     public static readonly Rect2 SafeRegion = new(324, 447, 273, 234);
     public static readonly Rect2 FilingRegion = new(4, 329, 155, 477);
+    public static readonly Rect2 RolodexRegion = new(695, 552, 124, 104);
+    public static readonly Rect2 HangarRegion = new(1470, 70, 202, 390);
     private Panel _frame = null!;
     private TextureRect _image = null!;
     private Label _error = null!;
@@ -71,7 +78,14 @@ public partial class OfficeScreen : Control
         _error = Ui.Label(_frame, "Office artwork could not load. The star map is still available.", 16, Ui.Gold);
         _error.HorizontalAlignment = HorizontalAlignment.Center;
         CreateCampaignControls();
-        _hint = Ui.Label(this, "Calendar: next day · Reminder: next event · Safe: finances · Filing cabinet: save / load", 12, Ui.Muted);
+        RolodexButton = Ui.Button(_frame, ""); RolodexButton.Name = "Rolodex"; StyleHotspot(RolodexButton);
+        RolodexButton.Pressed += () => EmitSignal(SignalName.WarriorsRequested);
+        ReadyCount = Ui.Label(RolodexButton, "0", 16, new Color("e4d5ae")); ReadyCount.HorizontalAlignment = HorizontalAlignment.Center;
+        Ui.Place(ReadyCount, 52, 68, 48, 24);
+        HangarButton = Ui.Button(_frame, ""); HangarButton.Name = "HangarPorthole"; HangarButton.TooltipText = "Porthole · Open mech hangar"; StyleHotspot(HangarButton);
+        HangarButton.Pressed += () => EmitSignal(SignalName.HangarRequested);
+        _hint = Ui.Label(this, "Rolodex: MechWarriors · Porthole: hangar · Calendar: next day · Reminder: next event · Safe: finances · Cabinet: save / load", 12, Ui.Muted);
+        _hint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         Resized += Layout;
         SetArtwork(ArtworkPath);
     }
@@ -133,6 +147,10 @@ public partial class OfficeScreen : Control
 
     public void RefreshCampaign(Campaign campaign)
     {
+        var count = campaign.Roster?.ReadyWarriors ?? 0;
+        ReadyCount.Text = count.ToString();
+        RolodexButton.TooltipText = $"Rolodex · {count} healthy MechWarriors ready for deployment";
+        RolodexButton.Disabled = HangarButton.Disabled = campaign.RequiresDraft;
         CalendarDate.Text = campaign.DateText;
         var days = campaign.DaysUntilQuarter;
         QuarterText.Text = campaign.PaymentPending ? "Payment Due" : $"bills due in {days} {(days == 1 ? "day" : "days")}";
@@ -176,6 +194,8 @@ public partial class OfficeScreen : Control
         _image.Position = ArtworkRect.Position;
         _image.Size = ArtworkRect.Size;
         Ui.Place(_error, 12, _frame.Size.Y / 2 + 60, _frame.Size.X - 24, 50);
+        PlaceArtworkControl(RolodexButton, RolodexRegion, scale);
+        PlaceArtworkControl(HangarButton, HangarRegion, scale);
         PlaceArtworkControl(WallMap, MapRegion, scale);
         PlaceArtworkControl(Hotspot, ChartRegion, scale);
         PlaceArtworkControl(CalendarButton, CalendarRegion, scale);

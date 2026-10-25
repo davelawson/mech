@@ -7,7 +7,7 @@ public enum CampaignEventKind { Arrival, RepairCompletion, MissionResult, Contra
 public sealed record CampaignEvent(string Id, DateOnly Date, CampaignEventKind Kind, string Title);
 public sealed record DayResult(bool Advanced, bool QuarterReached, IReadOnlyList<CampaignEvent> Events);
 public sealed record CampaignSnapshot(int Version, DateOnly Date, long Cash, long PaymentDue,
-    long DeferredDebt, DateOnly NextQuarter, bool Bankrupt, CampaignEvent[] Events);
+    long DeferredDebt, DateOnly NextQuarter, bool Bankrupt, CampaignEvent[] Events, RosterSnapshot? Roster = null);
 
 /// <summary>Campaign time and obligations, independent of the scene tree and animation.</summary>
 public sealed class Campaign
@@ -24,9 +24,16 @@ public sealed class Campaign
     public DateOnly NextQuarter { get; private set; } = new(3025, 4, 1);
     public bool Bankrupt { get; private set; }
     public bool PaymentPending => PaymentDue > 0;
-    public bool CanAdvance => !PaymentPending && !Bankrupt && Date < new DateOnly(9998, 12, 31);
-    public bool CanPay => PaymentPending && !Bankrupt && Cash >= PaymentDue;
-    public bool CanDefer => PaymentPending && !Bankrupt && DeferredDebt == 0;
+    public ForceRoster? Roster { get; private set; }
+    public bool RequiresDraft => Roster is null;
+    public void EstablishCompany(InitialDraft draft)
+    {
+        if (!RequiresDraft) throw new InvalidOperationException("The initial draft is already complete.");
+        Roster = draft.Establish();
+    }
+    public bool CanAdvance => !RequiresDraft && !PaymentPending && !Bankrupt && Date < new DateOnly(9998, 12, 31);
+    public bool CanPay => !RequiresDraft && PaymentPending && !Bankrupt && Cash >= PaymentDue;
+    public bool CanDefer => !RequiresDraft && PaymentPending && !Bankrupt && DeferredDebt == 0;
     public int DaysUntilQuarter => NextQuarter.DayNumber - Date.DayNumber;
     public string DateText => Date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture).ToUpperInvariant();
     public DateOnly NextEventDate => _events.Aggregate(NextQuarter, (date, item) => item.Date < date ? item.Date : date);
@@ -45,6 +52,7 @@ public sealed class Campaign
     {
         if (!CanAdvance) return new(false, false, Array.Empty<CampaignEvent>());
         Date = Date.AddDays(1);
+        Roster?.Recover(Date);
         var quarterReached = Date == NextQuarter;
         // Accounting is evaluated before any other event on the same date.
         if (quarterReached)
@@ -83,19 +91,19 @@ public sealed class Campaign
         return due;
     }
 
-    public CampaignSnapshot Snapshot() => new(1, Date, Cash, PaymentDue, DeferredDebt, NextQuarter, Bankrupt, _events.ToArray());
+    public CampaignSnapshot Snapshot() => new(2, Date, Cash, PaymentDue, DeferredDebt, NextQuarter, Bankrupt, _events.ToArray(), Roster?.Snapshot());
 
     public static Campaign Restore(CampaignSnapshot save)
     {
         ArgumentNullException.ThrowIfNull(save);
         var date = save.Date;
-        if (save.Version != 1 || date < StartDate || date.Year >= 9999 || save.Cash < 0
+        if (save.Version is not (1 or 2) || date < StartDate || date.Year >= 9999 || save.Cash < 0
             || save.DeferredDebt is not (0 or QuarterlyCharge)
             || save.PaymentDue != 0 && save.PaymentDue != QuarterlyCharge + save.DeferredDebt
             || save.NextQuarter != new DateOnly(date.Year, (date.Month - 1) / 3 * 3 + 1, 1).AddMonths(3)
             || save.PaymentDue > 0 && (date.Day != 1 || (date.Month - 1) % 3 != 0 || date == StartDate)
             || save.Bankrupt != (save.PaymentDue > 0 && save.DeferredDebt > 0 && save.Cash < save.PaymentDue)
-            || save.Events is null)
+            || save.Events is null || save.Version == 1 && save.Roster is not null || save.Version == 2 && save.Roster is null)
             throw new ArgumentException("The campaign save contains invalid state.");
 
         var campaign = new Campaign
@@ -103,6 +111,7 @@ public sealed class Campaign
             Date = date, Cash = save.Cash, PaymentDue = save.PaymentDue,
             DeferredDebt = save.DeferredDebt, NextQuarter = save.NextQuarter, Bankrupt = save.Bankrupt
         };
+        if (save.Roster is not null) campaign.Roster = ForceRoster.Restore(save.Roster, date);
         foreach (var item in save.Events)
         {
             if (item is null || string.IsNullOrWhiteSpace(item.Id) || string.IsNullOrWhiteSpace(item.Title)

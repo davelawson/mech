@@ -6,6 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Data/mech-catalog.json" />
+  </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' == 'ExportRelease'">
     <Compile Remove="Tests/**/*.cs" />
   </ItemGroup>

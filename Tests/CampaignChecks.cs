@@ -4,7 +4,7 @@ internal static class CampaignChecks
 {
     public static void Run(Action<bool, string> check)
     {
-        var campaign = new Campaign();
+        var campaign = NewCompany();
         check(campaign.Date == new DateOnly(3025, 1, 1) && campaign.Cash == 2_500_000, "new company defaults");
         check(campaign.DaysUntilQuarter == 90 && campaign.NextEventDate == new DateOnly(3025, 4, 1), "quarter guarantees the next event");
         campaign.Schedule(new("arrival", new DateOnly(3025, 1, 3), CampaignEventKind.Arrival, "Arrival"));
@@ -38,7 +38,7 @@ internal static class CampaignChecks
             campaign.PayNow();
         }
 
-        var insolvent = Campaign.Restore(new Campaign().Snapshot() with { Cash = 99_999 });
+        var insolvent = Campaign.Restore(NewCompany().Snapshot() with { Cash = 99_999 });
         AdvanceTo(insolvent, new DateOnly(3025, 4, 1));
         check(!insolvent.CanPay && insolvent.CanDefer && !insolvent.Bankrupt, "first shortfall permits grace");
         Throws(() => insolvent.PayNow(), check, "reject partial payment");
@@ -48,7 +48,7 @@ internal static class CampaignChecks
         check(insolvent.Bankrupt && !insolvent.CanAdvance && !insolvent.CanPay, "insufficient cash at grace deadline causes bankruptcy");
         check(Campaign.Restore(insolvent.Snapshot()).Bankrupt, "bankruptcy survives restoration");
 
-        var exact = Campaign.Restore(new Campaign().Snapshot() with { Cash = 200_000 });
+        var exact = Campaign.Restore(NewCompany().Snapshot() with { Cash = 200_000 });
         AdvanceTo(exact, new DateOnly(3025, 4, 1));
         exact.DeferPayment();
         AdvanceTo(exact, new DateOnly(3025, 7, 1));
@@ -56,7 +56,7 @@ internal static class CampaignChecks
         exact.PayNow();
         check(exact.Cash == 0, "exact full payment is accepted");
 
-        var leap = Campaign.Restore(new Campaign().Snapshot() with { Date = new DateOnly(3028, 2, 28), NextQuarter = new DateOnly(3028, 4, 1) });
+        var leap = Campaign.Restore(NewCompany().Snapshot() with { Date = new DateOnly(3028, 2, 28), NextQuarter = new DateOnly(3028, 4, 1) });
         leap.AdvanceOneDay();
         check(leap.Date == new DateOnly(3028, 2, 29), "calendar includes leap day");
         leap.AdvanceOneDay();
@@ -68,6 +68,15 @@ internal static class CampaignChecks
         TestStorage(check);
     }
 
+    internal static Campaign NewCompany()
+    {
+        var campaign = new Campaign();
+        var draft = new InitialDraft { ForceName = "Test Company" };
+        for (var pool = 0; pool < 8; pool++) draft.Select(pool, 0);
+        campaign.EstablishCompany(draft);
+        return campaign;
+    }
+
     private static void TestStorage(Action<bool, string> check)
     {
         var directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"mech-campaign-{Guid.NewGuid():N}");
@@ -75,7 +84,7 @@ internal static class CampaignChecks
         try
         {
             var store = new CampaignStore(path);
-            var campaign = new Campaign();
+            var campaign = NewCompany();
             campaign.AdvanceOneDay();
             check(!store.Exists, "advancing never autosaves");
             campaign.Schedule(new("repair", new DateOnly(3025, 5, 1), CampaignEventKind.RepairCompletion, "Repair complete"));
