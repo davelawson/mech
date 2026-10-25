@@ -90,7 +90,8 @@ public partial class SmokeTests
         MouseButton(enemyAt, Godot.MouseButton.Left, true); MouseButton(enemyAt, Godot.MouseButton.Left, false); await Delay(.15);
         Check(tactical.Selected.Count == 0 && field.InspectedEnemy == enemy.Id, "enemy click inspects detected contact without selecting it as friendly");
         var displayed = tactical.FindChildren("*", "Label", true, false).OfType<Label>().Where(label => label.IsVisibleInTree()).Select(label => label.Text).ToArray();
-        Check(displayed.Any(text => text.Contains("Observable damage only")), "enemy inspection exposes observable damage rather than exact internals");
+        Check(tactical.Paperdoll.Unit == enemy && displayed.Contains(CombatPaperdoll.Readout(enemy)),
+            "enemy inspection exposes the same exact armor, rear armor and internal structure as friendly inspection");
         await Click(tactical.UnitButtons[0]);
         for (var zoom = 0; zoom < 4; zoom++)
         {

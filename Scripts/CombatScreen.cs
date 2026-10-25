@@ -10,6 +10,7 @@ public partial class CombatScreen : Control
     public CombatSimulation? Simulation { get; private set; }
     public CombatViewport Battlefield { get; private set; } = null!;
     public CombatModal Modal { get; private set; }
+    public CombatPaperdoll Paperdoll { get; private set; } = null!;
     public List<CheckBox> ForceChoices { get; } = [];
     public Button LaunchButton { get; private set; } = null!;
     public Button BackButton { get; private set; } = null!;
@@ -41,6 +42,7 @@ public partial class CombatScreen : Control
     private Label _groupInfo = null!;
     private VBoxContainer _settings = null!;
     private VBoxContainer _weapons = null!;
+    private Label _weaponsTitle = null!;
     private SpinBox _distance = null!;
     private Button _walk = null!;
     private Button _run = null!;
@@ -68,6 +70,7 @@ public partial class CombatScreen : Control
         _sidebar = new PanelContainer(); _sidebar.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Line)); AddChild(_sidebar);
         var body = RosterUi.Scroll(_sidebar);
         _selectionTitle = RosterUi.Text(body, "Select a BattleMech", 19, Ui.Gold);
+        Paperdoll = new CombatPaperdoll { Visible = false }; body.AddChild(Paperdoll);
         _unitInfo = RosterUi.Text(body, "", 13);
         _targetInfo = RosterUi.Text(body, "", 12, Ui.Gold);
         _settings = new VBoxContainer(); body.AddChild(_settings);
@@ -88,7 +91,7 @@ public partial class CombatScreen : Control
         _priority = Ui.Button(_settings, "Set priority target…");
         _priority.Pressed += () => { SettingPriority = !SettingPriority; Battlefield.GrabFocus(); RefreshDetails(); };
         Ui.Button(_settings, "Clear priority target").Pressed += () => { Simulation?.SetPriority(_selected, null); SettingPriority = false; RefreshDetails(); };
-        RosterUi.Text(body, "WEAPONS · PRIMARY SELECTION", 12, Ui.Gold);
+        _weaponsTitle = RosterUi.Text(body, "WEAPONS · PRIMARY SELECTION", 12, Ui.Gold);
         _weapons = new VBoxContainer(); body.AddChild(_weapons);
         _locations = RosterUi.Text(body, "", 12);
         _unitBar = new HBoxContainer(); _unitBar.AddThemeConstantOverride("separation", 6); AddChild(_unitBar);
@@ -275,6 +278,8 @@ public partial class CombatScreen : Control
         var primary = _selected.FirstOrDefault(); var unit = primary is null ? null : Simulation.Unit(primary);
         var active = _selected.Select(Simulation.Unit).Where(item => item.Active).ToArray();
         _settings.Visible = active.Length > 0;
+        _weaponsTitle.Visible = unit is not null;
+        Paperdoll.Display(unit);
         if (_primary != primary)
         {
             _primary = primary; RosterUi.Clear(_weapons); _weaponControls.Clear();
@@ -293,8 +298,9 @@ public partial class CombatScreen : Control
             {
                 var enemy = Simulation.Unit(inspected);
                 _selectionTitle.Text = enemy.Spec.DisplayName;
-                _unitInfo.Text = $"OPPOSITION · {enemy.Spec.Tonnage}t · {enemy.Status}\nObservable damage only";
-                _locations.Text = string.Join("\n", enemy.Locations.Values.Select(loc => $"{DraftCatalog.Abbreviation(loc.Location)}  {(loc.Structure == 0 ? "Destroyed" : loc.Armor < enemy.Spec.Locations.Single(part => part.Location == loc.Location).Armor ? "Armor damage visible" : "No visible damage")}"));
+                _unitInfo.Text = $"OPPOSITION · {enemy.Spec.Tonnage}t · {enemy.Status}";
+                Paperdoll.Display(enemy);
+                _locations.Text = CombatPaperdoll.Readout(enemy);
             }
             else { _selectionTitle.Text = "Select a BattleMech"; _unitInfo.Text = "Click a friendly unit or its card below. Drag across the field to select a group."; _locations.Text = ""; }
             _targetInfo.Text = ""; return;
@@ -330,8 +336,7 @@ public partial class CombatScreen : Control
                 + (!unit.WeaponUsable(weapon) ? "Unavailable" : weapon.Remaining > .05 ? $"Ready in {weapon.Remaining:0.0}s" : "Ready")
                 + (target is null ? "" : $" · {CombatSimulation.HitChance(unit, target, weapon):P0} hit");
         }
-        _locations.Text = "LOCATION   FRONT / INTERNAL (remaining)\n"
-            + string.Join("\n", unit.Locations.Values.Select(loc => $"{DraftCatalog.Abbreviation(loc.Location)}    {loc.Armor} / {loc.Structure}   {(loc.Structure == 0 ? "LOST" : "")}"))
+        _locations.Text = CombatPaperdoll.Readout(unit)
             + "\nRear armor preserved.\nPrimary unit's weapons and locations shown; group orders and settings apply to all active selections.";
         var friends = Simulation.Units.Where(item => item.Side == CombatSide.Friendly).ToArray();
         for (var i = 0; i < UnitButtons.Count; i++)

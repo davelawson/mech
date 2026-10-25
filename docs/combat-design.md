@@ -1,6 +1,6 @@
 # Combat design
 
-Status: confirmed October 25, 2026. The initial design interview is complete. The first slice is implemented with procedural 3D stand-ins; [implementation defaults and tuning](combat-tuning.md) document numerical choices. Explicitly deferred features remain outside this slice.
+Status: confirmed October 25, 2026. The initial design interview is complete. The first slice uses procedural 3D models, with a custom AWESOME and a shared location/damage contract; [model and paperdoll details](mech-models.md) record the confirmed visual design, and [implementation defaults and tuning](combat-tuning.md) document numerical choices. Explicitly deferred features remain outside this slice.
 
 ## Established direction
 
@@ -9,7 +9,7 @@ Status: confirmed October 25, 2026. The initial design interview is complete. Th
 - The broader battlefield design uses continuous positions in three dimensions, with geometry governing movement and sight and understandable abstractions for cover and vegetation. Terrain features, buildings, and vegetation belong to that broader design; the first playable slice is completely flat and empty.
 - Movement is continuous and weapons have independent cooldowns, without shared combat rounds. Initial resolution draws on basic BattleTech rules, including hit chances, damage, heat, critical hits, Piloting checks, and weapon ranges and damage. The first slice retains hit resolution, weapon ranges and damage, and location armor/internal structure; criticals, heat, ammunition consumption, facing, falls, and MechWarrior injury are explicitly deferred. Hit chances use probability rolls influenced by Gunnery, weapon range bands, and both mechs’ movement. Damage is allocated to randomly selected body locations, reducing front armor before passing excess damage into that location’s internal structure. Rear armor is unused and unchanged while facing is deferred. Exact hit modifiers and hit-location weights remain tuning work. Further damage to a destroyed location transfers inward using the explicit paths below.
 - Tabletop fidelity is not a permanent constraint; mechanics may evolve further to exploit real time.
-- Enemy visibility depends on detection. Current sightings and last-known positions are distinct. Observable enemy damage is visible; exact enemy internal condition is hidden. The first slice uses a single detection radius: detected enemies are visible and identifiable, and enemies outside detection remain hidden. Lost contacts leave a last-known position that does not track subsequent movement. Detection is shared across the friendly force: any friendly detection reveals the enemy, and another friendly mech may fire if its weapons reach even outside its own detection radius. A last-known marker appears when all friendly detection is lost. Separate sensor and visual contacts are deferred.
+- Enemy visibility depends on detection. Current sightings and last-known positions are distinct. Selected detected enemies reveal the same armor, rear armor and internal condition as friendly mechs through the shared paperdoll and numeric readout. The first slice uses a single detection radius: detected enemies are visible and identifiable, and enemies outside detection remain hidden. Lost contacts leave a last-known position that does not track subsequent movement. Detection is shared across the friendly force: any friendly detection reveals the enemy, and another friendly mech may fire if its weapons reach even outside its own detection radius. A last-known marker appears when all friendly detection is lost. Separate sensor and visual contacts are deferred.
 - The first playable slice includes only BattleMechs on both sides, on a completely flat, empty battlefield. Its objective is defeat of the opposing force by destruction or disablement. The simulation has no tactical retreat mechanic; the combat menu permits ending the simulation.
 
 ## Orders, firing, and pacing
@@ -95,7 +95,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 - Combat explicitly overrides the existing office/subscreen right-click-back behavior: right-click remains a battlefield command while in combat.
 - Use an angled overhead camera with pan, zoom, and rotation.
 - Provide a friendly-unit selection bar and selected-unit panel showing orders, movement mode, firing setting, preferred engagement distance, weapon readiness, and armor/internal structure by location.
-- Enemy displays show identity and observable damage, without exact internal values.
+- Enemy displays show identity and the same exact location armor/internal values and paperdoll as friendly displays. Detection still controls whether enemies can be inspected.
 
 ## Existing campaign constraints
 

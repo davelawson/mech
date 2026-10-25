@@ -16,6 +16,7 @@ public partial class HangarScreen : Control
     public Button UnassignButton { get; private set; } = null!;
     public List<Button> RosterButtons { get; } = [];
     public OwnedMech SelectedMech => _roster.Mechs[_selected];
+    public MechPreview Preview { get; private set; } = null!;
     public bool ArtworkLoaded => _background.Texture is not null;
     private ForceRoster _roster = null!;
     private int _selected;
@@ -38,6 +39,7 @@ public partial class HangarScreen : Control
         _background.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
         var tint = new ColorRect { Color = new Color(0, 0, 0, .2f), MouseFilter = MouseFilterEnum.Ignore };
         tint.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(tint);
+        Preview = new MechPreview(); AddChild(Preview);
         _mech = RosterUi.Picture(this, "", Vector2.Zero);
         _title = Ui.Label(this, "MECH HANGAR", 25, Ui.Gold);
         _title.ClipText = true;
@@ -86,6 +88,7 @@ public partial class HangarScreen : Control
         _selected = index; var mech = SelectedMech; var warrior = _roster.Pilot(mech);
         _title.Text = $"MECH HANGAR  /  {_roster.ForceName}";
         _mech.Texture = Ui.LoadTexture(mech.Spec.Artwork); _details.Display(mech.Spec, mech);
+        Preview.Display(mech);
         _portrait.Texture = warrior is null ? null : Ui.LoadTexture(warrior.Spec.Artwork);
         _pilot.Text = warrior is null ? "No pilot assigned" : $"“{warrior.Spec.Callsign}”\n{warrior.Spec.Name}\n{RosterUi.SkillText(warrior.Spec)}";
         _readiness.Text = warrior is null ? "Assign a MechWarrior to crew this BattleMech." : !warrior.Ready ? warrior.Status : mech.Operational ? "Ready for deployment" : "Pilot healthy · BattleMech not operational";
@@ -118,7 +121,11 @@ public partial class HangarScreen : Control
         var leftWidth = Size.X < 1050 ? 196 : 246; var rightWidth = Size.X < 1050 ? 330 : 390;
         Ui.Place(_pilotPanel, 24, 70, leftWidth, Size.Y - 164);
         Ui.Place(_detailsPanel, Size.X - rightWidth - 24, 70, rightWidth, Size.Y - 164);
-        Ui.Place(_mech, leftWidth + 34, 60, Size.X - leftWidth - rightWidth - 68, Size.Y - 148);
+        var visualX = leftWidth + 34; var visualWidth = Size.X - leftWidth - rightWidth - 68;
+        var visualHeight = Size.Y - 148;
+        var artSize = Math.Clamp(visualWidth * .27f, 80, 210);
+        Ui.Place(Preview, visualX, 60, visualWidth - artSize - 8, visualHeight);
+        Ui.Place(_mech, visualX + visualWidth - artSize, 85, artSize, artSize);
         Ui.Place(_rosterScroll, 24, Size.Y - 78, Size.X - 48, 68);
     }
 }

@@ -70,6 +70,7 @@ public partial class SmokeTests : Node
             _app.StarMap.BackButton.EmitSignal(BaseButton.SignalName.Pressed);
             await Frames();
             Check(_app.Office.Hotspot.HasFocus(), "Back button restores wall-map focus");
+            await TestMechVisuals();
             await TestCombatUi();
             await TestRosterUi();
             await TestMissionsUi();

@@ -2,7 +2,7 @@ using Godot;
 
 namespace Mech;
 
-/// <summary>Procedural 3D stand-ins with a screen-space command/visibility overlay.</summary>
+/// <summary>Location-owned chassis models with a screen-space command/visibility overlay.</summary>
 public partial class CombatViewport : Control
 {
     public event Action<IReadOnlyList<string>, bool>? SelectionRequested;
@@ -18,8 +18,7 @@ public partial class CombatViewport : Control
     public Camera3D Camera { get; private set; } = null!;
     private SubViewport _viewport = null!;
     private Node3D _world = null!;
-    private readonly Dictionary<string, Node3D> _models = [];
-    private readonly Dictionary<string, Dictionary<MechLocation, MeshInstance3D>> _parts = [];
+    private readonly Dictionary<string, MechModel> _models = [];
     private readonly List<(CombatShot Shot, float Life)> _effects = [];
     private Vector3 _focus = new(0, 0, 12);
     private static readonly float DefaultPitch = Mathf.Atan2(80, 70);
@@ -81,7 +80,7 @@ public partial class CombatViewport : Control
     {
         if (Simulation is not null) Simulation.ShotFired -= OnShot;
         foreach (var model in _models.Values) { _world.RemoveChild(model); model.QueueFree(); }
-        _models.Clear(); _parts.Clear(); _effects.Clear();
+        _models.Clear(); _effects.Clear();
         Simulation = simulation; Simulation.ShotFired += OnShot;
         _focus = new Vector3(0, 0, 12); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 50; UpdateCamera();
         foreach (var unit in simulation.Units) CreateMech(unit);
@@ -101,22 +100,8 @@ public partial class CombatViewport : Control
     }
     private void CreateMech(CombatUnit unit)
     {
-        var root = new Node3D(); _world.AddChild(root); _models[unit.Id] = root;
-        var color = unit.Side == CombatSide.Friendly ? new Color("6bafbd") : new Color("d17c66");
-        var scale = .9f + unit.Spec.Tonnage / 200f; root.Scale = Vector3.One * scale;
-        var parts = new Dictionary<MechLocation, MeshInstance3D>
-        {
-            [MechLocation.CenterTorso] = Box(root, new(0, 1.45f, 0), new(.5f, .75f, .5f), color),
-            [MechLocation.Head] = Box(root, new(0, 2, -.08f), new(.3f, .28f, .35f), Ui.Gold),
-            [MechLocation.LeftTorso] = Box(root, new(-.4f, 1.5f, 0), new(.3f, .65f, .5f), color.Darkened(.12f)),
-            [MechLocation.RightTorso] = Box(root, new(.4f, 1.5f, 0), new(.3f, .65f, .5f), color.Darkened(.12f)),
-            [MechLocation.LeftArm] = Box(root, new(-.7f, 1.25f, -.1f), new(.22f, .8f, .35f), color),
-            [MechLocation.RightArm] = Box(root, new(.7f, 1.25f, -.1f), new(.22f, .8f, .35f), color),
-            [MechLocation.LeftLeg] = Box(root, new(-.23f, .55f, 0), new(.26f, 1.05f, .4f), color.Darkened(.25f)),
-            [MechLocation.RightLeg] = Box(root, new(.23f, .55f, 0), new(.26f, 1.05f, .4f), color.Darkened(.25f))
-        };
-        Box(root, new(0, 1.8f, -.3f), new(.35f, .12f, .12f), new Color("101c28"));
-        _parts[unit.Id] = parts;
+        var model = MechModel.Create(unit.Spec, unit.Side);
+        _world.AddChild(model); _models[unit.Id] = model;
     }
     private void SyncModels()
     {
@@ -128,7 +113,7 @@ public partial class CombatViewport : Control
             model.Position = World(unit.Position);
             model.Rotation = new Vector3(unit.Status == CombatStatus.Destroyed ? Mathf.Pi / 2 : 0,
                 Mathf.Atan2(-unit.Facing.X, -unit.Facing.Y), 0);
-            foreach (var (location, part) in _parts[unit.Id]) part.Visible = unit.Intact(location);
+            model.SetCondition(unit.Intact);
         }
     }
     public static Vector3 World(Vector2 point, float height = 0) => new(point.X, height, point.Y);
@@ -301,7 +286,10 @@ public partial class CombatViewport : Control
             if (friendly) friendlyIndex++;
             if (!friendly && !Simulation.Detected(CombatSide.Friendly, unit.Id)) continue;
             var at = ScreenPoint(unit.Position);
-            var color = friendly ? new Color("85d0df") : new Color("ee9c85");
+            var color = MechModel.TeamColor(unit.Side);
+            var baseRadius = _models[unit.Id].Scale.X * .95f;
+            DrawPolyline(Enumerable.Range(0, 49).Select(segment => ScreenPoint(unit.Position
+                + Vector2.FromAngle(segment * Mathf.Tau / 48) * baseRadius, .015f)).ToArray(), new Color(color, .7f), 1, true);
             if (!unit.Active) color = Ui.Muted;
             if (Selection.Contains(unit.Id))
             {
@@ -322,7 +310,7 @@ public partial class CombatViewport : Control
             }
             var forward = ScreenPoint(unit.Position + unit.Facing * 1.5f);
             DrawLine(at, forward, color, 2, true);
-            var label = ScreenPoint(unit.Position, 3);
+            var label = ScreenPoint(unit.Position, _models[unit.Id].Height + .3f);
             var text = friendly ? Selection.Count == 1 && Selection.Contains(unit.Id) ? $"{friendlyIndex} · {unit.Warrior.Callsign}" : friendlyIndex.ToString()
                 : InspectedEnemy == unit.Id ? unit.Spec.DisplayName : unit.Id.Replace("enemy-", "E", StringComparison.Ordinal);
             var labelOffset = new Vector2(-font.GetStringSize(text, fontSize: 12).X / 2, -4);
