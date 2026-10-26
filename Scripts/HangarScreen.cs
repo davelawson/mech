@@ -93,7 +93,7 @@ public partial class HangarScreen : Control
         _title.Text = $"MECH HANGAR  /  {_roster.ForceName}";
         _mech.Texture = Ui.LoadTexture(mech.Spec.Artwork); _details.Display(mech.Spec, mech);
         Preview.Display(mech);
-        GaitPicker.Visible = Preview.Model!.IsAwesome;
+        GaitPicker.Visible = Preview.Model!.HasLocomotion;
         _portrait.Texture = warrior is null ? null : Ui.LoadTexture(warrior.Spec.Artwork);
         _pilot.Text = warrior is null ? "No pilot assigned" : $"“{warrior.Spec.Callsign}”\n{warrior.Spec.Name}\n{RosterUi.SkillText(warrior.Spec)}";
         _readiness.Text = warrior is null ? "Assign a MechWarrior to crew this BattleMech." : !warrior.Ready ? warrior.Status : mech.Operational ? "Ready for deployment" : "Pilot healthy · BattleMech not operational";

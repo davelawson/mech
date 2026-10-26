@@ -6,7 +6,9 @@ namespace Mech;
 public partial class MechModel : Node3D
 {
     public IReadOnlyDictionary<MechLocation, Node3D> Locations => _locations;
-    public bool IsAwesome { get; private set; }
+    public string ChassisId { get; private set; } = "";
+    public bool IsAwesome => ChassisId == "awesome";
+    public Aabb RestBounds { get; private set; }
     public float Height { get; private set; }
     private readonly Dictionary<MechLocation, Node3D> _locations = [];
     private readonly Dictionary<Color, StandardMaterial3D> _materials = [];
@@ -18,7 +20,7 @@ public partial class MechModel : Node3D
 
     public static MechModel Create(MechSpec spec, CombatSide side)
     {
-        var model = new MechModel { Name = "MechModel", IsAwesome = spec.Id == "awesome" };
+        var model = new MechModel { Name = "MechModel", ChassisId = spec.Id };
         model.Scale = Vector3.One * (.9f + spec.Tonnage / 200f);
         // A pixel-sized inverted hull remains legible at combat zoom without tinting the armor.
         model._outline = new ShaderMaterial { Shader = new Shader { Code = """
@@ -41,9 +43,33 @@ public partial class MechModel : Node3D
             var root = new Node3D { Name = location.ToString() };
             model.AddChild(root); model._locations[location] = root;
         }
-        if (model.IsAwesome) { model.BuildAwesome(); model.BuildLocomotionRig(); } else model.BuildGeneric(side);
-        model.Height = (model.IsAwesome ? 2.52f : 2.14f) * model.Scale.Y;
+        switch (spec.Id)
+        {
+            case "awesome": model.BuildAwesome(); model.BuildLocomotionRig(AwesomeRig); break;
+            case "jenner": model.BuildJenner(); model.BuildLocomotionRig(JennerRig); break;
+            case "wolverine": model.BuildWolverine(); model.BuildLocomotionRig(WolverineRig); break;
+            case "catapult": model.BuildCatapult(); model.BuildLocomotionRig(CatapultRig); break;
+            default: model.BuildGeneric(side); break;
+        }
+        model.RestBounds = model.MeasureBounds();
+        model.Height = model.RestBounds.End.Y * model.Scale.Y;
         return model;
+    }
+
+    private Aabb MeasureBounds()
+    {
+        Aabb? bounds = null;
+        void Visit(Node3D node, Transform3D transform)
+        {
+            if (node is MeshInstance3D { Mesh: { } mesh })
+            {
+                var box = transform * mesh.GetAabb();
+                bounds = bounds is { } previous ? previous.Merge(box) : box;
+            }
+            foreach (var child in node.GetChildren().OfType<Node3D>()) Visit(child, transform * child.Transform);
+        }
+        foreach (var child in GetChildren().OfType<Node3D>()) Visit(child, child.Transform);
+        return bounds ?? new Aabb(Vector3.Zero, Vector3.One);
     }
 
     public void SetCondition(Func<MechLocation, bool> intact)

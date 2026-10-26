@@ -4,7 +4,7 @@ namespace Mech;
 
 public enum PreviewGait { Idle, Walk, Run }
 
-/// <summary>A rotating view of the shared combat geometry with Awesome gait previews.</summary>
+/// <summary>A rotating view of the shared combat geometry with chassis gait previews.</summary>
 public partial class MechPreview : Control
 {
     public MechModel? Model { get; private set; }
@@ -60,11 +60,28 @@ public partial class MechPreview : Control
     private void FrameModel()
     {
         if (_camera is null) return;
-        var aspect = Math.Max(.35f, Size.X / Math.Max(1, Size.Y));
-        var height = Math.Max(3.4f, (Model?.Height ?? 3) + .45f);
-        var distance = height / (2 * Mathf.Tan(Mathf.DegToRad(_camera.Fov / 2)) * Math.Min(1, aspect));
-        var target = new Vector3(0, height * .44f, 0);
-        _camera.Position = target + new Vector3(.40f, .18f, -.90f).Normalized() * distance;
+        var aspect = Math.Max(.1f, Size.X / Math.Max(1, Size.Y));
+        var bounds = Model is null ? new Aabb(Vector3.Zero, new(2, 3, 2))
+            : new Aabb(Model.RestBounds.Position * Model.Scale, Model.RestBounds.Size * Model.Scale);
+        var target = new Vector3(0, (Model?.Height ?? 3) * .48f, 0);
+        var direction = new Vector3(.40f, .18f, -.90f).Normalized();
+        var right = Vector3.Up.Cross(direction).Normalized(); var up = direction.Cross(right);
+        var tangent = Mathf.Tan(Mathf.DegToRad(_camera.Fov / 2));
+        var distance = 0f;
+        void Fit(Vector3 point)
+        {
+            var relative = point - target;
+            distance = Math.Max(distance, relative.Dot(direction) + Math.Max(
+                Math.Abs(relative.Dot(right)) / (tangent * aspect), Math.Abs(relative.Dot(up)) / tangent));
+        }
+        // Fit every turntable orientation, including launcher width, cannon depth and the floor.
+        for (var angle = 0; angle < 32; angle++)
+        {
+            for (var corner = 0; corner < 8; corner++)
+                Fit(bounds.GetEndpoint(corner).Rotated(Vector3.Up, angle * Mathf.Tau / 32));
+            Fit(new Vector3(Mathf.Cos(angle * Mathf.Tau / 32) * 1.75f, -.11f, Mathf.Sin(angle * Mathf.Tau / 32) * 1.75f));
+        }
+        _camera.Position = target + direction * (distance * 1.10f + .1f);
         _camera.LookAt(target);
     }
     public override void _Process(double delta)
