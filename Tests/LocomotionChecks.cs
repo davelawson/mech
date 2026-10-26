@@ -163,7 +163,7 @@ internal static partial class CombatChecks
 
     private static void CheckSharedMovement(Action<bool, string> check)
     {
-        foreach (var spec in DraftCatalog.Mechs)
+        foreach (var spec in DraftCatalog.AllMechs)
         {
             foreach (var mode in new[] { MovementMode.Walk, MovementMode.Run })
             {

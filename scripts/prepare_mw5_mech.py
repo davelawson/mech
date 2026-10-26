@@ -1,6 +1,6 @@
 """Shared rigid MW5 preparation for external body, exterior cockpit and stock weapons."""
 import argparse
-from collections import defaultdict
+from collections import Counter, defaultdict
 import hashlib
 import json
 import math
@@ -14,21 +14,21 @@ LOCATIONS = ("Head", "CenterTorso", "LeftTorso", "RightTorso", "LeftArm", "Right
 
 def region(bone):
     side = "Left" if "Left" in bone else "Right"
-    if any(part in bone for part in ("Thigh", "Hip", "Calf", "Foot", "Toe", "Talon")):
-        part = "Thigh" if "Thigh" in bone else "Hip" if "Hip" in bone else "Shin" if "Calf" in bone else "Foot"
+    if any(part in bone for part in ("Thigh", "Hip", "Calf", "Knee", "Foot", "Toe", "Talon")):
+        part = "Thigh" if "Thigh" in bone else "Hip" if "Hip" in bone else "Shin" if "Calf" in bone or "Knee" in bone else "Foot"
         return side + "Leg", part
     if bone.startswith(("Clavicle", "Upperarm", "Forearm", "Elbow", "Hand")):
         return side + "Arm", "ForearmAndFist" if bone.startswith(("Forearm", "Hand")) else "ShoulderAndUpperarm"
     if bone.startswith(("Torso_Left", "Torso_Right")):
         return side + "Torso", "TorsoShell"
-    if bone.startswith(("Torso_Center", "Torso_Twist", "Pelvis", "Flap_")):
+    if bone.startswith(("Torso_Center", "Torso_Twist", "Torso_Pitch", "Pelvis", "Flap_")):
         return "CenterTorso", "CoreAndPelvis"
     raise ValueError("Unassigned source bone: " + bone)
 
 
-def prepare(chassis, prefix, displayed_height, model_scale, weapons, script_name, missile_tubes, evidence):
+def prepare(chassis, prefix, displayed_height, model_scale, weapons, script_name, missile_tubes, evidence, glass_section=0, source_tree="Game"):
     """Validate rigid weights, assemble source attachments, bake paint and record provenance."""
-    default_source = Path.home() / f"Models/MW5Mercenaries/Game/Objects/Mechs/{chassis}/Model"
+    default_source = Path.home() / f"Models/MW5Mercenaries/{source_tree}/Objects/Mechs/{chassis}/Model"
     output = ROOT / f"Assets/Models/{chassis}.glb"
     height = displayed_height / model_scale
     parser = argparse.ArgumentParser(description=f"Prepare MW5 {chassis} from external UE Viewer exports (Python 3 + Pillow).")
@@ -63,17 +63,20 @@ def prepare(chassis, prefix, displayed_height, model_scale, weapons, script_name
         joints, weights = attributes["JOINTS_0"], attributes["WEIGHTS_0"]
         for start in range(0, len(indices), 3):
             triangle = indices[start:start + 3]
-            owners = {joints[i][0] for i in triangle}
-            assert len(owners) == 1 and all(abs(weights[i][0] - 1) < 1e-5 for i in triangle), "Expected rigid source faces"
-            bone = body.g["nodes"][body.g["skins"][0]["joints"][owners.pop()]]["name"]
-            grouped[region(bone)].extend(triangle)
+            bones = [body.g["nodes"][body.g["skins"][0]["joints"][joints[i][0]]]["name"] for i in triangle]
+            regions = [region(bone) for bone in bones]
+            if len(set(regions)) > 1 or any(abs(weights[i][0] - 1) >= 1e-5 for i in triangle):
+                # A handful of Panther/Shadowhawk torso seam faces cross source bones.
+                # Keep each complete face with its predominant torso rather than cut it.
+                assert all(key[0].endswith("Torso") for key in regions), "Unexpected weighted limb face"
+            grouped[Counter(regions).most_common(1)[0][0]].extend(triangle)
         for key, triangles in grouped.items():
             parts[key].append((attributes, triangles, armor, lambda p: p, lambda p: p))
 
     canopy = load(f"Body/{prefix}_TP_Cockpit_DM0_STM.gltf")
     for primitive, attributes, indices in canopy.primitives():
-        # The small first section is the exterior glazing; verify in rendered captures.
-        glass = primitive["material"] == 0
+        # Cockpit material order varies by chassis; verify glazing in rendered captures.
+        glass = primitive["material"] == glass_section
         key = ("Head", "AmberCanopy" if glass else "CockpitFrame")
         parts[key].append((attributes, indices, 2 if glass else 3,
                            lambda p: body.world("Cockpit", p), lambda p: body.world("Cockpit", p, True)))
@@ -87,7 +90,10 @@ def prepare(chassis, prefix, displayed_height, model_scale, weapons, script_name
         for _, attributes, indices in asset.primitives():
             parts[(location, name)].append((attributes, indices, weapon_paint, position, direction))
         fires = sorted(name for name in asset.names if name.startswith("Fire"))
-        if name.startswith("Srm"):
+        if name.startswith("Lrm"):
+            assert len(fires) == int(name.removeprefix("Lrm").removesuffix("Housing"))
+            markers.extend((location, f"LrmTube{i:02}", position(asset.world(fire))) for i, fire in enumerate(fires))
+        elif name.startswith("Srm"):
             assert len(fires) == missile_tubes
             markers.extend((location, f"MissileTube{i:02}", position(asset.world(fire))) for i, fire in enumerate(fires))
         elif name == "CannonHousing":
@@ -145,7 +151,7 @@ def prepare(chassis, prefix, displayed_height, model_scale, weapons, script_name
                 "ankle": pivot("Foot0_Right"), "shoulder": pivot("Upperarm_Right")},
         "weapons": [{"location": owner, "name": name, "bone": bone, "mesh": mesh, "local_transform": "identity"}
                     for owner, name, bone, mesh in weapons],
-        "cockpit": {"mesh": f"{prefix}_TP_Cockpit_DM0_STM", "bone": "Cockpit", "glass_section": 0},
+        "cockpit": {"mesh": f"{prefix}_TP_Cockpit_DM0_STM", "bone": "Cockpit", "glass_section": glass_section},
         "missile_tubes": missile_tubes,
         "attachment_evidence": evidence,
         "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",

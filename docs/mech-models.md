@@ -4,7 +4,7 @@ Confirmed October 26, 2026. Awesome AWS-8Q, Jenner JR7-D, Wolverine WVR-6R and C
 
 ## Model contract
 
-`Scripts/MechModel.cs` provides the factory and shared rendering/condition contract used by both combat and the hangar. `Scripts/AwesomeModel.cs` provides the prepared-model loader; it, `Scripts/JennerModel.cs`, `Scripts/CatapultModel.cs` and `Scripts/WolverineModel.cs` load the corresponding GLBs in `Assets/Models/`, attach rigid sections to damage roots and give each instance independent team outlines. Add future chassis geometry through that factory; share the rendering/condition contract, while authoring each chassis's own proportions and shape. Other chassis currently use the generic geometry.
+`Scripts/MechModel.cs` provides the factory and shared rendering/condition contract used by both combat and the hangar. `Scripts/AwesomeModel.cs` provides the prepared-model loader; it, `Scripts/JennerModel.cs`, `Scripts/CatapultModel.cs` and `Scripts/WolverineModel.cs` load the corresponding GLBs in `Assets/Models/`, attach rigid sections to damage roots and give each instance independent team outlines. Add future chassis geometry through that factory; share the rendering/condition contract, while authoring each chassis's own proportions and shape. Chassis without an imported model use the generic geometry.
 
 - There are eight `Node3D` location roots. Every mesh, including weapons, visor and joints, belongs beneath one root.
 - Shoulder slabs belong to arms; chest PPCs belong to side torsos. Hiding a destroyed location hides all its details. Combat's existing side-torso destruction also removes its attached arm.
@@ -94,12 +94,41 @@ scripts/mech capture
 
 The project retains the prepared GLB, four required Godot companion textures, the manifest and preparation code. Rebuilding requires the external source exports; running the game does not.
 
+## Imported Atlas
+
+`Assets/Models/Atlas.glb` supplies the AS7-D model, at 4.00 displayed units with 50,045 triangles in 24 rigid render meshes. It uses the source skull cockpit, amber eyes, stock weapon meshes, olive paint and source normal detail. Its articulated rig uses the shared longer stride and movement speed. The preparation manifest records source files, hashes and joint pivots; regenerate with `python3 scripts/prepare-atlas.py` (Python 3 and Pillow; `--source` accepts an external Model or Body directory).
+
+MW5's AS7-D source loadout and hardpoint mappings place the AC/20 on the right torso, LRM 20 and SRM 6 on the left torso, one laser on each arm and two on the center torso. The LRM 20 uses MW5's ten-position missile visual; the SRM retains six positions. The tabletop stock catalog records the two center-torso lasers as rear-facing. Existing combat rules do not yet enforce weapon firing arcs, so their rear-facing status is currently informational.
+
+Atlas is registered in the complete catalog for future use, outside the explicit initial draft. The game currently has no acquisition route for it, and no Atlas roster illustration has been added; the 3D model is available to the hangar and combat when an Atlas is added to a company in a future feature.
+
+## Imported Panther, Shadow Hawk and Griffin
+
+The existing draft candidates PNT-9R, SHD-2H and GRF-1N use prepared MW5 source models in the hangar and combat, retaining their existing tabletop statistics and draft entries. Their displayed heights are 2.48, 3.00 and 3.00 units respectively. The models contain 40,503, 29,896 and 24,401 triangles, with source cockpit geometry, weapons, masks and normals. Source joints drive the same shared faster movement and longer strides as the other imports.
+
+The MW5 loadouts and hardpoint visual mappings select the stock weapons; Shadow Hawk's right-arm laser blueprint references `Arm_Right_EH1_Laser_SKM`. Its head SRM, left torso AC/5 and right torso LRM stay with their corresponding damage roots. Panther has four SRM firing markers and Griffin has ten LRM markers; Shadow Hawk has two SRM and five LRM markers. The Panther and Shadow Hawk source bodies have a few cross-bone torso seam faces; each intact triangle is assigned to its predominant torso region. Rebuild using `python3 scripts/prepare-panther.py`, `python3 scripts/prepare-shadowhawk.py` or `python3 scripts/prepare-griffin.py`; `--source` overrides the external model directory.
+
+## Imported Firestarter, Crusader, Thunderbolt, Victor and Zeus
+
+The existing draft candidates FS9-H, CRD-3R, TDR-5S, VTR-9B and ZEU-6S use MW5 geometry, stock source weapons, exterior cockpits and source-derived joints in the hangar and combat. The existing draft choices and tabletop specifications are unchanged. Their displayed heights are 2.48, 3.16, 3.16, 3.64 and 3.64 units respectively. The corresponding prepared models contain 28,442, 43,232, 24,785, 25,913 and 29,849 triangles.
+
+The MW5 CRD-3R source locates both SRM 6 visuals on the torso; the tabletop catalog assigns the weapons to the legs. Source visuals remain with their torso damage groups while gameplay uses the existing leg-mounted equipment record. The Firestarter and Zeus also retain tabletop rear-facing equipment records; MW5 source visual mounts and the existing combat firing-arc rules remain unchanged. Crusader source exports are under the DLC4 tree. Each model can be rebuilt with `python3 scripts/prepare-<chassis>.py` and an optional `--source` override; each manifest records the input hashes and attachments.
+
 ## Chassis presentation
 
-MW5 geometry defines all four custom chassis silhouettes; the existing hangar illustrations guide the shared palette. Catalog specifications determine visible weapon counts and damage-location ownership. The illustrations remain unchanged.
+MW5 geometry defines all thirteen catalog chassis silhouettes; the existing hangar illustrations guide the shared palette. Catalog specifications determine visible weapon counts and damage-location ownership. The illustrations remain unchanged.
 
 | Chassis | Silhouette and weapons | Movement character |
 | --- | --- | --- |
+| Atlas AS7-D | Skull head, arm lasers, right torso AC/20, left torso LRM 20 and SRM 6, and two torso lasers. | Heavy, deliberate steps with arm swing. |
+| Firestarter FS9-H | Two arm lasers, four flamers and torso machine guns. | Compact steps with restrained arm movement. |
+| Crusader CRD-3R | Arm LRMs, lasers and machine guns; source SRM housings on the torso. | Heavy steps with restrained weapon movement. |
+| Thunderbolt TDR-5S | Arm laser and machine guns, torso lasers and missile launchers. | Heavy steps with restrained arm movement. |
+| Victor VTR-9B | Right-arm AC/20, left-arm lasers and left-torso SRM 4. | Heavy steps with braced arms. |
+| Zeus ZEU-6S | Left-arm AC/5, right-arm LRM 15 and torso lasers. | Heavy steps with braced arms. |
+| Panther PNT-9R | Compact humanoid profile, right-arm PPC and center-torso SRM 4. | Deliberate stride with a braced PPC arm. |
+| Shadow Hawk SHD-2H | Shoulder-mounted AC/5, head SRM 2, right-torso LRM 5 and right-arm laser. | Balanced stride and arm swing. |
+| Griffin GRF-1N | Right-arm PPC, right-torso LRM 10 and left fist. | Deliberate stride with a braced PPC arm. |
 | Awesome AWS-8Q | Broad upright shoulders, amber cockpit, right-arm and side-torso PPCs, head small laser and left fist. | Heavy, deliberate steps. |
 | Jenner JR7-D | Broad body, projecting amber cockpit nose, exposed angular legs and split toes. Two lasers in each stub arm; one center-torso SRM4. | Quick, compact steps and stable weapon stubs. |
 | Wolverine WVR-6R | Upright humanoid body, helmet visor, right-arm AC/5, left-torso six-tube shoulder rack and head laser. | Balanced stride; left arm swings while the cannon arm stays braced forward. |
@@ -117,6 +146,9 @@ Every current and future articulated chassis receives **50% longer walking/runni
 
 | Chassis | Effective walk stride amplitude | Effective run stride amplitude |
 | --- | --- | --- |
+| Firestarter, Crusader, Thunderbolt, Victor, Zeus | 0.165 | 0.225 |
+| Panther, Shadow Hawk, Griffin | 0.165 | 0.225 |
+| Atlas | 0.165 | 0.225 |
 | Awesome | 0.165 | 0.225 |
 | Jenner | 0.225 | 0.285 |
 | Wolverine | 0.240 | 0.315 |

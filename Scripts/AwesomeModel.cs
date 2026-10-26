@@ -50,6 +50,7 @@ public partial class MechModel
                 }
                 else if (owner is { } markerLocation
                     && (node.Name.ToString().StartsWith(markerLocation + "_MissileTube", StringComparison.Ordinal)
+                        || node.Name.ToString().StartsWith(markerLocation + "_LrmTube", StringComparison.Ordinal)
                         || node.Name.ToString().StartsWith(markerLocation + "_WeaponMuzzle_", StringComparison.Ordinal)
                         || node.Name == markerLocation + "_CannonMuzzle"))
                 {

@@ -1,0 +1,124 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Zeus/Model",
+  "source_files": {
+    "Body/Materials/Textures/Zeus_Body_Default_MSK.png": "7e87f337eae181ef5492aea7173d3e82ccfa5b172ac2dc9aa555dbb02cd7d3c0",
+    "Body/Materials/Textures/Zeus_Body_NRM.png": "88fa16dd4e9f13a08be5a7bc41b60fdca90c52a6f37880a870d5ccd3f728bad8",
+    "Body/Materials/Textures/Zeus_Body_Wear_MSK.png": "57a9ceba38931847626d662553e9e725743a309bb973eef1d31c28ebe949928a",
+    "Body/Materials/Textures/Zeus_Variant_Default_MSK.png": "c8030fff02963d4aee15e3b3ef78df664c815bd646855d7195018a072b63f6c3",
+    "Body/Materials/Textures/Zeus_Variant_NRM.png": "d3557d90ac03a4e38591d32582daf90c027fca10d146f305eadb6a325a7ffa26",
+    "Body/Materials/Textures/Zeus_Variant_Wear_MSK.png": "a61470273b5aba194677fe9d33a5ec0657cfba61c38b77fb9c36afd7a49bce95",
+    "Body/ZEU_TP_Cockpit_DM0_STM.bin": "d6687050490a559d0c0e3a914e03625f6b11cf2f3f73b071f3e946f5cc265867",
+    "Body/ZEU_TP_Cockpit_DM0_STM.gltf": "ea6b328128c5b1674596ffd987754c63010411577d3884993e09affd5cfc7195",
+    "Body/Zeus_SKM.bin": "4001cbcafea4d19db1f8e327074d421dc85c0ed397af09528871eccc33155d58",
+    "Body/Zeus_SKM.gltf": "47760c9cb6243e6b9d40626a0bebfce7c4646a0c2b83c2d1ed72645904041b08",
+    "Weapons/Weapon_Mech_ZEU_Forearm_Left_BH1_AC5_SKM.bin": "b0748d56c769ffc0721cd1536855ef596b072b84b7164127a5d6b86bc640ba16",
+    "Weapons/Weapon_Mech_ZEU_Forearm_Left_BH1_AC5_SKM.gltf": "d75757fe5de9c5fe31cf4259e315d8e270394fc6dd3b67744474f401eba2e908",
+    "Weapons/Weapon_Mech_ZEU_Forearm_Right_MH1_Missile15_SKM.bin": "d23964a50eab8e8de566a21fac2151d706f9692f62f568de4152b8a4a6c9429b",
+    "Weapons/Weapon_Mech_ZEU_Forearm_Right_MH1_Missile15_SKM.gltf": "670c1438f9f6d8345cbb6070e434b34ab11ce3df6a722b34c137ff8b08d94e00",
+    "Weapons/Weapon_Mech_ZEU_Torso_Center_EH1_Laser_SKM.bin": "2ede6f62f70186c5cea8a7106c5f561f2cc8b62991f3f8e1654d1944313dd046",
+    "Weapons/Weapon_Mech_ZEU_Torso_Center_EH1_Laser_SKM.gltf": "7476c2cd46d8ccccd5c89e6d4f0ac57efdf28d314bc7d22af03c12655270701f",
+    "Weapons/Weapon_Mech_ZEU_Torso_Left_EH1_Laser_SKM.bin": "962dda81f290f94d0827f237b824534b27790d88faaa14bdc15f7a02f870943f",
+    "Weapons/Weapon_Mech_ZEU_Torso_Left_EH1_Laser_SKM.gltf": "33e3743c7bd51dea40f6fbbe602ace1f8de33a45ca10de2dafb6196c7ef69922",
+    "Weapons/Weapon_Mech_ZEU_Torso_Left_EH2_Laser_SKM.bin": "4842c51db2b6c34e5383ec5e75c34f41425b1d2e4a6b8f1c6e2041706ed58993",
+    "Weapons/Weapon_Mech_ZEU_Torso_Left_EH2_Laser_SKM.gltf": "a64389a4bed61cfc22682239e03519a1d8a1b7c7d3afe7ae4a15eb6a9953dc30"
+  },
+  "runtime_triangles": 29849,
+  "render_meshes": 22,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 4783,
+    "CenterTorso/LaserEmitter1": 302,
+    "Head/AmberCanopy": 254,
+    "Head/CockpitFrame": 39,
+    "LeftArm/CannonHousing": 1220,
+    "LeftArm/ForearmAndFist": 2469,
+    "LeftArm/ShoulderAndUpperarm": 1512,
+    "LeftLeg/Foot": 1770,
+    "LeftLeg/Hip": 704,
+    "LeftLeg/Shin": 2031,
+    "LeftLeg/Thigh": 707,
+    "LeftTorso/LaserEmitter1": 253,
+    "LeftTorso/LaserEmitter2": 248,
+    "LeftTorso/TorsoShell": 1191,
+    "RightArm/ForearmAndFist": 2152,
+    "RightArm/Lrm15Housing": 2268,
+    "RightArm/ShoulderAndUpperarm": 1512,
+    "RightLeg/Foot": 1770,
+    "RightLeg/Hip": 704,
+    "RightLeg/Shin": 2031,
+    "RightLeg/Thigh": 707,
+    "RightTorso/TorsoShell": 1222
+  },
+  "height": 2.8,
+  "displayed_height": 3.64,
+  "scale": 0.13615370008736358,
+  "bottom": -0.14678283035755157,
+  "rig": {
+    "waist": 1.4407788,
+    "hip": [
+      0.3570305,
+      1.1963,
+      9e-07
+    ],
+    "knee": [
+      0.3783944,
+      0.6754574,
+      -0.0539775
+    ],
+    "ankle": [
+      0.3929816,
+      0.3399147,
+      0.0723574
+    ],
+    "shoulder": [
+      0.6083183,
+      2.0827619,
+      0.1214395
+    ]
+  },
+  "weapons": [
+    {
+      "location": "LeftTorso",
+      "name": "LaserEmitter1",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_ZEU_Torso_Left_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftTorso",
+      "name": "LaserEmitter2",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_ZEU_Torso_Left_EH2_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "CenterTorso",
+      "name": "LaserEmitter1",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_ZEU_Torso_Center_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "Lrm15Housing",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_ZEU_Forearm_Right_MH1_Missile15_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftArm",
+      "name": "CannonHousing",
+      "bone": "Forearm_Left",
+      "mesh": "Weapon_Mech_ZEU_Forearm_Left_BH1_AC5_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "ZEU_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 0
+  },
+  "missile_tubes": 0,
+  "attachment_evidence": "ZEU-6S loadout -> Zeus_HPS visual mappings -> source blueprint skeletal meshes. Torso and forearm sockets use Torso_Pitch and Forearm bones; cockpit attaches to Cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-zeus.py + scripts/mech_asset_tools.py; Python + Pillow"
+}

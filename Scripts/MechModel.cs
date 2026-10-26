@@ -39,7 +39,7 @@ public partial class MechModel : Node3D
             void fragment() { ALBEDO = team_color.rgb; }
             """ } };
         model._outline.SetShaderParameter("team_color", TeamColor(side));
-        if (spec.Id is "awesome" or "jenner" or "catapult" or "wolverine") model._outline.SetShaderParameter("outline_width", .65f);
+        if (spec.Id is "awesome" or "jenner" or "catapult" or "wolverine" or "atlas" or "panther" or "shadow-hawk" or "griffin" or "firestarter" or "crusader" or "thunderbolt" or "victor" or "zeus") model._outline.SetShaderParameter("outline_width", .65f);
         foreach (var location in Enum.GetValues<MechLocation>())
         {
             var root = new Node3D { Name = location.ToString() };
@@ -47,6 +47,15 @@ public partial class MechModel : Node3D
         }
         switch (spec.Id)
         {
+            case "firestarter": model.BuildFirestarter(); model.BuildLocomotionRig(FirestarterRig); break;
+            case "crusader": model.BuildCrusader(); model.BuildLocomotionRig(CrusaderRig); break;
+            case "thunderbolt": model.BuildThunderbolt(); model.BuildLocomotionRig(ThunderboltRig); break;
+            case "victor": model.BuildVictor(); model.BuildLocomotionRig(VictorRig); break;
+            case "zeus": model.BuildZeus(); model.BuildLocomotionRig(ZeusRig); break;
+            case "panther": model.BuildPanther(); model.BuildLocomotionRig(PantherRig); break;
+            case "shadow-hawk": model.BuildShadowhawk(); model.BuildLocomotionRig(ShadowhawkRig); break;
+            case "griffin": model.BuildGriffin(); model.BuildLocomotionRig(GriffinRig); break;
+            case "atlas": model.BuildAtlas(); model.BuildLocomotionRig(AtlasRig); break;
             case "awesome": model.BuildAwesome(); model.BuildLocomotionRig(AwesomeRig); break;
             case "jenner": model.BuildJenner(); model.BuildLocomotionRig(JennerRig); break;
             case "wolverine": model.BuildWolverine(); model.BuildLocomotionRig(WolverineRig); break;

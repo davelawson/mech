@@ -1,0 +1,94 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Griffin/Model",
+  "source_files": {
+    "Body/GRF_TP_Cockpit_DM0_STM.bin": "76e5bc9b1bc28e5a01c434657fc9179d31d1d51c420c996ef355ce96bcb79a3a",
+    "Body/GRF_TP_Cockpit_DM0_STM.gltf": "bbcdcf158b4219e98838405cfb9b8ada58b27558d4149fde016d676736ce1a99",
+    "Body/Griffin_SKM.bin": "d04712040c3b7574e563b3e957a47fd1ed4f04b33fb7ba4ef12869ece18aba25",
+    "Body/Griffin_SKM.gltf": "ab9bdfc1b7586a6a5a3dfecf12dcac481618dc2fbded2390f2d7881b102901be",
+    "Body/Materials/Textures/Griffin_Body_Default_MSK.png": "f676531c1d693576adfefd61f3cbfd7bf8b796d24ad5c0c21e8f23446c21b19b",
+    "Body/Materials/Textures/Griffin_Body_NRM.png": "17becfa1686b13e6760f4f6954eb87cb04d706bcd9c0f84a250f043bbc70249e",
+    "Body/Materials/Textures/Griffin_Body_Wear_MSK.png": "68c56ae74ca8083ac654dbfb39e09548a1e14c4407d7dfb3ce172ea1edc79c12",
+    "Body/Materials/Textures/Griffin_Variant_Default_MSK.png": "177c46a309dab5781fa4723e9bcf1ab394f56e5c324a1e35e2df78c013b871bd",
+    "Body/Materials/Textures/Griffin_Variant_NRM.png": "c09dd79323856121ad8e07e1a1fb3bcd66092c4e4e5cec20905d8a14c6f5b1de",
+    "Body/Materials/Textures/Griffin_Variant_Wear_MSK.png": "5904a1524b0abbea189cde30dd9a9a37eb8e6ba6fb1a6fb2c26fec83245e1e18",
+    "Weapons/Weapon_Mech_GRF_Forearm_Right_EH1_PPC_SKM.bin": "151e5dd86b5074a2fa6abc422b6306b3b65008311e3407f12530b3beeeae2afd",
+    "Weapons/Weapon_Mech_GRF_Forearm_Right_EH1_PPC_SKM.gltf": "dfa3c8b2724aa554dde46fe6ff0bdb249a65229246ceb779bd088dd7ecea49e5",
+    "Weapons/Weapon_Mech_GRF_Torso_Right_MH1_Missile10_SKM.bin": "0cc313f64728addcf0d286d2ee69b136749d4450db4d9e77608b24017e65a16a",
+    "Weapons/Weapon_Mech_GRF_Torso_Right_MH1_Missile10_SKM.gltf": "bc1e9ab183067292e1184ae3a630bbd257a4ab22055db00415003664561057cd"
+  },
+  "runtime_triangles": 24401,
+  "render_meshes": 19,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 3938,
+    "Head/AmberCanopy": 182,
+    "Head/CockpitFrame": 872,
+    "LeftArm/ForearmAndFist": 1360,
+    "LeftArm/ShoulderAndUpperarm": 1571,
+    "LeftLeg/Foot": 1220,
+    "LeftLeg/Hip": 220,
+    "LeftLeg/Shin": 1354,
+    "LeftLeg/Thigh": 1367,
+    "LeftTorso/TorsoShell": 1009,
+    "RightArm/ForearmAndFist": 1044,
+    "RightArm/PpcEmitter": 2240,
+    "RightArm/ShoulderAndUpperarm": 1444,
+    "RightLeg/Foot": 1220,
+    "RightLeg/Hip": 220,
+    "RightLeg/Shin": 1354,
+    "RightLeg/Thigh": 1367,
+    "RightTorso/Lrm10Housing": 1410,
+    "RightTorso/TorsoShell": 1009
+  },
+  "height": 2.553191489361702,
+  "displayed_height": 3.0,
+  "scale": 0.14478184582628428,
+  "bottom": -0.01790420524775982,
+  "rig": {
+    "waist": 1.4483533,
+    "hip": [
+      0.3248251,
+      1.2878901,
+      -0.0112379
+    ],
+    "knee": [
+      0.3594102,
+      0.768644,
+      -0.09776
+    ],
+    "ankle": [
+      0.3948095,
+      0.2365958,
+      -0.0388364
+    ],
+    "shoulder": [
+      0.564887,
+      1.9105557,
+      -0.0044532
+    ]
+  },
+  "weapons": [
+    {
+      "location": "RightTorso",
+      "name": "Lrm10Housing",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_GRF_Torso_Right_MH1_Missile10_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "PpcEmitter",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_GRF_Forearm_Right_EH1_PPC_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "GRF_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 1
+  },
+  "missile_tubes": 0,
+  "attachment_evidence": "Stock MW5 loadout -> Griffin_HPS visual mappings; torso and arm sockets attach to Torso_Pitch and Forearm bones. Griffin_MDL attaches the exterior cockpit to Cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-griffin.py + scripts/mech_asset_tools.py; Python + Pillow"
+}

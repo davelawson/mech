@@ -6,9 +6,9 @@ public partial class SmokeTests
 {
     private async Task TestChassisVisuals()
     {
-        var definitions = new[] { "jenner", "wolverine", "catapult" };
-        var roster = ForceRoster.Create("Chassis model review", definitions.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(3));
-        for (var i = 0; i < 3; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
+        var definitions = new[] { "jenner", "wolverine", "catapult", "atlas" };
+        var roster = ForceRoster.Create("Chassis model review", definitions.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(4));
+        for (var i = 0; i < definitions.Length; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var stage = new Control(); AddChild(stage); stage.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         var hangar = new HangarScreen(); stage.AddChild(hangar); hangar.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect); hangar.OffsetTop = 72;
         hangar.Open(roster); hangar.Preview.SetProcess(false); await Frames();
@@ -17,7 +17,7 @@ public partial class SmokeTests
         static int Count(Node node, string prefix) => Meshes(node).Count(mesh => mesh.Name.ToString().StartsWith(prefix, StringComparison.Ordinal));
         static float Bottom(MeshInstance3D mesh) => Enumerable.Range(0, 8)
             .Min(i => (mesh.GlobalTransform * mesh.Mesh.GetAabb().GetEndpoint(i)).Y);
-        for (var chassis = 0; chassis < 3; chassis++)
+        for (var chassis = 0; chassis < definitions.Length; chassis++)
         {
             GetWindow().Size = new(1440, 900); hangar.Select(chassis); await Frames();
             var model = hangar.Preview.Model!; var spec = roster.Mechs[chassis].Spec;
@@ -35,10 +35,19 @@ public partial class SmokeTests
                     || weapon.Name.StartsWith("LRM ", StringComparison.Ordinal)).Sum(weapon => int.Parse(weapon.Name.Split(' ')[^1]));
                 // Imported weapons retain non-rendering source Fire socket markers.
                 var displayedTubes = root.FindChildren("MissileTube*", "Node3D", true, false).Count;
+                if (spec.Id == "atlas") tubes -= weapons.Where(weapon => weapon.Name == "LRM 20").Sum(_ => 20);
                 var displayedCannons = root.FindChildren("CannonMuzzle", "Node3D", true, false).Count;
                 Check(displayedTubes == tubes && Count(root, "LaserEmitter") == weapons.Count(weapon => weapon.Name == "Medium Laser")
-                    && displayedCannons == weapons.Count(weapon => weapon.Name == "AC/5"),
+                    && displayedCannons == weapons.Count(weapon => weapon.Name is "AC/5" or "AC/20"),
                     $"{spec.Chassis} {location} displays stock weapon counts rather than illustration discrepancies");
+            }
+            if (spec.Id == "atlas")
+            {
+                Check(Math.Abs(model.Height - 4f) < .02f && meshes.Length == 24, "Atlas retains its complete articulated source silhouette");
+                Check(model.Locations[MechLocation.Head].FindChild("AmberCanopy", true, false) is not null
+                    && model.Locations[MechLocation.Head].FindChild("CockpitFrame", true, false) is not null, "Atlas keeps its skull and separate glowing eyes");
+                Check(model.Locations[MechLocation.LeftTorso].FindChildren("LrmTube*", "Node3D", true, false).Count == 10,
+                    "Atlas LRM 20 preserves the ten source launcher positions");
             }
             if (spec.Id == "jenner") TestImportedJenner(model);
             if (spec.Id == "catapult") TestImportedCatapult(model);
@@ -70,6 +79,7 @@ public partial class SmokeTests
                 var excursion = (spec.Id, gait) switch
                 {
                     ("jenner", PreviewGait.Walk) => .45f, ("jenner", _) => .57f,
+                    ("atlas", PreviewGait.Walk) => .33f, ("atlas", _) => .45f,
                     ("wolverine", PreviewGait.Walk) => .48f, ("wolverine", _) => .63f,
                     (_, PreviewGait.Walk) => .42f, _ => .51f
                 };
@@ -81,6 +91,7 @@ public partial class SmokeTests
             if (spec.Id == "wolverine")
                 Check(maximumArmSwing[0] > maximumArmSwing[1] * 5 && maximumArmSwing[1] < .025f,
                     "Wolverine braces its right-arm cannon while the left arm swings");
+            else if (spec.Id == "atlas") Check(maximumArmSwing.All(value => value > .04f), "Atlas swings both arms while moving");
             else Check(maximumArmSwing.All(value => value < .02f), $"{spec.Chassis} weapon pods have restrained motion");
             var reverseGrounded = true;
             for (var frame = 0; frame < 180; frame++)
@@ -156,15 +167,15 @@ public partial class SmokeTests
         foreach (var unit in sim.Units) foreach (var weapon in unit.Weapons) weapon.Enabled = false;
         sim.RefreshDetection(); field.Display(sim); field.Camera.Size = 13; field.SetProcess(false); await Frames();
         var combatModels = field.FindChildren("*", "Node3D", true, false).OfType<MechModel>().ToArray();
-        Check(combatModels.Length == 6 && definitions.All(id => combatModels.Count(model => model.ChassisId == id && model.HasLocomotion) == 2),
-            "both combat sides use the same three custom chassis and animation rigs as the hangar");
+        Check(combatModels.Length == definitions.Length * 2 && definitions.All(id => combatModels.Count(model => model.ChassisId == id && model.HasLocomotion) == 2),
+            "both combat sides use the same custom chassis and animation rigs as the hangar");
         await Capture("chassis-combat-idle");
         foreach (var unit in friends) { unit.Movement = MovementMode.Run; sim.Move([unit.Id], unit.Position + Vector2.Down * 7); }
         sim.Paused = false;
         for (var frame = 0; frame < 180; frame++) { sim.Advance(1d / 60); field._Process(1d / 60); }
         var movingModels = combatModels.Where(model => model.Position.Z > 13).ToArray();
-        Check(movingModels.Length == 3 && movingModels.All(model => model.RunBlend > .9f),
-            "combat supplies actual speed to all three chassis gait controllers");
+        Check(movingModels.Length == definitions.Length && movingModels.All(model => model.RunBlend > .9f),
+            "combat supplies actual speed to all chassis gait controllers");
         await Capture("chassis-combat-running");
         sim.Paused = true;
         var snapshots = combatModels.Select(model => ((Node3D)model.FindChild("AnklePivot", true, false)).GlobalTransform).ToArray();

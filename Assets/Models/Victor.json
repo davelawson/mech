@@ -1,0 +1,114 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Victor/Model",
+  "source_files": {
+    "Body/Materials/Textures/Victor_Body_Default_MSK.png": "a0bc26aa6e9a69a8e29f611907225caf66b683d43812f4a1008c73d4f3db3e89",
+    "Body/Materials/Textures/Victor_Body_NRM.png": "9d7545aa1155d3b1e5a6e4dd63427aa881a3297bb5423d38ea4fccfa86a4d101",
+    "Body/Materials/Textures/Victor_Body_Wear_MSK.png": "394dddc109b933bacb089681fb0d6d7b7c2a2f6e0f5a7cf3034d4e8cad911bff",
+    "Body/Materials/Textures/Victor_Variant_Default_MSK.png": "5a6d7b2cfad99cc3fd19e69acbe6bf956aa93f2b353c6b489475ecbded3b9535",
+    "Body/Materials/Textures/Victor_Variant_NRM.png": "7573e95fa095dfc1fbffae6e1bdfdd98a2d9577d67ec6305e9d1535a5602a8ee",
+    "Body/Materials/Textures/Victor_Variant_Wear_MSK.png": "cfbb1a9da6aeaa863bc2bafec3f055975bc8ef6a923d3bc6b9d74724478b7c7e",
+    "Body/VTR_TP_Cockpit_DM0_STM.bin": "f2de8d5d1bd176a6d9351282bdc23dafb80caca1dc7c57b799d04aaea5783ca7",
+    "Body/VTR_TP_Cockpit_DM0_STM.gltf": "bb4381419f7955461cb73db10a31dc48f4cf34cf3e251e65d91a406cfcceede8",
+    "Body/Victor_SKM.bin": "a656c1a79b03a442292ccca285de9f9e5b1585c1481f7ed619e8836c29f25158",
+    "Body/Victor_SKM.gltf": "b5d949397bffc34c8a29257481c7d7819437527ca7b8a3361ba387f414fcb684",
+    "Weapons/Weapon_Mech_VTR_Forearm_Left_EH1_Laser_SKM.bin": "841175be83ce859c67d13e8155e116175b8d45fc3d3cfd1c666ea7789e41d160",
+    "Weapons/Weapon_Mech_VTR_Forearm_Left_EH1_Laser_SKM.gltf": "506e80c4d2737437e532a0d9132a26dac23933d82d40ed9ead87bc2245550e84",
+    "Weapons/Weapon_Mech_VTR_Forearm_Left_EH2_Laser_SKM.bin": "e024bc90a39232009e7bb94e5ddd13aa96fbd2d7a0948d164de99aa94581a687",
+    "Weapons/Weapon_Mech_VTR_Forearm_Left_EH2_Laser_SKM.gltf": "64fe90a12da8ab8fcc5fd071e52ff7784ebda2040606717e5a83f380486450f2",
+    "Weapons/Weapon_Mech_VTR_Forearm_Right_BH1_AC20_SKM.bin": "e7574d10eed1f83a8acae970c29d84bd8e71e3a7364abc068c6956873c4b8bc9",
+    "Weapons/Weapon_Mech_VTR_Forearm_Right_BH1_AC20_SKM.gltf": "3aa9f84360b5165a6d725e4b7f008ce25b85352dc66d8672b7d6171a243f7126",
+    "Weapons/Weapon_Mech_VTR_Torso_Left_MH1_Missile4_SKM.bin": "045d9e58418c926f7753cf54af3c8cc550a1c9108e5d810d631f9d0ef23b0c4e",
+    "Weapons/Weapon_Mech_VTR_Torso_Left_MH1_Missile4_SKM.gltf": "c077905579056c21d3679d5295e6898b07ef458526771671c0d30edfbe7d79a3"
+  },
+  "runtime_triangles": 25913,
+  "render_meshes": 21,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 2974,
+    "Head/AmberCanopy": 12,
+    "Head/CockpitFrame": 1214,
+    "LeftArm/ForearmAndFist": 1748,
+    "LeftArm/LaserEmitter1": 496,
+    "LeftArm/LaserEmitter2": 496,
+    "LeftArm/ShoulderAndUpperarm": 1713,
+    "LeftLeg/Foot": 1060,
+    "LeftLeg/Hip": 1218,
+    "LeftLeg/Shin": 2984,
+    "LeftLeg/Thigh": 611,
+    "LeftTorso/Srm4Housing": 277,
+    "LeftTorso/TorsoShell": 662,
+    "RightArm/CannonHousing": 1108,
+    "RightArm/ForearmAndFist": 959,
+    "RightArm/ShoulderAndUpperarm": 1826,
+    "RightLeg/Foot": 1060,
+    "RightLeg/Hip": 1218,
+    "RightLeg/Shin": 2984,
+    "RightLeg/Thigh": 611,
+    "RightTorso/TorsoShell": 682
+  },
+  "height": 2.8,
+  "displayed_height": 3.64,
+  "scale": 0.14721110138714494,
+  "bottom": -0.0390315055847168,
+  "rig": {
+    "waist": 1.562911,
+    "hip": [
+      0.3659215,
+      1.3598375,
+      1.1e-06
+    ],
+    "knee": [
+      0.3914366,
+      0.774104,
+      -0.0725389
+    ],
+    "ankle": [
+      0.4200974,
+      0.1253429,
+      -0.0041993
+    ],
+    "shoulder": [
+      0.7332161,
+      2.1533539,
+      0.028738
+    ]
+  },
+  "weapons": [
+    {
+      "location": "LeftTorso",
+      "name": "Srm4Housing",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_VTR_Torso_Left_MH1_Missile4_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "CannonHousing",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_VTR_Forearm_Right_BH1_AC20_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftArm",
+      "name": "LaserEmitter1",
+      "bone": "Forearm_Left",
+      "mesh": "Weapon_Mech_VTR_Forearm_Left_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftArm",
+      "name": "LaserEmitter2",
+      "bone": "Forearm_Left",
+      "mesh": "Weapon_Mech_VTR_Forearm_Left_EH2_Laser_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "VTR_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 1
+  },
+  "missile_tubes": 4,
+  "attachment_evidence": "VTR-9B loadout -> Victor_HPS visual mappings -> source blueprint skeletal meshes. Torso and forearm sockets use Torso_Pitch and Forearm bones; cockpit attaches to Cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-victor.py + scripts/mech_asset_tools.py; Python + Pillow"
+}

@@ -31,7 +31,13 @@ public static class DraftCatalog
 {
     private sealed record CatalogFile(MechSpec[] Mechs);
     private static readonly JsonSerializerOptions Options = new() { Converters = { new JsonStringEnumConverter() } };
-    public static readonly IReadOnlyList<MechSpec> Mechs = LoadMechs();
+    public static readonly IReadOnlyList<MechSpec> AllMechs = LoadMechs();
+    // The initial draft is an explicit, stable subset of the complete catalog.
+    public static readonly IReadOnlyList<MechSpec> Mechs = Array.AsReadOnly(new[]
+    {
+        "firestarter", "jenner", "panther", "griffin", "shadow-hawk", "wolverine",
+        "catapult", "crusader", "thunderbolt", "awesome", "victor", "zeus"
+    }.Select(id => AllMechs.Single(mech => mech.Id == id)).ToArray());
     public static readonly IReadOnlyList<WarriorSpec> Warriors = Array.AsReadOnly(new WarriorSpec[]
     {
         new("mara-vale", "Mara Vale", "Kestrel", 4, 5, "Regular"),
@@ -56,7 +62,7 @@ public static class DraftCatalog
             ?? throw new InvalidOperationException("The stock BattleMech catalog is missing.");
         return Array.AsReadOnly(JsonSerializer.Deserialize<CatalogFile>(stream, Options)!.Mechs);
     }
-    public static MechSpec Mech(string id) => Mechs.SingleOrDefault(item => item.Id == id)
+    public static MechSpec Mech(string id) => AllMechs.SingleOrDefault(item => item.Id == id)
         ?? throw new ArgumentException("Unknown BattleMech variant.");
     public static WarriorSpec Warrior(string id) => Warriors.SingleOrDefault(item => item.Id == id)
         ?? throw new ArgumentException("Unknown MechWarrior.");

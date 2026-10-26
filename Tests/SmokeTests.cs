@@ -72,6 +72,8 @@ public partial class SmokeTests : Node
             Check(_app.Office.Hotspot.HasFocus(), "Back button restores wall-map focus");
             await TestMechVisuals();
             await TestChassisVisuals();
+            await TestAdditionalChassis();
+            await TestFinalChassis();
             await TestCombatUi();
             await TestRosterUi();
             await TestMissionsUi();

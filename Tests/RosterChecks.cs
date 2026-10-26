@@ -10,6 +10,9 @@ internal static class RosterChecks
             try { action(); } catch (Exception error) when (error is ArgumentException or InvalidOperationException) { rejected = true; }
             check(rejected, name);
         }
+        check(DraftCatalog.AllMechs.Count == 13 && DraftCatalog.Mech("atlas") is { Variant: "AS7-D", Tonnage: 100 }
+            && DraftCatalog.Mechs.All(mech => mech.Id != "atlas"), "Atlas is registered for future use outside the draft");
+        check(DraftCatalog.Mech("atlas").Weapons.Count(weapon => weapon.Rear && weapon.Location == MechLocation.CenterTorso) == 2, "Atlas retains both stock rear-facing lasers");
         check(DraftCatalog.Mechs.Count == 12 && DraftCatalog.Warriors.Count == 12, "authored draft has twelve mech and warrior candidates");
         for (var pool = 0; pool < 4; pool++)
         {

@@ -1,0 +1,94 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Panther/Model",
+  "source_files": {
+    "Body/Materials/Textures/Panther_Body_Default_MSK.png": "c9bb5431d3cbbf49ac603054a73ed429e95471dc9e1431d46d7b5c558dbfe9cb",
+    "Body/Materials/Textures/Panther_Body_NRM.png": "41b85fc066dba6497a7276e3866051b1a450c7ca4ed6fac2ed5dff3b9442c5f1",
+    "Body/Materials/Textures/Panther_Body_Wear_MSK.png": "b075121888506a71a5f379e3a1ca39fda9eb3ba2956e692df35eef9eb883dd68",
+    "Body/Materials/Textures/Panther_Variant_Default_MSK.png": "af5d41a93d7e7a4c94620a36e0aa70dea85783afb297b5cbf52c375157f4921c",
+    "Body/Materials/Textures/Panther_Variant_NRM.png": "2e0013b9279ddd3d4513b41637fca78816ba1c9b2bbf3261790d3ba2bc935321",
+    "Body/Materials/Textures/Panther_Variant_Wear_MSK.png": "320070c7834eb1715f5b20c3c1e8d6676f1f879ef29b10e53d85d1fbddc89165",
+    "Body/PNT_TP_Cockpit_DM0_STM.bin": "6afd81ac33e8eebf304debdfa53bf36136f87f8fb51c260090914422cbf5602a",
+    "Body/PNT_TP_Cockpit_DM0_STM.gltf": "900eda1d743de46617a9e281a5e1e64c4d0e75e4fbcf05abd6efc36fa96fd08a",
+    "Body/Panther_SKM.bin": "32d65fb63eaa8c8a1e6eb6af875217c01991dfd08fd589ebf66e2fbc280c3cce",
+    "Body/Panther_SKM.gltf": "65f30b108ef6bd5f4c3229b103253865412ffee0a6afd8c9bf091ee15d8cb655",
+    "Weapons/Weapon_Mech_PNT_Forearm_Right_EH1_PPC_SKM.bin": "1a7172b2895932102b83ff389b59ece2d8657c1089b7f94c601364dffc1a10c7",
+    "Weapons/Weapon_Mech_PNT_Forearm_Right_EH1_PPC_SKM.gltf": "8421d57ff803d30fc0e8af847e276ee88ee17e13956f2b4e4cdcab8d89f2bf12",
+    "Weapons/Weapon_Mech_PNT_Torso_Center_MH1_Missile4_SKM.bin": "d54fd7f450ff51da83eeafad3717dc09f03dbd2e59ebb519b01c077b1a346492",
+    "Weapons/Weapon_Mech_PNT_Torso_Center_MH1_Missile4_SKM.gltf": "e6f7378865b0ce0f46e2b00ca8ff5f53e601ddbca2cc353a67bb719ab402e7d9"
+  },
+  "runtime_triangles": 40503,
+  "render_meshes": 19,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 3846,
+    "CenterTorso/Srm4Housing": 745,
+    "Head/AmberCanopy": 32,
+    "Head/CockpitFrame": 2032,
+    "LeftArm/ForearmAndFist": 4280,
+    "LeftArm/ShoulderAndUpperarm": 4567,
+    "LeftLeg/Foot": 1465,
+    "LeftLeg/Hip": 400,
+    "LeftLeg/Shin": 2538,
+    "LeftLeg/Thigh": 2186,
+    "LeftTorso/TorsoShell": 714,
+    "RightArm/ForearmAndFist": 4871,
+    "RightArm/PpcEmitter": 955,
+    "RightArm/ShoulderAndUpperarm": 4567,
+    "RightLeg/Foot": 1465,
+    "RightLeg/Hip": 400,
+    "RightLeg/Shin": 2538,
+    "RightLeg/Thigh": 2186,
+    "RightTorso/TorsoShell": 716
+  },
+  "height": 2.3069767441860467,
+  "displayed_height": 2.48,
+  "scale": 0.14912939383772417,
+  "bottom": -0.03280738741159439,
+  "rig": {
+    "waist": 1.2764309,
+    "hip": [
+      0.2603224,
+      1.0651958,
+      0.0008271
+    ],
+    "knee": [
+      0.2802623,
+      0.7261253,
+      -0.0897736
+    ],
+    "ankle": [
+      0.3116038,
+      0.1838667,
+      0.0217271
+    ],
+    "shoulder": [
+      0.4515714,
+      1.6494597,
+      0.0194916
+    ]
+  },
+  "weapons": [
+    {
+      "location": "CenterTorso",
+      "name": "Srm4Housing",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_PNT_Torso_Center_MH1_Missile4_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "PpcEmitter",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_PNT_Forearm_Right_EH1_PPC_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "PNT_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 1
+  },
+  "missile_tubes": 4,
+  "attachment_evidence": "Stock MW5 loadout -> Panther_HPS visual mappings; torso and arm sockets attach to Torso_Pitch and Forearm bones. Panther_MDL attaches the exterior cockpit to Cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-panther.py + scripts/mech_asset_tools.py; Python + Pillow"
+}

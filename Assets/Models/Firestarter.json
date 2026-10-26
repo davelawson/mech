@@ -1,0 +1,154 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Firestarter/Model",
+  "source_files": {
+    "Body/FS9_TP_Cockpit_DM0_STM.bin": "df15ed9a9d1fc9fbb471af537e260573026f05fe7000d47e8b5a729f54374073",
+    "Body/FS9_TP_Cockpit_DM0_STM.gltf": "5976632c01b150f1cd0c4a0d18ce9f0b44e07c04e08a9aa0b1cd505768ef9f65",
+    "Body/Firestarter_SKM.bin": "cfed4c761af14840b25de0734a77678bd1373e6ad58b2a31cd4140173013ea40",
+    "Body/Firestarter_SKM.gltf": "34197635a8ddec33d2c7a5a68c4b42ab7a546bce7e47f8a2c1420b92b88f0698",
+    "Body/Materials/Textures/Firestarter_Body_Default_MSK.png": "acadf4ea02b073e5a3b9a005620f2318b42a55c3702abe6a17ad269335f5d937",
+    "Body/Materials/Textures/Firestarter_Body_NRM.png": "e1a045be5affa968af082f74660f3fcf0a94a4036725bc3584167ad7c7d509d5",
+    "Body/Materials/Textures/Firestarter_Body_Wear_MSK.png": "52a6f22fce40c27d54bc0733006fbd1913305ebce3b38acf0bc9d9c9f6fca0e1",
+    "Body/Materials/Textures/Firestarter_Variant_Default_MSK.png": "ab3cea6431e3db3e6ff122bbc3255830e569e286cd071626e3235bdd9afcd7f2",
+    "Body/Materials/Textures/Firestarter_Variant_NRM.png": "0424a0aff35299dda6a8e28a4b3f953a55875458e2911480f0757249ce6a525a",
+    "Body/Materials/Textures/Firestarter_Variant_Wear_MSK.png": "8669dc5b58b0586ec61ced8a7bf03e7763837b59f1ffbadb8c3ad58e99d9b29f",
+    "Weapons/Weapon_Mech_FS9_Forearm_Left_EH1_Laser_SKM.bin": "bba3e4c90158877ef53c39d0754108f8b4bbfd073c174a28597bef18dae8d570",
+    "Weapons/Weapon_Mech_FS9_Forearm_Left_EH1_Laser_SKM.gltf": "1f3411ead8a3077a0f97103bbb646dee45309ab003d2074738adbf3be748b7ea",
+    "Weapons/Weapon_Mech_FS9_Forearm_Left_EH2_Flamer_SKM.bin": "698111d717547dcca076bd095510f71e9887faf97bc61b6c43d9c294a657776e",
+    "Weapons/Weapon_Mech_FS9_Forearm_Left_EH2_Flamer_SKM.gltf": "5caba8ebfc17bec914a1117581b767ca5873ab849fc24daaa41eee175b6d18af",
+    "Weapons/Weapon_Mech_FS9_Forearm_Right_EH1_Laser_SKM.bin": "a6ad6d2f365872e208d9c97509daf2c3918f095649fe69101d27341d2e45c19a",
+    "Weapons/Weapon_Mech_FS9_Forearm_Right_EH1_Laser_SKM.gltf": "bbd714bce731aeba1ade2b8efe14f4bae431ebd4e179a233981512637693049d",
+    "Weapons/Weapon_Mech_FS9_Forearm_Right_EH2_Flamer_SKM.bin": "e6e7b4ac38bcc954bb7e9e1a1fff183b5b5b1d92fbd06e2e92c03c5778fa7195",
+    "Weapons/Weapon_Mech_FS9_Forearm_Right_EH2_Flamer_SKM.gltf": "90795105c8b85d9f946de00d432bea2dda38a97f73e66c12c16c2e4c05de3355",
+    "Weapons/Weapon_Mech_FS9_Torso_Center_EH1_Flamer_SKM.bin": "2aff3872b6f5bbb46169b0cb52779b56277238771f79df067bbe364fb00eada8",
+    "Weapons/Weapon_Mech_FS9_Torso_Center_EH1_Flamer_SKM.gltf": "2dbe847bdef376c856967d08314dab8e881a4817c0c2380fb86519ac29422e7d",
+    "Weapons/Weapon_Mech_FS9_Torso_Center_EH2_Flamer_SKM.bin": "25a249b8b3469706fde738697177d632dc28e2efac993a1d756e8a4e6186255b",
+    "Weapons/Weapon_Mech_FS9_Torso_Center_EH2_Flamer_SKM.gltf": "ff33a589b80e88dbc89e4a424b414e1be1cf65a8ae70cc6b756888a2954ed70e",
+    "Weapons/Weapon_Mech_FS9_Torso_Left_BH1_MG_SKM.bin": "325305a3ce8c4686811baa72e45b63cbd0af460bb0932471062e017b366cf322",
+    "Weapons/Weapon_Mech_FS9_Torso_Left_BH1_MG_SKM.gltf": "d9a25a5a34701d79e8cfbbce582fdbe173f05123148886b30e8a077cbf18df50",
+    "Weapons/Weapon_Mech_FS9_Torso_Right_BH1_MG_SKM.bin": "689ac5b76c30503be2c41916fbb01a7b24438a101213aecb0d1d6b7203ea0d24",
+    "Weapons/Weapon_Mech_FS9_Torso_Right_BH1_MG_SKM.gltf": "bbfb01f6a07863f8602d82daf43753a064c96adffbfeae5b262c965486e8f79a"
+  },
+  "runtime_triangles": 28442,
+  "render_meshes": 25,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 4167,
+    "CenterTorso/Flamer1": 214,
+    "CenterTorso/Flamer2": 214,
+    "Head/AmberCanopy": 106,
+    "Head/CockpitFrame": 2890,
+    "LeftArm/Flamer2": 214,
+    "LeftArm/ForearmAndFist": 848,
+    "LeftArm/LaserEmitter1": 230,
+    "LeftArm/ShoulderAndUpperarm": 2155,
+    "LeftLeg/Foot": 2196,
+    "LeftLeg/Hip": 256,
+    "LeftLeg/Shin": 1160,
+    "LeftLeg/Thigh": 1057,
+    "LeftTorso/MachineGun1": 616,
+    "LeftTorso/TorsoShell": 1679,
+    "RightArm/Flamer2": 214,
+    "RightArm/ForearmAndFist": 848,
+    "RightArm/LaserEmitter1": 230,
+    "RightArm/ShoulderAndUpperarm": 2155,
+    "RightLeg/Foot": 2196,
+    "RightLeg/Hip": 256,
+    "RightLeg/Shin": 1192,
+    "RightLeg/Thigh": 1025,
+    "RightTorso/MachineGun1": 616,
+    "RightTorso/TorsoShell": 1708
+  },
+  "height": 2.3069767441860467,
+  "displayed_height": 2.48,
+  "scale": 0.16010566779656055,
+  "bottom": -0.07665284723043442,
+  "rig": {
+    "waist": 1.3047417,
+    "hip": [
+      0.2858072,
+      1.1469318,
+      -1e-05
+    ],
+    "knee": [
+      0.3097583,
+      0.6324679,
+      -0.1360211
+    ],
+    "ankle": [
+      0.333524,
+      0.1596391,
+      0.0589678
+    ],
+    "shoulder": [
+      0.53609,
+      1.6528519,
+      7.36e-05
+    ]
+  },
+  "weapons": [
+    {
+      "location": "LeftTorso",
+      "name": "MachineGun1",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_FS9_Torso_Left_BH1_MG_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "CenterTorso",
+      "name": "Flamer1",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_FS9_Torso_Center_EH1_Flamer_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "CenterTorso",
+      "name": "Flamer2",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_FS9_Torso_Center_EH2_Flamer_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightTorso",
+      "name": "MachineGun1",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_FS9_Torso_Right_BH1_MG_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "LaserEmitter1",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_FS9_Forearm_Right_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "Flamer2",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_FS9_Forearm_Right_EH2_Flamer_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftArm",
+      "name": "LaserEmitter1",
+      "bone": "Forearm_Left",
+      "mesh": "Weapon_Mech_FS9_Forearm_Left_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftArm",
+      "name": "Flamer2",
+      "bone": "Forearm_Left",
+      "mesh": "Weapon_Mech_FS9_Forearm_Left_EH2_Flamer_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "FS9_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 0
+  },
+  "missile_tubes": 0,
+  "attachment_evidence": "FS9-H loadout -> Firestarter_HPS visual mappings -> source blueprint skeletal meshes. Torso and forearm sockets use Torso_Pitch and Forearm bones; cockpit attaches to Cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-firestarter.py + scripts/mech_asset_tools.py; Python + Pillow"
+}

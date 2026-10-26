@@ -1,0 +1,144 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Atlas/Model",
+  "source_files": {
+    "Body/AS7_TP_Cockpit_DM0_STM.bin": "b62ab24327862e6f33030e123818c43d5b5bfb6866ab952f688db85cbd6e6c9b",
+    "Body/AS7_TP_Cockpit_DM0_STM.gltf": "7d8ead80521b60d180a10a2be75695115a67057b967162ac0eb86b780a516e1d",
+    "Body/Atlas_SKM.bin": "a6bd70cfeeeeb615a14f5d713237c585e94f06932a8dc4019272bbab25002bd4",
+    "Body/Atlas_SKM.gltf": "a79bd2db65fd91a695188fe012217bccb049c1ee2d476d3313daced2ed52406b",
+    "Body/Materials/Textures/Atlas_Body_Default_MSK.png": "11ebbdc671b09840c6aa96801b8b0d41b395f8962106cdebe7cca64e3cf7ac05",
+    "Body/Materials/Textures/Atlas_Body_NRM.png": "31d9618ef8dc3d3cee9c0ac90b49111d779fd10c05bb903c5ddb243fdec1aab0",
+    "Body/Materials/Textures/Atlas_Body_Wear_MSK.png": "60fcdf036f35d60f64f417910ffcfc93474a1ff0bce1ccb48d8708b8cbcbf148",
+    "Body/Materials/Textures/Atlas_Variant_Default_MSK.png": "e50909317a48c0a36045111b86913395742e241876ffeca9ed9e7825398edb44",
+    "Body/Materials/Textures/Atlas_Variant_NRM.png": "bb2afb3c8319d48782bd68c8302f12de49606a06652cd592fbb1320770434a06",
+    "Body/Materials/Textures/Atlas_Variant_Wear_MSK.png": "bcb34ffab2b7a04a321ccd1907eeef30c4cd53d22d7f970f8f07ed68f3baff05",
+    "Weapons/Weapon_Mech_AS7_Forearm_Left_EH1_Laser_SKM.bin": "d80abcf672f7e84c5402f0d28f0f399b89f45b1f42d6e2e07510ab384a8d5d27",
+    "Weapons/Weapon_Mech_AS7_Forearm_Left_EH1_Laser_SKM.gltf": "01b6af1debf7900171465ce6ec6c235f1e65cc4a29e928a28831d799bb3e9f06",
+    "Weapons/Weapon_Mech_AS7_Forearm_Right_EH1_Laser_SKM.bin": "d95d1737046578a4459a58eeb0f854c0ac02f0abd754c339ef3b24ef47bed9e2",
+    "Weapons/Weapon_Mech_AS7_Forearm_Right_EH1_Laser_SKM.gltf": "4f5ca4dda514e20b25452ccf5eb4750908d3e01691d02e612941f3c91d6af53e",
+    "Weapons/Weapon_Mech_AS7_Torso_Center_EH1_Laser_SKM.bin": "750e6c336bab2552ea9a08ccda65361e40562444f5ce3e87bf0034c18ba6776b",
+    "Weapons/Weapon_Mech_AS7_Torso_Center_EH1_Laser_SKM.gltf": "8fb547ffac33791033e8c368c179c1aa029fa3826d2b54648d057916a9716b4e",
+    "Weapons/Weapon_Mech_AS7_Torso_Center_EH2_Laser_SKM.bin": "c958e6329a6bfe236cdac732663e91422b6f296723aec699b3ce8df1fa0bbb07",
+    "Weapons/Weapon_Mech_AS7_Torso_Center_EH2_Laser_SKM.gltf": "4a8e64aa866eb42c696fd28f4f28b6d809ec674a18af26f43264505740303bca",
+    "Weapons/Weapon_Mech_AS7_Torso_Left_MH1_Missile10_SKM.bin": "9ecdec47b077be08c5697344d94c1597ae9b4c3623b3f0ef7484c2c12b6eeb78",
+    "Weapons/Weapon_Mech_AS7_Torso_Left_MH1_Missile10_SKM.gltf": "84bbe00cd2961b5def7a9d78c23b2a2ce59f5fe180d8992ddd57e35b967cd6a3",
+    "Weapons/Weapon_Mech_AS7_Torso_Left_MH2_Missile6_SKM.bin": "9af781d1bbfabec59f8dd9881977abe501da7ebdd0685f4af64e852d9b115b6b",
+    "Weapons/Weapon_Mech_AS7_Torso_Left_MH2_Missile6_SKM.gltf": "6b71a3c3a49560311ebc22350baa33cc65c4b5f667f1dc44cbda4206137c96fb",
+    "Weapons/Weapon_Mech_AS7_Torso_Right_BH1_AC20_SKM.bin": "5d54e4cb8db376fd459604d6bdb4edfa4c7c373e27ce8318cdfbbb262a591060",
+    "Weapons/Weapon_Mech_AS7_Torso_Right_BH1_AC20_SKM.gltf": "f7546572d00fffc31ffc70c4ff626e1a4be6290be0cf977cd9b28408a45a82ea"
+  },
+  "runtime_triangles": 50045,
+  "render_meshes": 24,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 6584,
+    "CenterTorso/LaserEmitter0": 406,
+    "CenterTorso/LaserEmitter1": 406,
+    "Head/AmberCanopy": 22,
+    "Head/CockpitFrame": 3136,
+    "LeftArm/ForearmAndFist": 5650,
+    "LeftArm/LaserEmitter": 1522,
+    "LeftArm/ShoulderAndUpperarm": 2862,
+    "LeftLeg/Foot": 1742,
+    "LeftLeg/Hip": 386,
+    "LeftLeg/Shin": 2509,
+    "LeftLeg/Thigh": 1129,
+    "LeftTorso/Lrm10Housing": 1145,
+    "LeftTorso/Srm6Housing": 776,
+    "LeftTorso/TorsoShell": 1767,
+    "RightArm/ForearmAndFist": 5650,
+    "RightArm/LaserEmitter": 1522,
+    "RightArm/ShoulderAndUpperarm": 2862,
+    "RightLeg/Foot": 1742,
+    "RightLeg/Hip": 386,
+    "RightLeg/Shin": 2509,
+    "RightLeg/Thigh": 1129,
+    "RightTorso/CannonHousing": 2842,
+    "RightTorso/TorsoShell": 1361
+  },
+  "height": 2.857142857142857,
+  "displayed_height": 4.0,
+  "scale": 0.1429622288383119,
+  "bottom": 5.613186294795014e-05,
+  "rig": {
+    "waist": 1.5606572,
+    "hip": [
+      0.4203329,
+      1.2878044,
+      7e-06
+    ],
+    "knee": [
+      0.4796787,
+      0.6984711,
+      -0.0301068
+    ],
+    "ankle": [
+      0.5271229,
+      0.1744765,
+      0.0221241
+    ],
+    "shoulder": [
+      0.7591423,
+      2.2646871,
+      0.1932315
+    ]
+  },
+  "weapons": [
+    {
+      "location": "LeftTorso",
+      "name": "Lrm10Housing",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_AS7_Torso_Left_MH1_Missile10_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftTorso",
+      "name": "Srm6Housing",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_AS7_Torso_Left_MH2_Missile6_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightTorso",
+      "name": "CannonHousing",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_AS7_Torso_Right_BH1_AC20_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftArm",
+      "name": "LaserEmitter",
+      "bone": "Forearm_Left",
+      "mesh": "Weapon_Mech_AS7_Forearm_Left_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "LaserEmitter",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_AS7_Forearm_Right_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "CenterTorso",
+      "name": "LaserEmitter0",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_AS7_Torso_Center_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "CenterTorso",
+      "name": "LaserEmitter1",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_AS7_Torso_Center_EH2_Laser_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "AS7_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 1
+  },
+  "missile_tubes": 6,
+  "attachment_evidence": "AS7-D_Loadout -> Atlas_HPS stock visuals; LRM20 uses MH1 Missile10 visual with ten source firing positions, SRM6 uses MH2. Torso and arm sockets attach to Torso_Pitch and Forearm bones. Atlas_MDL attaches exterior cockpit to Cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-atlas.py + scripts/mech_asset_tools.py; Python + Pillow"
+}

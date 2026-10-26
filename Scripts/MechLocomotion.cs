@@ -12,6 +12,34 @@ public partial class MechModel
         float LeftArmSwing = .045f, float RightArmSwing = .045f);
     // Joint positions are model-local, on the anatomical right; the left side mirrors X.
     private sealed record RigProfile(float Waist, Vector3 Hip, Vector3 Knee, Vector3 Ankle, Vector3 Shoulder, GaitProfile Gait);
+    // Source joint positions from Assets/Models/Firestarter.json.
+    private static readonly RigProfile FirestarterRig = new(1.3047417f, new(0.2858072f, 1.1469318f, -0.0000100f), new(0.3097583f, 0.6324679f, -0.1360211f),
+        new(0.3335240f, 0.1596391f, 0.0589678f), new(0.5360900f, 1.6528519f, 0.0000736f), new(BodyDrop: .055f, RunDrop: .035f, LeftArmSwing: .035f, RightArmSwing: .035f));
+    // Source joint positions from Assets/Models/Crusader.json.
+    private static readonly RigProfile CrusaderRig = new(1.5367060f, new(0.2905874f, 1.3825977f, -0.0461143f), new(0.3098342f, 0.9544584f, -0.1518857f),
+        new(0.3454441f, 0.1523560f, 0.0122720f), new(0.5419724f, 2.0107628f, -0.0375151f), new(BodyDrop: .055f, RunDrop: .035f, LeftArmSwing: .035f, RightArmSwing: .035f));
+    // Source joint positions from Assets/Models/Thunderbolt.json.
+    private static readonly RigProfile ThunderboltRig = new(1.4473573f, new(0.3542544f, 1.2355838f, 0.0000010f), new(0.3762942f, 0.7157638f, -0.1405929f),
+        new(0.3968374f, 0.2279362f, -0.0842779f), new(0.6437776f, 1.8978896f, -0.0302165f), new(BodyDrop: .055f, RunDrop: .035f, LeftArmSwing: .035f, RightArmSwing: .035f));
+    // Source joint positions from Assets/Models/Victor.json.
+    private static readonly RigProfile VictorRig = new(1.5629110f, new(0.3659215f, 1.3598375f, 0.0000011f), new(0.3914366f, 0.7741040f, -0.0725389f),
+        new(0.4200974f, 0.1253429f, -0.0041993f), new(0.7332161f, 2.1533539f, 0.0287380f), new(BodyDrop: .075f, RunDrop: .04f, LeftArmSwing: .025f, RightArmSwing: .025f));
+    // Source joint positions from Assets/Models/Zeus.json.
+    private static readonly RigProfile ZeusRig = new(1.4407788f, new(0.3570305f, 1.1963000f, 0.0000009f), new(0.3783944f, 0.6754574f, -0.0539775f),
+        new(0.3929816f, 0.3399147f, 0.0723574f), new(0.6083183f, 2.0827619f, 0.1214395f), new(BodyDrop: .075f, RunDrop: .04f, LeftArmSwing: .025f, RightArmSwing: .025f));
+    // Source joint positions from Assets/Models/Panther.json.
+    private static readonly RigProfile PantherRig = new(1.2764309f, new(0.2603224f, 1.0651958f, 0.0008271f), new(0.2802623f, 0.7261253f, -0.0897736f),
+        new(0.3116038f, 0.1838667f, 0.0217271f), new(0.4515714f, 1.6494597f, 0.0194916f), new(BodyDrop: .055f, RunDrop: .025f, LeftArmSwing: .10f, RightArmSwing: .02f));
+    // Source joint positions from Assets/Models/Shadowhawk.json.
+    private static readonly RigProfile ShadowhawkRig = new(1.6390153f, new(0.3245066f, 1.3442132f, -0.0000000f), new(0.3522708f, 0.8864410f, -0.1821765f),
+        new(0.3949963f, 0.2013487f, -0.0583009f), new(0.5898179f, 2.0852223f, 0.0277833f), new(BodyDrop: .045f, RunDrop: .02f, LeftArmSwing: .08f, RightArmSwing: .04f));
+    // Source joint positions from Assets/Models/Griffin.json.
+    private static readonly RigProfile GriffinRig = new(1.4483533f, new(0.3248251f, 1.2878901f, -0.0112379f), new(0.3594102f, 0.7686440f, -0.0977600f),
+        new(0.3948095f, 0.2365958f, -0.0388364f), new(0.5648870f, 1.9105557f, -0.0044532f), new(BodyDrop: .055f, RunDrop: .025f, LeftArmSwing: .10f, RightArmSwing: .02f));
+    // Source bone pivots from Assets/Models/Atlas.json, after grounding and scaling.
+    private static readonly RigProfile AtlasRig = new(1.5606572f, new(.4203329f, 1.2878044f, .000007f), new(.4796787f, .6984711f, -.0301068f),
+        new(.5271229f, .1744765f, .0221241f), new(.7591423f, 2.2646871f, .1932315f),
+        new(BodyDrop: .05f, RunDrop: .025f, LeftArmSwing: .06f, RightArmSwing: .06f));
     // Source bone pivots from Assets/Models/Awesome.json, after grounding and scaling.
     private static readonly RigProfile AwesomeRig = new(1.333676f, new(0.4883256f, 1.2504348f, -0.0042566f), new(0.4969903f, 0.8082481f, -0.2179863f),
         new(0.5206548f, 0.2005744f, 0.0550997f), new(0.6977796f, 2.2978666f, 0.1752429f), new());

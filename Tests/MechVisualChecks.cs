@@ -6,7 +6,7 @@ public partial class SmokeTests
 {
     private async Task TestMechVisuals()
     {
-        var roster = ForceRoster.Create("Awesome model review", [DraftCatalog.Mech("awesome"), DraftCatalog.Mech("griffin")], DraftCatalog.Warriors.Take(2));
+        var roster = ForceRoster.Create("Awesome model review", [DraftCatalog.Mech("awesome"), DraftCatalog.Mech("victor")], DraftCatalog.Warriors.Take(2));
         roster.Assign(roster.Mechs[0].Id, roster.Warriors[0].Id);
         var stage = new Control(); AddChild(stage); stage.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         var hangar = new HangarScreen(); stage.AddChild(hangar); hangar.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect); hangar.OffsetTop = 72;
@@ -124,8 +124,9 @@ public partial class SmokeTests
             "stopping settles the Awesome back to its neutral pose");
         var frozen = ankles[0].GlobalTransform; model.AnimateLocomotion(0, run, walk, run);
         Check(ankles[0].GlobalTransform.IsEqualApprox(frozen), "zero animation time preserves the exact pose");
-        hangar.Select(1); Check(!hangar.Preview.Model!.IsAwesome, "other chassis retain generic geometry");
-        Check(!hangar.GaitPicker.Visible, "generic chassis do not advertise unsupported gait previews");
+        hangar.Select(1); Check(hangar.Preview.Model!.HasLocomotion && hangar.GaitPicker.Visible, "Victor exposes its imported locomotion preview");
+        var generic = MechModel.Create(DraftCatalog.Mech("victor") with { Id = "future-generic" }, CombatSide.Friendly);
+        Check(!generic.HasLocomotion, "unimported chassis retain generic geometry without unsupported gait previews"); generic.Free();
         // Owned condition is reflected before any battle starts.
         var snapshot = roster.Snapshot(); var saved = snapshot.Mechs[0];
         var damaged = saved with { Locations = saved.Locations.Select(loc => loc.Location == MechLocation.LeftArm

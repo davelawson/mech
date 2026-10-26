@@ -3508,6 +3508,365 @@
         }
       ],
       "Source": "https://raw.githubusercontent.com/MegaMek/mm-data/71fefad545e254b4a224f0d232eaef24473db1ee/data/mekfiles/meks/3039u/Zeus%20ZEU-6S.mtf"
+    },
+    {
+      "Id": "atlas",
+      "Chassis": "Atlas",
+      "Variant": "AS7-D",
+      "Tonnage": 100,
+      "WeightClass": "Assault",
+      "Introduced": 2755,
+      "Role": "Juggernaut",
+      "Walk": 3,
+      "Run": 5,
+      "Jump": 0,
+      "HeatSinks": 20,
+      "Engine": "300 Fusion Engine",
+      "Locations": [
+        {
+          "Location": "Head",
+          "Armor": 9,
+          "RearArmor": 0,
+          "Structure": 3
+        },
+        {
+          "Location": "CenterTorso",
+          "Armor": 47,
+          "RearArmor": 14,
+          "Structure": 31
+        },
+        {
+          "Location": "LeftTorso",
+          "Armor": 32,
+          "RearArmor": 10,
+          "Structure": 21
+        },
+        {
+          "Location": "RightTorso",
+          "Armor": 32,
+          "RearArmor": 10,
+          "Structure": 21
+        },
+        {
+          "Location": "LeftArm",
+          "Armor": 34,
+          "RearArmor": 0,
+          "Structure": 17
+        },
+        {
+          "Location": "RightArm",
+          "Armor": 34,
+          "RearArmor": 0,
+          "Structure": 17
+        },
+        {
+          "Location": "LeftLeg",
+          "Armor": 41,
+          "RearArmor": 0,
+          "Structure": 21
+        },
+        {
+          "Location": "RightLeg",
+          "Armor": 41,
+          "RearArmor": 0,
+          "Structure": 21
+        }
+      ],
+      "Weapons": [
+        {
+          "Id": "weapon-0",
+          "Name": "Medium Laser",
+          "Location": "LeftArm",
+          "Rear": false,
+          "Heat": 3,
+          "Damage": "5",
+          "Minimum": 0,
+          "Short": 3,
+          "Medium": 6,
+          "Long": 9,
+          "AmmoType": null
+        },
+        {
+          "Id": "weapon-1",
+          "Name": "Medium Laser",
+          "Location": "RightArm",
+          "Rear": false,
+          "Heat": 3,
+          "Damage": "5",
+          "Minimum": 0,
+          "Short": 3,
+          "Medium": 6,
+          "Long": 9,
+          "AmmoType": null
+        },
+        {
+          "Id": "weapon-2",
+          "Name": "LRM 20",
+          "Location": "LeftTorso",
+          "Rear": false,
+          "Heat": 6,
+          "Damage": "1 / missile",
+          "Minimum": 6,
+          "Short": 7,
+          "Medium": 14,
+          "Long": 21,
+          "AmmoType": "LRM 20"
+        },
+        {
+          "Id": "weapon-3",
+          "Name": "SRM 6",
+          "Location": "LeftTorso",
+          "Rear": false,
+          "Heat": 4,
+          "Damage": "2 / missile",
+          "Minimum": 0,
+          "Short": 3,
+          "Medium": 6,
+          "Long": 9,
+          "AmmoType": "SRM 6"
+        },
+        {
+          "Id": "weapon-4",
+          "Name": "AC/20",
+          "Location": "RightTorso",
+          "Rear": false,
+          "Heat": 7,
+          "Damage": "20",
+          "Minimum": 0,
+          "Short": 3,
+          "Medium": 6,
+          "Long": 9,
+          "AmmoType": "AC/20"
+        },
+        {
+          "Id": "weapon-5",
+          "Name": "Medium Laser",
+          "Location": "CenterTorso",
+          "Rear": true,
+          "Heat": 3,
+          "Damage": "5",
+          "Minimum": 0,
+          "Short": 3,
+          "Medium": 6,
+          "Long": 9,
+          "AmmoType": null
+        },
+        {
+          "Id": "weapon-6",
+          "Name": "Medium Laser",
+          "Location": "CenterTorso",
+          "Rear": true,
+          "Heat": 3,
+          "Damage": "5",
+          "Minimum": 0,
+          "Short": 3,
+          "Medium": 6,
+          "Long": 9,
+          "AmmoType": null
+        }
+      ],
+      "Components": [
+        {
+          "Id": "component-0",
+          "Name": "Life Support",
+          "Location": "Head",
+          "Slots": 2
+        },
+        {
+          "Id": "component-1",
+          "Name": "Sensors",
+          "Location": "Head",
+          "Slots": 2
+        },
+        {
+          "Id": "component-2",
+          "Name": "Cockpit",
+          "Location": "Head",
+          "Slots": 1
+        },
+        {
+          "Id": "component-3",
+          "Name": "Heat Sink",
+          "Location": "Head",
+          "Slots": 1
+        },
+        {
+          "Id": "component-4",
+          "Name": "Fusion Engine",
+          "Location": "CenterTorso",
+          "Slots": 6
+        },
+        {
+          "Id": "component-5",
+          "Name": "Gyro",
+          "Location": "CenterTorso",
+          "Slots": 4
+        },
+        {
+          "Id": "component-6",
+          "Name": "Heat Sink",
+          "Location": "LeftTorso",
+          "Slots": 1
+        },
+        {
+          "Id": "component-7",
+          "Name": "Shoulder",
+          "Location": "LeftArm",
+          "Slots": 1
+        },
+        {
+          "Id": "component-8",
+          "Name": "Upper Arm Actuator",
+          "Location": "LeftArm",
+          "Slots": 1
+        },
+        {
+          "Id": "component-9",
+          "Name": "Lower Arm Actuator",
+          "Location": "LeftArm",
+          "Slots": 1
+        },
+        {
+          "Id": "component-10",
+          "Name": "Hand Actuator",
+          "Location": "LeftArm",
+          "Slots": 1
+        },
+        {
+          "Id": "component-11",
+          "Name": "Heat Sink",
+          "Location": "LeftArm",
+          "Slots": 1
+        },
+        {
+          "Id": "component-12",
+          "Name": "Shoulder",
+          "Location": "RightArm",
+          "Slots": 1
+        },
+        {
+          "Id": "component-13",
+          "Name": "Upper Arm Actuator",
+          "Location": "RightArm",
+          "Slots": 1
+        },
+        {
+          "Id": "component-14",
+          "Name": "Lower Arm Actuator",
+          "Location": "RightArm",
+          "Slots": 1
+        },
+        {
+          "Id": "component-15",
+          "Name": "Hand Actuator",
+          "Location": "RightArm",
+          "Slots": 1
+        },
+        {
+          "Id": "component-16",
+          "Name": "Heat Sink",
+          "Location": "RightArm",
+          "Slots": 1
+        },
+        {
+          "Id": "component-17",
+          "Name": "Hip",
+          "Location": "LeftLeg",
+          "Slots": 1
+        },
+        {
+          "Id": "component-18",
+          "Name": "Upper Leg Actuator",
+          "Location": "LeftLeg",
+          "Slots": 1
+        },
+        {
+          "Id": "component-19",
+          "Name": "Lower Leg Actuator",
+          "Location": "LeftLeg",
+          "Slots": 1
+        },
+        {
+          "Id": "component-20",
+          "Name": "Foot Actuator",
+          "Location": "LeftLeg",
+          "Slots": 1
+        },
+        {
+          "Id": "component-21",
+          "Name": "Heat Sink",
+          "Location": "LeftLeg",
+          "Slots": 2
+        },
+        {
+          "Id": "component-22",
+          "Name": "Hip",
+          "Location": "RightLeg",
+          "Slots": 1
+        },
+        {
+          "Id": "component-23",
+          "Name": "Upper Leg Actuator",
+          "Location": "RightLeg",
+          "Slots": 1
+        },
+        {
+          "Id": "component-24",
+          "Name": "Lower Leg Actuator",
+          "Location": "RightLeg",
+          "Slots": 1
+        },
+        {
+          "Id": "component-25",
+          "Name": "Foot Actuator",
+          "Location": "RightLeg",
+          "Slots": 1
+        },
+        {
+          "Id": "component-26",
+          "Name": "Heat Sink",
+          "Location": "RightLeg",
+          "Slots": 2
+        }
+      ],
+      "Ammo": [
+        {
+          "Id": "ammo-0",
+          "Name": "LRM 20 ammunition",
+          "Location": "LeftTorso",
+          "AmmoType": "LRM 20",
+          "Shots": 6
+        },
+        {
+          "Id": "ammo-1",
+          "Name": "LRM 20 ammunition",
+          "Location": "LeftTorso",
+          "AmmoType": "LRM 20",
+          "Shots": 6
+        },
+        {
+          "Id": "ammo-2",
+          "Name": "SRM 6 ammunition",
+          "Location": "LeftTorso",
+          "AmmoType": "SRM 6",
+          "Shots": 15
+        },
+        {
+          "Id": "ammo-3",
+          "Name": "AC/20 ammunition",
+          "Location": "RightTorso",
+          "AmmoType": "AC/20",
+          "Shots": 5
+        },
+        {
+          "Id": "ammo-4",
+          "Name": "AC/20 ammunition",
+          "Location": "RightTorso",
+          "AmmoType": "AC/20",
+          "Shots": 5
+        }
+      ],
+      "Source": "https://raw.githubusercontent.com/MegaMek/mm-data/71fefad545e254b4a224f0d232eaef24473db1ee/data/mekfiles/meks/3039u/Atlas%20AS7-D.mtf"
     }
   ]
 }

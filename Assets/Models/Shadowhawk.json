@@ -1,0 +1,114 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Shadowhawk/Model",
+  "source_files": {
+    "Body/Materials/Textures/Shadowhawk_Body_Default_MSK.png": "46481ca460446e1ed2779e24c1d5c46d2869a2f9681eea6be2a90c01a773b39d",
+    "Body/Materials/Textures/Shadowhawk_Body_NRM.png": "7c2af9915b4390d3c8b66d35540895c7fbfaa0729dd727ac7e09c7bacc64862a",
+    "Body/Materials/Textures/Shadowhawk_Body_Wear_MSK.png": "c2b1911193a52f91e01e69fe3793827b58a0fcb1bf80855e445ab810c6665b5a",
+    "Body/Materials/Textures/Shadowhawk_Variant_Default_MSK.png": "ac912edac03f6dd76c786164ba4b8be219cc74be0cde5190656c2131558378e4",
+    "Body/Materials/Textures/Shadowhawk_Variant_NRM.png": "8a06e1a25770cd539b69b53dd29232135344510cfe15059a21d4d9d6c630cce9",
+    "Body/Materials/Textures/Shadowhawk_Variant_Wear_MSK.png": "df4d6e62606978de9ee78babb2d772c2775d4448a0d5c40939df7073b02e259a",
+    "Body/SHD_TP_Cockpit_DM0_STM.bin": "3ba38f8e25fcc8069caf7769005558800ec4f8e4dc91a4c2fe05676ced7218a1",
+    "Body/SHD_TP_Cockpit_DM0_STM.gltf": "6d7d3b73b2c8a51511004aecc37026da04c1adc5cfb30cda56c1d298359374d8",
+    "Body/Shadowhawk_SKM.bin": "d961379dd3d8dfaf403ef5fcdab51bb15b52a63486feefde44db7783f6164ddd",
+    "Body/Shadowhawk_SKM.gltf": "7543699f151a259ef358cecf1368011621e4f38465418fe693fae68ab67d1988",
+    "Weapons/Weapon_Mech_SHD_Arm_Right_EH1_Laser_SKM.bin": "4f0508460dad91ba3e4f5e3de3387a9fe72ced940576a34ac3ce7992984833cb",
+    "Weapons/Weapon_Mech_SHD_Arm_Right_EH1_Laser_SKM.gltf": "23d5802fefdbe65e58256048fa48eb86d61c06045fcae828c131ef06e7131de1",
+    "Weapons/Weapon_Mech_SHD_Head_MH1_Missile2_SKM.bin": "d4b27a60a562b1b64c2ff0bb7883450949989de91e8a7174e21ba6774a43ac8a",
+    "Weapons/Weapon_Mech_SHD_Head_MH1_Missile2_SKM.gltf": "07861de3050f821216cec0063a644e846d6ef2079437b91cfc271d6e4974f86a",
+    "Weapons/Weapon_Mech_SHD_Torso_Left_BH1_AC5_SKM.bin": "71947753e370b4966d958b33a63e2fabc012755e3f7ad86edb7da6de51ce5480",
+    "Weapons/Weapon_Mech_SHD_Torso_Left_BH1_AC5_SKM.gltf": "eb0fe9a48114293a5c110abf012beea1f8b3314552d50a826c1954e8cf7ebc5e",
+    "Weapons/Weapon_Mech_SHD_Torso_Right_MH1_Missile5_SKM.bin": "f49818289fad29d81c62210c573f47d99b6292e835b75add51098ac2a5ee9c72",
+    "Weapons/Weapon_Mech_SHD_Torso_Right_MH1_Missile5_SKM.gltf": "27b00e6352b66ab4593bacff927b3622f66a12188daae73926106b689c0752ec"
+  },
+  "runtime_triangles": 29896,
+  "render_meshes": 21,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 3021,
+    "Head/AmberCanopy": 10,
+    "Head/CockpitFrame": 768,
+    "Head/Srm2Housing": 304,
+    "LeftArm/ForearmAndFist": 3462,
+    "LeftArm/ShoulderAndUpperarm": 1590,
+    "LeftLeg/Foot": 860,
+    "LeftLeg/Hip": 556,
+    "LeftLeg/Shin": 2334,
+    "LeftLeg/Thigh": 1614,
+    "LeftTorso/CannonHousing": 1242,
+    "LeftTorso/TorsoShell": 1518,
+    "RightArm/ForearmAndFist": 3462,
+    "RightArm/LaserEmitter": 515,
+    "RightArm/ShoulderAndUpperarm": 1590,
+    "RightLeg/Foot": 860,
+    "RightLeg/Hip": 556,
+    "RightLeg/Shin": 2334,
+    "RightLeg/Thigh": 1614,
+    "RightTorso/Lrm5Housing": 438,
+    "RightTorso/TorsoShell": 1248
+  },
+  "height": 2.553191489361702,
+  "displayed_height": 3.0,
+  "scale": 0.15679311256580572,
+  "bottom": -0.0425327867269516,
+  "rig": {
+    "waist": 1.6390153,
+    "hip": [
+      0.3245066,
+      1.3442132,
+      -0.0
+    ],
+    "knee": [
+      0.3522708,
+      0.886441,
+      -0.1821765
+    ],
+    "ankle": [
+      0.3949963,
+      0.2013487,
+      -0.0583009
+    ],
+    "shoulder": [
+      0.5898179,
+      2.0852223,
+      0.0277833
+    ]
+  },
+  "weapons": [
+    {
+      "location": "Head",
+      "name": "Srm2Housing",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_SHD_Head_MH1_Missile2_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftTorso",
+      "name": "CannonHousing",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_SHD_Torso_Left_BH1_AC5_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightTorso",
+      "name": "Lrm5Housing",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_SHD_Torso_Right_MH1_Missile5_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "LaserEmitter",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_SHD_Arm_Right_EH1_Laser_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "SHD_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 0
+  },
+  "missile_tubes": 2,
+  "attachment_evidence": "Stock MW5 loadout -> Shadowhawk_HPS visual mappings; torso and arm sockets attach to Torso_Pitch and Forearm bones. Shadowhawk_MDL attaches the exterior cockpit to Cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-shadowhawk.py + scripts/mech_asset_tools.py; Python + Pillow"
+}
