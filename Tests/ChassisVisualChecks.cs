@@ -67,6 +67,13 @@ public partial class SmokeTests
                     }
                 }
                 Check(grounded && articulated, $"{spec.Chassis} {gait} articulates both legs, clears the floor and maintains foot support");
+                var excursion = (spec.Id, gait) switch
+                {
+                    ("jenner", PreviewGait.Walk) => .45f, ("jenner", _) => .57f,
+                    ("wolverine", PreviewGait.Walk) => .48f, ("wolverine", _) => .63f,
+                    (_, PreviewGait.Walk) => .42f, _ => .51f
+                };
+                TestLongStride(model, gait, excursion);
                 Check(gait == PreviewGait.Walk ? model.RunBlend < .01f : model.RunBlend > .99f,
                     $"{spec.Chassis} actual speed selects the {gait} gait");
                 Check(hangar.Preview.Gait == gait, $"{spec.Chassis} preview control selects {gait}");
@@ -78,8 +85,8 @@ public partial class SmokeTests
             var reverseGrounded = true;
             for (var frame = 0; frame < 180; frame++)
             {
-                model.AnimateLocomotion(1f / 60, -spec.Walk * CombatRules.MovementScale,
-                    spec.Walk * CombatRules.MovementScale, spec.Run * CombatRules.MovementScale);
+                model.AnimateLocomotion(1f / 60, -CombatRules.MovementSpeed(spec, MovementMode.Walk),
+                    CombatRules.MovementSpeed(spec, MovementMode.Walk), CombatRules.MovementSpeed(spec, MovementMode.Run));
                 reverseGrounded &= feet.All(foot => Bottom(foot) >= -.002f) && feet.Any(foot => Bottom(foot) < .02f);
             }
             Check(reverseGrounded && model.RunBlend < .01f, $"{spec.Chassis} reverse travel uses grounded backward walking");
@@ -88,14 +95,14 @@ public partial class SmokeTests
                 var steps = false;
                 for (var frame = 0; frame < 150; frame++)
                 {
-                    model.AnimateLocomotion(1f / 60, 0, spec.Walk * CombatRules.MovementScale,
-                        spec.Run * CombatRules.MovementScale, turn * Mathf.DegToRad(45));
+                    model.AnimateLocomotion(1f / 60, 0, CombatRules.MovementSpeed(spec, MovementMode.Walk),
+                        CombatRules.MovementSpeed(spec, MovementMode.Run), turn * Mathf.DegToRad(45));
                     steps |= Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .025f;
                 }
                 Check(steps, $"{spec.Chassis} steps during a pivot in direction {turn}");
             }
             for (var frame = 0; frame < 180; frame++) model.AnimateLocomotion(1f / 60, 0,
-                spec.Walk * CombatRules.MovementScale, spec.Run * CombatRules.MovementScale);
+                CombatRules.MovementSpeed(spec, MovementMode.Walk), CombatRules.MovementSpeed(spec, MovementMode.Run));
             Check(legs.All(root => ((Node3D)root.FindChild("HipPivot", true, false)).Rotation.Length() < .001f),
                 $"{spec.Chassis} settles back to its authored neutral joint positions");
             var frozen = ankles[0].GlobalTransform;
@@ -174,4 +181,34 @@ public partial class SmokeTests
         await Capture("chassis-combat-damaged");
         stage.QueueFree(); await Frames();
     }
+    private void TestLongStride(MechModel model, PreviewGait gait, float excursion)
+    {
+        var ankles = new[] { MechLocation.LeftLeg, MechLocation.RightLeg }
+            .Select(location => (Node3D)model.Locations[location].FindChild("AnklePivot", true, false)).ToArray();
+        var feet = model.FindChildren("Foot", "MeshInstance3D", true, false).OfType<MeshInstance3D>().ToArray();
+        var minimumZ = new[] { float.PositiveInfinity, float.PositiveInfinity };
+        var maximumZ = new[] { float.NegativeInfinity, float.NegativeInfinity };
+        var supportContact = true;
+        var spec = DraftCatalog.Mech(model.ChassisId);
+        var walk = CombatRules.MovementSpeed(spec, MovementMode.Walk);
+        var run = CombatRules.MovementSpeed(spec, MovementMode.Run);
+        // Fine sampling distinguishes leg-reach clipping from 60 Hz endpoint sampling.
+        for (var sample = 0; sample < 1800; sample++)
+        {
+            model.AnimateLocomotion(1f / 600, gait == PreviewGait.Walk ? walk : run, walk, run);
+            supportContact &= feet.Any(foot => Math.Abs(Enumerable.Range(0, 8)
+                .Min(i => (foot.GlobalTransform * foot.Mesh.GetAabb().GetEndpoint(i)).Y)) < .002f);
+            for (var leg = 0; leg < 2; leg++)
+            {
+                var z = (model.GlobalTransform.AffineInverse() * ankles[leg].GlobalPosition).Z;
+                minimumZ[leg] = Math.Min(minimumZ[leg], z);
+                maximumZ[leg] = Math.Max(maximumZ[leg], z);
+            }
+        }
+        GD.Print($"{model.ChassisId} {gait} foot travel: {maximumZ[0] - minimumZ[0]:F4}, {maximumZ[1] - minimumZ[1]:F4}; support contact: {supportContact}");
+        Check(Enumerable.Range(0, 2).All(leg => Math.Abs(maximumZ[leg] - minimumZ[leg] - excursion) < .002f),
+            $"{model.ChassisId} {gait} feet cover the requested 50% longer stride");
+        Check(supportContact, $"{model.ChassisId} {gait} keeps a support foot planted throughout its longer stride");
+    }
+
 }

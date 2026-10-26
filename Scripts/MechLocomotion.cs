@@ -4,6 +4,8 @@ namespace Mech;
 
 public partial class MechModel
 {
+    // Author profiles at their baseline stride; every present and future rig gets this scale once.
+    private const float StrideScale = 1.5f;
     private sealed record GaitProfile(float WalkStride = .11f, float RunStride = .15f,
         float WalkLift = .075f, float RunLift = .11f, float BodyDrop = .035f, float RunDrop = .012f,
         float Bob = .010f, float Sway = .016f, float Lean = .035f, float Roll = .008f,
@@ -16,12 +18,13 @@ public partial class MechModel
     // Source bone pivots from Assets/Models/Jenner.json, after grounding and scaling.
     private static readonly RigProfile JennerRig = new(1.2360389f, new(0.4022371f, 1.1043084f, 1e-06f), new(0.4022835f, 0.7587754f, -0.0823296f),
         new(0.4030017f, 0.1462707f, 0.0992548f), new(0.4734214f, 1.5326102f, 0.2385821f),
-        new(WalkStride: .15f, RunStride: .19f, WalkLift: .065f, RunLift: .095f, BodyDrop: .030f, RunDrop: .010f,
+        new(WalkStride: .15f, RunStride: .19f, WalkLift: .065f, RunLift: .095f, BodyDrop: .030f, RunDrop: .015f,
             Bob: .008f, Sway: .014f, Lean: .045f, Roll: .007f, LeftArmSwing: .015f, RightArmSwing: .015f));
     // Source bone pivots from Assets/Models/Wolverine.json, after grounding and scaling.
+    // Slightly lower the moving body so the 1.5x stride stays within the source leg reach.
     private static readonly RigProfile WolverineRig = new(1.4685936f, new(.2714745f, 1.2177287f, .0000008f), new(.2992869f, .6762444f, -.0841622f),
         new(.3205571f, .2610593f, -.0388172f), new(.5497093f, 1.7583625f, -.0106391f),
-        new(WalkStride: .16f, RunStride: .21f, WalkLift: .085f, RunLift: .13f, BodyDrop: .040f, RunDrop: .015f,
+        new(WalkStride: .16f, RunStride: .21f, WalkLift: .085f, RunLift: .13f, BodyDrop: .045f, RunDrop: .025f,
             Bob: .012f, Sway: .022f, Lean: .055f, Roll: .010f, LeftArmSwing: .14f, RightArmSwing: .018f));
     // Source bone pivots from Assets/Models/Catapult.json, after grounding and scaling.
     private static readonly RigProfile CatapultRig = new(1.2674548f, new(.484757f, 1.1799883f, -.0022531f), new(.49902f, .8512305f, .3638493f),
@@ -82,7 +85,7 @@ public partial class MechModel
         var smoothing = 1 - Mathf.Exp(-delta * 10);
         _motionBlend = Mathf.Lerp(_motionBlend, targetBlend, smoothing);
         RunBlend = Mathf.Lerp(RunBlend, Math.Clamp((Math.Abs(speed) - walk) / Math.Max(.001f, runningSpeed - walk), 0, 1), smoothing);
-        var stride = Mathf.Lerp(gait.WalkStride, gait.RunStride, RunBlend);
+        var stride = Mathf.Lerp(gait.WalkStride, gait.RunStride, RunBlend) * StrideScale;
         var stance = Mathf.Lerp(.65f, .60f, RunBlend); // Always at least one planted foot.
         var cycles = speed / (2 * stride * Scale.X / stance);
         if (!moving) cycles = pivoting * .5f;

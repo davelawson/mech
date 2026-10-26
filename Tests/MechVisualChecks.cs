@@ -104,22 +104,25 @@ public partial class SmokeTests
                 if (frame is 15 or 35 or 55) await Capture($"awesome-{(gait == 1 ? "walk" : "run")}-{frame}");
             }
             Check(articulated && grounded, $"Awesome gait {gait} articulates legs with ground clearance and a planted support foot");
+            TestLongStride(model, (PreviewGait)gait, gait == 1 ? .33f : .45f);
             Check(gait == 1 ? model.RunBlend < .01f : model.RunBlend > .99f, "actual preview speed selects the expected walk/run blend");
         }
-        model.AnimateLocomotion(.1f, -.36f, .36f, .6f);
+        var walk = CombatRules.MovementSpeed(roster.Mechs[0].Spec, MovementMode.Walk);
+        var run = CombatRules.MovementSpeed(roster.Mechs[0].Spec, MovementMode.Run);
+        model.AnimateLocomotion(.1f, -walk, walk, run);
         Check(model.RunBlend < .5f, "reverse walking blends away from the running gait");
         var pivotStepping = false;
         for (var i = 0; i < 90; i++)
         {
-            model.AnimateLocomotion(1f / 60, 0, .36f, .6f, Mathf.DegToRad(45));
+            model.AnimateLocomotion(1f / 60, 0, walk, run, Mathf.DegToRad(45));
             pivotStepping |= Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .02f;
         }
         Check(pivotStepping, "stationary turning produces alternating pivot steps");
         await Capture("awesome-pivot");
-        for (var i = 0; i < 180; i++) model.AnimateLocomotion(1f / 60, 0, .36f, .6f);
+        for (var i = 0; i < 180; i++) model.AnimateLocomotion(1f / 60, 0, walk, run);
         Check(legs.All(leg => ((Node3D)leg.FindChild("HipPivot", true, false)).Rotation.Length() < .001f),
             "stopping settles the Awesome back to its neutral pose");
-        var frozen = ankles[0].GlobalTransform; model.AnimateLocomotion(0, .6f, .36f, .6f);
+        var frozen = ankles[0].GlobalTransform; model.AnimateLocomotion(0, run, walk, run);
         Check(ankles[0].GlobalTransform.IsEqualApprox(frozen), "zero animation time preserves the exact pose");
         hangar.Select(1); Check(!hangar.Preview.Model!.IsAwesome, "other chassis retain generic geometry");
         Check(!hangar.GaitPicker.Visible, "generic chassis do not advertise unsupported gait previews");

@@ -11,7 +11,7 @@ The first tactical slice implements [the confirmed combat design](combat-design.
 | Starts | Z = +32 / −32; four-hex spacing |
 | Occupied radius | 0.65 hex, with swept-disc collision checks |
 | Shared detection | 15 hexes, shorter than PPC/LRM reach |
-| Movement limits | Stock Walk / Run MP × 0.12 hexes per second |
+| Movement limits | Stock Walk / Run MP × 0.18 hexes per second for every chassis |
 | Acceleration | Running speed × Walk MP / 9 hexes per second² |
 | Braking | Twice acceleration |
 | Stationary turn rate | Walk MP × 15 degrees per second |
@@ -23,7 +23,7 @@ The first tactical slice implements [the confirmed combat design](combat-design.
 | Distance control | 1.5–21 hexes; 0.5-hex increments |
 | Position tolerances | 0.4 hex engagement distance; 0.2 hex arrival |
 
-Acceleration and turning depend only on movement stats, without an independent tonnage modifier. The Awesome (3/5 MP) reaches full run in three seconds, stops from it in 1.5 seconds, and turns 180° in place in four seconds. The Jenner (7/11 MP) takes approximately 1.29, 0.64 and 1.71 seconds respectively. Walk/Run selects the speed limit; changing modes does not snap actual speed.
+All chassis, including future imports, move 50% faster than the original 0.12-hex-per-MP scale. `CombatRules.MovementSpeed` supplies the shared 0.18 scale to combat and hangar previews without chassis exceptions. Wolverine keeps its accepted 0.90 walking / 1.44 running hexes per second. Catalog movement points and turn rates stay unchanged. Acceleration and braking scale with running speed, preserving their timing; reverse uses the increased walking limit and leg damage still halves both limits. The Awesome (3/5 MP) reaches full run in three seconds, stops from it in 1.5 seconds, and turns 180° in place in four seconds. The Jenner (7/11 MP) takes approximately 1.29, 0.64 and 1.71 seconds respectively. Walk/Run selects the speed limit; changing modes does not snap actual speed.
 
 Mechs travel along their leg facing. Moving turns become wider as speed rises; direction changes of 60° or more command braking while the chassis turns. Destination approach uses braking distance to stop within the arrival tolerance. Stop clears the order immediately and brakes existing momentum. Attack orders reverse at up to walking speed to open engagement distance, maintaining facing toward the target; forward/reverse transitions brake to zero first. Stationary target-facing uses the same turn rate. Facing still imposes no firing arcs or rear-hit rules. Collisions and arena boundaries can halt travel immediately.
 

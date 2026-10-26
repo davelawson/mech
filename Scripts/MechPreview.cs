@@ -88,8 +88,8 @@ public partial class MechPreview : Control
     {
         if (!IsVisibleInTree() || Model is null || _owned is null) return;
         Model.RotateY((float)delta * .28f);
-        var walk = _owned.Spec.Walk * CombatRules.MovementScale;
-        var run = _owned.Spec.Run * CombatRules.MovementScale;
+        var walk = CombatRules.MovementSpeed(_owned.Spec, MovementMode.Walk);
+        var run = CombatRules.MovementSpeed(_owned.Spec, MovementMode.Run);
         Model.AnimateLocomotion((float)delta, Gait == PreviewGait.Walk ? walk : Gait == PreviewGait.Run ? run : 0, walk, run);
     }
 }

@@ -16,9 +16,12 @@ public static class CombatRules
     public const float ArenaHalfSize = 48;
     public const float DetectionRadius = 15;
     public const float UnitRadius = .65f;
-    public const float MovementScale = .12f;
+    public const float MovementScale = .18f;
     public const int AimModifier = 3;
     public const double StepSeconds = .05;
+    // Shared by combat, hangar previews and future chassis; catalog MP remain stock.
+    public static float MovementSpeed(MechSpec spec, MovementMode mode) =>
+        (mode == MovementMode.Run ? spec.Run : spec.Walk) * MovementScale;
     public static float Cooldown(WeaponSpec weapon) => weapon.Name switch
     {
         "Machine Gun" => 4, "Flamer" => 6, "Small Laser" => 6, "Medium Laser" => 8,
@@ -114,8 +117,8 @@ public sealed class CombatUnit
             || !Weapons.Any(WeaponUsable) ? CombatStatus.Disabled : CombatStatus.Active;
     public bool Active => Status == CombatStatus.Active;
     private float Mobility => !Active ? 0 : (!Intact(MechLocation.LeftLeg) || !Intact(MechLocation.RightLeg)) ? .5f : 1;
-    public float WalkingSpeed => Spec.Walk * CombatRules.MovementScale * Mobility;
-    public float RunningSpeed => Spec.Run * CombatRules.MovementScale * Mobility;
+    public float WalkingSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Walk) * Mobility;
+    public float RunningSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Run) * Mobility;
     public float Speed => Movement == MovementMode.Run ? RunningSpeed : WalkingSpeed;
     // Nine / Walk seconds to full run, half that to stop. No independent mass modifier.
     public float Acceleration => RunningSpeed * Spec.Walk / 9f;
