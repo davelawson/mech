@@ -1,10 +1,10 @@
 # Mech models and condition display
 
-Confirmed October 26, 2026. The AWESOME AWS-8Q uses an articulated, optimized runtime copy of `generated/Awesome.glb`, retaining its olive paint textures, broad upright shoulders, recessed amber cockpit and sensor dish, two torso PPCs, right-arm PPC and left fist. The Catapult CPLT-C1 uses assembled MW5 source geometry with this game's olive palette. The AWESOME, Jenner JR7-D, Wolverine WVR-6R and Catapult CPLT-C1 have custom models and procedural walking, running, reverse walking and pivot steps.
+Confirmed October 26, 2026. Awesome AWS-8Q, Jenner JR7-D, Wolverine WVR-6R and Catapult CPLT-C1 use assembled MechWarrior 5 source geometry with this game's olive palette, amber exterior cockpits and team outlines. All four have articulated walking, running, reverse walking and pivot steps. Their roster illustrations and gameplay specifications are unchanged.
 
 ## Model contract
 
-`Scripts/MechModel.cs` provides the factory and shared rendering/condition contract used by both combat and the hangar. `Scripts/AwesomeModel.cs` provides the prepared-model loader; it and `Scripts/CatapultModel.cs` load the corresponding GLBs in `Assets/Models/`, attach rigid sections to damage roots and give each instance independent team outlines. Add future chassis geometry through that factory; share the rendering/condition contract, while authoring each chassis's own proportions and shape. Other chassis currently use the generic geometry. `Scripts/MechChassisModels.cs` contains the procedural Jenner and Wolverine geometry and their shared hull, launcher and articulated-leg helpers.
+`Scripts/MechModel.cs` provides the factory and shared rendering/condition contract used by both combat and the hangar. `Scripts/AwesomeModel.cs` provides the prepared-model loader; it, `Scripts/JennerModel.cs`, `Scripts/CatapultModel.cs` and `Scripts/WolverineModel.cs` load the corresponding GLBs in `Assets/Models/`, attach rigid sections to damage roots and give each instance independent team outlines. Add future chassis geometry through that factory; share the rendering/condition contract, while authoring each chassis's own proportions and shape. Other chassis currently use the generic geometry.
 
 - There are eight `Node3D` location roots. Every mesh, including weapons, visor and joints, belongs beneath one root.
 - Shoulder slabs belong to arms; chest PPCs belong to side torsos. Hiding a destroyed location hides all its details. Combat's existing side-torso destruction also removes its attached arm.
@@ -15,25 +15,42 @@ Confirmed October 26, 2026. The AWESOME AWS-8Q uses an articulated, optimized ru
 
 The silhouette should read at normal battlefield zoom. Individual visible locations should read through shape, seams and spacing at close zoom. This does not require small surface details to remain legible at the arena overview.
 
-## Detailed Awesome replacement
+## Imported Awesome
 
-The original `generated/Awesome.glb` remains untouched: 241,352 triangles, one continuous textured mesh, no rig or animations. `generated/.gdignore` keeps this preparation source out of Godot imports and game exports. The checked-in runtime asset is `Assets/Models/Awesome.glb`; `Assets/Models/Awesome.json` records the source SHA-256, preparation tool, per-part counts and total geometry.
+`Assets/Models/Awesome.glb` replaces the previous generated model in combat and the hangar. The MW5 AWS-8Q contains **18,243 triangles in 19 rigid render meshes** at the existing **3.64 displayed height**. Its stock loadout has a right-arm PPC, one PPC in each side torso and a head-mounted small laser. The left forearm retains the source fist.
 
-The prepared model contains **89,627 base triangles** within the agreed 60,000–100,000 budget, including dark joint interiors. There are **24 rigid render meshes** across eight damage roots. Parts retain the original 2048×2048 color and metallic/roughness textures and their UV coordinates; simplification interpolates UVs. Geometry and textures are shared across instances, while material overrides and team-outline passes are independent. The outline is 0.55 pixels for Awesome, 0.65 for the imported Catapult and 1.15 for procedural chassis.
+Preparation reads external exports at `~/Models/MW5Mercenaries/Game/Objects/Mechs/Awesome/Model/`. `AWS-8Q_Loadout` selects the stock hardpoints; `Awesome_HPS` selects the three `EH1_PPC` visuals and the head `EH1_Laser`. Blueprint defaults identify the source skeletal meshes. Shared `Mech_SKL` sockets attach the right PPC to `Forearm_Right`, both torso PPCs and head laser to `Torso_Pitch`, with identity local transforms. The exterior `AWS_TP_Cockpit_DM0_STM` attaches to `Cockpit`. The laser and exterior cockpit belong to Head for gameplay damage hiding. Source firing points are retained as non-rendering markers inside the prepared weapons.
 
-The source faces positive Z and is centered vertically. Preparation turns it to negative Z with the cannon on anatomical positive X, grounds both soles, and scales it to 2.8 local units (about 3.64 displayed units with the unchanged tonnage factor). The imported geometry defines the silhouette and proportions. Gameplay stats, collision, weapon behavior and movement rules remain unchanged.
+Source bone weights define the rigid damage groups and thigh/shin/foot sections. Armor faces are neither cut nor simplified. Source pivots replace the generated model's joint coordinates while preserving the heavy gait. Default/wear masks produce olive paint, source UVs and 2048px normal detail remain intact, and exterior glass is amber. All imported MW5 chassis use a 0.65-pixel team outline; generic geometry uses 1.15 pixels.
 
-The continuous mesh is cut into rigid thighs, shins, feet, arms and torso/head regions while preserving the authored texture. Cut interiors are capped with dark material, with discreet mechanical joints covering articulation seams. These small interior additions and seam changes are intentional. Hip, knee, ankle and shoulder pivots follow the new proportions using the existing shared movement controller. PPC emitters and the left fist remain named source-mesh sections beneath their owning damage roots; no replacement weapons are overlaid on the asset.
+The superseded generated source is archived outside the project at `/home/dave/Models/Archive/mech-generated-Awesome.glb`. Its runtime texture companions and Blender preparation code have been replaced. Only the current runtime GLB, four required Godot companion PNGs, manifest and preparation code remain in the project.
 
-Rebuild using Blender **4.2.3 LTS** (Blender is needed only for preparation, not game builds):
+Rebuild with Python 3 and Pillow:
 
 ```sh
-blender --background --factory-startup --python scripts/prepare-awesome.py
+python3 scripts/prepare-awesome.py
+# On another machine, supply the external Model or Body directory:
+python3 scripts/prepare-awesome.py --source /path/to/Awesome/Model
 scripts/mech test
 scripts/mech capture
 ```
 
-The preparation script welds coincident positions while keeping per-corner UV seams, cuts exact region boundaries, caps cut interiors, simplifies each rigid section to a shared budget, and exports the runtime GLB and manifest. Keep `Scripts/MechLocomotion.cs`'s Awesome joint profile aligned with the preparation script's normalized joint coordinates when changing the model's proportions.
+## Imported Jenner
+
+`Assets/Models/Jenner.glb` replaces the procedural JR7-D in combat and the hangar. It retains **22,932 triangles in 22 rigid render meshes**, grounded and facing negative Z at the existing **2.40 displayed height**. This includes the complete exterior cockpit nose, four arm lasers and the center-torso SRM4. The obsolete procedural Jenner geometry and its unused authoring helpers have been removed.
+
+Preparation reads external exports at `~/Models/MW5Mercenaries/Game/Objects/Mechs/Jenner/Model/`. The stock `JR7-D_Loadout` selects `Torso_Center_MH3_srm4`, which maps through `Jenner_HPS` to the **MH3 Missile4** visual. The four arm slots select `Forearm_Left/Right_EH1/EH2_Laser`. Blueprint defaults identify matching skeletal meshes. Shared skeleton sockets attach the rack to `Torso_Pitch` and each pair of lasers to the corresponding `Forearm_Left/Right`, with identity local transforms. The exterior `JR7_TP_Cockpit_DM0_STM` attaches to `Cockpit`; its glazing is material section 0 and its detailed nose/frame is section 1. The entire exterior cockpit belongs to Head.
+
+Four non-rendering `MissileTube` markers and four beam muzzle markers preserve source firing positions. Source bone ownership groups the body without cutting or simplification; source hip, knee, ankle and shoulder pivots drive the existing quick gait and restrained weapon-pod motion. Paint, normal detail and independent team outlines use the shared MW5 pipeline.
+
+```sh
+python3 scripts/prepare-jenner.py
+python3 scripts/prepare-jenner.py --source /path/to/Jenner/Model
+scripts/mech test
+scripts/mech capture
+```
+
+Awesome, Jenner and Wolverine share rigid assembly code in `scripts/prepare_mw5_mech.py`; their small preparation entry points specify chassis scale, stock attachments and source evidence. The glTF reader, GLB writer and paint functions are shared with Catapult in `scripts/mech_asset_tools.py`. The refactor preserves the existing Wolverine and Catapult GLBs and manifests byte for byte. Each chassis manifest records every selected input hash, part counts, attachment choices and source-derived pivots. Raw exports and first-person cockpit interiors stay outside the project. Runtime builds require only prepared assets; rebuilding them requires the external exports.
 
 ## Imported Catapult
 
@@ -55,17 +72,40 @@ scripts/mech test
 scripts/mech capture
 ```
 
-## Additional chassis
+## Imported Wolverine
 
-The existing hangar illustrations guide the procedural chassis and shared palette; MW5 geometry defines the Catapult's proportions. Catalog specifications determine visible weapon counts and damage-location ownership. The illustrations remain unchanged.
+`Assets/Models/Wolverine.glb` replaces the procedural WVR-6R in combat and the hangar. It retains **25,911 triangles in 20 rigid render meshes**, grounded and facing negative Z at the existing **2.94 displayed height**. The roster illustration, gameplay statistics, damage rules and weapon behavior remain unchanged.
+
+Preparation reads the external exports at `/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Wolverine/Model/`. Raw exports are not copied into the project. The selected inputs are the body, exterior `WVR_TP_Cockpit_DM0_STM`, three stock weapon meshes, their binary buffers and six body/variant mask and normal maps. The first-person cockpit interior and unused emissive maps are excluded. `Assets/Models/Wolverine.json` records only the inputs actually used, with their hashes, attachment evidence, source-derived pivots and part counts.
+
+The WVR-6R source loadout, hardpoint mappings, visual blueprint defaults and shared skeleton sockets establish the attachments: the right-arm `BH1_AC5` mesh attaches to `Forearm_Right`; the left-torso `MH1_Missile6` and head `EH1_Laser` meshes attach to `Torso_Pitch`. The exterior cockpit attaches to `Cockpit`. All local attachment transforms are identity. The head laser uses the source torso coordinate frame for placement, but belongs to this game's Head damage root. Six `MissileTube` markers and one `CannonMuzzle` marker retain source firing positions without adding visible geometry.
+
+Rigid source faces are grouped by their owning bones without geometric cutting or simplification. Pelvis flaps remain with the center torso; thigh flaps follow the corresponding thigh. The gait uses the source's forward-bending knees, preserves the free left-arm swing and braces the right cannon arm. Source UVs, 2048px mask/normal detail, the shared olive palette, amber canopy and independent team outlines follow the Catapult approach.
+
+The Python glTF reader, GLB writer and paint functions are shared in `scripts/mech_asset_tools.py`. Extracting these helpers preserves the existing Catapult GLB and manifest byte for byte. Rebuild Wolverine with Python 3 and Pillow:
+
+```sh
+python3 scripts/prepare-wolverine.py
+# On another machine, supply the external Model or Body directory:
+python3 scripts/prepare-wolverine.py --source /path/to/Wolverine/Model
+scripts/mech test
+scripts/mech capture
+```
+
+The project retains the prepared GLB, four required Godot companion textures, the manifest and preparation code. Rebuilding requires the external source exports; running the game does not.
+
+## Chassis presentation
+
+MW5 geometry defines all four custom chassis silhouettes; the existing hangar illustrations guide the shared palette. Catalog specifications determine visible weapon counts and damage-location ownership. The illustrations remain unchanged.
 
 | Chassis | Silhouette and weapons | Movement character |
 | --- | --- | --- |
-| Jenner JR7-D | Low wedge body, projecting amber cockpit, exposed angular legs and split toes. Two lasers in each stub arm; one center-torso SRM4. | Quick, compact steps and stable weapon stubs. |
+| Awesome AWS-8Q | Broad upright shoulders, amber cockpit, right-arm and side-torso PPCs, head small laser and left fist. | Heavy, deliberate steps. |
+| Jenner JR7-D | Broad body, projecting amber cockpit nose, exposed angular legs and split toes. Two lasers in each stub arm; one center-torso SRM4. | Quick, compact steps and stable weapon stubs. |
 | Wolverine WVR-6R | Upright humanoid body, helmet visor, right-arm AC/5, left-torso six-tube shoulder rack and head laser. | Balanced stride; left arm swings while the cannon arm stays braced forward. |
 | Catapult CPLT-C1 | Rounded central hull and cockpit, narrow angular legs, enormous arm-mounted fifteen-tube launchers, four torso lasers. | Deliberate steps with restrained body and launcher movement. |
 
-In the current visual scale the Jenner is about 2.40 units tall, Wolverine 2.94 and Catapult 3.16, versus the imported Awesome about 3.64. The Catapult retains its source proportions and broad launcher silhouette. These presentation proportions do not change collision radii, movement stats or handling. The Jenner illustration's extra missile apertures are interpreted as four actual tubes; the imported Catapult has fifteen source firing positions per launcher, matching the stock loadout.
+In the current visual scale the Jenner is about 2.40 units tall, Wolverine 2.94 and Catapult 3.16, versus the imported Awesome about 3.64. The Catapult retains its source proportions and broad launcher silhouette. These presentation proportions do not change collision radii, movement stats or handling. Jenner retains four source SRM firing positions; Catapult has fifteen per launcher, matching their stock loadouts.
 
 ## Shared locomotion
 
@@ -94,4 +134,4 @@ This follows the MWO visual language described in the [community Mech Manual](ht
 
 ## Verification
 
-`Tests/ChassisVisualChecks.cs` verifies stock weapon counts and anatomical ownership, damage hiding, relative proportions, articulated walking/running/reversing/pivoting, stable weapon carriage, neutral settling, pause behavior, complete rotation framing at both window sizes, and the shared combat/hangar factory. `Tests/CatapultVisualChecks.cs` checks the imported geometry budget, preserved height, exterior canopy, source texture detail, fifteen firing positions inside each extracted launcher, shared meshes and independent outlines. `Tests/MechVisualChecks.cs` measures the Awesome triangle budget, its complexity relative to the procedural chassis, render-mesh limit and full turntable framing. It also exercises owned damage, condition colors and enemy information parity. `scripts/mech test` runs headless smoke checks. `scripts/mech capture` exercises rendered Compatibility materials and writes idle/walk/run hangar captures and mixed-chassis combat captures, alongside AWESOME front/rear hangar and combat captures at 1440×900 and 900×500 to `TestResults/`.
+`Tests/ChassisVisualChecks.cs` verifies stock weapon counts and anatomical ownership, damage hiding, relative proportions, articulated walking/running/reversing/pivoting, stable weapon carriage, neutral settling, pause behavior, complete rotation framing at both window sizes, and the shared combat/hangar factory. `Tests/ImportedChassisVisualChecks.cs`, `Tests/CatapultVisualChecks.cs` and `Tests/WolverineVisualChecks.cs` check the imported geometry budgets, preserved heights, exterior canopies, source texture detail, firing positions inside extracted weapons, shared meshes and independent outlines. Wolverine checks also verify the forward-facing right-arm cannon and unarmed left fist. `Tests/MechVisualChecks.cs` measures the Awesome triangle budget, render-mesh limit and full turntable framing. It also exercises owned damage, condition colors and enemy information parity. `scripts/mech test` runs headless smoke checks. `scripts/mech capture` exercises rendered Compatibility materials and writes idle/walk/run hangar captures and mixed-chassis combat captures, alongside AWESOME front/rear hangar and combat captures at 1440×900 and 900×500 to `TestResults/`.

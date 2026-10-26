@@ -49,7 +49,9 @@ public partial class MechModel
                     _locations[damageLocation].AddChild(part);
                 }
                 else if (owner is { } markerLocation
-                    && node.Name.ToString().StartsWith(markerLocation + "_MissileTube", StringComparison.Ordinal))
+                    && (node.Name.ToString().StartsWith(markerLocation + "_MissileTube", StringComparison.Ordinal)
+                        || node.Name.ToString().StartsWith(markerLocation + "_WeaponMuzzle_", StringComparison.Ordinal)
+                        || node.Name == markerLocation + "_CannonMuzzle"))
                 {
                     _locations[markerLocation].AddChild(new Node3D
                     {

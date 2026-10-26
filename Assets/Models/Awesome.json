@@ -1,34 +1,112 @@
 {
-  "source": "generated/Awesome.glb",
-  "source_sha256": "205e8ba57fdd89043592d167feb9041985f18c4c64fbe6cc15169c52cf4e8e11",
-  "tool": "Blender 4.2.3 LTS",
-  "height": 2.8,
-  "source_triangles": 241352,
-  "runtime_triangles": 89627,
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Awesome/Model",
+  "source_files": {
+    "Body/AWS_TP_Cockpit_DM0_STM.bin": "01be10698f1d698e1f8787f098090021b1a321659b070dc33299e9660367fbad",
+    "Body/AWS_TP_Cockpit_DM0_STM.gltf": "bd91e0fcf5c02a9aa63a9ae1ca083a0ad8567a586e9b1667f1c2f8ca9e79ce2c",
+    "Body/Awesome_SKM.bin": "48be6555883fd208896db42ec184d54350f9b501bb50e65b7bf0de5ea6aa9bb9",
+    "Body/Awesome_SKM.gltf": "8a6c080721ead1f1919798f1d4737c4216e61c75d20e2297bb51dc5913793235",
+    "Body/Materials/Textures/Awesome_Body_Default_MSK.png": "560a74f1f81ad9aa55692d72b688f321257a9c77c61e97f774112c2e1575d1b9",
+    "Body/Materials/Textures/Awesome_Body_NRM.png": "7083dbd1315e971f43b2b9e7cc94288c49c0f80b8df826883ab9cba3dce1af32",
+    "Body/Materials/Textures/Awesome_Body_Wear_MSK.png": "3d3994d68c1041680d231fcc6fb578c316482319b89fb3a8a07bed94db218485",
+    "Body/Materials/Textures/Awesome_Variant_Default_MSK.png": "ab3cea6431e3db3e6ff122bbc3255830e569e286cd071626e3235bdd9afcd7f2",
+    "Body/Materials/Textures/Awesome_Variant_NRM.png": "e92f3624e6a9dd1e4ff7ae1a2a6f92c5704ba7f1511c373fcf03fc9879f258d1",
+    "Body/Materials/Textures/Awesome_Variant_Wear_MSK.png": "f4c86bf0227cceb9526a13772098c2bf95841018c92144edb21d5125267a9ccd",
+    "Weapons/Weapon_Mech_AWS_Forearm_Right_EH1_PPC_SKM.bin": "ed8aeaa339dd0f58347f29e8487ab9b437611c96b2e6198bb71a357f5808043d",
+    "Weapons/Weapon_Mech_AWS_Forearm_Right_EH1_PPC_SKM.gltf": "39b12867845d9e45af18aaaf6393a3b15aedfddb0d2c79b5edc0de4174d8d22d",
+    "Weapons/Weapon_Mech_AWS_Head_EH1_Laser_SKM.bin": "313226755e1163ffe6318a973c4f46d8e82be84be5c6d0827aa336b04ab5345c",
+    "Weapons/Weapon_Mech_AWS_Head_EH1_Laser_SKM.gltf": "56ee676b73c9857a642044ed8fa6d7ffb1307faeab765875275db11f2eb8af04",
+    "Weapons/Weapon_Mech_AWS_Torso_Left_EH1_PPC_SKM.bin": "9886f751ab74b7e573765794329e0c1effbf27d1cee84c664acf8de6857f0d45",
+    "Weapons/Weapon_Mech_AWS_Torso_Left_EH1_PPC_SKM.gltf": "75137f8bdc913e8a4aaeb44b9cabf7592cffe1dc980d752d19ede318c71b5857",
+    "Weapons/Weapon_Mech_AWS_Torso_Right_EH1_PPC_SKM.bin": "585192bf38e723146c495debb04a7004b4f9f2b208e9dfa32101e7412ba424e8",
+    "Weapons/Weapon_Mech_AWS_Torso_Right_EH1_PPC_SKM.gltf": "73eb2b6d89a6b59cbbffae24727159c3ba3152fe3d29f460e76bb0c9d87ff2fe"
+  },
+  "runtime_triangles": 18243,
+  "render_meshes": 19,
   "parts": {
-    "Head/CockpitAndDish": 5778,
-    "CenterTorso/CoreAndPelvis": 10844,
-    "LeftTorso/PpcEmitter": 212,
-    "LeftTorso/TorsoShell": 5180,
-    "RightTorso/PpcEmitter": 212,
-    "RightTorso/TorsoShell": 5344,
-    "LeftArm/ArmShell": 9671,
-    "LeftArm/Fist": 1100,
-    "LeftArm/ShoulderInterior": 224,
-    "RightArm/ArmShell": 12757,
-    "RightArm/PpcEmitter": 360,
-    "RightArm/ShoulderInterior": 224,
-    "LeftLeg/Ankle": 224,
-    "LeftLeg/Foot": 4734,
-    "LeftLeg/Hip": 224,
-    "LeftLeg/KneeInterior": 224,
-    "LeftLeg/Shin": 6463,
-    "LeftLeg/Thigh": 7653,
-    "RightLeg/Ankle": 224,
-    "RightLeg/Foot": 4003,
-    "RightLeg/Hip": 224,
-    "RightLeg/KneeInterior": 224,
-    "RightLeg/Shin": 4600,
-    "RightLeg/Thigh": 8924
-  }
+    "CenterTorso/CoreAndPelvis": 2030,
+    "Head/AmberCanopy": 14,
+    "Head/CockpitFrame": 253,
+    "Head/LaserEmitter": 294,
+    "LeftArm/ForearmAndFist": 2754,
+    "LeftArm/ShoulderAndUpperarm": 1618,
+    "LeftLeg/Foot": 837,
+    "LeftLeg/Shin": 480,
+    "LeftLeg/Thigh": 561,
+    "LeftTorso/PpcEmitter": 918,
+    "LeftTorso/TorsoShell": 1029,
+    "RightArm/ForearmAndFist": 1198,
+    "RightArm/PpcEmitter": 814,
+    "RightArm/ShoulderAndUpperarm": 1618,
+    "RightLeg/Foot": 837,
+    "RightLeg/Shin": 480,
+    "RightLeg/Thigh": 561,
+    "RightTorso/PpcEmitter": 918,
+    "RightTorso/TorsoShell": 1029
+  },
+  "height": 2.8,
+  "displayed_height": 3.64,
+  "scale": 0.17355155496841596,
+  "bottom": -0.009329866617918015,
+  "rig": {
+    "waist": 1.333676,
+    "hip": [
+      0.4883256,
+      1.2504348,
+      -0.0042566
+    ],
+    "knee": [
+      0.4969903,
+      0.8082481,
+      -0.2179863
+    ],
+    "ankle": [
+      0.5206548,
+      0.2005744,
+      0.0550997
+    ],
+    "shoulder": [
+      0.6977796,
+      2.2978666,
+      0.1752429
+    ]
+  },
+  "weapons": [
+    {
+      "location": "RightArm",
+      "name": "PpcEmitter",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_AWS_Forearm_Right_EH1_PPC_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftTorso",
+      "name": "PpcEmitter",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_AWS_Torso_Left_EH1_PPC_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightTorso",
+      "name": "PpcEmitter",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_AWS_Torso_Right_EH1_PPC_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "Head",
+      "name": "LaserEmitter",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_AWS_Head_EH1_Laser_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "AWS_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 0
+  },
+  "missile_tubes": 0,
+  "attachment_evidence": "AWS-8Q_Loadout -> Awesome_HPS -> weapon blueprint SKM defaults; shared Mech_SKL sockets and component locals are identity. Awesome_MDL attaches exterior cockpit to Cockpit. Head small laser attaches via Torso_Pitch but belongs to Head damage location.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-awesome.py + scripts/mech_asset_tools.py; Python + Pillow"
 }

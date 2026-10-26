@@ -1,0 +1,124 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Jenner/Model",
+  "source_files": {
+    "Body/JR7_TP_Cockpit_DM0_STM.bin": "072e6848a8d65c5a6b9b1a01be68fec4701cccf77c0e2b6d988fc8c7389381d5",
+    "Body/JR7_TP_Cockpit_DM0_STM.gltf": "0c26fe378233fec641cffd15d3f01cc18c8d89bd4c31402420b114f83f9efaeb",
+    "Body/Jenner_SKM.bin": "619ece01d3b75d085bed4f8514e4c0fd933dbde16d204d7ac730eb04c81b5dde",
+    "Body/Jenner_SKM.gltf": "cf24e2805bcb7f61304a3b14be9a10d7346bf4fdc2a767fb2b82cb9865f454d8",
+    "Body/Materials/Textures/Jenner_Body_Default_MSK.png": "2a0097681b9b87c55933f708ec419dc0946b1955b359db9f4bd34312780b45d9",
+    "Body/Materials/Textures/Jenner_Body_NRM.png": "4186a0f743eb14d4ff1d937d80f3f207291527abf53175cb2b6138902f9b719e",
+    "Body/Materials/Textures/Jenner_Body_Wear_MSK.png": "bab3b5bcbc4e25bde92d0a6f65d697a95f39516621f94ea2474a5e9fec5f3c95",
+    "Body/Materials/Textures/Jenner_Variant_Default_MSK.png": "51fde0ee9c058c14400a5cdc12d08698de6ed233c44b00ba8a220192b6996e6d",
+    "Body/Materials/Textures/Jenner_Variant_NRM.png": "93819859521179ba24cd00dae2fae9c9a181dae3e30982fd38eece9fa7efe65d",
+    "Body/Materials/Textures/Jenner_Variant_Wear_MSK.png": "656f82b2e4d1a9d002f8b74966d3d793f813641a2cc139d209fe297c87356b59",
+    "Weapons/Weapon_Mech_JR7_Forearm_Left_EH1_Laser_SKM.bin": "e5fb3a276932e1c16c1151c1e7161c7e09dca3f4696a62352e7bfffaa7bd4e5d",
+    "Weapons/Weapon_Mech_JR7_Forearm_Left_EH1_Laser_SKM.gltf": "3ceaa8276aa0588be663464fdb6e0025d868acc693c8b8fba241f9be7a969035",
+    "Weapons/Weapon_Mech_JR7_Forearm_Left_EH2_Laser_SKM.bin": "b885ee9821cde4e0be3e82343cfc001bbcc4543060bbfcdd89aa538ca45fbd57",
+    "Weapons/Weapon_Mech_JR7_Forearm_Left_EH2_Laser_SKM.gltf": "88e067d752ef8ddcbb4c23694bbd0993939453d67dc290dca32d17b1d0a88c9c",
+    "Weapons/Weapon_Mech_JR7_Forearm_Right_EH1_Laser_SKM.bin": "d7f57179b8fdcae03245af439aadfec75afeee9cdb96e28f71007e39e7c1e1a3",
+    "Weapons/Weapon_Mech_JR7_Forearm_Right_EH1_Laser_SKM.gltf": "704495b1f1aee3ae510aa757b1c386f6364a5dcb6a014a5ea798a4dd3c48111b",
+    "Weapons/Weapon_Mech_JR7_Forearm_Right_EH2_Laser_SKM.bin": "088f0a94a300d3edd08353dc0a624121874ce4c5008879a32bf4ea707266107a",
+    "Weapons/Weapon_Mech_JR7_Forearm_Right_EH2_Laser_SKM.gltf": "c0f02b011e784d1e4208a260da81d1fdcbc996f50f61776ac7adb758dccd4c4f",
+    "Weapons/Weapon_Mech_JR7_Torso_Center_MH3_Missile4_SKM.bin": "45da300cfaf7eb2543bf414378d91867f4bde76b368892900c96fdfeed1e20e2",
+    "Weapons/Weapon_Mech_JR7_Torso_Center_MH3_Missile4_SKM.gltf": "baa871bb2e339c1c40837f04410ff03e6418284e5c8d31af6230ac97ed88b8f5"
+  },
+  "runtime_triangles": 22932,
+  "render_meshes": 22,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 3921,
+    "CenterTorso/Srm4Housing": 918,
+    "Head/AmberCanopy": 46,
+    "Head/CockpitFrame": 6339,
+    "LeftArm/ForearmAndFist": 485,
+    "LeftArm/LaserEmitter0": 230,
+    "LeftArm/LaserEmitter1": 230,
+    "LeftArm/ShoulderAndUpperarm": 60,
+    "LeftLeg/Foot": 978,
+    "LeftLeg/Hip": 320,
+    "LeftLeg/Shin": 1636,
+    "LeftLeg/Thigh": 874,
+    "LeftTorso/TorsoShell": 993,
+    "RightArm/ForearmAndFist": 485,
+    "RightArm/LaserEmitter0": 230,
+    "RightArm/LaserEmitter1": 230,
+    "RightArm/ShoulderAndUpperarm": 60,
+    "RightLeg/Foot": 978,
+    "RightLeg/Hip": 320,
+    "RightLeg/Shin": 1760,
+    "RightLeg/Thigh": 874,
+    "RightTorso/TorsoShell": 965
+  },
+  "height": 2.2325581395348837,
+  "displayed_height": 2.4,
+  "scale": 0.16756668583420806,
+  "bottom": -0.00019213097402825952,
+  "rig": {
+    "waist": 1.2360389,
+    "hip": [
+      0.4022371,
+      1.1043084,
+      1e-06
+    ],
+    "knee": [
+      0.4022835,
+      0.7587754,
+      -0.0823296
+    ],
+    "ankle": [
+      0.4030017,
+      0.1462707,
+      0.0992548
+    ],
+    "shoulder": [
+      0.4734214,
+      1.5326102,
+      0.2385821
+    ]
+  },
+  "weapons": [
+    {
+      "location": "CenterTorso",
+      "name": "Srm4Housing",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_JR7_Torso_Center_MH3_Missile4_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftArm",
+      "name": "LaserEmitter0",
+      "bone": "Forearm_Left",
+      "mesh": "Weapon_Mech_JR7_Forearm_Left_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftArm",
+      "name": "LaserEmitter1",
+      "bone": "Forearm_Left",
+      "mesh": "Weapon_Mech_JR7_Forearm_Left_EH2_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "LaserEmitter0",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_JR7_Forearm_Right_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "LaserEmitter1",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_JR7_Forearm_Right_EH2_Laser_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "JR7_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 0
+  },
+  "missile_tubes": 4,
+  "attachment_evidence": "JR7-D_Loadout -> Jenner_HPS -> weapon blueprint SKM defaults; shared Mech_SKL sockets and component locals are identity. Torso_Center_MH3_srm4 uses MH3_Missile4. Jenner_MDL attaches exterior cockpit to Cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-jenner.py + scripts/mech_asset_tools.py; Python + Pillow"
+}

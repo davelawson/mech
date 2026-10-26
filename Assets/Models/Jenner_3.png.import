@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://xsdcdpncy0eo"
-path="res://.godot/imported/Awesome_Image_0.png-c974fdaf49ac0e1c930385bc27030373.ctex"
+uid="uid://knf66dwv4vyk"
+path="res://.godot/imported/Jenner_3.png-eee1b71ac976621a08aef43a3030833c.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "f473e2a18a09fb70e5e5b8d522a39882"
+"md5": "6e225d4ab7a5f25659b4682325f3ebd1"
 }
 
 [deps]
 
-source_file="res://Assets/Models/Awesome_Image_0.png"
-dest_files=["res://.godot/imported/Awesome_Image_0.png-c974fdaf49ac0e1c930385bc27030373.ctex"]
+source_file="res://Assets/Models/Jenner_3.png"
+dest_files=["res://.godot/imported/Jenner_3.png-eee1b71ac976621a08aef43a3030833c.ctex"]
 
 [params]
 

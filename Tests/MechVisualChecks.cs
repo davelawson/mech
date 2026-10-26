@@ -18,8 +18,8 @@ public partial class SmokeTests
         Check(meshes.Count(mesh => mesh.Name.ToString().StartsWith("PpcEmitter", StringComparison.Ordinal)) == 3,
             "AWESOME visibly carries three PPCs");
         Check(model.Locations[MechLocation.RightArm].FindChild("PpcEmitter", true, false) is MeshInstance3D { Position.X: > 0 }
-            && model.Locations[MechLocation.LeftArm].FindChild("Fist", true, false) is not null,
-            "right-arm PPC and left fist follow the hangar illustration's handedness");
+            && model.Locations[MechLocation.LeftArm].FindChild("ForearmAndFist", true, false) is not null,
+            "right-arm PPC and left fist retain their anatomical handedness");
         var paint = meshes.SelectMany(mesh => Enumerable.Range(0, mesh.Mesh.GetSurfaceCount())
             .Select(mesh.GetActiveMaterial)).OfType<StandardMaterial3D>()
             .FirstOrDefault(material => material.AlbedoTexture is not null);
@@ -45,11 +45,10 @@ public partial class SmokeTests
             if (id != "awesome") sample.Free();
         }
         GD.Print($"Mech base triangles: {string.Join(", ", detailCounts.Select(pair => $"{pair.Key}={pair.Value}"))}; Awesome render meshes={meshes.Length}, height={model.Height:F3}");
-        Check(detailCounts["awesome"] is >= 60000 and <= 100000,
-            "imported Awesome meets its agreed 60–100k base-triangle budget");
-        Check(detailCounts["awesome"] >= detailCounts.Where(pair => pair.Key is "jenner" or "wolverine").Max(pair => pair.Value) * 3,
-            "imported Awesome has at least three times the geometry of the procedural chassis");
-        Check(meshes.Length <= 125, "Awesome keeps imported geometry within rigid damage groups to bound render instances");
+        Check(detailCounts["awesome"] is >= 15000 and <= 25000,
+            "MW5 Awesome retains source detail within its geometry budget");
+        Check(meshes.Length < 32, "Awesome keeps imported geometry within rigid damage groups to bound render instances");
+        TestImportedAwesome(model);
         var yaw = model.Rotation.Y; hangar.Preview._Process(.5);
         Check(model.Rotation.Y != yaw, "hangar preview rotates automatically");
         hangar.Refresh();
@@ -75,7 +74,7 @@ public partial class SmokeTests
                         camera.GetViewport().GetVisibleRect().Size - Vector2.One * 2).HasPoint(screen);
                 }
             }
-            Check(fits, $"Awesome dish, upright shoulders, cannon and feet fit the complete turntable at {size}");
+            Check(fits, $"Awesome shoulders, PPCs and feet fit the complete turntable at {size}");
             model.Rotation = new(0, .32f, 0);
             await Capture($"awesome-hangar-{size.X}x{size.Y}");
         }

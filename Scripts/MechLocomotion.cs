@@ -10,14 +10,17 @@ public partial class MechModel
         float LeftArmSwing = .045f, float RightArmSwing = .045f);
     // Joint positions are model-local, on the anatomical right; the left side mirrors X.
     private sealed record RigProfile(float Waist, Vector3 Hip, Vector3 Knee, Vector3 Ankle, Vector3 Shoulder, GaitProfile Gait);
-    private static readonly RigProfile AwesomeRig = new(1.54f, new(.476f, 1.316f, .056f), new(.574f, .84f, .014f),
-        new(.56f, .294f, .14f), new(.644f, 2.184f, .196f), new());
-    private static readonly RigProfile JennerRig = new(1.30f, new(.35f, 1.25f, .10f), new(.43f, .78f, -.13f),
-        new(.44f, .20f, .06f), new(.78f, 1.79f, .02f),
+    // Source bone pivots from Assets/Models/Awesome.json, after grounding and scaling.
+    private static readonly RigProfile AwesomeRig = new(1.333676f, new(0.4883256f, 1.2504348f, -0.0042566f), new(0.4969903f, 0.8082481f, -0.2179863f),
+        new(0.5206548f, 0.2005744f, 0.0550997f), new(0.6977796f, 2.2978666f, 0.1752429f), new());
+    // Source bone pivots from Assets/Models/Jenner.json, after grounding and scaling.
+    private static readonly RigProfile JennerRig = new(1.2360389f, new(0.4022371f, 1.1043084f, 1e-06f), new(0.4022835f, 0.7587754f, -0.0823296f),
+        new(0.4030017f, 0.1462707f, 0.0992548f), new(0.4734214f, 1.5326102f, 0.2385821f),
         new(WalkStride: .15f, RunStride: .19f, WalkLift: .065f, RunLift: .095f, BodyDrop: .030f, RunDrop: .010f,
             Bob: .008f, Sway: .014f, Lean: .045f, Roll: .007f, LeftArmSwing: .015f, RightArmSwing: .015f));
-    private static readonly RigProfile WolverineRig = new(1.26f, new(.28f, 1.16f, .02f), new(.35f, .70f, -.09f),
-        new(.36f, .22f, .02f), new(.59f, 1.99f, .015f),
+    // Source bone pivots from Assets/Models/Wolverine.json, after grounding and scaling.
+    private static readonly RigProfile WolverineRig = new(1.4685936f, new(.2714745f, 1.2177287f, .0000008f), new(.2992869f, .6762444f, -.0841622f),
+        new(.3205571f, .2610593f, -.0388172f), new(.5497093f, 1.7583625f, -.0106391f),
         new(WalkStride: .16f, RunStride: .21f, WalkLift: .085f, RunLift: .13f, BodyDrop: .040f, RunDrop: .015f,
             Bob: .012f, Sway: .022f, Lean: .055f, Roll: .010f, LeftArmSwing: .14f, RightArmSwing: .018f));
     // Source bone pivots from Assets/Models/Catapult.json, after grounding and scaling.

@@ -39,8 +39,7 @@ public partial class MechModel : Node3D
             void fragment() { ALBEDO = team_color.rgb; }
             """ } };
         model._outline.SetShaderParameter("team_color", TeamColor(side));
-        if (model.IsAwesome) model._outline.SetShaderParameter("outline_width", .55f);
-        if (spec.Id == "catapult") model._outline.SetShaderParameter("outline_width", .65f);
+        if (spec.Id is "awesome" or "jenner" or "catapult" or "wolverine") model._outline.SetShaderParameter("outline_width", .65f);
         foreach (var location in Enum.GetValues<MechLocation>())
         {
             var root = new Node3D { Name = location.ToString() };

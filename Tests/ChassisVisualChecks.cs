@@ -33,14 +33,16 @@ public partial class SmokeTests
                 var weapons = spec.Weapons.Where(weapon => weapon.Location == location).ToArray();
                 var tubes = weapons.Where(weapon => weapon.Name.StartsWith("SRM ", StringComparison.Ordinal)
                     || weapon.Name.StartsWith("LRM ", StringComparison.Ordinal)).Sum(weapon => int.Parse(weapon.Name.Split(' ')[^1]));
-                // Imported racks retain source Fire socket markers; procedural racks use individual tube meshes.
-                var displayedTubes = spec.Id == "catapult"
-                    ? root.FindChildren("MissileTube*", "Node3D", true, false).Count : Count(root, "MissileTube");
+                // Imported weapons retain non-rendering source Fire socket markers.
+                var displayedTubes = root.FindChildren("MissileTube*", "Node3D", true, false).Count;
+                var displayedCannons = root.FindChildren("CannonMuzzle", "Node3D", true, false).Count;
                 Check(displayedTubes == tubes && Count(root, "LaserEmitter") == weapons.Count(weapon => weapon.Name == "Medium Laser")
-                    && Count(root, "CannonMuzzle") == weapons.Count(weapon => weapon.Name == "AC/5"),
+                    && displayedCannons == weapons.Count(weapon => weapon.Name == "AC/5"),
                     $"{spec.Chassis} {location} displays stock weapon counts rather than illustration discrepancies");
             }
+            if (spec.Id == "jenner") TestImportedJenner(model);
             if (spec.Id == "catapult") TestImportedCatapult(model);
+            if (spec.Id == "wolverine") TestImportedWolverine(model);
             Check(hangar.GaitPicker.Visible, $"{spec.Chassis} exposes its gait preview selector");
             var legs = new[] { model.Locations[MechLocation.LeftLeg], model.Locations[MechLocation.RightLeg] };
             var ankles = legs.Select(root => (Node3D)root.FindChild("AnklePivot", true, false)).ToArray();
@@ -131,8 +133,8 @@ public partial class SmokeTests
         }
         Check(heights["jenner"] < heights["wolverine"] && heights["wolverine"] < heights["catapult"]
             && heights["catapult"] > 3 && heights["catapult"] < 3.276f, "new chassis have agreed relative heights beneath the Awesome");
-        Check(widths["catapult"] > heights["catapult"] * .65f && widths["jenner"] > heights["jenner"],
-            "imported Catapult retains its broad launcher silhouette and Jenner stays low and wide");
+        Check(widths["catapult"] > heights["catapult"] * .65f && widths["jenner"] is > 1.4f and < 1.5f,
+            "MW5 Catapult keeps its broad launcher silhouette and Jenner retains its source width");
 
         GetWindow().Size = new(1440, 900); hangar.Hide();
         var field = new CombatViewport(); stage.AddChild(field); field.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect); field.OffsetTop = 72;

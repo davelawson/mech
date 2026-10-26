@@ -1,0 +1,104 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Wolverine/Model",
+  "source_files": {
+    "Body/Materials/Textures/Wolverine_Body_Default_MSK.png": "976cf6e441ace3a3a3bf533240ae0c2d0ae2b63ed4cf1fcf65f04eac91a94120",
+    "Body/Materials/Textures/Wolverine_Body_NRM.png": "80b5874362703fcc98fca676e0cff48411d4adaca2a1f7d320fa34fe4108f0d9",
+    "Body/Materials/Textures/Wolverine_Body_Wear_MSK.png": "49fabbf8b467efe1407e05469f86a958285655a98a51114beff30bc75f93470b",
+    "Body/Materials/Textures/Wolverine_Variant_Default_MSK.png": "74c250b208a47fcb90b4be668621ed1430bfb7d550758cf16f4e09ce971b0903",
+    "Body/Materials/Textures/Wolverine_Variant_NRM.png": "3ee69a213b4e63016ec8ec69ba19b20d752c85686f6243cf7cf623c81eb5073c",
+    "Body/Materials/Textures/Wolverine_Variant_Wear_MSK.png": "1ebcb2ceca905f03edc1906f634c9abbeca9468d0b3ba1f2f5201367faed6c9d",
+    "Body/WVR_TP_Cockpit_DM0_STM.bin": "1c7e9b7a8a3ba4cb9c387f20f1efcf74d14644ed09d08e2cd7fc1d9e440b50e7",
+    "Body/WVR_TP_Cockpit_DM0_STM.gltf": "e81464cbd2ee4081cd43774daee48aecfea034b0e06b96d554a08a86d6b94332",
+    "Body/Wolverine_SKM.bin": "5e6f6c00f67ebe9f0a9ac7a35a0967e59fc899a1fd0fcf898c736cf224c989a2",
+    "Body/Wolverine_SKM.gltf": "38bf935d59bb461cd4e0101cdb646015c0e5778931b67a6073c31301ef4f99d2",
+    "Weapons/Weapon_Mech_WVR_Forearm_Right_BH1_AC5_SKM.bin": "2d4a972806da2a24c2a9605defd153a7f6e93c15911ebd4ffe6422c5ffe38862",
+    "Weapons/Weapon_Mech_WVR_Forearm_Right_BH1_AC5_SKM.gltf": "1343f79bd89402bc6d378a9522c3d0a7ff14fed9175d6a77e37e50485e778b7e",
+    "Weapons/Weapon_Mech_WVR_Head_EH1_Laser_SKM.bin": "aa36078d77d3558cbe43c36ae2df19ce9b483b8d8c8b2770c890315ec969466a",
+    "Weapons/Weapon_Mech_WVR_Head_EH1_Laser_SKM.gltf": "7f2fd65e452a540963ed56392d9e85a5ba016446e5ac10694d5fdee4afdeaa97",
+    "Weapons/Weapon_Mech_WVR_Torso_Left_MH1_Missile6_SKM.bin": "cc233411f0e3b4c0253b2f3307f721e9e7409045042d02152dfee790a95f2920",
+    "Weapons/Weapon_Mech_WVR_Torso_Left_MH1_Missile6_SKM.gltf": "c184bbb588cfa801a76ddddf0ca141db34f96b397728ecd3bafb0a4b2c5383d0"
+  },
+  "runtime_triangles": 25911,
+  "render_meshes": 20,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 4945,
+    "Head/AmberCanopy": 16,
+    "Head/CockpitFrame": 595,
+    "Head/LaserEmitter": 1038,
+    "LeftArm/ForearmAndFist": 1482,
+    "LeftArm/ShoulderAndUpperarm": 1012,
+    "LeftLeg/Foot": 1312,
+    "LeftLeg/Hip": 474,
+    "LeftLeg/Shin": 1218,
+    "LeftLeg/Thigh": 1240,
+    "LeftTorso/Srm6Housing": 875,
+    "LeftTorso/TorsoShell": 1676,
+    "RightArm/CannonHousing": 2139,
+    "RightArm/ForearmAndFist": 1482,
+    "RightArm/ShoulderAndUpperarm": 1052,
+    "RightLeg/Foot": 1312,
+    "RightLeg/Hip": 474,
+    "RightLeg/Shin": 1218,
+    "RightLeg/Thigh": 1240,
+    "RightTorso/TorsoShell": 1111
+  },
+  "height": 2.502127659574468,
+  "displayed_height": 2.94,
+  "scale": 0.15205774340484754,
+  "bottom": -0.007441236637532711,
+  "rig": {
+    "waist": 1.4685936,
+    "hip": [
+      0.2714745,
+      1.2177287,
+      8e-07
+    ],
+    "knee": [
+      0.2992869,
+      0.6762444,
+      -0.0841622
+    ],
+    "ankle": [
+      0.3205571,
+      0.2610593,
+      -0.0388172
+    ],
+    "shoulder": [
+      0.5497093,
+      1.7583625,
+      -0.0106391
+    ]
+  },
+  "weapons": [
+    {
+      "location": "RightArm",
+      "name": "CannonHousing",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_WVR_Forearm_Right_BH1_AC5_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftTorso",
+      "name": "Srm6Housing",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_WVR_Torso_Left_MH1_Missile6_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "Head",
+      "name": "LaserEmitter",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_WVR_Head_EH1_Laser_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "WVR_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 0
+  },
+  "missile_tubes": 6,
+  "attachment_evidence": "WVR-6R_MDA/Loadout -> Wolverine_HPS visual mappings -> weapon blueprint SKM defaults. Mech_SKL sockets and component locals are identity. Wolverine_MDL attaches exterior cockpit to Cockpit. Head laser attaches via Torso_Pitch but belongs to Head damage location.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-wolverine.py + scripts/mech_asset_tools.py; Python + Pillow"
+}
