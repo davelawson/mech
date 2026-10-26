@@ -1,0 +1,109 @@
+{
+  "cockpit_frame_section": 0,
+  "cockpit_bone": "Cockpit",
+  "weapons": [
+    {
+      "name": "Lrm15Housing",
+      "location": "LeftArm",
+      "mesh": "Weapon_Mech_CPLT_Upperarm_Left_MH3_Missile15_SKM",
+      "bone": "Upperarm_Left",
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Lrm15Housing",
+      "location": "RightArm",
+      "mesh": "Weapon_Mech_CPLT_Upperarm_Right_MH3_Missile15_SKM",
+      "bone": "Upperarm_Right",
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "LaserEmitterCenter_EH1",
+      "location": "CenterTorso",
+      "mesh": "Weapon_Mech_CPLT_Torso_Center_EH1_Laser_SKM",
+      "bone": "Torso_Pitch",
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "LaserEmitterCenter_EH2",
+      "location": "CenterTorso",
+      "mesh": "Weapon_Mech_CPLT_Torso_Center_EH2_Laser_SKM",
+      "bone": "Torso_Pitch",
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "LaserEmitterLeft_EH1",
+      "location": "LeftTorso",
+      "mesh": "Weapon_Mech_CPLT_Torso_Left_EH1_Laser_SKM",
+      "bone": "Torso_Pitch",
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "LaserEmitterRight_EH1",
+      "location": "RightTorso",
+      "mesh": "Weapon_Mech_CPLT_Torso_Right_EH1_Laser_SKM",
+      "bone": "Torso_Pitch",
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "evidence": "CPLT-C1_Loadout -> LRM15_Stream tag Weapon.Missile.LRM.LRM15.Stream -> Catapult_HPS parent tag Weapon.Missile.LRM.LRM15 -> MH3_Missile15 weapon blueprint defaults -> corresponding SKM. Mech_SKL sockets have identity relative transforms onto Upperarm_Left/Right and Torso_Pitch. Catapult_MDL ThirdPersonCockpitData attaches exterior DM0 static mesh to Cockpit with no transform override. Cockpit section coloring is authored for this game."
+}

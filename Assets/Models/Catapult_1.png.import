@@ -2,16 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bbbabn7538wvx"
-path="res://.godot/imported/dropship-office-rosters.png-14f95c4a43504a90a10a244da40b4af8.ctex"
+uid="uid://da2ak1pecwuc7"
+path="res://.godot/imported/Catapult_1.png-24fc443e8e7243d781abcbd38dfb972c.ctex"
 metadata={
 "vram_texture": false
+}
+generator_parameters={
+"md5": "e02e8ede531a85d026226046851cefe1"
 }
 
 [deps]
 
-source_file="res://Assets/dropship-office-rosters.png"
-dest_files=["res://.godot/imported/dropship-office-rosters.png-14f95c4a43504a90a10a244da40b4af8.ctex"]
+source_file="res://Assets/Models/Catapult_1.png"
+dest_files=["res://.godot/imported/Catapult_1.png-24fc443e8e7243d781abcbd38dfb972c.ctex"]
 
 [params]
 

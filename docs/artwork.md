@@ -1,10 +1,12 @@
 # Artwork
 
+The retained runtime artwork is `Assets/dropship-office-missions.png`, `Assets/inner-sphere-3025-starscape.jpg`, and the mech illustrations, personnel portraits and hangar background in `Assets/Roster/`. The two active GLBs and their required companion textures live in `Assets/Models/`. Unused office/map iterations, Trellis experiments and the standalone Awesome reference were removed on October 26, 2026. Historical prompts below describe provenance; their intermediate images are no longer retained. Inputs needed to rebuild active models remain under `generated/`, excluded from Godot imports and exports.
+
 ## DropShip office
 
 ### Integrated controls edit (October 24, 2026)
 
-- Active app asset: `Assets/dropship-office-integrated.png` (1672 × 940), edited with the built-in imagegen tool from the original painting. The original `Assets/dropship-office.png` is retained.
+- Earlier iteration: `dropship-office-integrated.png` (1672 × 940), edited with the built-in imagegen tool from the original painting. Both intermediate images were superseded by the active missions office and removed during cleanup.
 - The brass wall frame holds the complete reference image, including its title, legend and attribution. `CommandApp` shares `MapScreen.Viewport.Texture` through `OfficeScreen.SetWallMap(Texture2D?)`, including reference reload/failure. The wall uses its own fixed 7:6 fit rectangle; the opened map's zoom and pan never change it.
 - Calendar, post-it and safe are painted objects with blank surfaces. Only live date, countdown, reminder and balance text is overlaid. Their transparent hotspots retain subtle hover and keyboard focus outlines. The digital balance alone blinks during a pending payment.
 - Every region below is in source-image pixels, measured from the top-left of the complete painting. Hotspots, text and image use the same uniform fit scale, without a minimum control scale. Date and balance tooltips provide detail at small window sizes.
@@ -61,21 +63,22 @@ Use case: stylized-concept. Asset type: finished background illustration for a d
 
 ## Inner Sphere map
 
-- Original reference: `Assets/inner-sphere-3025.jpg` (7000 × 6000), a JPEG rendering of the one-page official PDF. The active shared chart is the starscape edit described below.
+- Original reference: a 7000 × 6000 JPEG rendering of the one-page official PDF. This superseded JPEG was removed; `docs/sources/inner-sphere-3025.pdf` remains the input to the active starscape renderer.
 - Source: [Inner Sphere at War: 3025](https://battletech.com/wp-content/uploads/sites/6/2025/03/BattleTech-Inner-Spher-at-War-3025.pdf), linked from the [official BattleTech downloads page](https://battletech.com/downloads/).
 - Retrieved October 24, 2026. The original copyright and attribution remain visible in the image; the map screen also links to the original PDF.
 - Third-party BattleTech map artwork retains its original rights; this project does not assert ownership or a new license over it. Download availability does not establish a redistribution license.
-- Godot imports both images losslessly with mipmaps for smooth downscaling, without reducing their source resolution. The complete chart is retained, including title, legend, and copyright notice. It is a reference image rather than the future playable system/route dataset.
+- Godot imports the active chart losslessly with mipmaps for smooth downscaling, without reducing its source resolution. The complete chart is retained, including title, legend, and copyright notice. It is a reference image rather than the future playable system/route dataset.
 
-To regenerate the map asset with Poppler after downloading the PDF:
+To render the original PDF for comparison with Poppler, keep the temporary reference outside the runtime assets:
 
 ```sh
-pdftoppm -singlefile -jpeg -jpegopt quality=94 -scale-to 7000 BattleTech-Inner-Spher-at-War-3025.pdf Assets/inner-sphere-3025
+mkdir -p TestResults
+pdftoppm -singlefile -jpeg -jpegopt quality=94 -scale-to 7000 docs/sources/inner-sphere-3025.pdf TestResults/inner-sphere-3025-reference
 ```
 
 ### Starscape edit (October 25, 2026)
 
-The active shared chart is `Assets/inner-sphere-3025-starscape.jpg` (7000 × 6000). The original JPEG is retained. The new version removes the hex outlines, 2,256 coordinate numbers (including the legend example), the legend hex symbol, and its interstellar-hex explanation. A static near-black navy background carries 1,100 faint decorative stars, smaller and dimmer than named systems. Muted faction fills, lighter borders, labels and compass details retain the original map geometry and lettering. The office wall and opened chart share the new texture, with lossless Godot import and mipmaps.
+The active shared chart is `Assets/inner-sphere-3025-starscape.jpg` (7000 × 6000). It removes the hex outlines, 2,256 coordinate numbers (including the legend example), the legend hex symbol, and its interstellar-hex explanation. A static near-black navy background carries 1,100 faint decorative stars, smaller and dimmer than named systems. Muted faction fills, lighter borders, labels and compass details retain the original map geometry and lettering. The office wall and opened chart share the new texture, with lossless Godot import and mipmaps.
 
 The final artwork is rendered from the original vector PDF, pinned in `docs/sources/inner-sphere-3025.pdf` with SHA-256 `40966bc3a317e7c7cc071b4c34ed6638a78eac8a659b237ef110393deaedb238`. This allows clean removal of the grid and coordinate forms without reconstructing any systems or labels. The source's capital symbols, title, compass, distance scale, remaining legend, logo and attribution are retained. Poppler text-and-position comparison confirmed that all 2,528 remaining words have exactly their original text and coordinates; the only omitted words are the hex coordinates and six words in the removed explanation.
 
@@ -101,7 +104,7 @@ CRITICAL PRESERVATION: This is an edit of the existing map, not a redesign or an
 
 The roster implementation adds 26 project-local raster assets generated with the built-in `image_gen.imagegen` tool on October 24, 2026. The exact prompt for every asset is recorded in [roster-art-prompts.json](roster-art-prompts.json).
 
-- `Assets/dropship-office-rosters.png` is a non-destructive edit of the integrated office. Existing map, calendar and safe openings retain their alignment. It adds a physical rolodex and replaces the space beyond the porthole with an enclosed repair-bay view. The original office assets remain available.
+- The former `dropship-office-rosters.png` was an edit of the integrated office that added a physical rolodex and an enclosed repair-bay view beyond the porthole. The active missions office retains those additions; the intermediate office images were removed during cleanup.
 - `Assets/Roster/hangar-background.png` is an empty maintenance bay with matching olive steel, amber lamps and painted industrial textures.
 - `Assets/Roster/{firestarter,jenner,panther,griffin,shadow-hawk,wolverine,catapult,crusader,thunderbolt,awesome,victor,zeus}.png` are individually generated transparent mech illustrations. They are visual interpretations of the chassis, not technical record sheets; the adjacent classic specifications are authoritative.
 - The other twelve PNGs in `Assets/Roster/` are individually generated original personnel portraits, named by the warrior IDs in `DraftCatalog`.
@@ -110,9 +113,35 @@ All new textures are imported losslessly with mipmaps. Cutout transparency is pr
 
 The new office hotspot rectangles in the existing 1672×940 source coordinate system are: rolodex `(695,552,124,104)` and hangar porthole `(1470,70,202,390)`. The live ready-count readout sits on the rolodex plaque and scales with the same artwork transform.
 
+### Awesome reference redesign (October 25, 2026)
+
+The active `Assets/Roster/awesome.png` (1254 × 1254 RGBA) replaces the original illustration with a detailed 3D-render appearance. The design followed a supplied `Awesome.avif` reference: segmented torso and shoulder armour, upright outer shoulder panels, head dish, articulated legs and round knee guards. The standalone reference was removed during cleanup. The active illustration preserves olive drab, dark steel, muted brass and amber, with restrained wear, a grounded three-quarter stance, three PPCs and a lowered left fist.
+
+Generated with the built-in `image_gen.imagegen` tool using the previous Awesome PNG as the palette/material reference and a lossless PNG decode of the AVIF as the primary design reference. A second built-in edit repaired the framing to include the complete shoulder tips and leave transparent margins. The selected output is copied directly into the active asset path with its alpha intact. Existing lossless import and mipmap settings are retained. The separate runtime 3D mech model is unaffected by this raster artwork replacement.
+
+Initial generation prompt:
+
+```text
+Use case: sketch-to-render.
+Asset type: replacement production BattleMech roster illustration for a Godot game, a single isolated transparent PNG.
+Input image 1 (/home/dave/dev/mech/Assets/Roster/awesome.png): PALETTE AND MATERIAL REFERENCE ONLY. Preserve its weathered olive drab paint, dark steel joints, muted brass edges, amber cockpit visor and subtle amber PPC glow. Do not preserve its simpler slab silhouette.
+Input image 2 (/home/dave/.codex/generated_images/awesome-inspiration-reference.png): PRIMARY DESIGN REFERENCE. Closely translate this Awesome drawing into a beautifully detailed, high-polygon 3D-render appearance, adopting its new silhouette, proportions and armour geometry. Follow its broad segmented upper torso, tall upright outer shoulder panels, small central recessed head with a small circular dish above it, layered bevelled chest and abdomen plates, complex waist and hip armour, large round knee shields, articulated mechanical legs and segmented broad feet. This must visibly resemble image 2 in form, not merely add texture to image 1.
+Subject: a recognizable classic Awesome AWS-8Q, a massive 80-ton humanoid assault BattleMech. Exactly THREE main PPC weapons: one long right-forearm cannon (on viewer left in this view) and two round chest-mounted PPC muzzles, plus an articulated left arm and clenched hand. No missiles or extra guns.
+Pose/composition: grounded stable front three-quarter display stance, both feet planted, legs slightly apart, left fist lowered in a natural relaxed display pose rather than raised for combat. Right cannon visible angled forward without obscuring chest. Entire mech including shoulder panels, head dish, arms and both feet visible with comfortable 5-8% transparent margins. Centered square composition at high resolution, ideally 2048x2048. Strong readable silhouette when reduced for roster cards.
+Style/materials: polished detailed 3D-render appearance, smoothly rendered bevels and curved joints, convincingly engineered armour with meaningful layered plates, inset vents, panel seams, fasteners, pistons and mechanical joints. Restrained military wear: subtle scratches, chipped edges, dark recesses, broad readable olive panels, no excessive grunge. Warm amber overhead highlights and cool green shadows matching input 1. Dark steel mechanisms, subdued brass trim, amber lights, no new bright colour accents.
+Background: genuine transparent alpha cutout, no environment, no ground plane, no cast floor shadow.
+Avoid: white or checkerboard baked-in background; text, signature, logos, watermarks, labels, human figures, scenery, smoke, firing beams, explosion, excessive glow, cropped extremities, old simple slab silhouette, low-poly faceting, sketch lines or illustration paper.
+```
+
+Final framing edit prompt (input: the first generated candidate):
+
+```text
+Use case: precise-object-edit. Input image is the approved design candidate for a transparent game roster cutout. Change ONLY framing: zoom out / expand the square canvas around the mech so the COMPLETE mech fits inside the image with a clearly visible transparent margin of at least 8% of canvas width on ALL FOUR SIDES. Currently the top ends of the tall shoulder panels are cut off at the top edge: complete those panel tops as needed and include them entirely. Both feet, both shoulder tips and the head dish must all be fully visible. The mech should occupy at most 82% of the canvas height and width. Keep the exact same mech design, grounded three-quarter pose, silhouette and proportions, three PPCs, left hand, segmented olive armour, round knee guards, dish, steel joints, muted brass and amber palette, fine details, restrained scratches and realistic high-polygon 3D-render appearance. No redesign, no new weapons. Output a square high-resolution PNG, preferably 2048x2048, with genuine transparent alpha, no ground plane, scenery, shadow on background, text, watermark or checkerboard. This is a framing repair; preserve the mech appearance.
+```
+
 ## Mission phone artwork
 
-`Assets/dropship-office-missions.png` is a non-destructive edit of `Assets/dropship-office-rosters.png`, generated with the built-in `image_gen.imagegen` tool on October 24, 2026. Both files are 1673 × 940; existing controls retain the established 1672 × 940 logical artwork coordinates. The existing office composition and openings are preserved. The phone hotspot is `(1116,558,129,83)`; an amber light at local `(85,49,8,6)` flashes in the live interface for unseen offers. The phone is silent. The texture is imported losslessly with mipmaps.
+`Assets/dropship-office-missions.png` was generated as an edit of the former roster office with the built-in `image_gen.imagegen` tool on October 24, 2026. The active image is 1673 × 940; existing controls retain the established 1672 × 940 logical artwork coordinates. The existing office composition and openings are preserved. The phone hotspot is `(1116,558,129,83)`; an amber light at local `(85,49,8,6)` flashes in the live interface for unseen offers. The phone is silent. The texture is imported losslessly with mipmaps.
 
 Final prompt:
 

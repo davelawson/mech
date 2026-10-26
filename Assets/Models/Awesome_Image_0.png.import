@@ -2,16 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b0ot2xdmgp2mx"
-path="res://.godot/imported/dropship-office-integrated.png-d10b97f99b9e2233616f58f2a5007f23.ctex"
+uid="uid://xsdcdpncy0eo"
+path="res://.godot/imported/Awesome_Image_0.png-c974fdaf49ac0e1c930385bc27030373.ctex"
 metadata={
 "vram_texture": false
+}
+generator_parameters={
+"md5": "f473e2a18a09fb70e5e5b8d522a39882"
 }
 
 [deps]
 
-source_file="res://Assets/dropship-office-integrated.png"
-dest_files=["res://.godot/imported/dropship-office-integrated.png-d10b97f99b9e2233616f58f2a5007f23.ctex"]
+source_file="res://Assets/Models/Awesome_Image_0.png"
+dest_files=["res://.godot/imported/Awesome_Image_0.png-c974fdaf49ac0e1c930385bc27030373.ctex"]
 
 [params]
 

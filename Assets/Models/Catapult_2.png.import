@@ -2,16 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bpxtqx2fikx3s"
-path="res://.godot/imported/inner-sphere-3025.jpg-00c95af2ab5aa3b4cbad1cb6c11d922f.ctex"
+uid="uid://n2uftdriccyh"
+path="res://.godot/imported/Catapult_2.png-d804b221861348a5ceec727f82bb930a.ctex"
 metadata={
 "vram_texture": false
+}
+generator_parameters={
+"md5": "1840c7a4050fa84f38fdfe807925d4d1"
 }
 
 [deps]
 
-source_file="res://Assets/inner-sphere-3025.jpg"
-dest_files=["res://.godot/imported/inner-sphere-3025.jpg-00c95af2ab5aa3b4cbad1cb6c11d922f.ctex"]
+source_file="res://Assets/Models/Catapult_2.png"
+dest_files=["res://.godot/imported/Catapult_2.png-d804b221861348a5ceec727f82bb930a.ctex"]
 
 [params]
 

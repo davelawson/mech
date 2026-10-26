@@ -14,12 +14,42 @@ public partial class SmokeTests
         var model = hangar.Preview.Model!;
         Check(model.IsAwesome && model.Locations.Count == 8, "AWESOME hangar preview uses its own eight-location chassis model");
         var meshes = model.FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>().ToArray();
-        Check(meshes.All(mesh => model.Locations.Values.Any(root => root.IsAncestorOf(mesh))), "every visual detail belongs to a damage location, including cockpit and weapons");
+        Check(meshes.All(mesh => model.Locations.Values.Count(root => root.IsAncestorOf(mesh)) == 1), "every visual detail belongs to a damage location, including cockpit and weapons");
         Check(meshes.Count(mesh => mesh.Name.ToString().StartsWith("PpcEmitter", StringComparison.Ordinal)) == 3,
             "AWESOME visibly carries three PPCs");
         Check(model.Locations[MechLocation.RightArm].FindChild("PpcEmitter", true, false) is MeshInstance3D { Position.X: > 0 }
             && model.Locations[MechLocation.LeftArm].FindChild("Fist", true, false) is not null,
             "right-arm PPC and left fist follow the hangar illustration's handedness");
+        var paint = meshes.SelectMany(mesh => Enumerable.Range(0, mesh.Mesh.GetSurfaceCount())
+            .Select(mesh.GetActiveMaterial)).OfType<StandardMaterial3D>()
+            .FirstOrDefault(material => material.AlbedoTexture is not null);
+        Check(paint?.AlbedoTexture is { } texture && texture.GetSize() == new Vector2(2048, 2048),
+            "Awesome preserves the source GLB's 2048px paint texture");
+        var opponent = MechModel.Create(DraftCatalog.Mech("awesome"), CombatSide.Enemy);
+        var friendlyEmitter = (MeshInstance3D)model.Locations[MechLocation.RightArm].FindChild("PpcEmitter", true, false);
+        var enemyEmitter = (MeshInstance3D)opponent.Locations[MechLocation.RightArm].FindChild("PpcEmitter", true, false);
+        var friendlyPaint = friendlyEmitter.GetActiveMaterial(0);
+        var enemyPaint = enemyEmitter.GetActiveMaterial(0);
+        Check(ReferenceEquals(friendlyEmitter.Mesh, enemyEmitter.Mesh) && !ReferenceEquals(friendlyPaint, enemyPaint)
+            && friendlyPaint.NextPass is ShaderMaterial friendlyOutline && enemyPaint.NextPass is ShaderMaterial enemyOutline
+            && friendlyOutline.GetShaderParameter("team_color").AsColor() == MechModel.TeamColor(CombatSide.Friendly)
+            && enemyOutline.GetShaderParameter("team_color").AsColor() == MechModel.TeamColor(CombatSide.Enemy),
+            "imported meshes are shared while friendly and enemy outlines remain independent");
+        opponent.Free();
+        var detailCounts = new Dictionary<string, int>();
+        foreach (var id in new[] { "awesome", "jenner", "wolverine", "catapult" })
+        {
+            var sample = id == "awesome" ? model : MechModel.Create(DraftCatalog.Mech(id), CombatSide.Friendly);
+            detailCounts[id] = sample.FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>()
+                .Sum(mesh => mesh.Mesh.GetFaces().Length / 3);
+            if (id != "awesome") sample.Free();
+        }
+        GD.Print($"Mech base triangles: {string.Join(", ", detailCounts.Select(pair => $"{pair.Key}={pair.Value}"))}; Awesome render meshes={meshes.Length}, height={model.Height:F3}");
+        Check(detailCounts["awesome"] is >= 60000 and <= 100000,
+            "imported Awesome meets its agreed 60–100k base-triangle budget");
+        Check(detailCounts["awesome"] >= detailCounts.Where(pair => pair.Key is "jenner" or "wolverine").Max(pair => pair.Value) * 3,
+            "imported Awesome has at least three times the geometry of the procedural chassis");
+        Check(meshes.Length <= 125, "Awesome keeps imported geometry within rigid damage groups to bound render instances");
         var yaw = model.Rotation.Y; hangar.Preview._Process(.5);
         Check(model.Rotation.Y != yaw, "hangar preview rotates automatically");
         hangar.Refresh();
@@ -32,9 +62,26 @@ public partial class SmokeTests
                 $"AWESOME preview remains inside hangar at {size}");
             Check(hangar.GetGlobalRect().Encloses(hangar.GaitPicker.GetGlobalRect()) && hangar.GaitPicker.Size.X >= 100,
                 $"gait preview controls fit the hangar at {size}");
+            var camera = hangar.Preview.FindChildren("*", "Camera3D", true, false).OfType<Camera3D>().Single();
+            var fits = true;
+            for (var angle = 0; angle < 12; angle++)
+            {
+                model.Rotation = new(0, angle * Mathf.Tau / 12, 0);
+                foreach (var mesh in meshes) for (var corner = 0; corner < 8; corner++)
+                {
+                    var point = mesh.GlobalTransform * mesh.Mesh.GetAabb().GetEndpoint(corner);
+                    var screen = camera.UnprojectPosition(point);
+                    fits &= !camera.IsPositionBehind(point) && new Rect2(Vector2.One,
+                        camera.GetViewport().GetVisibleRect().Size - Vector2.One * 2).HasPoint(screen);
+                }
+            }
+            Check(fits, $"Awesome dish, upright shoulders, cannon and feet fit the complete turntable at {size}");
+            model.Rotation = new(0, .32f, 0);
             await Capture($"awesome-hangar-{size.X}x{size.Y}");
         }
         GetWindow().Size = new(1440, 900); await Frames();
+        model.Rotation = new(0, Mathf.Pi + .32f, 0); await Capture("awesome-hangar-rear");
+        model.Rotation = new(0, .32f, 0);
         Check(hangar.GaitPicker.Visible && hangar.GaitPicker.ItemCount == 3, "Awesome exposes Idle/Walk/Run preview choices");
         var legs = new[] { model.Locations[MechLocation.LeftLeg], model.Locations[MechLocation.RightLeg] };
         var ankles = legs.Select(leg => (Node3D)leg.FindChild("AnklePivot", true, false)).ToArray();

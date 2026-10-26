@@ -10,8 +10,8 @@ public partial class MechModel
         float LeftArmSwing = .045f, float RightArmSwing = .045f);
     // Joint positions are model-local, on the anatomical right; the left side mirrors X.
     private sealed record RigProfile(float Waist, Vector3 Hip, Vector3 Knee, Vector3 Ankle, Vector3 Shoulder, GaitProfile Gait);
-    private static readonly RigProfile AwesomeRig = new(1.3f, new(.27f, 1.2f, .025f), new(.35f, .85f, -.015f),
-        new(.36f, .25f, 0), new(.66f, 2.12f, .015f), new());
+    private static readonly RigProfile AwesomeRig = new(1.54f, new(.476f, 1.316f, .056f), new(.574f, .84f, .014f),
+        new(.56f, .294f, .14f), new(.644f, 2.184f, .196f), new());
     private static readonly RigProfile JennerRig = new(1.30f, new(.35f, 1.25f, .10f), new(.43f, .78f, -.13f),
         new(.44f, .20f, .06f), new(.78f, 1.79f, .02f),
         new(WalkStride: .15f, RunStride: .19f, WalkLift: .065f, RunLift: .095f, BodyDrop: .030f, RunDrop: .010f,
@@ -20,8 +20,9 @@ public partial class MechModel
         new(.36f, .22f, .02f), new(.59f, 1.99f, .015f),
         new(WalkStride: .16f, RunStride: .21f, WalkLift: .085f, RunLift: .13f, BodyDrop: .040f, RunDrop: .015f,
             Bob: .012f, Sway: .022f, Lean: .055f, Roll: .010f, LeftArmSwing: .14f, RightArmSwing: .018f));
-    private static readonly RigProfile CatapultRig = new(1.36f, new(.29f, 1.28f, .10f), new(.42f, .76f, -.15f),
-        new(.43f, .21f, .07f), new(.63f, 2.05f, .02f),
+    // Source bone pivots from Assets/Models/Catapult.json, after grounding and scaling.
+    private static readonly RigProfile CatapultRig = new(1.2674548f, new(.484757f, 1.1799883f, -.0022531f), new(.49902f, .8512305f, .3638493f),
+        new(.530147f, .1569128f, -.0220576f), new(.3731738f, 1.7346633f, .2484192f),
         new(WalkStride: .14f, RunStride: .17f, WalkLift: .065f, RunLift: .095f, BodyDrop: .022f, RunDrop: .006f,
             Bob: .005f, Sway: .009f, Lean: .015f, Roll: .004f, LeftArmSwing: .012f, RightArmSwing: .012f));
     private sealed record Leg(Node3D Hip, Node3D Knee, Node3D Ankle, Vector3 Rest,
@@ -112,11 +113,13 @@ public partial class MechModel
         var thigh = new Vector2(leg.KneeRest.Y, leg.KneeRest.Z).Length();
         var shin = new Vector2(leg.AnkleRest.Y, leg.AnkleRest.Z).Length();
         var distance = Math.Clamp(new Vector2(y, z).Length(), Math.Abs(shin - thigh) + .001f, thigh + shin - .0001f);
-        var hip = Mathf.Atan2(-z, -y) + Mathf.Acos(Math.Clamp((thigh * thigh + distance * distance - shin * shin)
-            / (2 * thigh * distance), -1, 1));
-        var knee = -Mathf.Acos(Math.Clamp((distance * distance - thigh * thigh - shin * shin) / (2 * thigh * shin), -1, 1));
         var restHip = Mathf.Atan2(-leg.KneeRest.Z, -leg.KneeRest.Y);
         var restShin = Mathf.Atan2(-leg.AnkleRest.Z, -leg.AnkleRest.Y);
+        // Preserve each chassis's authored knee direction, including the Catapult's rearward bend.
+        var bend = restShin >= restHip ? 1 : -1;
+        var hip = Mathf.Atan2(-z, -y) - bend * Mathf.Acos(Math.Clamp((thigh * thigh + distance * distance - shin * shin)
+            / (2 * thigh * distance), -1, 1));
+        var knee = bend * Mathf.Acos(Math.Clamp((distance * distance - thigh * thigh - shin * shin) / (2 * thigh * shin), -1, 1));
         leg.Hip.Rotation = new(hip - restHip, 0, 0);
         leg.Knee.Rotation = new(knee - (restShin - restHip), 0, 0);
         leg.Ankle.Rotation = new(-leg.Hip.Rotation.X - leg.Knee.Rotation.X, 0, 0);

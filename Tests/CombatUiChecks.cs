@@ -7,6 +7,9 @@ public partial class SmokeTests
 {
     private async Task TestCombatUi()
     {
+        // Rendered command checks need a real focused window: combat intentionally ignores
+        // commands after desktop focus loss. Do not bypass the production focus guard.
+        if (_screenshots) { GetWindow().GrabFocus(); await Frames(); }
         await Click(_app.Office.HangarButton);
         await Click(_app.Hangar.RosterButtons[1]);
         var tabs = _app.Hangar.FindChildren("*", "TabContainer", true, false).OfType<TabContainer>().Single();

@@ -1,0 +1,186 @@
+{
+  "source": "generated/mw5-catapult",
+  "source_files": {
+    "Body/CPLT_TP_Cockpit_DM0_STM.bin": "8874df2cf55e9cd9b8c37d0185011c118d3ef30c8b5b735ac343632c1cc545e9",
+    "Body/CPLT_TP_Cockpit_DM0_STM.gltf": "588682975a16799a348e4d3c8896d0126ddd93b966ef2218bb6de3e9e62c6aaa",
+    "Body/Catapult_SKM.bin": "36e865a56fdaefc69f57c1c992662913b739a5d5603a02dae8d99f2a7a699086",
+    "Body/Catapult_SKM.gltf": "d141061c0648c066cdce1db7ce9481f141bdd788fdb0a2bb7b1565ea3374945b",
+    "Body/Materials/Textures/Catapult_Body_Default_MSK.png": "a684c16a410392bd6c87a66ac75b3d5a8ca3ee8fd885f551d90436c319aee5e4",
+    "Body/Materials/Textures/Catapult_Body_NRM.png": "bd4092b04722770448dd6c1a499eaf0fd5ac50e12609e8c76892520ac11dbfa2",
+    "Body/Materials/Textures/Catapult_Body_Wear_MSK.png": "0f39a3d5c1a544774baa1833099a95a80b0e0e3d44721cbca685a1db7092f4fd",
+    "Body/Materials/Textures/Catapult_Variant_Default_MSK.png": "f19184561f2138661798fc6589efdec80fcd9bfcc8fec41144deac5adc23c238",
+    "Body/Materials/Textures/Catapult_Variant_NRM.png": "5792810d5bd9daa74f2dee27d25e5355615be68278652750ffcbec3235f2109c",
+    "Body/Materials/Textures/Catapult_Variant_Wear_MSK.png": "c2e6fe3f6bb94574d7890835c337d7fb1b3c7cc3a18200ce399b859b2e9571ce",
+    "Weapons/Weapon_Mech_CPLT_Torso_Center_EH1_Laser_SKM.bin": "38bb4b8f1d809c17e6a24bb9c398545655ea3e0da86d1efee7c94cf08d6d2111",
+    "Weapons/Weapon_Mech_CPLT_Torso_Center_EH1_Laser_SKM.gltf": "3b985a13948c47c7b1734cea781ed97257c30189ed5202437d4a1ea8f295125e",
+    "Weapons/Weapon_Mech_CPLT_Torso_Center_EH2_Laser_SKM.bin": "252530ad5dec93e309595961764c38708fe4d1370cfbf4ba184d9665173554fd",
+    "Weapons/Weapon_Mech_CPLT_Torso_Center_EH2_Laser_SKM.gltf": "9d817ecf2247d80816d200faa27ea235209a7ad5889f783584e45066b619b399",
+    "Weapons/Weapon_Mech_CPLT_Torso_Left_EH1_Laser_SKM.bin": "2d63d30d6e7e81fe68d14d5cd6df9a323826bdcd521e1e18cb1ae593439c8340",
+    "Weapons/Weapon_Mech_CPLT_Torso_Left_EH1_Laser_SKM.gltf": "0e76e57b2b190ca71f9c4d9e96d1b8d7aef3b132d24d324a6fad856be74aed22",
+    "Weapons/Weapon_Mech_CPLT_Torso_Right_EH1_Laser_SKM.bin": "b0eeed1931db1e5c3b7645e20ab377fe48939caaeceed15eedfeebd7766c92ea",
+    "Weapons/Weapon_Mech_CPLT_Torso_Right_EH1_Laser_SKM.gltf": "ad8a0ee9fefd689eb3a3c017881e07cd9752da35de6fab9c601116bc59f9a328",
+    "Weapons/Weapon_Mech_CPLT_Upperarm_Left_MH3_Missile15_SKM.bin": "ac4a8e17815b95f6c7089d5bb6f1507b80dc5ddaac5d108ee77d5da76abe0dbf",
+    "Weapons/Weapon_Mech_CPLT_Upperarm_Left_MH3_Missile15_SKM.gltf": "9892a99db987404d840d29d68333a158b32e9bdc75b6094bfb3aa35be1c62182",
+    "Weapons/Weapon_Mech_CPLT_Upperarm_Right_MH3_Missile15_SKM.bin": "3c1c0dfd743e4fa7fd9a659774eb3983a6131c6b1aad87688ab59b360f96c054",
+    "Weapons/Weapon_Mech_CPLT_Upperarm_Right_MH3_Missile15_SKM.gltf": "eafd7859590713426fa3e8c4d952072697d11c142d464c964b86b1195528aa0c",
+    "attachments.json": "4c6d28d3eae6df70d5f49498ff1cbffbfbfac8d17b8f266f0d695f88047df38a"
+  },
+  "runtime_triangles": 37904,
+  "render_meshes": 21,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 9551,
+    "CenterTorso/LaserEmitterCenter_EH1": 40,
+    "CenterTorso/LaserEmitterCenter_EH2": 40,
+    "Head/AmberCanopy": 109,
+    "Head/CockpitFrame": 724,
+    "LeftArm/LauncherSupport": 1644,
+    "LeftArm/Lrm15Housing": 3120,
+    "LeftLeg/Foot": 1952,
+    "LeftLeg/Hip": 328,
+    "LeftLeg/Shin": 2404,
+    "LeftLeg/Thigh": 2321,
+    "LeftTorso/LaserEmitterLeft_EH1": 358,
+    "LeftTorso/TorsoShell": 1593,
+    "RightArm/LauncherSupport": 1644,
+    "RightArm/Lrm15Housing": 3120,
+    "RightLeg/Foot": 1952,
+    "RightLeg/Hip": 328,
+    "RightLeg/Shin": 2404,
+    "RightLeg/Thigh": 2321,
+    "RightTorso/LaserEmitterRight_EH1": 358,
+    "RightTorso/TorsoShell": 1593
+  },
+  "height": 2.5795918367346937,
+  "scale": 0.1710975549979524,
+  "bottom": -0.006316604558378458,
+  "rig": {
+    "waist": 1.2674548,
+    "hip": [
+      0.484757,
+      1.1799883,
+      -0.0022531
+    ],
+    "knee": [
+      0.49902,
+      0.8512305,
+      0.3638493
+    ],
+    "ankle": [
+      0.530147,
+      0.1569128,
+      -0.0220576
+    ],
+    "shoulder": [
+      0.3731738,
+      1.7346633,
+      0.2484192
+    ]
+  },
+  "weapons": [
+    {
+      "name": "Lrm15Housing",
+      "location": "LeftArm",
+      "mesh": "Weapon_Mech_CPLT_Upperarm_Left_MH3_Missile15_SKM",
+      "bone": "Upperarm_Left",
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "Lrm15Housing",
+      "location": "RightArm",
+      "mesh": "Weapon_Mech_CPLT_Upperarm_Right_MH3_Missile15_SKM",
+      "bone": "Upperarm_Right",
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "LaserEmitterCenter_EH1",
+      "location": "CenterTorso",
+      "mesh": "Weapon_Mech_CPLT_Torso_Center_EH1_Laser_SKM",
+      "bone": "Torso_Pitch",
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "LaserEmitterCenter_EH2",
+      "location": "CenterTorso",
+      "mesh": "Weapon_Mech_CPLT_Torso_Center_EH2_Laser_SKM",
+      "bone": "Torso_Pitch",
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "LaserEmitterLeft_EH1",
+      "location": "LeftTorso",
+      "mesh": "Weapon_Mech_CPLT_Torso_Left_EH1_Laser_SKM",
+      "bone": "Torso_Pitch",
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "LaserEmitterRight_EH1",
+      "location": "RightTorso",
+      "mesh": "Weapon_Mech_CPLT_Torso_Right_EH1_Laser_SKM",
+      "bone": "Torso_Pitch",
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "missile_tubes": 30,
+  "materials": "Olive palette baked from MW5 default/wear masks; source UVs and normal detail preserved. Amber exterior canopy.",
+  "tool": "scripts/prepare-catapult.py; Python + Pillow"
+}

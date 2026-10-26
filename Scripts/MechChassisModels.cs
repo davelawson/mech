@@ -176,30 +176,4 @@ public partial class MechModel
         }
         MissileRack(MechLocation.LeftTorso, new(-.39f, 2.20f, .06f), new(.32f, .55f, .46f), 2, 3, "Srm6Housing");
     }
-    private void BuildCatapult()
-    {
-        const MechLocation ct = MechLocation.CenterTorso, head = MechLocation.Head;
-        Plate(ct, "HipBridge", new(0, 1.30f, .10f), new(.66f, .20f, .38f), Joint);
-        FacetedHull(ct, "CentralHull", new(0, 1.82f, .03f), new(.57f, .92f, 1.12f), Olive);
-        Plate(ct, "RearReactor", new(0, 1.84f, .57f), new(.40f, .50f, .10f), DarkOlive);
-        FacetedHull(head, "CockpitNose", new(0, 1.98f, -.46f), new(.44f, .45f, .61f), Olive);
-        var canopy = Plate(head, "AmberCanopy", new(0, 2.151f, -.70f), new(.27f, .035f, .21f), Amber, .012f);
-        canopy.RotationDegrees = new(-40, 0, 0);
-        var frame = Plate(head, "CanopyFrame", new(0, 2.167f, -.70f), new(.024f, .045f, .23f), Trim, .004f);
-        frame.RotationDegrees = canopy.RotationDegrees;
-        for (var laser = 0; laser < 2; laser++) Laser(ct, new(laser == 0 ? -.12f : .12f, 1.57f, -.44f), laser, .035f);
-        foreach (var sign in new[] { -1, 1 })
-        {
-            var torso = sign < 0 ? MechLocation.LeftTorso : MechLocation.RightTorso;
-            var arm = sign < 0 ? MechLocation.LeftArm : MechLocation.RightArm;
-            FacetedHull(torso, "SideHull", new(sign * .37f, 1.85f, .025f), new(.37f, .79f, .99f), Olive);
-            Vent(torso, new(sign * .39f, 1.95f, -.45f), new(.21f, .18f));
-            Laser(torso, new(sign * .39f, 1.66f, -.37f), 0, .035f);
-            Cylinder(arm, "LauncherTrunnion", new(sign * .63f, 2.05f, .02f), .16f, .21f, Joint, new(0, 0, 90));
-            ArmorLink(arm, "LauncherSupport", new(sign * .64f, 1.98f, .06f), new(sign * .99f, 2.12f, .06f), .21f, .31f, DarkOlive);
-            MissileRack(arm, new(sign * 1.13f, 2.12f, .02f), new(.70f, .87f, .96f), 3, 5, "Lrm15Housing");
-            Plate(arm, "LauncherSidePanel", new(sign * 1.486f, 2.12f, .02f), new(.035f, .64f, .72f), DarkOlive, .012f);
-            BuildLeg(CatapultRig, sign, .27f, .46f);
-        }
-    }
 }

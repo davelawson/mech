@@ -27,17 +27,20 @@ public partial class MechModel : Node3D
             shader_type spatial;
             render_mode unshaded, cull_front, shadows_disabled;
             uniform vec4 team_color : source_color;
+            uniform float outline_width = 1.15;
             void vertex() {
                 vec4 clip = PROJECTION_MATRIX * MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
                 vec3 view_normal = (MODELVIEW_MATRIX * vec4(NORMAL, 0.0)).xyz;
                 vec2 direction = (PROJECTION_MATRIX * vec4(view_normal, 0.0)).xy;
                 direction /= max(length(direction), 0.0001);
-                clip.xy += direction * (2.0 * 1.15 / VIEWPORT_SIZE) * clip.w;
+                clip.xy += direction * (2.0 * outline_width / VIEWPORT_SIZE) * clip.w;
                 POSITION = clip;
             }
             void fragment() { ALBEDO = team_color.rgb; }
             """ } };
         model._outline.SetShaderParameter("team_color", TeamColor(side));
+        if (model.IsAwesome) model._outline.SetShaderParameter("outline_width", .55f);
+        if (spec.Id == "catapult") model._outline.SetShaderParameter("outline_width", .65f);
         foreach (var location in Enum.GetValues<MechLocation>())
         {
             var root = new Node3D { Name = location.ToString() };
@@ -141,80 +144,6 @@ public partial class MechModel : Node3D
         for (var i = 0; i < slats; i++)
             Plate(location, "VentSlat", at + new Vector3(0, (i - (slats - 1) / 2f) * size.Y / (slats + 1), -.024f),
                 new(size.X * .82f, .013f, .018f), Steel, .003f);
-    }
-    private void Ppc(MechLocation location, Vector3 at, bool longBarrel)
-    {
-        Cylinder(location, "PpcSocket", at, .157f, .065f, Joint);
-        Cylinder(location, "PpcCollar", at + new Vector3(0, 0, -.035f), .131f, .055f, Trim);
-        var length = longBarrel ? .23f : .07f;
-        Cylinder(location, "PpcBarrel", at + new Vector3(0, 0, -.07f - length / 2), .113f, length, Steel);
-        Cylinder(location, "PpcMuzzle", at + new Vector3(0, 0, -.08f - length), .093f, .022f, Joint);
-        Cylinder(location, "PpcEmitter", at + new Vector3(0, 0, -.094f - length), .048f, .012f, Amber);
-    }
-    private void BuildAwesome()
-    {
-        const MechLocation ct = MechLocation.CenterTorso, head = MechLocation.Head;
-        Plate(ct, "WaistJoint", new(0, 1.30f, .03f), new(.43f, .22f, .39f), Joint);
-        Plate(ct, "Pelvis", new(0, 1.36f, -.06f), new(.43f, .30f, .45f), DarkOlive);
-        Plate(ct, "ReactorHousing", new(0, 1.91f, .14f), new(.47f, .79f, .64f), DarkOlive, .065f);
-        Plate(ct, "ChestArmor", new(0, 1.96f, -.16f), new(.45f, .57f, .44f), Olive, .06f);
-        Plate(ct, "ChestBrow", new(0, 2.23f, -.19f), new(.47f, .10f, .42f), LightOlive);
-        Plate(ct, "Abdomen", new(0, 1.58f, -.21f), new(.36f, .22f, .32f), Olive);
-        Vent(ct, new(0, 1.68f, -.398f), new(.29f, .13f));
-        // Rear reactor and three separate torso seams are designed extensions of the front reference.
-        Plate(ct, "RearReactor", new(0, 1.99f, .485f), new(.38f, .53f, .08f), Olive);
-        for (var i = 0; i < 5; i++)
-            Plate(ct, "RearCoolingSlat", new(0, 1.82f + i * .075f, .536f), new(.28f, .025f, .025f), Joint, .004f);
-        Plate(head, "Neck", new(0, 2.26f, -.025f), new(.26f, .16f, .25f), Joint);
-        Plate(head, "CockpitHousing", new(0, 2.37f, -.055f), new(.34f, .29f, .36f), Olive, .05f);
-        Plate(head, "VisorRecess", new(0, 2.37f, -.241f), new(.265f, .115f, .025f), Joint, .013f);
-        Plate(head, "AmberVisor", new(0, 2.37f, -.258f), new(.21f, .067f, .012f), Amber, .008f);
-        Plate(head, "VisorDivider", new(.025f, 2.37f, -.270f), new(.018f, .082f, .014f), Trim, .003f);
-        Cylinder(head, "SmallLaser", new(.11f, 2.27f, -.252f), .022f, .04f, Joint);
-        foreach (var sign in new[] { -1, 1 })
-        {
-            var torso = sign < 0 ? MechLocation.LeftTorso : MechLocation.RightTorso;
-            var arm = sign < 0 ? MechLocation.LeftArm : MechLocation.RightArm;
-            var leg = sign < 0 ? MechLocation.LeftLeg : MechLocation.RightLeg;
-            var x = sign * .405f;
-            Plate(torso, "SideTorsoArmor", new(x, 1.94f, .015f), new(.33f, .69f, .65f), Olive, .055f);
-            Plate(torso, "TorsoTopPlate", new(x, 2.28f, -.015f), new(.32f, .09f, .53f), LightOlive);
-            Plate(torso, "TorsoRearPlate", new(x, 1.96f, .37f), new(.30f, .57f, .08f), DarkOlive);
-            Ppc(torso, new(x, 1.95f, -.329f), false);
-            Plate(torso, "LowerTorsoPlate", new(x, 1.65f, -.12f), new(.29f, .13f, .41f), DarkOlive);
-            Cylinder(arm, "ShoulderJoint", new(sign * .66f, 2.12f, .015f), .20f, .23f, Joint, new(0, 0, 90));
-            var shoulder = Plate(arm, "ShoulderSlab", new(sign * .91f, 2.17f, .025f), new(.65f, .64f, .63f), Olive, .065f);
-            shoulder.RotationDegrees = new(0, 0, -sign * 6);
-            Plate(arm, "ShoulderCrown", new(sign * .91f, 2.48f, .025f), new(.51f, .05f, .48f), LightOlive, .014f);
-            Plate(arm, "ShoulderPanel", new(sign * 1.00f, 2.16f, -.302f), new(.29f, .40f, .025f), DarkOlive, .018f);
-            Vent(arm, new(sign * .75f, 2.31f, -.305f), new(.13f, .20f), 5);
-            Plate(arm, "UpperArm", new(sign * .96f, 1.72f, .01f), new(.30f, .37f, .34f), DarkOlive);
-            Cylinder(arm, "Elbow", new(sign * .96f, 1.50f, -.02f), .145f, .34f, Steel, new(0, 0, 90));
-            if (sign > 0)
-            {
-                Plate(arm, "PpcForearm", new(.97f, 1.39f, -.27f), new(.39f, .34f, .57f), Olive, .055f);
-                Plate(arm, "ForearmTopPlate", new(.97f, 1.58f, -.27f), new(.32f, .05f, .44f), LightOlive);
-                Ppc(arm, new(.97f, 1.39f, -.57f), true);
-            }
-            else
-            {
-                Plate(arm, "LeftForearm", new(-.98f, 1.30f, -.08f), new(.35f, .40f, .38f), Olive, .05f);
-                Plate(arm, "Fist", new(-.98f, 1.03f, -.10f), new(.29f, .18f, .28f), Joint);
-                for (var finger = 0; finger < 3; finger++)
-                    Plate(arm, "Knuckle", new(-1.075f + finger * .09f, 1.04f, -.255f), new(.065f, .12f, .07f), Steel, .012f);
-            }
-            Cylinder(leg, "Hip", new(sign * .27f, 1.20f, .025f), .16f, .28f, Joint, new(0, 0, 90));
-            var thigh = Plate(leg, "ThighArmor", new(sign * .30f, 1.08f, .025f), new(.39f, .39f, .43f), Olive, .05f);
-            thigh.RotationDegrees = new(0, 0, sign * 10);
-            Plate(leg, "ThighFrontPlate", new(sign * .30f, 1.11f, -.215f), new(.29f, .25f, .05f), LightOlive);
-            Cylinder(leg, "Knee", new(sign * .35f, .85f, -.015f), .14f, .43f, Joint, new(0, 0, 90));
-            Plate(leg, "ShinArmor", new(sign * .36f, .57f, -.02f), new(.43f, .55f, .47f), Olive, .06f);
-            Plate(leg, "KneeGuard", new(sign * .36f, .82f, -.25f), new(.32f, .18f, .10f), LightOlive);
-            Vent(leg, new(sign * .36f, .43f, -.265f), new(.24f, .095f), 3);
-            Plate(leg, "Ankle", new(sign * .36f, .25f, 0), new(.27f, .15f, .31f), Joint);
-            Plate(leg, "Foot", new(sign * .37f, .12f, -.16f), new(.49f, .23f, .70f), DarkOlive, .05f);
-            Plate(leg, "ToeCap", new(sign * .37f, .11f, -.49f), new(.43f, .17f, .10f), LightOlive);
-        }
     }
     private void BuildGeneric(CombatSide side)
     {
