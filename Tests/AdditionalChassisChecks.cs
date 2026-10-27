@@ -100,7 +100,7 @@ public partial class SmokeTests
         }
         hangar.Hide();
         var field = new CombatViewport(); stage.AddChild(field); field.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect); field.OffsetTop = 72;
-        var sim = CombatSimulation.Deploy(roster, roster.Mechs.Select(mech => mech.Id), 183); sim.EnemyAiEnabled = false;
+        var sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(mech => mech.Id), BattlefieldTerrain.Flat, 183); sim.EnemyAiEnabled = false;
         field.Display(sim); field.SetProcess(false); await Frames();
         var models = field.FindChildren("*", "Node3D", true, false).OfType<MechModel>().ToArray();
         Check(models.Length == 6 && ids.All(id => models.Count(model => model.ChassisId == id && model.HasLocomotion) == 2),

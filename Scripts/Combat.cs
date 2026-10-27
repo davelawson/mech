@@ -76,6 +76,11 @@ public sealed class CombatUnit
     public IReadOnlyList<AmmoCondition> Ammo { get; }
     public Vector2 Position { get; internal set; }
     public Vector2 Destination { get; internal set; }
+    internal IReadOnlyList<Vector2> Route { get; set; } = Array.Empty<Vector2>();
+    internal int RouteIndex { get; set; }
+    internal Vector2 RouteGoal { get; set; } = new(float.NaN, float.NaN);
+    internal Vector2 FiringPosition { get; set; }
+    internal double NextFiringSearch { get; set; }
     public Vector2 Facing { get; internal set; }
     public bool Moving { get; internal set; }
     /// <summary>Signed travel along Facing: negative means reversing.</summary>
@@ -174,6 +179,7 @@ public sealed record CombatShot(string AttackerId, string TargetId, Vector2 From
 public sealed class CombatSimulation
 {
     public IReadOnlyList<CombatUnit> Units { get; }
+    public BattlefieldTerrain Terrain { get; }
     public bool Paused { get; set; } = true;
     public double Elapsed { get; private set; }
     public CombatOutcome Outcome { get; private set; }
@@ -193,7 +199,11 @@ public sealed class CombatSimulation
         return reasons.Count == 0 ? null : string.Join(" · ", reasons);
     }
 
-    public static CombatSimulation Deploy(ForceRoster roster, IEnumerable<string> selected, int? seed = null)
+    public static CombatSimulation Deploy(ForceRoster roster, IEnumerable<string> selected, int? seed = null, int? terrainSeed = null) =>
+        CreateDeployment(roster, selected, seed, terrainSeed, null);
+    internal static CombatSimulation DeployOnTerrain(ForceRoster roster, IEnumerable<string> selected, BattlefieldTerrain terrain, int seed = 41) =>
+        CreateDeployment(roster, selected, seed, null, terrain);
+    private static CombatSimulation CreateDeployment(ForceRoster roster, IEnumerable<string> selected, int? seed, int? terrainSeed, BattlefieldTerrain? terrain)
     {
         var ids = selected.ToArray();
         if (ids.Length is < 1 or > 4 || ids.Distinct().Count() != ids.Length)
@@ -214,10 +224,10 @@ public sealed class CombatSimulation
                 source.Equipment.Select(item => new EquipmentCondition(item.Id, ComponentCondition.Operational)),
                 spec.Ammo.Select(item => new AmmoCondition(item.Id, item.Shots)), new Vector2(x, -32)));
         }
-        return new CombatSimulation(units, seed ?? Random.Shared.Next());
+        return new CombatSimulation(units, seed ?? Random.Shared.Next(), terrain ?? BattlefieldTerrain.Generate(terrainSeed ?? Random.Shared.Next()));
     }
-    internal CombatSimulation(IEnumerable<CombatUnit> units, int seed)
-    { Units = Array.AsReadOnly(units.ToArray()); _random = new Random(seed); RefreshDetection(); }
+    internal CombatSimulation(IEnumerable<CombatUnit> units, int seed, BattlefieldTerrain? terrain = null)
+    { Units = Array.AsReadOnly(units.ToArray()); Terrain = terrain ?? BattlefieldTerrain.Flat; _random = new Random(seed); RefreshDetection(); }
     public CombatUnit Unit(string id) => Units.Single(item => item.Id == id);
     public IReadOnlyDictionary<string, CombatContact> Contacts(CombatSide side) => _contacts[side];
     public bool Detected(CombatSide side, string id) => _contacts[side].TryGetValue(id, out var contact) && contact.Detected;
@@ -229,7 +239,7 @@ public sealed class CombatSimulation
             var observers = Units.Where(item => item.Side == side && item.Active).ToArray();
             foreach (var target in Units.Where(item => item.Side != side))
             {
-                var visible = observers.Any(item => item.Position.DistanceTo(target.Position) <= CombatRules.DetectionRadius);
+                var visible = observers.Any(item => item.Position.DistanceTo(target.Position) <= CombatRules.DetectionRadius && Terrain.ClearSight(item.Position, target.Position));
                 if (!_contacts[side].TryGetValue(target.Id, out var contact))
                 {
                     if (!visible) continue;
@@ -248,17 +258,17 @@ public sealed class CombatSimulation
         {
             // Reserve separate destinations even when the clicked point is against a boundary.
             var offset = new Vector2((i % 2 - (group.Length > 1 ? .5f : 0)) * 2.4f, i / 2 * 2.4f);
-            var goal = CombatRules.Clamp(destination + offset);
+            var goal = Terrain.ReachableDestination(group[i].Position, destination + offset);
             for (var attempt = 0; assigned.Any(point => point.DistanceTo(goal) < CombatRules.UnitRadius * 2.1f) && attempt < 100; attempt++)
-                goal = CombatRules.Clamp(destination + Vector2.FromAngle(attempt * 2.4f) * (2 + attempt * .15f));
-            assigned.Add(goal); group[i].Destination = goal; group[i].Order = CombatOrder.Move; group[i].AttackTarget = null;
+                goal = Terrain.ReachableDestination(group[i].Position, destination + Vector2.FromAngle(attempt * 2.4f) * (2 + attempt * .15f));
+            group[i].Route = Array.Empty<Vector2>(); assigned.Add(goal); group[i].Destination = goal; group[i].Order = CombatOrder.Move; group[i].AttackTarget = null;
         }
     }
     public void Attack(IEnumerable<string> ids, string targetId)
     {
         var target = Unit(targetId);
         foreach (var unit in ids.Distinct().Select(Unit).Where(item => item.Active && item.Side != target.Side && Detected(item.Side, targetId) && target.Active))
-        { unit.Order = CombatOrder.Attack; unit.AttackTarget = targetId; }
+        { unit.Order = CombatOrder.Attack; unit.AttackTarget = targetId; unit.NextFiringSearch = 0; }
     }
     public void SetPriority(IEnumerable<string> ids, string? targetId)
     {
@@ -297,7 +307,7 @@ public sealed class CombatSimulation
             foreach (var weapon in unit.Weapons.Where(item => item.Enabled && item.Remaining <= 1e-6 && unit.WeaponUsable(item)))
             {
                 if (unit.Position.DistanceTo(target.Position) > weapon.Spec.Long) continue;
-                var hit = _random.NextDouble() < HitChance(unit, target, weapon);
+                var hit = _random.NextDouble() < TerrainHitChance(unit, target, weapon);
                 var location = RollLocation();
                 shots.Add(new(unit.Id, target.Id, unit.Position, target.Position, weapon.Spec.Name, hit, location, hit ? weapon.Damage : 0));
                 weapon.Remaining = CombatRules.Cooldown(weapon.Spec); unit.ShotsFired++;
@@ -344,15 +354,38 @@ public sealed class CombatSimulation
                 {
                     var away = unit.Position - target.Position;
                     if (away.Length() < .01f) away = unit.Side == CombatSide.Friendly ? Vector2.Down : Vector2.Up;
-                    if (Math.Abs(away.Length() - unit.PreferredDistance) > .4f)
+                    if (!Terrain.ClearSight(unit.Position, target.Position))
                     {
-                        goal = CombatRules.Clamp(target.Position + away.Normalized() * unit.PreferredDistance);
+                        if (Elapsed >= unit.NextFiringSearch)
+                        {
+                            var range = unit.Weapons.Where(weapon => weapon.Enabled && unit.WeaponUsable(weapon))
+                                .Select(weapon => (float)weapon.Spec.Long).DefaultIfEmpty(unit.PreferredDistance).Max();
+                            unit.FiringPosition = Terrain.FiringPosition(unit.Position, target.Position, unit.PreferredDistance, range);
+                            unit.NextFiringSearch = Elapsed + 1;
+                        }
+                        goal = unit.FiringPosition;
+                    }
+                    else if (Math.Abs(away.Length() - unit.PreferredDistance) > .4f)
+                    {
+                        goal = Terrain.ReachableDestination(unit.Position, target.Position + away.Normalized() * unit.PreferredDistance);
                         reverse = away.Length() < unit.PreferredDistance;
                     }
                 }
             }
             else if (_contacts[unit.Side].TryGetValue(id, out var contact)) goal = contact.LastKnownPosition;
             else { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
+        }
+        // End the order at its resolved destination, not at an intermediate waypoint.
+        if (goal is { } desired && unit.Position.DistanceTo(desired) >= .2f)
+        {
+            if (unit.Route.Count == 0 || !float.IsFinite(unit.RouteGoal.X) || unit.RouteGoal.DistanceTo(desired) > .75f)
+            {
+                unit.Route = Terrain.FindPath(unit.Position, desired); unit.RouteIndex = 0; unit.RouteGoal = desired;
+            }
+            while (unit.RouteIndex < unit.Route.Count - 1 && unit.Position.DistanceTo(unit.Route[unit.RouteIndex]) < .55f)
+                unit.RouteIndex++;
+            if (unit.RouteIndex < unit.Route.Count) goal = unit.Route[unit.RouteIndex];
+            else goal = null;
         }
         var remaining = goal is { } point ? point - unit.Position : Vector2.Zero;
         if (goal is not null && remaining.Length() < .2f)
@@ -372,7 +405,7 @@ public sealed class CombatSimulation
             // Brake into sharp turns. Broad moving turns retain forward travel, never lateral sliding.
             if (error < Mathf.DegToRad(60))
             {
-                var limit = reverse ? unit.WalkingSpeed : unit.Speed;
+                var limit = (reverse ? unit.WalkingSpeed : unit.Speed) * Terrain.SpeedFactor(unit.Position);
                 var arrivalSpeed = Mathf.Sqrt(2 * unit.Braking * Math.Max(0, remaining.Length() - .18f));
                 desiredSpeed = Math.Min(limit * Mathf.Cos(error), arrivalSpeed) * (reverse ? -1 : 1);
             }
@@ -416,7 +449,7 @@ public sealed class CombatSimulation
         }
         return direction;
     }
-    private bool Blocked(CombatUnit unit, Vector2 candidate) => Units.Any(other => other != unit
+    private bool Blocked(CombatUnit unit, Vector2 candidate) => !Terrain.CanTraverse(unit.Position, candidate) || Units.Any(other => other != unit
         && DistanceToSegment(other.Position, unit.Position, candidate) < CombatRules.UnitRadius * 2);
     private static float DistanceToSegment(Vector2 point, Vector2 from, Vector2 to)
     {
@@ -427,6 +460,7 @@ public sealed class CombatSimulation
     public CombatUnit? SelectTarget(CombatUnit unit)
     {
         bool Engageable(CombatUnit target) => target.Side != unit.Side && target.Active && Detected(unit.Side, target.Id)
+            && Terrain.ClearSight(unit.Position, target.Position)
             && unit.Weapons.Any(weapon => weapon.Enabled && unit.WeaponUsable(weapon) && unit.Position.DistanceTo(target.Position) <= weapon.Spec.Long);
         if (unit.AttackTarget is { } attack && unit.Order == CombatOrder.Attack && Engageable(Unit(attack))) return Unit(attack);
         if (unit.Firing == FiringMode.HoldFire) return null;
@@ -434,13 +468,16 @@ public sealed class CombatSimulation
         if (unit.CurrentTarget is { } current && Engageable(Unit(current))) return Unit(current);
         return Units.Where(Engageable).OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
     }
-    public static double HitChance(CombatUnit attacker, CombatUnit target, CombatWeapon weapon)
+    public double TerrainHitChance(CombatUnit attacker, CombatUnit target, CombatWeapon weapon) =>
+        Terrain.ClearSight(attacker.Position, target.Position)
+            ? HitChance(attacker, target, weapon, Terrain.VegetationModifier(attacker.Position, target.Position)) : 0;
+    public static double HitChance(CombatUnit attacker, CombatUnit target, CombatWeapon weapon, int terrainModifier = 0)
     {
         var distance = attacker.Position.DistanceTo(target.Position);
         if (distance > weapon.Spec.Long || !attacker.WeaponUsable(weapon)) return 0;
         var range = distance <= weapon.Spec.Short ? 0 : distance <= weapon.Spec.Medium ? 2 : 4;
         var minimum = distance < weapon.Spec.Minimum ? (int)Math.Ceiling(weapon.Spec.Minimum - distance) : 0;
-        var threshold = attacker.Warrior.Gunnery + CombatRules.AimModifier + range + minimum
+        var threshold = attacker.Warrior.Gunnery + CombatRules.AimModifier + range + minimum + terrainModifier
             + (attacker.Moving ? attacker.Movement == MovementMode.Run ? 2 : 1 : 0)
             + (target.Moving ? target.Movement == MovementMode.Run ? 2 : 1 : 0);
         var successes = 0;

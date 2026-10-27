@@ -141,8 +141,10 @@ public partial class SmokeTests
         combat.Open(damagedRoster, damaged.Id); combat.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed); await Frames();
         var sim = combat.Simulation!; var friendly = sim.Units.First(unit => unit.Side == CombatSide.Friendly);
         var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
-        friendly.Position = new(-2.3f, 12); enemy.Position = new(2.3f, 12); friendly.Facing = enemy.Facing = Vector2.Down;
-        sim.RefreshDetection(); combat.Battlefield.Camera.Size = 12; await Frames();
+        // Model review uses the guaranteed clear spawn band, independently of random scenery.
+        friendly.Position = new(-2.3f, 32); enemy.Position = new(2.3f, 32); friendly.Facing = enemy.Facing = Vector2.Down;
+        sim.RefreshDetection(); combat.Battlefield.Camera.Position += new Vector3(0, 0, 20);
+        combat.Battlefield.Camera.Size = 12; await Frames();
         Check(combat.Paperdoll.Unit == friendly && friendly.Locations[MechLocation.RightTorso].Armor == friendly.Locations[MechLocation.RightTorso].InitialArmor
             && CombatPaperdoll.ConditionColor(friendly.Locations[MechLocation.RightTorso].Armor, friendly.Spec.Locations.Single(loc => loc.Location == MechLocation.RightTorso).Armor) == CombatPaperdoll.ModerateDamage,
             "pre-deployment damage remains colored against stock maxima rather than deployment values");

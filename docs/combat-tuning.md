@@ -29,6 +29,28 @@ Mechs travel along their leg facing. Moving turns become wider as speed rises; d
 
 Move toward the center to make contact. Enemy AI advances there until it detects a target. Steering looks ahead by stopping distance and tries direct movement then ±30°, ±60° and ±90° alternatives around occupied space. Each candidate supplies a desired heading; the mech must turn toward it before traveling. Wrecks remain occupied space. Arena bounds and separate group destinations apply to both forces. Preferred distance never prevents an otherwise valid shot.
 
+## Natural terrain
+
+Terrain is an immutable, seeded heightfield shared by combat, navigation, rendering and mouse picking. Ground positions remain continuous X/Z; elevation comes from the same triangulated one-hex heightfield used by the mesh. Combat randomness has a separate seed. Deployment shows an editable signed 32-bit terrain seed and a New terrain button; the battlefield, pause menu and results retain the seed.
+
+| Value | Default |
+| --- | --- |
+| Hills | Seven cosine hills, radius 6–11, height 3–7; overlapping elevations combine |
+| Rocks | Up to 16, radius 1.3–3, height 3–6; solid vertical cylinders |
+| Vegetation | Up to ten patches, radius 3–6; 70% speed |
+| Water | Up to four shallow patches, radius 3–6; 50% speed and flat banks |
+| Steepness limit | Gradient 0.65 (about 33°), including the mech footprint |
+| Slope speed factor | Divide terrain speed by 1 + local gradient |
+| Solid clearance | Rock radius + mech radius + 0.1 hex |
+| Detection / firing height | 1.5 hexes above the ground at each endpoint |
+| Vegetation hit modifier | +1 per crossed patch, capped at +2 |
+| Navigation | Eight-neighbor one-hex grid, continuous segment clearance checks every 0.25 hex |
+| Hill sight checks | Every 0.2 hex along the elevated sight ray; rocks use ray/cylinder intersection |
+
+Generation permits unrestricted asymmetry while reserving clear spawn bands and a clear central rendezvous. It validates paths between all possible spawn slots and the center, retries disconnected candidates, and requires every terrain kind. Patch placement avoids overlapping patches. Hills may overlap patches; shallow water flattens its immediate surroundings. There is one default density.
+
+Move orders resolve inaccessible destinations to the nearest reachable navigation point in the unit's connected component. Paths detour around rocks and steep slopes, with terrain speed weighting for detours; direct clear routes remain direct. Waypoints feed the existing acceleration, braking, turning, and occupied-space avoidance. Both sides seek a reachable clear firing position when a detected attack target is behind terrain, reconsidering at most once per simulated second. There is no deliberate cover-seeking AI. Shared detection cannot authorize a shot through solid terrain.
+
 ## Weapons and hit rolls
 
 | Weapon | Cooldown |
@@ -42,10 +64,11 @@ Weapons start ready; cooldowns progress only during active simulation time. Stoc
 
 Hit chance is the exact probability of 2d6 meeting this threshold:
 
-`Gunnery + 3 (real-time aim modifier) + range + minimum-range penalty + attacker movement + target movement`
+`Gunnery + 3 (real-time aim modifier) + range + minimum-range penalty + attacker movement + target movement + vegetation`
 
 - Range: +0 short, +2 medium, +4 long; no shots beyond long range.
 - Minimum range: `ceil(minimum − distance)` when inside minimum.
+- Vegetation contributes +1 per intersected patch, including target vegetation, capped at +2. It does not block detection or reduce damage.
 - Each moving mech contributes +1 walking or +2 running; stationary contributes zero.
 - There is no artificial minimum/maximum chance clamp. Closing range and stopping can improve accuracy.
 - Target preference does not wait for cooldowns. Valid current targets persist until invalid or superseded by Attack / priority.
@@ -69,6 +92,7 @@ Five-to-ten minutes remains a provisional ordinary-engagement target. The initia
 
 ## Interaction defaults
 
+- Enter a terrain seed or use New terrain before launching; the chosen seed reproduces terrain only.
 - Preselect the current eligible hangar mech, otherwise the first eligible mech. Choose one to four; unavailable entries explain why. Assignments remain in the hangar.
 - Click / drag selects friendlies; Shift adds or removes selection. Right-click ground moves, or a detected enemy attacks. Orders issue on release only if the pointer stays within five screen pixels of its press position; small accidental movements still count as a click. Last-known markers are stationary ground destinations.
 - Set priority target arms a separate right-click action; priority alone never causes pursuit. Stop clears the active order while preserving priority.
@@ -82,4 +106,4 @@ Five-to-ten minutes remains a provisional ordinary-engagement target. The initia
 
 ## Validation
 
-`./scripts/mech test` exercises the ten acceptance scenarios with deterministic model checks and actual mouse/keyboard input. `./scripts/mech capture` repeats the suite with graphical rendering and saves deployment, combat, minimum-window, menu and report captures in `TestResults/`. Linux checks do not establish native Windows/macOS runtime verification.
+`./scripts/mech test` exercises seeded generation, connected spawns, slope/rock clearance, terrain detours, cover, sight, water movement, generated-map engagements, terrain picking and seed controls alongside the ten acceptance scenarios with deterministic model checks and actual mouse/keyboard input. `./scripts/mech capture` repeats the suite with graphical rendering and saves deployment, combat, minimum-window, menu and report captures in `TestResults/`. Linux checks do not establish native Windows/macOS runtime verification.

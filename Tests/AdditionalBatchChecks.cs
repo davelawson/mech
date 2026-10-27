@@ -103,7 +103,7 @@ public partial class SmokeTests
             var roster = ForceRoster.Create("Additional combat review", group, DraftCatalog.Warriors.Take(group.Length));
             for (var i = 0; i < group.Length; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
             var field = new CombatViewport(); stage.AddChild(field); field.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect); field.OffsetTop = 72;
-            var sim = CombatSimulation.Deploy(roster, roster.Mechs.Select(mech => mech.Id), 183); sim.EnemyAiEnabled = false;
+            var sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(mech => mech.Id), BattlefieldTerrain.Flat, 183); sim.EnemyAiEnabled = false;
             field.Display(sim); field.SetProcess(false); await Frames();
             var models = field.FindChildren("*", "Node3D", true, false).OfType<MechModel>().ToArray();
             if (models.Length != group.Length * 2 || group.Any(spec => models.Count(model => model.ChassisId == spec.Id && model.HasLocomotion) != 2))

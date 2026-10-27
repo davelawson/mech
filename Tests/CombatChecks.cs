@@ -11,8 +11,11 @@ internal static partial class CombatChecks
         for (var i = 0; i < count; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         return roster;
     }
+    // Existing combat checks isolate combat/locomotion on flat ground; TerrainChecks exercises production terrain.
+    private static CombatSimulation Deploy(ForceRoster roster, IEnumerable<string> selected, int seed = 41) =>
+        CombatSimulation.DeployOnTerrain(roster, selected, BattlefieldTerrain.Flat, seed);
     private static CombatSimulation Battle(int count = 1, string definition = "awesome", int seed = 41)
-    { var roster = Roster(count, definition); return CombatSimulation.Deploy(roster, roster.Mechs.Select(item => item.Id), seed); }
+    { var roster = Roster(count, definition); return Deploy(roster, roster.Mechs.Select(item => item.Id), seed); }
     private static CombatUnit Friendly(CombatSimulation sim) => sim.Units.First(item => item.Side == CombatSide.Friendly);
     private static CombatUnit Enemy(CombatSimulation sim) => sim.Units.First(item => item.Side == CombatSide.Enemy);
     private static void Arrange(CombatSimulation sim, float distance = 8)
@@ -31,23 +34,23 @@ internal static partial class CombatChecks
             check(rejected, message);
         }
         var roster = Roster(4); var before = JsonSerializer.Serialize(roster.Snapshot());
-        var sim = CombatSimulation.Deploy(roster, roster.Mechs.Select(item => item.Id), 12);
+        var sim = Deploy(roster, roster.Mechs.Select(item => item.Id), 12);
         check(sim.Paused && sim.Units.Count == 8 && sim.Units.All(item => item.Weapons.All(weapon => weapon.Remaining == 0)), "deployment starts paused with ready independent weapons and mirrored force");
         check(sim.Units.All(item => item.Movement == MovementMode.Walk) && sim.Contacts(CombatSide.Friendly).Count == 0, "deployment starts walking outside detection");
         check(sim.Units.Where(item => item.Side == CombatSide.Enemy).Zip(sim.Units.Where(item => item.Side == CombatSide.Friendly))
             .All(pair => pair.First.Spec == pair.Second.Spec && pair.First.Warrior == pair.Second.Warrior), "opposition mirrors definitions and warrior skills");
-        Reject(() => CombatSimulation.Deploy(roster, []), "empty deployment rejected");
-        Reject(() => CombatSimulation.Deploy(roster, ["mech-1", "mech-1"]), "duplicate deployment rejected");
-        Reject(() => CombatSimulation.Deploy(roster, ["unknown"]), "unknown deployment rejected");
+        Reject(() => Deploy(roster, []), "empty deployment rejected");
+        Reject(() => Deploy(roster, ["mech-1", "mech-1"]), "duplicate deployment rejected");
+        Reject(() => Deploy(roster, ["unknown"]), "unknown deployment rejected");
         var tooMany = Roster(5);
-        Reject(() => CombatSimulation.Deploy(tooMany, tooMany.Mechs.Select(item => item.Id)), "more than four rejected");
+        Reject(() => Deploy(tooMany, tooMany.Mechs.Select(item => item.Id)), "more than four rejected");
         roster.Assign("mech-1", null);
         check(CombatSimulation.UnavailableReason(roster, roster.Mechs[0])!.Contains("No assigned"), "uncrewed mech explains exclusion");
-        Reject(() => CombatSimulation.Deploy(roster, ["mech-1"]), "uncrewed deployment rejected");
+        Reject(() => Deploy(roster, ["mech-1"]), "uncrewed deployment rejected");
         roster.Assign("mech-1", roster.Warriors[0].Id);
         roster.SetHealth(roster.Warriors[0].Id, WarriorHealth.Injured, new DateOnly(3025, 1, 3), Campaign.StartDate);
         check(CombatSimulation.UnavailableReason(roster, roster.Mechs[0])!.Contains("Injured"), "injured assignment explains exclusion");
-        Reject(() => CombatSimulation.Deploy(roster, ["mech-1"]), "injured pilot deployment rejected");
+        Reject(() => Deploy(roster, ["mech-1"]), "injured pilot deployment rejected");
         roster.SetHealth(roster.Warriors[0].Id, WarriorHealth.Healthy, null, Campaign.StartDate);
         var saved = roster.Snapshot(); var stock = saved.Mechs[0];
         var damaged = stock with
@@ -57,7 +60,7 @@ internal static partial class CombatChecks
             Ammo = stock.Ammo.Select(item => item with { Shots = item.Shots / 2 }).ToArray()
         };
         var damagedRoster = ForceRoster.Restore(saved with { Mechs = [damaged] }, Campaign.StartDate);
-        var copied = CombatSimulation.Deploy(damagedRoster, [damaged.Id]);
+        var copied = Deploy(damagedRoster, [damaged.Id]);
         check(Friendly(copied).Locations[MechLocation.CenterTorso].Armor + 3 == Enemy(copied).Locations[MechLocation.CenterTorso].Armor
             && !Friendly(copied).WeaponUsable(Friendly(copied).Weapons[0]) && Enemy(copied).WeaponUsable(Enemy(copied).Weapons[0]), "current condition and equipment copied; enemy is undamaged");
         var nonoperational = ForceRoster.Restore(saved with { Mechs = [stock with { Locations = stock.Locations.Select(loc => loc.Location == MechLocation.LeftLeg ? loc with { Structure = 0 } : loc).ToArray() }] }, Campaign.StartDate);
@@ -96,7 +99,7 @@ internal static partial class CombatChecks
         CheckLocomotion(check);
         CheckOutcomes(check);
 
-        sim = CombatSimulation.Deploy(roster, roster.Mechs.Select(item => item.Id), 12);
+        sim = Deploy(roster, roster.Mechs.Select(item => item.Id), 12);
         foreach (var unit in sim.Units.Where(item => item.Side == CombatSide.Friendly)) unit.ApplyDamage(MechLocation.CenterTorso, 500);
         sim.Paused = false; sim.Advance(.1); sim.End();
         check(JsonSerializer.Serialize(roster.Snapshot()) == before, "deployment, damage and completion never mutate source roster or equipment");
@@ -259,7 +262,7 @@ internal static partial class CombatChecks
         }
         var roster = ForceRoster.Create("Mixed lance", new[] { "firestarter", "griffin", "catapult", "awesome" }.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(4));
         for (var i = 0; i < 4; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
-        var lance = CombatSimulation.Deploy(roster, roster.Mechs.Select(item => item.Id), 183); lance.Paused = false;
+        var lance = Deploy(roster, roster.Mechs.Select(item => item.Id), 183); lance.Paused = false;
         lance.Move(lance.Units.Where(item => item.Side == CombatSide.Friendly).Select(item => item.Id), Vector2.Zero);
         for (var second = 0; second < 1200 && lance.Outcome == CombatOutcome.Ongoing; second++)
         {

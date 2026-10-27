@@ -156,7 +156,7 @@ public partial class SmokeTests
 
         GetWindow().Size = new(1440, 900); hangar.Hide();
         var field = new CombatViewport(); stage.AddChild(field); field.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect); field.OffsetTop = 72;
-        var sim = CombatSimulation.Deploy(roster, roster.Mechs.Select(mech => mech.Id), 183); sim.EnemyAiEnabled = false;
+        var sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(mech => mech.Id), BattlefieldTerrain.Flat, 183); sim.EnemyAiEnabled = false;
         var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
         var enemies = sim.Units.Where(unit => unit.Side == CombatSide.Enemy).ToArray();
         for (var i = 0; i < friends.Length; i++)

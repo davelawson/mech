@@ -31,13 +31,36 @@ public partial class SmokeTests
         await Click(_app.Hangar.DeploymentButton);
         Check(tactical.ForceChoices[1].ButtonPressed && tactical.ForceChoices.Count(item => item.ButtonPressed) == 1, "force selection preselects eligible hangar mech");
         await Click(tactical.ForceChoices[0]);
+        tactical.TerrainSeedInput.Text = "invalid";
+        tactical.TerrainSeedInput.EmitSignal(LineEdit.SignalName.TextChanged, "invalid");
+        Check(tactical.LaunchButton.Disabled, "invalid terrain seed prevents launch with explanation");
+        await Click(tactical.NewTerrainButton);
+        Check(!tactical.LaunchButton.Disabled && int.TryParse(tactical.TerrainSeedInput.Text, out _), "New terrain supplies a valid seed");
+        tactical.TerrainSeedInput.Text = "183";
+        tactical.TerrainSeedInput.EmitSignal(LineEdit.SignalName.TextChanged, "183");
         await Capture("deployment-selection");
+        GetWindow().Size = new Vector2I(900, 500); await Frames();
+        Check(tactical.GetGlobalRect().Encloses(tactical.TerrainSeedInput.GetGlobalRect())
+            && tactical.GetGlobalRect().Encloses(tactical.NewTerrainButton.GetGlobalRect())
+            && tactical.GetGlobalRect().Encloses(tactical.LaunchButton.GetGlobalRect()), "terrain seed and launch controls fit the minimum window");
+        await Capture("deployment-terrain-900x500");
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
         await Click(tactical.LaunchButton);
         var sim = tactical.Simulation!; var field = tactical.Battlefield;
         Check(tactical.Modal == CombatModal.None && sim.Paused && tactical.UnitButtons.Count == 2, "launch creates selected mirrored force and starts paused");
         Check(tactical.Selected.Count == 1 && !sim.Contacts(CombatSide.Friendly).Any(), "first friendly selected and enemy starts hidden");
         _app.StartAdvancing(true); Check(!_app.IsAdvancing, "campaign calendar cannot run during combat");
         var friendly = sim.Units.First(item => item.Side == CombatSide.Friendly);
+        Check(sim.Terrain.Seed == 183, "deployment honors the entered terrain seed");
+        var hilltop = sim.Terrain.Hills.OrderByDescending(hill => sim.Terrain.HeightAt(hill.Center)).First().Center;
+        Check(field.GroundPoint(field.ScreenPoint(hilltop)).DistanceTo(hilltop) < .02f, "height-aware picking matches rendered hill elevation");
+        var rock = sim.Terrain.Patches.First(patch => patch.Kind == TerrainKind.Rock);
+        await PressKey(Key.Home);
+        Check(field.GroundPoint(field.ScreenPoint(rock.Center, rock.Height)).DistanceTo(rock.Center) < .02f, "clicking a rock top picks its footprint rather than ground behind it");
+        await RightClick(field.GlobalPosition + field.ScreenPoint(rock.Center, rock.Height));
+        Check(friendly.Order == CombatOrder.Move && sim.Terrain.Passable(friendly.Destination)
+            && friendly.Destination.DistanceTo(rock.Center) < rock.Radius + 3, "actual ground click inside rock shows a nearby reachable destination");
+        await Capture("terrain-overview");
         var destination = field.GlobalPosition + field.ScreenPoint(new Vector2(0, 16));
         await RightClick(destination);
         Check(tactical.Visible && !_app.Office.Visible && friendly.Order == CombatOrder.Move && sim.Elapsed == 0, "actual right-click queues Move while paused without campaign back navigation");
@@ -110,6 +133,7 @@ public partial class SmokeTests
             await Capture($"combat-{size.X}x{size.Y}");
         }
         GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        await TestTerrainUi();
         await PressKey(Key.Escape); await Click(tactical.EndButton);
         Check(tactical.Modal == CombatModal.Results && sim.Outcome == CombatOutcome.Ended, "End Simulation shows damage summary");
         await Capture("combat-results");
@@ -128,4 +152,37 @@ public partial class SmokeTests
         _app.Hangar.Refresh(); _app.Hangar.Select(0);
         await PressKey(Key.Escape);
     }
+    private async Task TestTerrainUi()
+    {
+        var tactical = _app.Tactical; var sim = tactical.Simulation!; var terrain = sim.Terrain;
+        var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
+        var target = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
+        foreach (var unit in sim.Units) { sim.Hold([unit.Id]); unit.Firing = FiringMode.HoldFire; }
+        static IEnumerable<Vector2> Around(Vector2 center, float radius) => Enumerable.Range(0, 24).Select(index => center + Vector2.FromAngle(index * Mathf.Tau / 24) * radius);
+        var rock = terrain.Patches.First(patch => patch.Kind == TerrainKind.Rock && terrain.HeightAt(patch.Center) < .01f
+            && Around(patch.Center, patch.Radius + 3).All(terrain.Passable));
+        friends[0].Position = rock.Center + Vector2.Left * (rock.Radius + 3);
+        target.Position = rock.Center + Vector2.Right * (rock.Radius + 3);
+        friends[1].Position = Around(target.Position, 6).First(point => terrain.Passable(point)
+            && terrain.ClearSight(point, target.Position) && point.DistanceTo(friends[0].Position) > 3);
+        sim.RefreshDetection(); tactical.SelectUnits([friends[0].Id], false); await Frames();
+        sim.Attack([friends[0].Id], target.Id); await Delay(.15);
+        Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Line of fire blocked by terrain")),
+            "combat information explains why a shared contact cannot be fired at through rock");
+        await PressKey(Key.Home); await Capture("terrain-blocked-fire");
+        var vegetation = terrain.Patches.First(patch => patch.Kind == TerrainKind.Vegetation && terrain.Passable(patch.Center)
+            && Around(patch.Center, patch.Radius + 2).Any(point => terrain.Passable(point) && terrain.ClearSight(point, patch.Center)));
+        target.Position = vegetation.Center;
+        friends[0].Position = Around(target.Position, vegetation.Radius + 2).First(point => terrain.Passable(point) && terrain.ClearSight(point, target.Position));
+        sim.RefreshDetection(); tactical.SelectUnits([friends[0].Id], false); await Delay(.15);
+        Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Vegetation: +")),
+            "combat information shows the vegetation hit penalty");
+        var hill = terrain.Hills.OrderByDescending(hill => terrain.HeightAt(hill.Center)).First();
+        friends[0].Position = hill.Center; await Frames();
+        Check(tactical.Battlefield.FindChildren("*", "Node3D", true, false).OfType<MechModel>().Any(model =>
+            Math.Abs(model.Position.X - hill.Center.X) < .01f && Math.Abs(model.Position.Z - hill.Center.Y) < .01f
+            && Math.Abs(model.Position.Y - terrain.HeightAt(hill.Center)) < .01f), "rendered mechs stand at the simulation hill elevation");
+        await Capture("terrain-elevation");
+    }
+
 }

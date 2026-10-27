@@ -14,17 +14,27 @@ public partial class SmokeTests : Node
         try
         {
             _screenshots = OS.GetCmdlineUserArgs().Contains("--screenshots");
-            TestGeometry();
-            CampaignChecks.Run(Check);
-            TravelChecks.Run(Check);
-            RosterChecks.Run(Check);
-            MissionChecks.Run(Check);
-            CombatChecks.Run(Check);
+            var combatUiOnly = OS.GetCmdlineUserArgs().Contains("--combat-ui-only");
+            if (!combatUiOnly)
+            {
+                TestGeometry();
+                CampaignChecks.Run(Check);
+                TravelChecks.Run(Check);
+                RosterChecks.Run(Check);
+                MissionChecks.Run(Check);
+                CombatChecks.Run(Check);
+                TerrainChecks.Run(Check);
+            }
             _app = ResourceLoader.Load<PackedScene>("res://Scenes/Command.tscn").Instantiate<CommandApp>();
             _app.SavePath = $"user://smoke-{Guid.NewGuid():N}.json";
             _saveFile = ProjectSettings.GlobalizePath(_app.SavePath);
             AddChild(_app);
             await Frames();
+            if (combatUiOnly)
+            {
+                await Click(_app.MainMenu.NewButton); await FinishDraft(); await TestCombatUi();
+                GD.Print($"PASS: {_checks} combat UI checks"); GetTree().Quit(); return;
+            }
             Check(_app.MainMenu.Visible && !_app.Office.Visible && !_app.StarMap.Visible, "starts in the main menu");
             Check(_app.MainMenu.LoadButton.Disabled, "load disabled before first manual save");
             await Capture("main-menu");

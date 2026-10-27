@@ -18,6 +18,7 @@ public partial class CombatViewport : Control
     public Camera3D Camera { get; private set; } = null!;
     private SubViewport _viewport = null!;
     private Node3D _world = null!;
+    private Node3D? _terrainView;
     private readonly Dictionary<string, MechModel> _models = [];
     private readonly List<(CombatShot Shot, float Life)> _effects = [];
     private Vector3 _focus = new(0, 0, 12);
@@ -59,16 +60,6 @@ public partial class CombatViewport : Control
             AmbientLightSource = Godot.Environment.AmbientSource.Color, AmbientLightColor = new Color("b1c1cc"), AmbientLightEnergy = .65f,
             TonemapMode = Godot.Environment.ToneMapper.Filmic
         } });
-        Box(_world, new Vector3(0, -.15f, 0), new Vector3(96, .2f, 96), new Color("26363b"));
-        var mesh = new ImmediateMesh();
-        mesh.SurfaceBegin(Mesh.PrimitiveType.Lines, new StandardMaterial3D
-        { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = new Color("3b5055") });
-        for (var n = -48; n <= 48; n += 8)
-        {
-            mesh.SurfaceAddVertex(new Vector3(n, 0, -48)); mesh.SurfaceAddVertex(new Vector3(n, 0, 48));
-            mesh.SurfaceAddVertex(new Vector3(-48, 0, n)); mesh.SurfaceAddVertex(new Vector3(48, 0, n));
-        }
-        mesh.SurfaceEnd(); _world.AddChild(new MeshInstance3D { Mesh = mesh });
         Resized += QueueRedraw;
         FocusExited += CancelDrag;
         VisibilityChanged += () => { if (!IsVisibleInTree()) CancelDrag(); };
@@ -82,6 +73,8 @@ public partial class CombatViewport : Control
         foreach (var model in _models.Values) { _world.RemoveChild(model); model.QueueFree(); }
         _models.Clear(); _effects.Clear();
         Simulation = simulation; Simulation.ShotFired += OnShot;
+        if (_terrainView is not null) { _world.RemoveChild(_terrainView); _terrainView.QueueFree(); }
+        _terrainView = BattlefieldTerrainView.Create(simulation.Terrain); _world.AddChild(_terrainView);
         _focus = new Vector3(0, 0, 12); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 50; UpdateCamera();
         foreach (var unit in simulation.Units) CreateMech(unit);
         CancelDrag(); SyncModels(); QueueRedraw();
@@ -91,12 +84,6 @@ public partial class CombatViewport : Control
         if (Simulation is null) return;
         if (Simulation.Unit(shot.AttackerId).Side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, shot.AttackerId))
             _effects.Add((shot, .45f));
-    }
-    private static MeshInstance3D Box(Node3D parent, Vector3 position, Vector3 size, Color color)
-    {
-        var part = new MeshInstance3D { Position = position, Mesh = new BoxMesh { Size = size },
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = color, Roughness = .85f } };
-        parent.AddChild(part); return part;
     }
     private void CreateMech(CombatUnit unit)
     {
@@ -110,7 +97,7 @@ public partial class CombatViewport : Control
         {
             var model = _models[unit.Id];
             model.Visible = unit.Side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, unit.Id);
-            model.Position = World(unit.Position);
+            model.Position = World(unit.Position, Simulation.Terrain.HeightAt(unit.Position));
             model.Rotation = new Vector3(unit.Status == CombatStatus.Destroyed ? Mathf.Pi / 2 : 0,
                 Mathf.Atan2(-unit.Facing.X, -unit.Facing.Y), 0);
             model.SetCondition(unit.Intact);
@@ -119,10 +106,39 @@ public partial class CombatViewport : Control
         }
     }
     public static Vector3 World(Vector2 point, float height = 0) => new(point.X, height, point.Y);
-    public Vector2 ScreenPoint(Vector2 point, float height = 0) => Camera.UnprojectPosition(World(point, height));
+    public Vector2 ScreenPoint(Vector2 point, float height = 0) => Camera.UnprojectPosition(World(point, (Simulation?.Terrain.HeightAt(point) ?? 0) + height));
     public Vector2 GroundPoint(Vector2 screen)
     {
         var from = Camera.ProjectRayOrigin(screen); var direction = Camera.ProjectRayNormal(screen);
+        if (Simulation is not null)
+        {
+            var rockDistance = Simulation.Terrain.RockRayDistance(from, direction, Camera.Far);
+            var limit = rockDistance ?? Camera.Far;
+            var previous = 0f;
+            for (var distance = .5f; distance <= limit + .5f; distance += .5f)
+            {
+                var sampleDistance = Math.Min(distance, limit);
+                var current = from + direction * sampleDistance;
+                var at = new Vector2(current.X, current.Z);
+                if (Math.Abs(at.X) <= 48 && Math.Abs(at.Y) <= 48 && current.Y <= Simulation.Terrain.HeightAt(at))
+                {
+                    var low = previous; var high = sampleDistance;
+                    for (var iteration = 0; iteration < 16; iteration++)
+                    {
+                        var middle = (low + high) * .5f; var sample = from + direction * middle;
+                        if (sample.Y > Simulation.Terrain.HeightAt(new Vector2(sample.X, sample.Z))) low = middle; else high = middle;
+                    }
+                    var hit = from + direction * ((low + high) * .5f);
+                    return CombatRules.Clamp(new Vector2(hit.X, hit.Z));
+                }
+                previous = sampleDistance;
+            }
+            if (rockDistance is { } rockHit)
+            {
+                var hit = from + direction * rockHit;
+                return CombatRules.Clamp(new Vector2(hit.X, hit.Z));
+            }
+        }
         var point = from + direction * (-from.Y / direction.Y);
         return CombatRules.Clamp(new Vector2(point.X, point.Z));
     }
@@ -191,6 +207,7 @@ public partial class CombatViewport : Control
     }
     private void UpdateCamera()
     {
+        _focus.Y = Simulation?.Terrain.HeightAt(new Vector2(_focus.X, _focus.Z)) ?? 0;
         var horizontal = OrbitRadius * Mathf.Cos(_pitch);
         Camera.Position = _focus + new Vector3(Mathf.Sin(_yaw) * horizontal,
             OrbitRadius * Mathf.Sin(_pitch), Mathf.Cos(_yaw) * horizontal);
@@ -279,6 +296,8 @@ public partial class CombatViewport : Control
     {
         if (Simulation is null || Camera is null) return;
         var font = ThemeDB.FallbackFont;
+        DrawString(font, new Vector2(12, 18), $"Terrain seed: {Simulation.Terrain.Seed}", HorizontalAlignment.Left, -1, 12, Ui.Gold);
+        DrawString(font, new Vector2(12, 34), "Rocks: blocked · Green: soft cover · Blue: slow water · Tan: steep", HorizontalAlignment.Left, -1, 11, Ui.Text);
         var center = ScreenPoint(Vector2.Zero);
         DrawString(font, center + new Vector2(-42, -8), "ARENA CENTER", HorizontalAlignment.Left, -1, 12, new Color(Ui.Muted, .7f));
         var friendlyIndex = 0;
@@ -329,7 +348,7 @@ public partial class CombatViewport : Control
         {
             var color = shot.Hit ? Ui.Gold : Ui.Muted;
             var to = shot.Hit ? shot.To : shot.To + new Vector2(1, 1);
-            DrawLine(ScreenPoint(shot.From, 1.5f), ScreenPoint(to, 1), new Color(color, life / .45f), shot.Weapon.Contains("Laser") || shot.Weapon == "PPC" ? 3 : 1, true);
+            DrawLine(ScreenPoint(shot.From, BattlefieldTerrain.EyeHeight), ScreenPoint(to, BattlefieldTerrain.EyeHeight), new Color(color, life / .45f), shot.Weapon.Contains("Laser") || shot.Weapon == "PPC" ? 3 : 1, true);
             if (shot.Hit) DrawArc(ScreenPoint(to, 1), (1 - life / .45f) * 14 + 3, 0, Mathf.Tau, 16, new Color(color, life / .45f), 2, true);
         }
         if (_selecting && _dragStart.DistanceTo(_dragEnd) > 5)

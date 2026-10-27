@@ -6,11 +6,11 @@ Status: confirmed October 25, 2026. The initial design interview is complete. Th
 
 - Tactical combat runs in real time with pausing.
 - The player commands deployed BattleMechs through movement orders, attack orders, priority targets, and stances to defeat an opposing force or achieve battlefield objectives. An attack order directs a MechWarrior to path as necessary to reach and attack the specified target. A priority target instead biases target selection when an opportunity presents; it does not itself order pursuit. Each mech has one active order, replaced by a new order, and a separately stored persistent priority target. Moving permits opportunistic firing without diversion from the destination; an explicit attack order takes precedence over target preference. The first slice provides Fire at will and Hold fire settings; additional stances are deferred.
-- The broader battlefield design uses continuous positions in three dimensions, with geometry governing movement and sight and understandable abstractions for cover and vegetation. Terrain features, buildings, and vegetation belong to that broader design; the first playable slice is completely flat and empty.
+- The broader battlefield design uses continuous positions in three dimensions, with geometry governing movement and sight and understandable abstractions for cover and vegetation. The terrain extension adds procedural natural terrain with elevation, solid obstacles, vegetation and shallow water. Buildings remain deferred.
 - Movement is continuous and weapons have independent cooldowns, without shared combat rounds. Initial resolution draws on basic BattleTech rules, including hit chances, damage, heat, critical hits, Piloting checks, and weapon ranges and damage. The first slice retains hit resolution, weapon ranges and damage, and location armor/internal structure; criticals, heat, ammunition consumption, facing, falls, and MechWarrior injury are explicitly deferred. Hit chances use probability rolls influenced by Gunnery, weapon range bands, and both mechs’ movement. Damage is allocated to randomly selected body locations, reducing front armor before passing excess damage into that location’s internal structure. Rear armor is unused and unchanged while facing is deferred. Exact hit modifiers and hit-location weights remain tuning work. Further damage to a destroyed location transfers inward using the explicit paths below.
 - Tabletop fidelity is not a permanent constraint; mechanics may evolve further to exploit real time.
-- Enemy visibility depends on detection. Current sightings and last-known positions are distinct. Selected detected enemies reveal the same armor, rear armor and internal condition as friendly mechs through the shared paperdoll and numeric readout. The first slice uses a single detection radius: detected enemies are visible and identifiable, and enemies outside detection remain hidden. Lost contacts leave a last-known position that does not track subsequent movement. Detection is shared across the friendly force: any friendly detection reveals the enemy, and another friendly mech may fire if its weapons reach even outside its own detection radius. A last-known marker appears when all friendly detection is lost. Separate sensor and visual contacts are deferred.
-- The first playable slice includes only BattleMechs on both sides, on a completely flat, empty battlefield. Its objective is defeat of the opposing force by destruction or disablement. The simulation has no tactical retreat mechanic; the combat menu permits ending the simulation.
+- Enemy visibility depends on detection. Current sightings and last-known positions are distinct. Selected detected enemies reveal the same armor, rear armor and internal condition as friendly mechs through the shared paperdoll and numeric readout. The first slice uses a single detection radius: detected enemies are visible and identifiable, and enemies outside detection remain hidden. Lost contacts leave a last-known position that does not track subsequent movement. Detection is shared across the friendly force: any friendly detection reveals the enemy, and another friendly mech may fire if its weapons reach and its own line of fire is clear, even outside its own detection radius. Rocks and hills also block detection. A last-known marker appears when all friendly detection is lost. Separate sensor and visual contacts are deferred.
+- The first playable slice includes only BattleMechs on both sides, on a procedurally generated natural battlefield. Its objective is defeat of the opposing force by destruction or disablement. The simulation has no tactical retreat mechanic; the combat menu permits ending the simulation.
 
 ## Orders, firing, and pacing
 
@@ -71,7 +71,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 
 - Add a **Simulated Deployment** button to the mech hangar to launch this first combat slice.
 - This is a standalone simulation using existing mech and MechWarrior definitions. It reports damage and outcome without changing the campaign; launching from an accepted mission and applying permanent results are deferred.
-- Use a bounded, flat, empty arena with authored opposing starting positions, initially outside detection range.
+- Use a bounded 96 × 96 arena with procedural natural terrain and authored opposing starting positions, initially outside detection range. Keep spawns clear and connected. Expose a reproducible terrain seed independent of combat rolls.
 - Start paused and support one to four mechs per side. There is no deployment-placement phase.
 - Every deployment goes through a force-selection panel, including Simulated Deployment; this is also a general rule for eventual campaign deployments.
 - Select one to four operational roster mechs with healthy, assigned MechWarriors. Show why unavailable mechs cannot participate. Assignments remain managed in the hangar.
@@ -115,7 +115,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 
 ## Deferred beyond the first slice
 
-- Terrain relief, buildings, vegetation, and their movement/sight/cover effects.
+- Buildings, destructible terrain, deep water, and advanced cover-seeking tactics.
 - Infantry, vehicles, aircraft, and other combatant types.
 - Critical hits, heat and heat policies, ammunition consumption, facing/rear-armor hits, firing arcs, falls, jumping, and MechWarrior casualties.
 - Missile clustering, physical projectile collision, friendly fire, melee, called shots, deliberate ammunition dumping, and other special actions.
@@ -139,3 +139,11 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 ## Design review status
 
 The user confirmed shared understanding of this initial combat design on October 25, 2026. The design interview is complete. Numerical authoring and deferred features retain the explicit scope above.
+
+## Confirmed terrain design
+
+The simulated battlefield uses reproducible, asymmetric procedural natural terrain: rocks, vegetation, hills and water. Players may enter or share a terrain seed, independent of combat randomness. Retain the 96 × 96 arena and existing starting positions, clear the spawn areas, and guarantee a traversable route between sides.
+
+Rocks are impassable and block detection and fire. Hills affect movement and line of sight through their elevation, with no separate height bonus. Water slows movement. Vegetation slows movement and reduces hit chance when the target is within it or the shot passes through it; cap the penalty. Detection remains shared, but each attacker needs a clear line of fire.
+
+Both sides navigate around obstacles and seek a clear firing position for blocked attack orders. A movement order to an inaccessible point resolves to the nearest reachable point and displays the actual destination. Combat information explains blocked fire and vegetation penalties. Use simple, readable visuals and one default terrain density; document and test initial numerical tuning.

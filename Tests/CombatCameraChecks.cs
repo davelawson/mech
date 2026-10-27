@@ -33,16 +33,16 @@ public partial class SmokeTests
             var releaseGround = field.GroundPoint(release - field.GlobalPosition);
             MouseButton(release, Godot.MouseButton.Right, false); await Frames();
             Check(commands == 1 && lastGround.DistanceTo(releaseGround) < .01f,
-                "small right-click movement issues exactly one order at release position");
+                $"small right-click movement issues exactly one order at release position: commands={commands}, ground={lastGround}, expected={releaseGround}, mouse={GetViewport().GetMousePosition()}, mode={Input.MouseMode}");
 
             var pivot = field.GroundPoint(field.Size / 2);
-            var radius = field.Camera.Position.DistanceTo(CombatViewport.World(pivot));
+            var radius = field.Camera.Position.DistanceTo(CombatViewport.World(pivot, tactical.Simulation!.Terrain.HeightAt(pivot)));
             await BeginCameraOrbit(at); await Frames();
             Check(field.Camera.Transform.IsEqualApprox(original), "crossing drag threshold discards initial camera movement");
             if (DisplayServer.GetName() != "headless")
                 Check(Input.MouseMode == Input.MouseModeEnum.Captured, "right orbit captures and hides cursor");
             CameraMotion(at, new Vector2(40, -20)); await Frames();
-            var orbitOffset = field.Camera.Position - CombatViewport.World(pivot);
+            var orbitOffset = field.Camera.Position - CombatViewport.World(pivot, tactical.Simulation!.Terrain.HeightAt(pivot));
             Near(Mathf.RadToDeg(Mathf.Atan2(orbitOffset.X, orbitOffset.Z)), -10, "rightward drag orbits clockwise at quarter degree per pixel");
             Near(Mathf.RadToDeg(Mathf.Asin(orbitOffset.Y / radius)), Mathf.RadToDeg(Mathf.Atan2(80, 70)) + 5,
                 "upward drag raises camera at quarter degree per pixel");
@@ -67,7 +67,7 @@ public partial class SmokeTests
             CameraStep(field, .1, Key.W);
             var actualPan = field.Camera.Position - beforePan;
             Check(new Vector2(actualPan.X, actualPan.Z).Normalized().DistanceTo(expectedForward) < .01f
-                && Math.Abs(actualPan.Y) < .01f, $"W translates orbit pivot on ground relative to camera facing during rotation: actual {actualPan}, expected direction {expectedForward}, focus {field.HasFocus()}");
+                && Math.Abs(actualPan.Y - (tactical.Simulation!.Terrain.HeightAt(field.GroundPoint(field.Size / 2)) - tactical.Simulation.Terrain.HeightAt(pivot))) < .02f, $"W translates orbit pivot on ground relative to camera facing during rotation: actual {actualPan}, expected direction {expectedForward}, focus {field.HasFocus()}");
             MouseButton(new Vector2(-20, -20), Godot.MouseButton.Right, false); await Frames();
             Check(commands == 1 && Input.MouseMode == previousMode, "release outside battlefield ends orbit without an order");
             original = field.Camera.Transform;
@@ -80,11 +80,12 @@ public partial class SmokeTests
             Check(field.GroundPoint(field.Size / 2).Length() < .01f, "Home restores arena center");
             var start = field.Camera.Position;
             CameraStep(field, .1, Key.W);
-            var cardinalDistance = field.Camera.Position.DistanceTo(start);
+            var cardinalDelta = field.Camera.Position - start;
+            var cardinalDistance = new Vector2(cardinalDelta.X, cardinalDelta.Z).Length();
             Near(cardinalDistance, field.Camera.Size * .05f, "WASD speed scales with zoom without acceleration");
             start = field.Camera.Position;
             CameraStep(field, .1, Key.W, Key.D);
-            Near(field.Camera.Position.DistanceTo(start), cardinalDistance, "diagonal WASD speed matches cardinal speed");
+            Near(new Vector2(field.Camera.Position.X - start.X, field.Camera.Position.Z - start.Z).Length(), cardinalDistance, "diagonal WASD speed matches cardinal speed");
             start = field.Camera.Position;
             field._Process(.1);
             Check(field.Camera.Position.IsEqualApprox(start), "WASD stops immediately after release");
@@ -92,10 +93,10 @@ public partial class SmokeTests
             MouseButton(at, Godot.MouseButton.WheelUp, false);
             start = field.Camera.Position;
             CameraStep(field, .1, Key.Up);
-            Near(field.Camera.Position.DistanceTo(start), field.Camera.Size * .05f, "arrow movement retains zoom-scaled speed");
+            Near(new Vector2(field.Camera.Position.X - start.X, field.Camera.Position.Z - start.Z).Length(), field.Camera.Size * .05f, "arrow movement retains zoom-scaled speed");
             CameraStep(field, 100, Key.W, Key.D);
-            var groundFocus = field.Camera.Position - field.Camera.Basis.Z * (field.Camera.Position.Y / field.Camera.Basis.Z.Y);
-            Check(groundFocus.DistanceTo(new Vector3(48, 0, -48)) < .01f, "camera pivot clamps to battlefield edges");
+            var groundFocus = field.GroundPoint(field.Size / 2);
+            Check(groundFocus.DistanceTo(new Vector2(47.35f, -47.35f)) < .01f, "camera pivot clamps to battlefield edges");
             await PressKey(Key.Home);
 
             await BeginCameraOrbit(at);
