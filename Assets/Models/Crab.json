@@ -1,0 +1,116 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Crab/Model",
+  "source_files": {
+    "Body/CRB_TP_Cockpit_DM0_STM.bin": "2ceb598aebc90dab56ccead41ada21b0be3acdb768f58001648f6a9f23c3e3b5",
+    "Body/CRB_TP_Cockpit_DM0_STM.gltf": "56c8b15217c4c7db04e7802030c3ae921be992fccb67442ec14786e251943c3b",
+    "Body/Crab_SKM.bin": "1d8085a92b0a6cb5efb80c4cd19d5998f43ceeb9043632c2fe2d0a921d3f6974",
+    "Body/Crab_SKM.gltf": "af3b0ed8573735b45db9394a98dc0205b422555deaf828e5b3a88e24927fae47",
+    "Body/Materials/Textures/Crab_Body_Default_MSK.png": "d046bd81b648d567ea50efc88b1ba2a36bda3d4023524c03965c65b6d9fd5c1d",
+    "Body/Materials/Textures/Crab_Body_NRM.png": "059a5e78feecfc946466362622b80cec49c91e9d3584d6b27e0e634bc927f3fb",
+    "Body/Materials/Textures/Crab_Body_Wear_MSK.png": "6bf5c75850abb3f50746f3879074e47a8cf6a2cb388e19a1227b949a4c522f5e",
+    "Body/Materials/Textures/Crab_Variant_Default_MSK.png": "61602b3e3c8763a3f10a77eac818f99426482ff729f9fbafc23104de01ed07d1",
+    "Body/Materials/Textures/Crab_Variant_NRM.png": "5abf1fb4f8083b768079d78400e613d4e0e07be62ea471e0ef770eee83be1c0b",
+    "Body/Materials/Textures/Crab_Variant_Wear_MSK.png": "dddfb2d74ac27bbaa916e2d705bd255ebf6fd7273f13b592a0cf9e8928154b53",
+    "Weapons/Weapon_Mech_CRB_Forearm_Left_EH1_Laser_SKM.bin": "8f16854b178e2b972b02ed2748da7f07e285a72f1dfa4cfa39cf48cde28ecf41",
+    "Weapons/Weapon_Mech_CRB_Forearm_Left_EH1_Laser_SKM.gltf": "d18b65bf83847aee974f48af7b330c23bb450d7c395d9dfb00cc0ae72aa3a2de",
+    "Weapons/Weapon_Mech_CRB_Forearm_Right_EH1_Laser_SKM.bin": "4682017490b1333a663be353a753f64d9e7049e3e5703f12f2653a6bfe0c049c",
+    "Weapons/Weapon_Mech_CRB_Forearm_Right_EH1_Laser_SKM.gltf": "655493339e6f92d4badbed0debd725ccfadfd54987a7027899c8f15feb6e7ff4",
+    "Weapons/Weapon_Mech_CRB_Head_EH1_Laser_SKM.bin": "5f53fd9716f0b4772e4f05fcfab08e85df14e1a5c422048291f8c2f41919afca",
+    "Weapons/Weapon_Mech_CRB_Head_EH1_Laser_SKM.gltf": "ae9e13f425d8153a591a4f104f5a9547bd5db099c0435e2e08b15a309082b506",
+    "Weapons/Weapon_Mech_CRB_Torso_Center_EH1_Laser_SKM.bin": "17157821f0b07c8feaa835325c4607bf77716cf3b369e574644460a1d013f0e9",
+    "Weapons/Weapon_Mech_CRB_Torso_Center_EH1_Laser_SKM.gltf": "d6dc8ebcbb75a2a0baab7b18a6b1c67843fbb27330df8a7bae5d1ebf58e90b2e"
+  },
+  "runtime_triangles": 38304,
+  "render_meshes": 21,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 8215,
+    "CenterTorso/Weapon1": 320,
+    "Head/AmberCanopy": 4,
+    "Head/CockpitFrame": 574,
+    "Head/Weapon0": 414,
+    "LeftArm/ForearmAndFist": 2766,
+    "LeftArm/ShoulderAndUpperarm": 2620,
+    "LeftArm/Weapon3": 230,
+    "LeftLeg/Foot": 1292,
+    "LeftLeg/Hip": 314,
+    "LeftLeg/Shin": 3712,
+    "LeftLeg/Thigh": 1485,
+    "LeftTorso/TorsoShell": 1976,
+    "RightArm/ForearmAndFist": 2766,
+    "RightArm/ShoulderAndUpperarm": 2614,
+    "RightArm/Weapon2": 230,
+    "RightLeg/Foot": 1292,
+    "RightLeg/Hip": 320,
+    "RightLeg/Shin": 3712,
+    "RightLeg/Thigh": 1491,
+    "RightTorso/TorsoShell": 1957
+  },
+  "cross_region_faces": 59,
+  "weighted_faces": 0,
+  "height": 2.5217391304347827,
+  "displayed_height": 2.9,
+  "scale": 0.18651587924377272,
+  "bottom": -0.16745412349700928,
+  "rig": {
+    "waist": 1.5104174,
+    "hip": [
+      0.4312942,
+      1.3818052,
+      -0.0299098
+    ],
+    "knee": [
+      0.4438427,
+      1.0062434,
+      -0.3721984
+    ],
+    "ankle": [
+      0.4665907,
+      0.2146171,
+      -0.1875081
+    ],
+    "shoulder": [
+      0.410587,
+      1.9773894,
+      -0.0391753
+    ]
+  },
+  "weapons": [
+    {
+      "location": "Head",
+      "name": "Weapon0",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_CRB_Head_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "CenterTorso",
+      "name": "Weapon1",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_CRB_Torso_Center_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "Weapon2",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_CRB_Forearm_Right_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftArm",
+      "name": "Weapon3",
+      "bone": "Forearm_Left",
+      "mesh": "Weapon_Mech_CRB_Forearm_Left_EH1_Laser_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "CRB_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 2
+  },
+  "missile_tubes": 0,
+  "attachment_evidence": "CRB-20 MW5 stock loadout -> hardpoint tag mapping -> weapon blueprint SKM; source skeleton sockets and exterior cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-additional-mech.py + scripts/mech_asset_tools.py; Python + Pillow"
+}

@@ -14,7 +14,7 @@ public sealed record ComponentSpec(string Id, string Name, MechLocation Location
 public sealed record AmmoSpec(string Id, string Name, MechLocation Location, string AmmoType, int Shots);
 public sealed record MechSpec(string Id, string Chassis, string Variant, int Tonnage, string WeightClass, int Introduced,
     string Role, int Walk, int Run, int Jump, int HeatSinks, string Engine, LocationSpec[] Locations,
-    WeaponSpec[] Weapons, ComponentSpec[] Components, AmmoSpec[] Ammo, string Source)
+    WeaponSpec[] Weapons, ComponentSpec[] Components, AmmoSpec[] Ammo, string Source, string HeatSinkType = "Single")
 {
     public string DisplayName => $"{Chassis} {Variant}";
     public string Artwork => $"res://Assets/Roster/{Id}.png";
@@ -51,9 +51,21 @@ public static class DraftCatalog
         new("leila-darzi", "Leila Darzi", "Kite", 5, 4, "Regular · Piloting"),
         new("renata-kovac", "Renata Kovac", "Iron", 3, 4, "Veteran"),
         new("gideon-price", "Gideon Price", "Crosshair", 2, 5, "Veteran · Gunnery"),
-        new("oskar-lind", "Oskar Lind", "Skid", 4, 3, "Veteran · Piloting")
+        new("oskar-lind", "Oskar Lind", "Skid", 4, 3, "Veteran · Piloting"),
+        new("ada-moreno", "Ada Moreno", "Sparrow", 4, 5, "Regular"),
+        new("malik-stone", "Malik Stone", "Hawk", 3, 6, "Regular · Gunnery"),
+        new("yara-ortiz", "Yara Ortiz", "Vector", 5, 4, "Regular · Piloting"),
+        new("lucas-chen", "Lucas Chen", "Scope", 4, 5, "Regular"),
+        new("imani-brooks", "Imani Brooks", "Viper", 3, 6, "Regular · Gunnery"),
+        new("erik-holm", "Erik Holm", "Dash", 5, 4, "Regular · Piloting"),
+        new("mei-tanaka", "Mei Tanaka", "Beacon", 4, 5, "Regular"),
+        new("rafiq-nasir", "Rafiq Nasir", "Bolt", 3, 6, "Regular · Gunnery"),
+        new("fiona-kerr", "Fiona Kerr", "Slip", 5, 4, "Regular · Piloting"),
+        new("vera-holt", "Vera Holt", "Bulwark", 3, 4, "Veteran"),
+        new("anton-mercer", "Anton Mercer", "Longshot", 2, 5, "Veteran · Gunnery"),
+        new("zara-okoro", "Zara Okoro", "Dancer", 4, 3, "Veteran · Piloting")
     });
-    public static readonly string[] PoolNames = ["Light · 35 tons", "Medium · 55 tons", "Heavy · 65 tons", "Assault · 80 tons",
+    public static readonly string[] PoolNames = ["Light · 20–35 tons", "Medium · 40–55 tons", "Heavy · 60–75 tons", "Assault · 80–100 tons",
         "MechWarriors · I", "MechWarriors · II", "MechWarriors · III", "MechWarriors · Veterans"];
 
     private static IReadOnlyList<MechSpec> LoadMechs()
@@ -84,6 +96,22 @@ public sealed class InitialDraft
     private static readonly string[] NamePrefixes = ["Iron", "Ashen", "Crimson", "Silver", "Steel", "Ember", "Storm", "Obsidian"];
     private static readonly string[] NameSuffixes = ["Jackals", "Lancers", "Falcons", "Wolves", "Sentinels", "Dragoons", "Marauders", "Wardens"];
     private readonly int[] _choices = Enumerable.Repeat(-1, 8).ToArray();
+    private readonly MechSpec[,] _mechs = new MechSpec[4, 3];
+    private readonly WarriorSpec[,] _warriors = new WarriorSpec[4, 3];
+
+    public InitialDraft()
+    {
+        for (var p = 0; p < 4; p++) for (var c = 0; c < 3; c++)
+        { _mechs[p, c] = DraftCatalog.Mechs[p * 3 + c]; _warriors[p, c] = DraftCatalog.Warriors[p * 3 + c]; }
+    }
+    public MechSpec MechCandidate(int pool, int choice) => _mechs[pool, choice];
+    public WarriorSpec WarriorCandidate(int pool, int choice) => _warriors[pool - 4, choice];
+    private static T[] Shuffle<T>(IEnumerable<T> source, Random random)
+    {
+        var values = source.ToArray();
+        for (var i = values.Length - 1; i > 0; i--) { var j = random.Next(i + 1); (values[i], values[j]) = (values[j], values[i]); }
+        return values;
+    }
 
     public static InitialDraft CreateRandom(Random? random = null)
     {
@@ -92,6 +120,16 @@ public sealed class InitialDraft
         {
             ForceName = $"{NamePrefixes[random.Next(NamePrefixes.Length)]} {NameSuffixes[random.Next(NameSuffixes.Length)]}"
         };
+        for (var p = 0; p < 4; p++)
+        {
+            var pool = p;
+            var candidates = Shuffle(DraftCatalog.AllMechs.Where(m => (m.Tonnage <= 35 ? 0 : m.Tonnage <= 55 ? 1 : m.Tonnage <= 75 ? 2 : 3) == pool), random);
+            for (var c = 0; c < 3; c++) draft._mechs[p, c] = candidates[c];
+        }
+        var regulars = Shuffle(DraftCatalog.Warriors.Where(w => w.Experience.StartsWith("Regular")), random);
+        var veterans = Shuffle(DraftCatalog.Warriors.Where(w => w.Experience.StartsWith("Veteran")), random);
+        for (var p = 0; p < 4; p++) for (var c = 0; c < 3; c++)
+            draft._warriors[p, c] = p == 3 ? veterans[c] : regulars[p * 3 + c];
         for (var pool = 0; pool < draft._choices.Length; pool++) draft.Select(pool, random.Next(3));
         return draft;
     }
@@ -110,8 +148,8 @@ public sealed class InitialDraft
     public ForceRoster Establish()
     {
         if (!Complete) throw new InvalidOperationException("Name the company and select one candidate from each pool.");
-        return ForceRoster.Create(ForceName.Trim(), Enumerable.Range(0, 4).Select(pool => DraftCatalog.Mechs[pool * 3 + _choices[pool]]),
-            Enumerable.Range(4, 4).Select(pool => DraftCatalog.Warriors[(pool - 4) * 3 + _choices[pool]]));
+        return ForceRoster.Create(ForceName.Trim(), Enumerable.Range(0, 4).Select(pool => MechCandidate(pool, _choices[pool])),
+            Enumerable.Range(4, 4).Select(pool => WarriorCandidate(pool, _choices[pool])));
     }
 }
 

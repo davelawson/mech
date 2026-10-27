@@ -39,7 +39,7 @@ public partial class MechModel : Node3D
             void fragment() { ALBEDO = team_color.rgb; }
             """ } };
         model._outline.SetShaderParameter("team_color", TeamColor(side));
-        if (spec.Id is "awesome" or "jenner" or "catapult" or "wolverine" or "atlas" or "panther" or "shadow-hawk" or "griffin" or "firestarter" or "crusader" or "thunderbolt" or "victor" or "zeus") model._outline.SetShaderParameter("outline_width", .65f);
+        if (spec.Id is "awesome" or "jenner" or "catapult" or "wolverine" or "atlas" or "panther" or "shadow-hawk" or "griffin" or "firestarter" or "crusader" or "thunderbolt" or "victor" or "zeus" || AdditionalRigs.ContainsKey(spec.Id)) model._outline.SetShaderParameter("outline_width", .65f);
         foreach (var location in Enum.GetValues<MechLocation>())
         {
             var root = new Node3D { Name = location.ToString() };
@@ -60,7 +60,14 @@ public partial class MechModel : Node3D
             case "jenner": model.BuildJenner(); model.BuildLocomotionRig(JennerRig); break;
             case "wolverine": model.BuildWolverine(); model.BuildLocomotionRig(WolverineRig); break;
             case "catapult": model.BuildCatapult(); model.BuildLocomotionRig(CatapultRig); break;
-            default: model.BuildGeneric(side); break;
+            default:
+                if (AdditionalRigs.TryGetValue(spec.Id, out var imported))
+                {
+                    model.BuildAdditional(imported.Chassis);
+                    model.BuildLocomotionRig(imported.Rig);
+                }
+                else model.BuildGeneric(side);
+                break;
         }
         model.RestBounds = model.MeasureBounds();
         model.Height = model.RestBounds.End.Y * model.Scale.Y;

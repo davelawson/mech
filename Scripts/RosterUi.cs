@@ -88,7 +88,7 @@ public partial class MechDetails : VBoxContainer
         RosterUi.Text(overview, unit?.Status ?? "Stock configuration · fully operational", 16, new Color("a5c4a5"));
         RosterUi.Text(overview, $"MOVEMENT\nWalk {spec.Walk}  ·  Run {spec.Run}  ·  Jump {spec.Jump} MP");
         RosterUi.Text(overview, $"PROTECTION\nArmor {unit?.Locations.Sum(item => item.Armor + item.RearArmor) ?? spec.ArmorTotal}/{spec.ArmorTotal}  ·  Structure {unit?.Locations.Sum(item => item.Structure) ?? spec.StructureTotal}/{spec.StructureTotal}");
-        RosterUi.Text(overview, $"HEAT\n{spec.HeatSinks} single heat sinks · {spec.HeatSinks} heat dissipation\nAll weapons: {spec.Weapons.Sum(item => item.Heat)} heat before movement");
+        RosterUi.Text(overview, $"HEAT\n{spec.HeatSinks} {spec.HeatSinkType.ToLowerInvariant()} heat sinks · {spec.HeatSinks * (spec.HeatSinkType == "Double" ? 2 : 1)} heat dissipation\nAll weapons: {spec.Weapons.Sum(item => item.Heat)} heat before movement");
         RosterUi.Text(overview, $"ENGINE\n{spec.Engine}\nIntroduced {spec.Introduced}");
         RosterUi.Text(overview, "Stock 3025 specifications · ranges in hexes.\nWeapon heat is per shot; actual firing choices determine total heat.", 12, Ui.Muted);
         var armor = RosterUi.Scroll(tabs); armor.GetParent<Control>().Name = "Armor";

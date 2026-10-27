@@ -1,0 +1,95 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Spider/Model",
+  "source_files": {
+    "Body/Materials/Textures/Spider_Body_Default_MSK.png": "7b43766f313870ca98b6c45165d23159e72b71d777d108038e7d05b258e46758",
+    "Body/Materials/Textures/Spider_Body_NRM.png": "6648735489a2703ffab0d8674cbf1d283cfa39e171f08c9ff20ec38e6b4cbdef",
+    "Body/Materials/Textures/Spider_Body_Wear_MSK.png": "f89fbcd0106e2f48a9bd22bcdb06d82a24fad06fd15648c0702beb352a80a6cf",
+    "Body/Materials/Textures/Spider_Variant_Default_MSK.png": "bf38657513aa9ce199bf4c63981ed89a2a7d21f486546947f425361cfef62767",
+    "Body/Materials/Textures/Spider_Variant_NRM.png": "3899a08f3390af492b36583ca5075e78030c1eccaf11ca6782ce1b6e3afe2f3e",
+    "Body/Materials/Textures/Spider_Variant_Wear_MSK.png": "912c48bf9fbf337787b055c3af980cb7ed2ed4a314e7c4fe15326a77b239fe2e",
+    "Body/SDR_TP_Cockpit_DM0_STM.bin": "1a778a679810d5e55693aecca0e2282fe6f198a95147c747f2d0a858a514327e",
+    "Body/SDR_TP_Cockpit_DM0_STM.gltf": "2b73fc0825fcbc6082f459aeb279016bbd2228bbfca7d95bd880c5146301a10b",
+    "Body/Spider_SKM.bin": "2e6facfe50694c52777f599f9112241f0ab02d4d01d497f36c6929a60ed5ecde",
+    "Body/Spider_SKM.gltf": "1123a94722d645c4e4e334af5f9043c9111d1608724564fe34ae92073669cef3",
+    "Weapons/Weapon_Mech_SDR_Torso_Center_EH1_Laser_SKM.bin": "a5aa9a504f5ce59b118abebe2099cb71ae7f3cc35e1295191331c6565d42a68a",
+    "Weapons/Weapon_Mech_SDR_Torso_Center_EH1_Laser_SKM.gltf": "3b5df79748d7cf7c077a06fdb7a79032ccdb9c1fa350ddc2f9094ffac1735ec4",
+    "Weapons/Weapon_Mech_SDR_Torso_Center_EH2_Laser_SKM.bin": "84a7b9194ecb82c16128e35eaa1aea9d0eef85eccb920096d04da302523660c1",
+    "Weapons/Weapon_Mech_SDR_Torso_Center_EH2_Laser_SKM.gltf": "98badd7418075bbc08fd3bf96e1310ceed13f7499cd2349bc32e21f5df223187"
+  },
+  "runtime_triangles": 18019,
+  "render_meshes": 18,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 2913,
+    "CenterTorso/Weapon0": 262,
+    "CenterTorso/Weapon1": 262,
+    "Head/AmberCanopy": 36,
+    "Head/CockpitBody": 152,
+    "Head/CockpitFrame": 586,
+    "LeftArm/ForearmAndFist": 1356,
+    "LeftArm/ShoulderAndUpperarm": 672,
+    "LeftLeg/Foot": 800,
+    "LeftLeg/Shin": 924,
+    "LeftLeg/Thigh": 1368,
+    "LeftTorso/TorsoShell": 1802,
+    "RightArm/ForearmAndFist": 1356,
+    "RightArm/ShoulderAndUpperarm": 672,
+    "RightLeg/Foot": 800,
+    "RightLeg/Shin": 924,
+    "RightLeg/Thigh": 1368,
+    "RightTorso/TorsoShell": 1766
+  },
+  "cross_region_faces": 15,
+  "weighted_faces": 0,
+  "height": 2.3428571428571425,
+  "displayed_height": 2.46,
+  "scale": 0.1913331864904911,
+  "bottom": -0.0644206777215004,
+  "rig": {
+    "waist": 1.2978742,
+    "hip": [
+      0.2644519,
+      1.1986392,
+      0.0002125
+    ],
+    "knee": [
+      0.2841379,
+      0.7769118,
+      -0.1756933
+    ],
+    "ankle": [
+      0.3116445,
+      0.2433101,
+      0.1400042
+    ],
+    "shoulder": [
+      0.3418226,
+      1.7838216,
+      0.011862
+    ]
+  },
+  "weapons": [
+    {
+      "location": "CenterTorso",
+      "name": "Weapon0",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_SDR_Torso_Center_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "CenterTorso",
+      "name": "Weapon1",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_SDR_Torso_Center_EH2_Laser_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "SDR_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 0
+  },
+  "missile_tubes": 0,
+  "attachment_evidence": "SDR-5V MW5 stock loadout -> hardpoint tag mapping -> weapon blueprint SKM; source skeleton sockets and exterior cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-additional-mech.py + scripts/mech_asset_tools.py; Python + Pillow"
+}

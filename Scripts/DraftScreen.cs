@@ -13,6 +13,7 @@ public partial class DraftScreen : Control
     private readonly Panel[] _pools = new Panel[8];
     private readonly Label[] _poolTitles = new Label[8];
     private readonly Button[,] _inspect = new Button[8, 3];
+    private readonly MechPreview[,] _mechPreviews = new MechPreview[4, 3];
     private readonly TextureRect[,] _portraits = new TextureRect[8, 3];
     private readonly Label[,] _candidateNames = new Label[8, 3];
     private readonly Label[,] _candidateStats = new Label[8, 3];
@@ -45,6 +46,11 @@ public partial class DraftScreen : Control
                 var isMech = pool < 4;
                 var path = isMech ? DraftCatalog.Mechs[index].Artwork : DraftCatalog.Warriors[index].Artwork;
                 _portraits[pool, choice] = RosterUi.Picture(button, path, Vector2.Zero);
+                if (isMech)
+                {
+                    _portraits[pool, choice].Hide();
+                    var preview = new MechPreview(); button.AddChild(preview); _mechPreviews[pool, choice] = preview;
+                }
                 _candidateNames[pool, choice] = Ui.Label(button, isMech ? DraftCatalog.Mechs[index].Chassis : $"“{DraftCatalog.Warriors[index].Callsign}”", 15);
                 _candidateNames[pool, choice].ClipText = true;
                 var spec = isMech ? DraftCatalog.Mechs[index] : null;
@@ -68,13 +74,32 @@ public partial class DraftScreen : Control
     }
     public void Begin()
     {
-        Draft = InitialDraft.CreateRandom(); NameInput.Text = Draft.ForceName; _preview.Hide(); Refresh(); Show();
+        Draft = InitialDraft.CreateRandom(); NameInput.Text = Draft.ForceName; _preview.Hide(); RefreshCandidates(); Refresh(); Show();
         RosterUi.TrapFocus(this); NameInput.CallDeferred(Control.MethodName.GrabFocus);
     }
-    public void RefreshArtwork()
+    public void RefreshArtwork() => RefreshCandidates();
+    private void RefreshCandidates()
     {
         for (var pool = 0; pool < 8; pool++) for (var choice = 0; choice < 3; choice++)
-        { var index = (pool % 4) * 3 + choice; _portraits[pool, choice].Texture = Ui.LoadTexture(pool < 4 ? DraftCatalog.Mechs[index].Artwork : DraftCatalog.Warriors[index].Artwork); }
+        {
+            if (pool < 4)
+            {
+                var spec = Draft.MechCandidate(pool, choice);
+                var owned = ForceRoster.Create("Preview", [spec], []).Mechs[0];
+                _mechPreviews[pool, choice].Display(owned);
+                _candidateNames[pool, choice].Text = spec.Chassis;
+                _candidateStats[pool, choice].Text = $"{spec.Variant} · {spec.Tonnage}t · {spec.Walk}/{spec.Run}/{spec.Jump}";
+                Choices[pool, choice].TooltipText = $"{spec.DisplayName}\n{spec.Role} · Armor {spec.ArmorTotal} · {spec.HeatSinks} heat sinks\nSelect this candidate; … opens the complete record.";
+            }
+            else
+            {
+                var spec = Draft.WarriorCandidate(pool, choice);
+                _portraits[pool, choice].Texture = Ui.LoadTexture(spec.Artwork);
+                _candidateNames[pool, choice].Text = $"“{spec.Callsign}”";
+                _candidateStats[pool, choice].Text = $"G {spec.Gunnery}  /  P {spec.Piloting}";
+                Choices[pool, choice].TooltipText = $"{spec.DisplayName}\n{spec.Experience}\n{RosterUi.SkillText(spec)}\nLower skill numbers are better.";
+            }
+        }
     }
     private void Refresh()
     {
@@ -94,12 +119,14 @@ public partial class DraftScreen : Control
         if (pool < 4)
         {
             var row = new HBoxContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; _previewBody.AddChild(row);
-            var image = RosterUi.Picture(row, DraftCatalog.Mechs[index].Artwork, new Vector2(200, 220)); image.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-            var details = new MechDetails { SizeFlagsHorizontal = SizeFlags.ExpandFill }; row.AddChild(details); details.Display(DraftCatalog.Mechs[index]);
+            var spec = Draft.MechCandidate(pool, choice);
+            var image = new MechPreview { CustomMinimumSize = new Vector2(200, 220), SizeFlagsHorizontal = SizeFlags.ExpandFill }; row.AddChild(image);
+            image.Display(ForceRoster.Create("Preview", [spec], []).Mechs[0]);
+            var details = new MechDetails { SizeFlagsHorizontal = SizeFlags.ExpandFill }; row.AddChild(details); details.Display(spec);
         }
         else
         {
-            var spec = DraftCatalog.Warriors[index];
+            var spec = Draft.WarriorCandidate(pool, choice);
             var image = RosterUi.Picture(_previewBody, spec.Artwork, new Vector2(180, 180)); image.SizeFlagsVertical = SizeFlags.ExpandFill;
             RosterUi.Text(_previewBody, spec.DisplayName, 22, Ui.Gold);
             RosterUi.Text(_previewBody, $"{spec.Experience}\n{RosterUi.SkillText(spec)}\nHealthy · Ready for deployment\nLower skill numbers are better.", 16);
@@ -129,6 +156,7 @@ public partial class DraftScreen : Control
                 Ui.Place(_inspect[pool, choice], width - 38, y, 32, rowHeight - 4);
                 var imageWidth = Math.Clamp(rowHeight - 8, 30, 100);
                 Ui.Place(_portraits[pool, choice], 3, 2, imageWidth, rowHeight - 8);
+                if (pool < 4) Ui.Place(_mechPreviews[pool, choice], 3, 2, imageWidth, rowHeight - 8);
                 Ui.Place(_candidateNames[pool, choice], imageWidth + 8, Math.Max(1, (rowHeight - 44) / 2), buttonWidth - imageWidth - 12, 24);
                 Ui.Place(_candidateStats[pool, choice], imageWidth + 8, Math.Max(22, (rowHeight - 44) / 2 + 24), buttonWidth - imageWidth - 12, 18);
             }

@@ -6,6 +6,18 @@ namespace Mech;
 public partial class MechModel
 {
     private static PackedScene? _awesomeScene;
+    private static readonly Dictionary<string, PackedScene> AdditionalScenes = [];
+    private void BuildAdditional(string chassis)
+    {
+        if (!AdditionalScenes.TryGetValue(chassis, out var scene))
+        {
+            scene = ResourceLoader.Load<PackedScene>($"res://Assets/Models/{chassis}.glb")
+                ?? throw new InvalidOperationException($"The prepared {chassis} model could not be loaded.");
+            AdditionalScenes[chassis] = scene;
+        }
+        BuildPreparedModel(scene, chassis);
+    }
+
 
     private void BuildAwesome()
     {

@@ -113,12 +113,15 @@ class Glb:
 def paint(glb, source, chassis, section):
     folder = source / "Body/Materials/Textures"
     mask = Image.open(folder / f"{chassis}_{section}_Default_MSK.png").convert("RGB")
+    wear_source = Image.open(folder / f"{chassis}_{section}_Wear_MSK.png").convert("RGB")
+    if mask.size != wear_source.size:
+        mask = mask.resize(wear_source.size, Image.Resampling.BILINEAR)
     r, g, b = mask.split()
     # Source mask channels select paint regions; black is unpainted machinery.
     albedo = Image.composite(Image.new("RGB", mask.size, "#777749"), Image.new("RGB", mask.size, "#303935"), r)
     albedo = Image.composite(Image.new("RGB", mask.size, "#909063"), albedo, g)
     albedo = Image.composite(Image.new("RGB", mask.size, "#56605a"), albedo, b)
-    wear = Image.open(folder / f"{chassis}_{section}_Wear_MSK.png").convert("RGB").getchannel("B").point(lambda p: int(p * .25))
+    wear = wear_source.getchannel("B").point(lambda p: int(p * .25))
     albedo = Image.composite(Image.new("RGB", mask.size, "#b1a477"), albedo, wear)
     normal = Image.open(folder / f"{chassis}_{section}_NRM.png").convert("RGB")
     nr, ng, nb = normal.split()

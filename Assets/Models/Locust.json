@@ -1,0 +1,104 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Locust/Model",
+  "source_files": {
+    "Body/LCT_TP_Cockpit_DM0_STM.bin": "75c8431636f9f13e6c5c92b443f682e1ff0a45997b7734c20593aa9d272268aa",
+    "Body/LCT_TP_Cockpit_DM0_STM.gltf": "6e6ea9eed9a945103a09d165db6f0424aab9a777cac50fd212c727eb5d5d4fc3",
+    "Body/Locust_SKM.bin": "3df001a231f169a67937ae76ba1c1a5d783c0a36f8fde3088932c4a1b0cc4d8c",
+    "Body/Locust_SKM.gltf": "a14be23587e3b247014cde016a1e6c1dd2f8f8b1239cced71ce863e9d5954148",
+    "Body/Materials/Textures/Locust_Body_Default_MSK.png": "c2e9f6eeff21ea0cff6f1e1ef8c39a53df2f914fe724d8314a510adabf6d3b33",
+    "Body/Materials/Textures/Locust_Body_NRM.png": "68a2d18295fc4472a127dab9028aa4259bc9303b4c7180c9fbeaa053f5a7e09d",
+    "Body/Materials/Textures/Locust_Body_Wear_MSK.png": "706bbfe0cd2522e910abd7ca8865b838a4526b1ef1a6cc45cf3a8918794c886e",
+    "Body/Materials/Textures/Locust_Variant_Default_MSK.png": "42bda6cec9c3b2f81e439a9ef926ae15486e38b88a40910431af957f49dace09",
+    "Body/Materials/Textures/Locust_Variant_NRM.png": "b5e276cd6e73154ac6bb73e74783c13bb0e1d3d02d5380ba52538402aba6a6b5",
+    "Body/Materials/Textures/Locust_Variant_Wear_MSK.png": "25e614b16a68cd75d0ee5f0263af6005f4a99f9dd727c58fbb514e2a84e03df5",
+    "Weapons/Weapon_Mech_LCT_Torso_Center_EH1_Laser_SKM.bin": "29560bd23600fc0452b366ea898f40628d4560c165c4155014f319e4f200da45",
+    "Weapons/Weapon_Mech_LCT_Torso_Center_EH1_Laser_SKM.gltf": "5e97523e84200cc036de94b0669cbb1efee5752640d1077ff8f7be217e21bb08",
+    "Weapons/Weapon_Mech_LCT_Upperarm_Left_BH1_MG_SKM.bin": "4987cb0d6772c7aea9d7357af5a24570dd1e8d5a99a016c2e79ba413342d9646",
+    "Weapons/Weapon_Mech_LCT_Upperarm_Left_BH1_MG_SKM.gltf": "fc1c45d547d42ba2e60db8ba9fd39995b4ca1f89d1b3549e86acf0449ccc6110",
+    "Weapons/Weapon_Mech_LCT_Upperarm_Right_BH1_MG_SKM.bin": "7245adc3407311d42673cb607f939cef615c6fdff0d8634d36b0faaf87e4dfe4",
+    "Weapons/Weapon_Mech_LCT_Upperarm_Right_BH1_MG_SKM.gltf": "38b85f9415f9b6059b70fa7656a8e4144df1216bdebf4bec9efe80a53555d9b6"
+  },
+  "runtime_triangles": 20254,
+  "render_meshes": 18,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 6546,
+    "CenterTorso/Weapon0": 394,
+    "Head/AmberCanopy": 32,
+    "Head/CockpitFrame": 308,
+    "LeftArm/ShoulderAndUpperarm": 1100,
+    "LeftArm/Weapon2": 440,
+    "LeftLeg/Foot": 1520,
+    "LeftLeg/Hip": 814,
+    "LeftLeg/Shin": 1088,
+    "LeftLeg/Thigh": 1186,
+    "LeftTorso/TorsoShell": 339,
+    "RightArm/ShoulderAndUpperarm": 1100,
+    "RightArm/Weapon1": 440,
+    "RightLeg/Foot": 1520,
+    "RightLeg/Hip": 814,
+    "RightLeg/Shin": 1088,
+    "RightLeg/Thigh": 1186,
+    "RightTorso/TorsoShell": 339
+  },
+  "cross_region_faces": 0,
+  "weighted_faces": 0,
+  "height": 2.24,
+  "displayed_height": 2.24,
+  "scale": 0.23394009568862775,
+  "bottom": -0.009247692301869392,
+  "rig": {
+    "waist": 1.3295978,
+    "hip": [
+      0.3412905,
+      1.1848425,
+      1.3e-06
+    ],
+    "knee": [
+      0.341309,
+      0.8034716,
+      0.2120375
+    ],
+    "ankle": [
+      0.3438076,
+      0.1235709,
+      -3.3e-06
+    ],
+    "shoulder": [
+      0.5111468,
+      1.6251684,
+      0.2241694
+    ]
+  },
+  "weapons": [
+    {
+      "location": "CenterTorso",
+      "name": "Weapon0",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_LCT_Torso_Center_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "Weapon1",
+      "bone": "Upperarm_Right",
+      "mesh": "Weapon_Mech_LCT_Upperarm_Right_BH1_MG_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftArm",
+      "name": "Weapon2",
+      "bone": "Upperarm_Left",
+      "mesh": "Weapon_Mech_LCT_Upperarm_Left_BH1_MG_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "LCT_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 1
+  },
+  "missile_tubes": 0,
+  "attachment_evidence": "LCT-1V MW5 stock loadout -> hardpoint tag mapping -> weapon blueprint SKM; source skeleton sockets and exterior cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-additional-mech.py + scripts/mech_asset_tools.py; Python + Pillow"
+}

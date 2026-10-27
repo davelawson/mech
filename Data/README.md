@@ -1,6 +1,6 @@
 # Stock BattleMech specifications
 
-`mech-catalog.json` contains the mechanical specifications of the twelve stock 3025 variants offered by the initial draft. The four pools contain three 35-ton, three 55-ton, three 65-ton, and three 80-ton BattleMechs. All twelve predate 3025. It includes front/rear armor, standard internal structure, movement points, single heat sinks, weapon locations/arcs/ranges/heat/damage, ammunition bins and installed critical systems. The original descriptive lore, quirks and combat algorithms are not imported.
+`mech-catalog.json` contains mechanical specifications for 49 stock variants. The initial draft samples three candidates from each weight class, including variants introduced after the campaign start in 3025. Records include armor, structure, movement, heat sinks, weapons, ammunition and installed critical systems. The original descriptive lore, quirks and combat algorithms are not imported.
 
 Mechanical unit definitions are adapted from the [MegaMek Data repository](https://github.com/MegaMek/mm-data), pinned at revision `71fefad545e254b4a224f0d232eaef24473db1ee`. Each entry contains its exact upstream source URL. The upstream authoring references include Technical Readout: 3039 and Technical Readout: Succession Wars. Official comparison sheets are available from the [BattleTech downloads page](https://battletech.com/downloads/), including the [A Game of Armored Combat sheets](https://battletech.com/wp-content/uploads/sites/6/2025/07/RS%20AGoAC%20Epub%201-26-19a.pdf).
 

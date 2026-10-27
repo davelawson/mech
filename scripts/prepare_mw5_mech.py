@@ -13,6 +13,8 @@ LOCATIONS = ("Head", "CenterTorso", "LeftTorso", "RightTorso", "LeftArm", "Right
 
 
 def region(bone):
+    if bone.startswith("Cockpit"):
+        return "Head", "CockpitBody"
     side = "Left" if "Left" in bone else "Right"
     if any(part in bone for part in ("Thigh", "Hip", "Calf", "Knee", "Foot", "Toe", "Talon")):
         part = "Thigh" if "Thigh" in bone else "Hip" if "Hip" in bone else "Shin" if "Calf" in bone or "Knee" in bone else "Foot"
@@ -58,6 +60,8 @@ def prepare(chassis, prefix, displayed_height, model_scale, weapons, script_name
     ])
     parts = defaultdict(list)
     markers = []
+    seam_faces = 0
+    weighted_faces = 0
     for _, attributes, indices in body.primitives():
         grouped = defaultdict(list)
         joints, weights = attributes["JOINTS_0"], attributes["WEIGHTS_0"]
@@ -65,21 +69,24 @@ def prepare(chassis, prefix, displayed_height, model_scale, weapons, script_name
             triangle = indices[start:start + 3]
             bones = [body.g["nodes"][body.g["skins"][0]["joints"][joints[i][0]]]["name"] for i in triangle]
             regions = [region(bone) for bone in bones]
-            if len(set(regions)) > 1 or any(abs(weights[i][0] - 1) >= 1e-5 for i in triangle):
-                # A handful of Panther/Shadowhawk torso seam faces cross source bones.
-                # Keep each complete face with its predominant torso rather than cut it.
-                assert all(key[0].endswith("Torso") for key in regions), "Unexpected weighted limb face"
+            # Preserve each complete face; the predominant source region owns seam faces.
+            if len(set(regions)) > 1:
+                seam_faces += 1
+            if any(abs(weights[i][0] - 1) >= 1e-5 for i in triangle):
+                weighted_faces += 1
             grouped[Counter(regions).most_common(1)[0][0]].extend(triangle)
         for key, triangles in grouped.items():
             parts[key].append((attributes, triangles, armor, lambda p: p, lambda p: p))
 
     canopy = load(f"Body/{prefix}_TP_Cockpit_DM0_STM.gltf")
+    # Some exports omit the unweighted Cockpit joint; Torso_Head has the same source transform.
+    cockpit_bone = "Cockpit" if "Cockpit" in body.names else "Torso_Head"
     for primitive, attributes, indices in canopy.primitives():
         # Cockpit material order varies by chassis; verify glazing in rendered captures.
         glass = primitive["material"] == glass_section
         key = ("Head", "AmberCanopy" if glass else "CockpitFrame")
         parts[key].append((attributes, indices, 2 if glass else 3,
-                           lambda p: body.world("Cockpit", p), lambda p: body.world("Cockpit", p, True)))
+                           lambda p: body.world(cockpit_bone, p), lambda p: body.world(cockpit_bone, p, True)))
 
     for location, name, bone, mesh in weapons:
         asset = load("Weapons/" + mesh + ".gltf")
@@ -90,7 +97,10 @@ def prepare(chassis, prefix, displayed_height, model_scale, weapons, script_name
         for _, attributes, indices in asset.primitives():
             parts[(location, name)].append((attributes, indices, weapon_paint, position, direction))
         fires = sorted(name for name in asset.names if name.startswith("Fire"))
-        if name.startswith("Lrm"):
+        if name.startswith("Weapon"):
+            # Batch imports preserve every source firing position with weapon-specific names.
+            markers.extend((location, f"WeaponMuzzle_{name}_{i:02}", position(asset.world(fire))) for i, fire in enumerate(fires))
+        elif name.startswith("Lrm"):
             assert len(fires) == int(name.removeprefix("Lrm").removesuffix("Housing"))
             markers.extend((location, f"LrmTube{i:02}", position(asset.world(fire))) for i, fire in enumerate(fires))
         elif name.startswith("Srm"):
@@ -146,12 +156,13 @@ def prepare(chassis, prefix, displayed_height, model_scale, weapons, script_name
     manifest = {
         "source": str(source), "source_files": {str(p.relative_to(source)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(inputs)},
         "runtime_triangles": sum(counts.values()), "render_meshes": len(parts), "parts": counts,
+        "cross_region_faces": seam_faces, "weighted_faces": weighted_faces,
         "height": height, "displayed_height": displayed_height, "scale": scale, "bottom": bottom,
         "rig": {"waist": pivot("Torso_Twist")[1], "hip": pivot("Thigh_Right"), "knee": pivot("Calf_Right"),
                 "ankle": pivot("Foot0_Right"), "shoulder": pivot("Upperarm_Right")},
         "weapons": [{"location": owner, "name": name, "bone": bone, "mesh": mesh, "local_transform": "identity"}
                     for owner, name, bone, mesh in weapons],
-        "cockpit": {"mesh": f"{prefix}_TP_Cockpit_DM0_STM", "bone": "Cockpit", "glass_section": glass_section},
+        "cockpit": {"mesh": f"{prefix}_TP_Cockpit_DM0_STM", "bone": cockpit_bone, "glass_section": glass_section},
         "missile_tubes": missile_tubes,
         "attachment_evidence": evidence,
         "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",

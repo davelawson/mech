@@ -100,7 +100,7 @@ The project retains the prepared GLB, four required Godot companion textures, th
 
 MW5's AS7-D source loadout and hardpoint mappings place the AC/20 on the right torso, LRM 20 and SRM 6 on the left torso, one laser on each arm and two on the center torso. The LRM 20 uses MW5's ten-position missile visual; the SRM retains six positions. The tabletop stock catalog records the two center-torso lasers as rear-facing. Existing combat rules do not yet enforce weapon firing arcs, so their rear-facing status is currently informational.
 
-Atlas is registered in the complete catalog for future use, outside the explicit initial draft. The game currently has no acquisition route for it, and no Atlas roster illustration has been added; the 3D model is available to the hangar and combat when an Atlas is added to a company in a future feature.
+Atlas is eligible in the assault draft pool and uses its 3D model in draft previews, the hangar and combat.
 
 ## Imported Panther, Shadow Hawk and Griffin
 
@@ -114,9 +114,54 @@ The existing draft candidates FS9-H, CRD-3R, TDR-5S, VTR-9B and ZEU-6S use MW5 g
 
 The MW5 CRD-3R source locates both SRM 6 visuals on the torso; the tabletop catalog assigns the weapons to the legs. Source visuals remain with their torso damage groups while gameplay uses the existing leg-mounted equipment record. The Firestarter and Zeus also retain tabletop rear-facing equipment records; MW5 source visual mounts and the existing combat firing-arc rules remain unchanged. Crusader source exports are under the DLC4 tree. Each model can be rebuilt with `python3 scripts/prepare-<chassis>.py` and an optional `--source` override; each manifest records the input hashes and attachments.
 
+## Additional catalog imports
+
+The 36 remaining exported base-game chassis are eligible in the initial draft according to weight class; existing companies are unchanged. Their selected variants are listed below. `Data/additional-mechs.json` records the pinned stock-data paths, while `Data/additional-mech-models.json` records the installed game's source hardpoints and weapon blueprints. Each prepared GLB has a manifest with source hashes, rig pivots, geometry counts and the number of source seam or weighted faces assigned to their predominant damage region. Rebuild one with `python3 scripts/prepare-additional-mech.py <id> [--source /path/to/Model]`, then regenerate its runtime rig table with `python3 scripts/generate-additional-rigs.py`.
+
+All additional rigs inherit the shared movement and stride scaling. The Mauler has an XL engine, double heat sinks and ER lasers; the catalog retains those facts and the UI displays double heat-sink dissipation. The current simplified combat rules do not model XL-engine vulnerability, heat accumulation or other advanced equipment effects. Its missing unweighted Cockpit export uses the equivalent source Torso_Head transform. The Rifleman's wear and default masks have different dimensions, so the default mask is resampled to preserve the larger wear texture during baking.
+
+| Chassis | Selected variant |
+| --- | --- |
+| Annihilator | ANH-1A |
+| Archer | ARC-2R |
+| Assassin | ASN-21 |
+| Banshee | BNC-3E |
+| Battlemaster | BLR-1G |
+| Blackjack | BJ-1 |
+| Blackknight | BL-7-KNT |
+| Cataphract | CTF-1X |
+| Centurion | CN9-A |
+| Cicada | CDA-2A |
+| Commando | COM-2D |
+| Crab | CRB-20 |
+| Cyclops | CP-10-Z |
+| Dragon | DRG-1N |
+| Enforcer | ENF-4R |
+| Flea | FLE-15 |
+| Grasshopper | GHR-5H |
+| Highlander | HGN-733 |
+| Hunchback | HBK-4G |
+| Jagermech | JM6-S |
+| Javelin | JVN-10N |
+| Kingcrab | KGC-0000 |
+| Kintaro | KTO-18 |
+| Locust | LCT-1V |
+| Marauder | MAD-3R |
+| Mauler | MAL-1R |
+| Orion | ON1-K |
+| Phoenixhawk | PXH-1 |
+| Quickdraw | QKD-4G |
+| Raven | RVN-2X |
+| Rifleman | RFL-3N |
+| Spider | SDR-5V |
+| Stalker | STK-3F |
+| Trebuchet | TBT-5N |
+| Warhammer | WHM-6R |
+| Wolfhound | WLF-1 |
+
 ## Chassis presentation
 
-MW5 geometry defines all thirteen catalog chassis silhouettes; the existing hangar illustrations guide the shared palette. Catalog specifications determine visible weapon counts and damage-location ownership. The illustrations remain unchanged.
+MW5 geometry defines all 49 catalog chassis silhouettes; the existing hangar illustrations guide the shared palette. Catalog specifications determine visible weapon counts and damage-location ownership. The illustrations remain unchanged.
 
 | Chassis | Silhouette and weapons | Movement character |
 | --- | --- | --- |

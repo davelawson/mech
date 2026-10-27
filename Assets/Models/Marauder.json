@@ -1,0 +1,126 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Marauder/Model",
+  "source_files": {
+    "Body/MAD_TP_Cockpit_DM0_STM.bin": "780fc16415d037ca47ad80ebb7d40132964b6442cee9350795c17105fcbbf1a3",
+    "Body/MAD_TP_Cockpit_DM0_STM.gltf": "1493c4624195511f06e11243d61958587973f43758c16293807b343370504957",
+    "Body/Marauder_SKM.bin": "120b4a4e13839716d881080e33082d2beeac7aa7118ac0c888741e2dee18dea9",
+    "Body/Marauder_SKM.gltf": "c47af247ce41ad660d43e08f5ccba317beeab318b9d7189401e3706d5fc11756",
+    "Body/Materials/Textures/Marauder_Body_Default_MSK.png": "026c3923604356a17475633338b64f85cc1c53f77d317bb32f2ed2d531cbb060",
+    "Body/Materials/Textures/Marauder_Body_NRM.png": "9a13f81ea5701da4f4a885b5cd882f3295bb79f80686ae547187dd5508a672c0",
+    "Body/Materials/Textures/Marauder_Body_Wear_MSK.png": "a4428875347a520d9fd667fbd63876a3d6448451f563ec8f7fbae2b4e1694e0a",
+    "Body/Materials/Textures/Marauder_Variant_Default_MSK.png": "80f542f4b24ecf7234694bcf1576b45f9f2791fbe16d2a9272b797277a6cbdc2",
+    "Body/Materials/Textures/Marauder_Variant_NRM.png": "f5d5c1cb01d4b01fd0f7dd73289cd42e80fe5503aa5dada4d42dbc6cdf2ef543",
+    "Body/Materials/Textures/Marauder_Variant_Wear_MSK.png": "19f2d8c6ab5cb10fe896e24714944dd28f3149e5a76f518e2982b4811bdd6224",
+    "Weapons/Weapon_Mech_MAD_Forearm_Left_EH1_PPC_SKM.bin": "f5c882239795917394bffddc3ad4b2aa60ef4fe3c27fc51de1ac9ab7b5168bf8",
+    "Weapons/Weapon_Mech_MAD_Forearm_Left_EH1_PPC_SKM.gltf": "f90dba3d7a887e5621762889510829b280434128e2fce250481b015ed7f187cb",
+    "Weapons/Weapon_Mech_MAD_Forearm_Left_EH2_Laser_SKM.bin": "579b839c3e28597fda48af308fd9a5b99acf7aad75a4292add532308b909cccc",
+    "Weapons/Weapon_Mech_MAD_Forearm_Left_EH2_Laser_SKM.gltf": "65177634cce9ac6e61e17ff7e4ea41286bc3041421519cc29b26e28bedd3b73e",
+    "Weapons/Weapon_Mech_MAD_Forearm_Right_EH1_PPC_SKM.bin": "ce8655d1f77f160d1bd06fe93be4e6f09e0dc7603699637d550c30c575a7dd80",
+    "Weapons/Weapon_Mech_MAD_Forearm_Right_EH1_PPC_SKM.gltf": "ed132677f8829c1b65353f8dd97e223f4e072d8a3e4b2bd7cbc91dc24bed14be",
+    "Weapons/Weapon_Mech_MAD_Forearm_Right_EH2_Laser_SKM.bin": "69184368a318fed55e4b4851a853fc810be456d13a67c07f6b5a7d452c2a069d",
+    "Weapons/Weapon_Mech_MAD_Forearm_Right_EH2_Laser_SKM.gltf": "ccb092a41689c6746880738a01827e7ef07df8738ec833a314ea7d563fa64b80",
+    "Weapons/Weapon_Mech_MAD_Torso_Right_BH1_AC5_SKM.bin": "387926cbf49132a0e1031b3931154e874325eeb16333bdbc3ff76888ab272a49",
+    "Weapons/Weapon_Mech_MAD_Torso_Right_BH1_AC5_SKM.gltf": "62c283bbafc4b61322588186de1472bd754457da8c2f3cf3b365dbbfae88e003"
+  },
+  "runtime_triangles": 41572,
+  "render_meshes": 22,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 6101,
+    "Head/AmberCanopy": 248,
+    "Head/CockpitFrame": 950,
+    "LeftArm/ForearmAndFist": 1776,
+    "LeftArm/ShoulderAndUpperarm": 2544,
+    "LeftArm/Weapon3": 618,
+    "LeftArm/Weapon4": 230,
+    "LeftLeg/Foot": 2444,
+    "LeftLeg/Hip": 360,
+    "LeftLeg/Shin": 4532,
+    "LeftLeg/Thigh": 1856,
+    "LeftTorso/TorsoShell": 1889,
+    "RightArm/ForearmAndFist": 1776,
+    "RightArm/ShoulderAndUpperarm": 2544,
+    "RightArm/Weapon1": 618,
+    "RightArm/Weapon2": 230,
+    "RightLeg/Foot": 2444,
+    "RightLeg/Hip": 360,
+    "RightLeg/Shin": 4532,
+    "RightLeg/Thigh": 1856,
+    "RightTorso/TorsoShell": 1890,
+    "RightTorso/Weapon0": 1774
+  },
+  "cross_region_faces": 11,
+  "weighted_faces": 0,
+  "height": 2.7058823529411766,
+  "displayed_height": 3.45,
+  "scale": 0.16639190484006433,
+  "bottom": -0.24623802304267883,
+  "rig": {
+    "waist": 1.6902885,
+    "hip": [
+      0.4043327,
+      1.5461429,
+      0.0143646
+    ],
+    "knee": [
+      0.4179839,
+      1.2219227,
+      0.438501
+    ],
+    "ankle": [
+      0.4645947,
+      0.1965207,
+      -0.0228161
+    ],
+    "shoulder": [
+      0.3916803,
+      2.0587612,
+      -0.2380222
+    ]
+  },
+  "weapons": [
+    {
+      "location": "RightTorso",
+      "name": "Weapon0",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_MAD_Torso_Right_BH1_AC5_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "Weapon1",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_MAD_Forearm_Right_EH1_PPC_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "Weapon2",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_MAD_Forearm_Right_EH2_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftArm",
+      "name": "Weapon3",
+      "bone": "Forearm_Left",
+      "mesh": "Weapon_Mech_MAD_Forearm_Left_EH1_PPC_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftArm",
+      "name": "Weapon4",
+      "bone": "Forearm_Left",
+      "mesh": "Weapon_Mech_MAD_Forearm_Left_EH2_Laser_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "MAD_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 0
+  },
+  "missile_tubes": 0,
+  "attachment_evidence": "MAD-3R MW5 stock loadout -> hardpoint tag mapping -> weapon blueprint SKM; source skeleton sockets and exterior cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-additional-mech.py + scripts/mech_asset_tools.py; Python + Pillow"
+}

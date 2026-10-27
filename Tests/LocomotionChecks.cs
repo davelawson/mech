@@ -171,7 +171,7 @@ internal static partial class CombatChecks
                 var expected = (mode == MovementMode.Walk ? spec.Walk : spec.Run) * .12f * 1.5f;
                 check(sim.Units.All(item => Math.Abs((mode == MovementMode.Walk ? item.WalkingSpeed : item.RunningSpeed) - expected) < .0001f),
                     $"{spec.Id} {mode} has 50% faster movement limits on both sides");
-                unit.Movement = mode; sim.Move([unit.Id], new(0, -30)); sim.Advance(4);
+                unit.Movement = mode; sim.Move([unit.Id], new(0, -30)); sim.Advance(9d / spec.Walk + 1);
                 var before = unit.Position; sim.Advance(1);
                 check(Math.Abs(unit.CurrentSpeed - expected) < .001f
                     && Math.Abs(unit.Position.DistanceTo(before) - expected) < .001f,

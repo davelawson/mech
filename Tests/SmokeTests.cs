@@ -74,6 +74,7 @@ public partial class SmokeTests : Node
             await TestChassisVisuals();
             await TestAdditionalChassis();
             await TestFinalChassis();
+            await TestAdditionalBatch();
             await TestCombatUi();
             await TestRosterUi();
             await TestMissionsUi();
@@ -642,7 +643,13 @@ public partial class SmokeTests : Node
     {
         Check(_app.Drafting.Visible && _app.State.RequiresDraft && !_app.State.CanAdvance, "new company must draft before operations");
         var initialDraft = _app.Drafting.Draft;
+        Check(DraftCatalog.Warriors.All(warrior => ResourceLoader.Exists(warrior.Artwork)), "all draft pilot portraits are imported");
         var initialChoices = Enumerable.Range(0, 8).Select(initialDraft.Choice).ToArray();
+        for (var pool = 0; pool < 4; pool++) for (var choice = 0; choice < 3; choice++)
+        {
+            var preview = _app.Drafting.Choices[pool, choice].GetChildren().OfType<MechPreview>().Single();
+            Check(preview.Model?.ChassisId == initialDraft.MechCandidate(pool, choice).Id, "draft card displays its randomized candidate model");
+        }
         Check(initialDraft.Complete && initialDraft.SelectedCount == 8 && !_app.Drafting.EstablishButton.Disabled,
             "new draft defaults are ready to establish");
         Check(InitialDraft.ValidName(_app.Drafting.NameInput.Text) && _app.Drafting.NameInput.Text == initialDraft.ForceName,
@@ -682,6 +689,7 @@ public partial class SmokeTests : Node
         var inspect = _app.Drafting.FindChildren("*", "Button", true, false).OfType<Button>().First(button => button.Text == "…");
         await Click(inspect);
         Check(_app.Drafting.FindChildren("*", "Control", true, false).OfType<MechDetails>().Any(), "candidate can be inspected before selection");
+        Check(_app.Drafting.FindChildren("*", "Control", true, false).OfType<MechPreview>().Any(preview => preview.Model?.ChassisId == initialDraft.MechCandidate(0, 0).Id), "inspection displays the selected candidate model");
         await Capture("draft-inspect");
         await RightClick(inspect.GetGlobalRect().GetCenter());
         Check(!_app.Dialog.Visible && _app.Drafting.Draft.Choice(0) == 1 && inspect.HasFocus()

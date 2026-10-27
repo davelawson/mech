@@ -107,7 +107,7 @@ The roster implementation adds 26 project-local raster assets generated with the
 - The former `dropship-office-rosters.png` was an edit of the integrated office that added a physical rolodex and an enclosed repair-bay view beyond the porthole. The active missions office retains those additions; the intermediate office images were removed during cleanup.
 - `Assets/Roster/hangar-background.png` is an empty maintenance bay with matching olive steel, amber lamps and painted industrial textures.
 - `Assets/Roster/{firestarter,jenner,panther,griffin,shadow-hawk,wolverine,catapult,crusader,thunderbolt,awesome,victor,zeus}.png` are individually generated transparent mech illustrations. They are visual interpretations of the chassis, not technical record sheets; the adjacent classic specifications are authoritative.
-- The other twelve PNGs in `Assets/Roster/` are individually generated original personnel portraits, named by the warrior IDs in `DraftCatalog`.
+- The 24 personnel PNGs in `Assets/Roster/` are individually generated original portraits, named by the warrior IDs in `DraftCatalog`.
 
 All new textures are imported losslessly with mipmaps. Cutout transparency is preserved. No project asset depends on an image remaining in the generator's output directory.
 

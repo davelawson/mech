@@ -1,0 +1,126 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Trebuchet/Model",
+  "source_files": {
+    "Body/Materials/Textures/Trebuchet_Body_Default_MSK.png": "d57d924605eb645cdd844bd50ceaa1601b9dfd778bff9e077472133d0629ebb6",
+    "Body/Materials/Textures/Trebuchet_Body_NRM.png": "df5a3c4bcdb67f3dc5fed7fee07623b4a16e83842699c87735220eb7b9d3f217",
+    "Body/Materials/Textures/Trebuchet_Body_Wear_MSK.png": "4bb27064976b07020ea2222a4488cf58431eab62161d677d5446be8f2aa6680d",
+    "Body/Materials/Textures/Trebuchet_Variant_Default_MSK.png": "28fb3c0c7334d4bb94552d640a85be36e6736df93d0be3ee5fb399058d5a055c",
+    "Body/Materials/Textures/Trebuchet_Variant_NRM.png": "bf9c64630ff8c8c86a52bc996d55148ffe6a9023375893d4d7cb5510286f2dea",
+    "Body/Materials/Textures/Trebuchet_Variant_Wear_MSK.png": "1e8004cbe29a89c3fb86a3b05b078cf5e1fbf9b1cc0fc06a2f4b145ced2d9762",
+    "Body/TBT_TP_Cockpit_DM0_STM.bin": "74c9b0d227ba5bd18f9612da06c4c66ed7e4a7421572d20a02ebc873c6d4f96c",
+    "Body/TBT_TP_Cockpit_DM0_STM.gltf": "fec86e1be6d32a2c87b7def2270de0803de101d96c13a0c2c6f8627e359d9993",
+    "Body/Trebuchet_SKM.bin": "657c4f2c086f02d7300220d0eceb419c0ae7c297c1a7e906a6332774f1509942",
+    "Body/Trebuchet_SKM.gltf": "bcc76132a4e4f74f65008bd215c214cab2dd9a1c0cdbff36c1d34dfc45967b12",
+    "Weapons/Weapon_Mech_TBT_Forearm_Left_EH1_Laser_SKM.bin": "8699a89c11785350dfc2664c5b1f3573ed2bfec7d387628dd49a94f489779540",
+    "Weapons/Weapon_Mech_TBT_Forearm_Left_EH1_Laser_SKM.gltf": "a4fac6ed866425028350eddad39fbdc79eed4f4363a0b7181fa81e7dcf997e76",
+    "Weapons/Weapon_Mech_TBT_Forearm_Left_MH1_Missile15_SKM.bin": "4e26f1a48efb103df1862af1ad29953b26246cd2707ab7802022240a5f6cab85",
+    "Weapons/Weapon_Mech_TBT_Forearm_Left_MH1_Missile15_SKM.gltf": "c7aa84b0e15cf518408f78731b81b2e8da7b1b86f4cb40abadff9fa3424f4ccc",
+    "Weapons/Weapon_Mech_TBT_Forearm_Right_EH1_Laser_SKM.bin": "6d55b8194f2d8fa531556dd8cc38c84a949903908a279822621c5fa1fb5fa40d",
+    "Weapons/Weapon_Mech_TBT_Forearm_Right_EH1_Laser_SKM.gltf": "3f183ee8f88f99899b5e418a6a4007acbee63f49c9ebc7169e767ded0935e0d3",
+    "Weapons/Weapon_Mech_TBT_Forearm_Right_EH2_Laser_SKM.bin": "2c501c703030d11ecfd9e51432b743768042feca7a290523cc163fee9ac07510",
+    "Weapons/Weapon_Mech_TBT_Forearm_Right_EH2_Laser_SKM.gltf": "45e2053a82c18364171465cbac288bc7d739e0cdfea764576eb8198f152d46a0",
+    "Weapons/Weapon_Mech_TBT_Torso_Right_MH1_Missile15_SKM.bin": "f7b48d7141d3798c5683623ea10500325b5a3e3be9d58a3dabdba5b96b721a22",
+    "Weapons/Weapon_Mech_TBT_Torso_Right_MH1_Missile15_SKM.gltf": "c193be4a1ef6603432308ae900bfc7dd10f16a584cee322b9a2cd352ca5f9dd8"
+  },
+  "runtime_triangles": 20287,
+  "render_meshes": 22,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 4504,
+    "Head/AmberCanopy": 28,
+    "Head/CockpitFrame": 416,
+    "LeftArm/ForearmAndFist": 1750,
+    "LeftArm/ShoulderAndUpperarm": 1120,
+    "LeftArm/Weapon3": 230,
+    "LeftArm/Weapon4": 1540,
+    "LeftLeg/Foot": 1030,
+    "LeftLeg/Hip": 660,
+    "LeftLeg/Shin": 1082,
+    "LeftLeg/Thigh": 488,
+    "LeftTorso/TorsoShell": 473,
+    "RightArm/ForearmAndFist": 228,
+    "RightArm/ShoulderAndUpperarm": 766,
+    "RightArm/Weapon1": 230,
+    "RightArm/Weapon2": 282,
+    "RightLeg/Foot": 1030,
+    "RightLeg/Hip": 660,
+    "RightLeg/Shin": 1082,
+    "RightLeg/Thigh": 488,
+    "RightTorso/TorsoShell": 770,
+    "RightTorso/Weapon0": 1430
+  },
+  "cross_region_faces": 0,
+  "weighted_faces": 4,
+  "height": 2.5217391304347827,
+  "displayed_height": 2.9,
+  "scale": 0.14130668848985148,
+  "bottom": -0.03456558659672737,
+  "rig": {
+    "waist": 1.3125986,
+    "hip": [
+      0.3211804,
+      1.1689938,
+      -0.0039173
+    ],
+    "knee": [
+      0.3366115,
+      0.7402803,
+      -0.1646814
+    ],
+    "ankle": [
+      0.3532694,
+      0.1662914,
+      -0.0339631
+    ],
+    "shoulder": [
+      0.5712315,
+      1.8359956,
+      0.0211879
+    ]
+  },
+  "weapons": [
+    {
+      "location": "RightTorso",
+      "name": "Weapon0",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_TBT_Torso_Right_MH1_Missile15_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "Weapon1",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_TBT_Forearm_Right_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightArm",
+      "name": "Weapon2",
+      "bone": "Forearm_Right",
+      "mesh": "Weapon_Mech_TBT_Forearm_Right_EH2_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftArm",
+      "name": "Weapon3",
+      "bone": "Forearm_Left",
+      "mesh": "Weapon_Mech_TBT_Forearm_Left_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "LeftArm",
+      "name": "Weapon4",
+      "bone": "Forearm_Left",
+      "mesh": "Weapon_Mech_TBT_Forearm_Left_MH1_Missile15_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "TBT_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 0
+  },
+  "missile_tubes": 0,
+  "attachment_evidence": "TBT-5N MW5 stock loadout -> hardpoint tag mapping -> weapon blueprint SKM; source skeleton sockets and exterior cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-additional-mech.py + scripts/mech_asset_tools.py; Python + Pillow"
+}

@@ -10,40 +10,43 @@ internal static class RosterChecks
             try { action(); } catch (Exception error) when (error is ArgumentException or InvalidOperationException) { rejected = true; }
             check(rejected, name);
         }
-        check(DraftCatalog.AllMechs.Count == 13 && DraftCatalog.Mech("atlas") is { Variant: "AS7-D", Tonnage: 100 }
-            && DraftCatalog.Mechs.All(mech => mech.Id != "atlas"), "Atlas is registered for future use outside the draft");
+        check(DraftCatalog.AllMechs.Count == 49 && DraftCatalog.Mech("atlas") is { Variant: "AS7-D", Tonnage: 100 }, "all 49 chassis are catalogued");
         check(DraftCatalog.Mech("atlas").Weapons.Count(weapon => weapon.Rear && weapon.Location == MechLocation.CenterTorso) == 2, "Atlas retains both stock rear-facing lasers");
-        check(DraftCatalog.Mechs.Count == 12 && DraftCatalog.Warriors.Count == 12, "authored draft has twelve mech and warrior candidates");
-        for (var pool = 0; pool < 4; pool++)
-        {
-            var mechs = DraftCatalog.Mechs.Skip(pool * 3).Take(3).ToArray();
-            check(mechs.Select(item => item.Tonnage).Distinct().Count() == 1 && mechs.All(item => item.Introduced <= 3025), "mech pools have comparable stock 3025 candidates");
-        }
-        check(DraftCatalog.Warriors.Take(9).All(item => item.Gunnery + item.Piloting == 9)
-            && DraftCatalog.Warriors.Skip(9).All(item => item.Gunnery + item.Piloting == 7), "one veteran pool and three regular pools");
+        check(DraftCatalog.Warriors.Count == 24 && DraftCatalog.Warriors.Count(w => w.Experience.StartsWith("Regular")) == 18
+            && DraftCatalog.Warriors.Count(w => w.Experience.StartsWith("Veteran")) == 6, "expanded pilot catalog preserves regular and veteran balance");
         var seeded = InitialDraft.CreateRandom(new Random(3025));
         var replay = InitialDraft.CreateRandom(new Random(3025));
-        check(seeded.ForceName == replay.ForceName && Enumerable.Range(0, 8).All(pool => seeded.Choice(pool) == replay.Choice(pool)),
+        check(seeded.ForceName == replay.ForceName && Enumerable.Range(0, 8).All(pool => seeded.Choice(pool) == replay.Choice(pool))
+            && Enumerable.Range(0, 4).All(p => Enumerable.Range(0, 3).All(c => seeded.MechCandidate(p,c).Id == replay.MechCandidate(p,c).Id && seeded.WarriorCandidate(p+4,c).Id == replay.WarriorCandidate(p+4,c).Id)),
             "random draft can be reproduced with a seeded source");
+        var seenMechs = new HashSet<string>(); var seenWarriors = new HashSet<string>();
         var generatedNames = new HashSet<string>();
         var generatedChoices = Enumerable.Range(0, 8).Select(_ => new HashSet<int>()).ToArray();
-        for (var seed = 0; seed < 64; seed++)
+        for (var seed = 0; seed < 512; seed++)
         {
             var generated = InitialDraft.CreateRandom(new Random(seed));
             check(generated.Complete && generated.SelectedCount == 8 && InitialDraft.ValidName(generated.ForceName),
                 "random draft has eight selections and a valid company name");
             var generatedRoster = generated.Establish();
             check(generatedRoster.Mechs.Select(item => item.Spec.Id).SequenceEqual(Enumerable.Range(0, 4)
-                    .Select(pool => DraftCatalog.Mechs[pool * 3 + generated.Choice(pool)].Id))
+                    .Select(pool => generated.MechCandidate(pool, generated.Choice(pool)).Id))
                 && generatedRoster.Warriors.Select(item => item.Spec.Id).SequenceEqual(Enumerable.Range(4, 4)
-                    .Select(pool => DraftCatalog.Warriors[(pool - 4) * 3 + generated.Choice(pool)].Id))
+                    .Select(pool => generated.WarriorCandidate(pool, generated.Choice(pool)).Id))
                 && generatedRoster.ForceName == generated.ForceName && generatedRoster.Mechs.All(item => item.WarriorId is null),
                 "random draft establishes its selected candidates from each pool with unassigned pilots");
+            var candidates = Enumerable.Range(0,4).SelectMany(p => Enumerable.Range(0,3).Select(c => generated.MechCandidate(p,c))).ToArray();
+            var pilots = Enumerable.Range(4,4).SelectMany(p => Enumerable.Range(0,3).Select(c => generated.WarriorCandidate(p,c))).ToArray();
+            check(candidates.Select(m => m.Id).Distinct().Count() == 12 && pilots.Select(w => w.Id).Distinct().Count() == 12
+                && Enumerable.Range(0,4).All(p => Enumerable.Range(0,3).All(c => { var t = generated.MechCandidate(p,c).Tonnage; return p == (t <= 35 ? 0 : t <= 55 ? 1 : t <= 75 ? 2 : 3); }))
+                && pilots.Take(9).All(w => w.Experience.StartsWith("Regular")) && pilots.Skip(9).All(w => w.Experience.StartsWith("Veteran")), "draft candidates are distinct and belong to their intended pools");
+            foreach (var candidate in candidates) seenMechs.Add(candidate.Id);
+            foreach (var pilot in pilots) seenWarriors.Add(pilot.Id);
             generatedNames.Add(generated.ForceName);
             for (var pool = 0; pool < 8; pool++) generatedChoices[pool].Add(generated.Choice(pool));
         }
         check(generatedNames.Count > 1 && generatedChoices.All(choices => choices.SetEquals([0, 1, 2])),
             "seeded samples vary company names and reach every candidate in every pool");
+        check(seenMechs.SetEquals(DraftCatalog.AllMechs.Select(m => m.Id)) && seenWarriors.SetEquals(DraftCatalog.Warriors.Select(w => w.Id)), "all catalogued mechs and pilots can appear in the draft");
         var fresh = new Campaign();
         check(fresh.RequiresDraft && !fresh.CanAdvance && !fresh.AdvanceOneDay().Advanced, "undrafted campaign cannot advance");
         Reject(() => fresh.EstablishCompany(new InitialDraft()), "incomplete draft cannot establish a force");

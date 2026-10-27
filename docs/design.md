@@ -72,7 +72,7 @@
 
 # Draft, travel, and interface
 
-- Select an authored set of eight draft pools at campaign creation, without a reroll button.
+- Generate eight draft pools at campaign creation, without a reroll button.
 - Initial MechWarrior skills are Gunnery and Piloting; progression and special abilities are deferred.
 - Systems connect when separated by at most 30 light-years. Choose the fewest jumps, breaking ties by total distance. Each jump takes ceil(distance / 6) whole days. Explicit regions will determine regional offer visibility.
 - Damaged mechs and wrecks have guaranteed local sale at a displayed condition-adjusted price. Selling cancels associated repair orders under the cancellation rules.
@@ -94,7 +94,7 @@
 - Any click stops advancement and activates the clicked object, except calendar and post-it clicks, which only stop advancement. Clicking empty space also stops advancement.
 - Stop at arrivals, repair completions, mission results, contract deadlines, and quarterly payments.
 - Quarterly payments always guarantee an upcoming event. Other event producers will connect to the scheduling foundation as their systems are implemented.
-- Begin at Galatea, with all named chart systems available for route plotting, one authored draft configuration, and a small set of repeatable contract templates.
+- Begin at Galatea, with all named chart systems available for route plotting, randomized draft candidates, and a small set of repeatable contract templates.
 
 # Acceptance scenarios
 
@@ -120,9 +120,9 @@ The desk rolodex displays the number of healthy MechWarriors ready for immediate
 
 The existing right porthole looks into an enclosed repair bay. Clicking it opens a dedicated hangar interface with a new painted background, a large selected BattleMech, roster selection along the bottom, classic specifications and pilot assignment controls. Assignment is one-to-one; transfers and swaps require explicit confirmation. New rosters start unassigned. This slice provides viewing and assignment, without sales, dismissal, renaming, repair controls or combat resolution.
 
-All roster art matches the painted office: a maintenance-bay background, twelve recognizable stock mech illustrations and twelve original warrior portraits. Unit detail includes classic stock 3025 loadouts, front/rear armor and internal structure by location, component condition, weapons and ammunition, movement and heat information.
+Roster art includes a maintenance-bay background, original warrior portraits, and 3D model previews for draft candidates. Unit detail includes classic stock 3025 loadouts, front/rear armor and internal structure by location, component condition, weapons and ammunition, movement and heat information.
 
-A new company enters the office and immediately opens the shared initial draft before normal operations. Eight pools of three candidates are simultaneously visible: Light, Medium, Heavy and Assault BattleMechs, plus three regular MechWarrior pools and one more experienced pool. Each warrior pool offers balanced skills, Gunnery emphasis and Piloting emphasis. Individual candidate records can be inspected without selecting. There are no rounds or rerolls.
+A new company enters the office and immediately opens the shared initial draft before normal operations. Eight pools of three candidates are simultaneously visible: Light, Medium, Heavy and Assault BattleMechs, plus three regular MechWarrior pools and one more experienced pool. The warrior catalog contains balanced, Gunnery-focused and Piloting-focused recruits; candidates are randomly sampled within their experience class. Individual candidate records can be inspected without selecting. There are no rounds or rerolls.
 
 The company name and all eight choices remain editable until **Establish Company** commits the complete roster. Escape from an unfinished draft asks to abandon it and return to the main menu. Unfinished drafts cannot be saved, and established drafts cannot reopen. Existing finance-only saves require this same draft while retaining their date, cash, obligations and scheduled events; loading or drafting does not overwrite the manual save.
 

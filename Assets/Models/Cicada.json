@@ -1,0 +1,106 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Cicada/Model",
+  "source_files": {
+    "Body/CDA_TP_Cockpit_DM0_STM.bin": "16cc10c3f98c5a061006ab6fea66f2d845fda3c9384eedf41cf05c3e0d5ece05",
+    "Body/CDA_TP_Cockpit_DM0_STM.gltf": "5a2bf9f392e648588369012cd46ab4ce8505e0cecb25b5e039fbea3eef684b32",
+    "Body/Cicada_SKM.bin": "c1408baf8e40ae147823aeee61a79354fe5709f3de95673078074cbf1dbfe512",
+    "Body/Cicada_SKM.gltf": "77457824a2b9ce34628d75eecef1d36b6e91a13d5de9d0627b461bb3005ca803",
+    "Body/Materials/Textures/Cicada_Body_Default_MSK.png": "0b3ad8a84f1ac708f86b2b974075b2238ca66bccd1b50bafc9838f6447b7173e",
+    "Body/Materials/Textures/Cicada_Body_NRM.png": "580e4a70a968837ef38cda5d2d06e95d59001eb6c000d411fe57631744d0782b",
+    "Body/Materials/Textures/Cicada_Body_Wear_MSK.png": "cafe25987ab147a2bd68ee1adbd8dec8ea17a54db74b99a8ada510ce6ab861d1",
+    "Body/Materials/Textures/Cicada_Variant_Default_MSK.png": "645d8c02941eefcc8fb9199b24ef05d64ced8656d3a475e893499514e953205b",
+    "Body/Materials/Textures/Cicada_Variant_NRM.png": "8bd2451e41f8d03e08b49f054ef58583250093ba29d664be66b22886caeb43f2",
+    "Body/Materials/Textures/Cicada_Variant_Wear_MSK.png": "49f23f663fdf09c46933e6d52c58dba1a826ae066994a898043dbad4428aa0f9",
+    "Weapons/Weapon_Mech_CDA_Torso_Center_EH1_Laser_SKM.bin": "567387cb04aa42c332ec381a1479462c7afbfb1c73265dd44b81d8e77c2301ad",
+    "Weapons/Weapon_Mech_CDA_Torso_Center_EH1_Laser_SKM.gltf": "76cfe5953f3cfad91a49521c09f5ea6b9e6f3dac9dd384ef7797d634530dd3bc",
+    "Weapons/Weapon_Mech_CDA_Torso_Left_EH1_Laser_SKM.bin": "e04c500f293190235dc6b7ba658f2b5bfe49b48d233d2e7f60000551c466aa39",
+    "Weapons/Weapon_Mech_CDA_Torso_Left_EH1_Laser_SKM.gltf": "b13aff5b2afc6f9c28d8644339d3ae284acf8e400af5691e28859bbea9280ff2",
+    "Weapons/Weapon_Mech_CDA_Torso_Right_EH1_Laser_SKM.bin": "a45f5e5cfc131138ab440de48f77b9eb4391347791624e4a20b209d2214f5740",
+    "Weapons/Weapon_Mech_CDA_Torso_Right_EH1_Laser_SKM.gltf": "98234bf278ccd1448636a7048ec60c3b4b341a5d7e6549e98b1dbd3e854b2d5e"
+  },
+  "runtime_triangles": 18546,
+  "render_meshes": 20,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 3612,
+    "CenterTorso/Weapon1": 282,
+    "Head/AmberCanopy": 12,
+    "Head/CockpitFrame": 560,
+    "LeftArm/ForearmAndFist": 195,
+    "LeftArm/ShoulderAndUpperarm": 188,
+    "LeftLeg/Foot": 1152,
+    "LeftLeg/Hip": 604,
+    "LeftLeg/Shin": 2884,
+    "LeftLeg/Thigh": 740,
+    "LeftTorso/TorsoShell": 1014,
+    "LeftTorso/Weapon0": 268,
+    "RightArm/ForearmAndFist": 195,
+    "RightArm/ShoulderAndUpperarm": 188,
+    "RightLeg/Foot": 1152,
+    "RightLeg/Hip": 604,
+    "RightLeg/Shin": 2884,
+    "RightLeg/Thigh": 740,
+    "RightTorso/TorsoShell": 1004,
+    "RightTorso/Weapon2": 268
+  },
+  "cross_region_faces": 0,
+  "weighted_faces": 0,
+  "height": 2.4363636363636365,
+  "displayed_height": 2.68,
+  "scale": 0.1690821348589434,
+  "bottom": -0.019674720242619514,
+  "rig": {
+    "waist": 1.3639172,
+    "hip": [
+      0.3838165,
+      1.2764639,
+      -0.0014289
+    ],
+    "knee": [
+      0.4083763,
+      0.6736285,
+      0.0312129
+    ],
+    "ankle": [
+      0.4311602,
+      0.1306647,
+      -0.1100763
+    ],
+    "shoulder": [
+      0.5297934,
+      1.8037884,
+      0.2203523
+    ]
+  },
+  "weapons": [
+    {
+      "location": "LeftTorso",
+      "name": "Weapon0",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_CDA_Torso_Left_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "CenterTorso",
+      "name": "Weapon1",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_CDA_Torso_Center_EH1_Laser_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightTorso",
+      "name": "Weapon2",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_CDA_Torso_Right_EH1_Laser_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "CDA_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 0
+  },
+  "missile_tubes": 0,
+  "attachment_evidence": "CDA-2A MW5 stock loadout -> hardpoint tag mapping -> weapon blueprint SKM; source skeleton sockets and exterior cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-additional-mech.py + scripts/mech_asset_tools.py; Python + Pillow"
+}

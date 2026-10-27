@@ -1,0 +1,96 @@
+{
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Javelin/Model",
+  "source_files": {
+    "Body/JVN_TP_Cockpit_DM0_STM.bin": "7542be9e492f8c65292905e3a721e0ed73c2f89ea9e99765b2caf053c166b2eb",
+    "Body/JVN_TP_Cockpit_DM0_STM.gltf": "7bf0f0cc092a8d0cf35b57b3da6cc767c67529169156905ce7ec2d3d5a294642",
+    "Body/Javelin_SKM.bin": "1bcd681b3af6fb350cd6e5f7fb85393f47d9805cef765eab510ffd48584ac200",
+    "Body/Javelin_SKM.gltf": "c7fe976b043c5db5b656decb4e9479577d8a90913e0873fd92b308bd6771a4f7",
+    "Body/Materials/Textures/Javelin_Body_Default_MSK.png": "c5c87bedccc8e085fd9e1d21c6e60aaf9408da35f4a41471f948b661791f8142",
+    "Body/Materials/Textures/Javelin_Body_NRM.png": "57af15987de54e86353f850c7bf8d0b443e59a8eb9a10515055bb79e0c170305",
+    "Body/Materials/Textures/Javelin_Body_Wear_MSK.png": "de3940bbe1c5c65a3d2b1abe5024bc7e37e31b7849b842ac1996f6c50dea7b5e",
+    "Body/Materials/Textures/Javelin_Variant_Default_MSK.png": "f80882e41bbf94df2d61d65ae5c498927331bfc95ab650608232567529003276",
+    "Body/Materials/Textures/Javelin_Variant_NRM.png": "a5cd9bc432caf7301c5476ce8eb55311ae2afd4bbed415f638c1888edcb17001",
+    "Body/Materials/Textures/Javelin_Variant_Wear_MSK.png": "75ff1e1e010742bc9c17b83117eead8c934907ae46250f88b3b3a97ed625e201",
+    "Weapons/Weapon_Mech_JVN_Torso_Left_MH1_Missile6_SKM.bin": "94bf015be60200f7d8c8a5fb915e8973eadcaa0a4cbf96dbcc4b390a9b5de4b0",
+    "Weapons/Weapon_Mech_JVN_Torso_Left_MH1_Missile6_SKM.gltf": "87122980aa8c5e189f6473a0bf1ba6a758c79e4484e766b7a0cfea5e02199620",
+    "Weapons/Weapon_Mech_JVN_Torso_Right_MH1_Missile6_SKM.bin": "20ef70e075680527bfbcdf3341dca8d5d55ce20a84d6c1756c3ad45519ad491b",
+    "Weapons/Weapon_Mech_JVN_Torso_Right_MH1_Missile6_SKM.gltf": "fc69a502016522d7223ca2fb462956a62758678dac466913c374202f91bfe2e5"
+  },
+  "runtime_triangles": 38409,
+  "render_meshes": 19,
+  "parts": {
+    "CenterTorso/CoreAndPelvis": 7094,
+    "Head/AmberCanopy": 42,
+    "Head/CockpitFrame": 2433,
+    "LeftArm/ForearmAndFist": 2624,
+    "LeftArm/ShoulderAndUpperarm": 1483,
+    "LeftLeg/Foot": 1578,
+    "LeftLeg/Hip": 1006,
+    "LeftLeg/Shin": 2036,
+    "LeftLeg/Thigh": 3382,
+    "LeftTorso/TorsoShell": 1834,
+    "LeftTorso/Weapon0": 476,
+    "RightArm/ForearmAndFist": 2624,
+    "RightArm/ShoulderAndUpperarm": 1483,
+    "RightLeg/Foot": 1578,
+    "RightLeg/Hip": 1006,
+    "RightLeg/Shin": 2038,
+    "RightLeg/Thigh": 3382,
+    "RightTorso/TorsoShell": 1834,
+    "RightTorso/Weapon1": 476
+  },
+  "cross_region_faces": 0,
+  "weighted_faces": 0,
+  "height": 2.3428571428571425,
+  "displayed_height": 2.46,
+  "scale": 0.1675677461117116,
+  "bottom": -0.003954686224460602,
+  "rig": {
+    "waist": 1.3125631,
+    "hip": [
+      0.1991926,
+      1.1541419,
+      -0.0005508
+    ],
+    "knee": [
+      0.2211808,
+      0.7124702,
+      -0.0543613
+    ],
+    "ankle": [
+      0.25388,
+      0.0580307,
+      0.0231673
+    ],
+    "shoulder": [
+      0.3387921,
+      1.7583623,
+      0.1306646
+    ]
+  },
+  "weapons": [
+    {
+      "location": "LeftTorso",
+      "name": "Weapon0",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_JVN_Torso_Left_MH1_Missile6_SKM",
+      "local_transform": "identity"
+    },
+    {
+      "location": "RightTorso",
+      "name": "Weapon1",
+      "bone": "Torso_Pitch",
+      "mesh": "Weapon_Mech_JVN_Torso_Right_MH1_Missile6_SKM",
+      "local_transform": "identity"
+    }
+  ],
+  "cockpit": {
+    "mesh": "JVN_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 0
+  },
+  "missile_tubes": 0,
+  "attachment_evidence": "JVN-10N MW5 stock loadout -> hardpoint tag mapping -> weapon blueprint SKM; source skeleton sockets and exterior cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-additional-mech.py + scripts/mech_asset_tools.py; Python + Pillow"
+}

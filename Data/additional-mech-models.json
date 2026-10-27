@@ -1,0 +1,2099 @@
+[
+  {
+    "id": "annihilator",
+    "chassis": "Annihilator",
+    "variant": "ANH-1A",
+    "prefix": "ANH",
+    "glass_section": 0,
+    "displayed_height": 4.0,
+    "model_scale": 1.4,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_ANH_Torso_Left_BH1_AC10_SKM",
+        "Autocannon10",
+        "Torso_Left_BH1_autocannon10",
+        "Weapon.Ballistic.AutoCannon.Standard.AC10"
+      ],
+      [
+        "CenterTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_ANH_Torso_Center_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Center_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "CenterTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_ANH_Torso_Center_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Center_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightTorso",
+        "Weapon3",
+        "Torso_Pitch",
+        "Weapon_Mech_ANH_Torso_Right_BH1_AC10_SKM",
+        "Autocannon10",
+        "Torso_Right_BH1_autocannon10",
+        "Weapon.Ballistic.AutoCannon.Standard.AC10"
+      ],
+      [
+        "RightArm",
+        "Weapon4",
+        "Forearm_Right",
+        "Weapon_Mech_ANH_Forearm_Right_BH1_AC10_SKM",
+        "Autocannon10",
+        "Forearm_Right_BH1_autocannon10",
+        "Weapon.Ballistic.AutoCannon.Standard.AC10"
+      ],
+      [
+        "RightArm",
+        "Weapon5",
+        "Forearm_Right",
+        "Weapon_Mech_ANH_Forearm_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon6",
+        "Forearm_Left",
+        "Weapon_Mech_ANH_Forearm_Left_BH1_AC10_SKM",
+        "Autocannon10",
+        "Forearm_Left_BH1_autocannon10",
+        "Weapon.Ballistic.AutoCannon.Standard.AC10"
+      ],
+      [
+        "LeftArm",
+        "Weapon7",
+        "Forearm_Left",
+        "Weapon_Mech_ANH_Forearm_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "archer",
+    "chassis": "Archer",
+    "variant": "ARC-2R",
+    "prefix": "ARC",
+    "glass_section": 0,
+    "displayed_height": 3.34,
+    "model_scale": 1.25,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_ARC_Torso_Left_MH1_Missile20_SKM",
+        "Lrm20_Stream",
+        "Torso_Left_MH1_lrm20",
+        "Weapon.Missile.LRM.LRM20"
+      ],
+      [
+        "CenterTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_ARC_Torso_Center_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Center_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "CenterTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_ARC_Torso_Center_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Center_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightTorso",
+        "Weapon3",
+        "Torso_Pitch",
+        "Weapon_Mech_ARC_Torso_Right_MH1_Missile20_SKM",
+        "Lrm20_Stream",
+        "Torso_Right_MH1_lrm20",
+        "Weapon.Missile.LRM.LRM20"
+      ],
+      [
+        "RightArm",
+        "Weapon4",
+        "Forearm_Right",
+        "Weapon_Mech_ARC_Forearm_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon5",
+        "Forearm_Left",
+        "Weapon_Mech_ARC_Forearm_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "assassin",
+    "chassis": "Assassin",
+    "variant": "ASN-21",
+    "prefix": "ASN",
+    "glass_section": 0,
+    "displayed_height": 2.68,
+    "model_scale": 1.1,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_ASN_Torso_Left_MH1_Missile2_SKM",
+        "Srm2",
+        "Torso_Left_MH1_srm2",
+        "Weapon.Missile.SRM.SRM2"
+      ],
+      [
+        "RightTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_ASN_Torso_Right_MH1_Missile5_SKM",
+        "Lrm5",
+        "Torso_Right_MH1_lrm5",
+        "Weapon.Missile.LRM.LRM5"
+      ],
+      [
+        "RightArm",
+        "Weapon2",
+        "Forearm_Right",
+        "Weapon_Mech_ASN_Forearm_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "banshee",
+    "chassis": "Banshee",
+    "variant": "BNC-3E",
+    "prefix": "BNC",
+    "glass_section": 0,
+    "displayed_height": 3.89,
+    "model_scale": 1.375,
+    "weapons": [
+      [
+        "Head",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_BNC_Head_EH1_Laser_SKM",
+        "Smalllaser",
+        "Head_EH1_Laser_smalllaser",
+        "Weapon.Energy.Laser.Standard.Small"
+      ],
+      [
+        "LeftTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_BNC_Torso_Left_BH1_AC5_SKM",
+        "Autocannon5_Burst",
+        "Torso_Left_BH1_autocannon5",
+        "Weapon.Ballistic.AutoCannon.Standard.AC5"
+      ],
+      [
+        "RightTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_BNC_Torso_Right_EH1_PPC_SKM",
+        "Ppc",
+        "Torso_Right_EH1_ppc",
+        "Weapon.Energy.ParticleCannon.PPC"
+      ]
+    ]
+  },
+  {
+    "id": "battlemaster",
+    "chassis": "Battlemaster",
+    "variant": "BLR-1G",
+    "prefix": "BLR",
+    "glass_section": 0,
+    "displayed_height": 3.67,
+    "model_scale": 1.325,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_BLR_Torso_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_BLR_Torso_Left_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Left_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_BLR_Torso_Left_EH3_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Left_EH3_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftTorso",
+        "Weapon3",
+        "Torso_Pitch",
+        "Weapon_Mech_BLR_Torso_Left_MH1_Missile6_SKM",
+        "Srm6",
+        "Torso_Left_MH1_srm6",
+        "Weapon.Missile.SRM.SRM6"
+      ],
+      [
+        "RightTorso",
+        "Weapon4",
+        "Torso_Pitch",
+        "Weapon_Mech_BLR_Torso_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightTorso",
+        "Weapon5",
+        "Torso_Pitch",
+        "Weapon_Mech_BLR_Torso_Right_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightTorso",
+        "Weapon6",
+        "Torso_Pitch",
+        "Weapon_Mech_BLR_Torso_Right_EH3_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH3_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon7",
+        "Forearm_Right",
+        "Weapon_Mech_BLR_Forearm_Right_EH1_PPC_SKM",
+        "Ppc",
+        "Forearm_Right_EH1_ppc",
+        "Weapon.Energy.ParticleCannon.PPC"
+      ],
+      [
+        "LeftArm",
+        "Weapon8",
+        "Forearm_Left",
+        "Weapon_Mech_BLR_Forearm_Left_BH1_MG_SKM",
+        "Machinegun",
+        "Forearm_Left_BH1_machinegun",
+        "Weapon.Ballistic.MG.MachineGun"
+      ],
+      [
+        "LeftArm",
+        "Weapon9",
+        "Forearm_Left",
+        "Weapon_Mech_BLR_Forearm_Left_BH2_MG_SKM",
+        "Machinegun",
+        "Forearm_Left_BH2_machinegun",
+        "Weapon.Ballistic.MG.MachineGun"
+      ]
+    ]
+  },
+  {
+    "id": "blackjack",
+    "chassis": "Blackjack",
+    "variant": "BJ-1",
+    "prefix": "BJ",
+    "glass_section": 0,
+    "displayed_height": 2.79,
+    "model_scale": 1.125,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_BJ_Torso_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_BJ_Torso_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon2",
+        "Forearm_Right",
+        "Weapon_Mech_BJ_Forearm_Right_BH1_AC2_SKM",
+        "Autocannon2",
+        "Forearm_Right_BH1_autocannon2",
+        "Weapon.Ballistic.AutoCannon.Standard.AC2"
+      ],
+      [
+        "RightArm",
+        "Weapon3",
+        "Forearm_Right",
+        "Weapon_Mech_BJ_Forearm_Right_EH3_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH3_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon4",
+        "Forearm_Left",
+        "Weapon_Mech_BJ_Forearm_Left_BH1_AC2_SKM",
+        "Autocannon2",
+        "Forearm_Left_BH1_autocannon2",
+        "Weapon.Ballistic.AutoCannon.Standard.AC2"
+      ],
+      [
+        "LeftArm",
+        "Weapon5",
+        "Forearm_Left",
+        "Weapon_Mech_BJ_Forearm_Left_EH3_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH3_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "black-knight",
+    "chassis": "Blackknight",
+    "variant": "BL-7-KNT",
+    "prefix": "BL",
+    "glass_section": 1,
+    "displayed_height": 3.45,
+    "model_scale": 1.275,
+    "weapons": [
+      [
+        "Head",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_BL_Head_EH1_Laser_SKM",
+        "Smalllaser",
+        "Head_EH1_Laser_smalllaser",
+        "Weapon.Energy.Laser.Standard.Small"
+      ],
+      [
+        "LeftTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_BL_Torso_Left_EH2_Laser_SKM",
+        "Largelaser",
+        "Torso_Left_EH2_largelaser",
+        "Weapon.Energy.Laser.Standard.Large"
+      ],
+      [
+        "LeftTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_BL_Torso_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightTorso",
+        "Weapon3",
+        "Torso_Pitch",
+        "Weapon_Mech_BL_Torso_Right_EH2_Laser_SKM",
+        "Largelaser",
+        "Torso_Right_EH2_largelaser",
+        "Weapon.Energy.Laser.Standard.Large"
+      ],
+      [
+        "RightTorso",
+        "Weapon4",
+        "Torso_Pitch",
+        "Weapon_Mech_BL_Torso_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon5",
+        "Forearm_Right",
+        "Weapon_Mech_BL_Forearm_Right_EH2_PPC_SKM",
+        "Ppc",
+        "Forearm_Right_EH2_ppc",
+        "Weapon.Energy.ParticleCannon.PPC"
+      ],
+      [
+        "RightArm",
+        "Weapon6",
+        "Forearm_Right",
+        "Weapon_Mech_BL_Forearm_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon7",
+        "Forearm_Left",
+        "Weapon_Mech_BL_Forearm_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "cataphract",
+    "chassis": "Cataphract",
+    "variant": "CTF-1X",
+    "prefix": "CTF",
+    "glass_section": 0,
+    "displayed_height": 3.34,
+    "model_scale": 1.25,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_CTF_Torso_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_CTF_Torso_Right_BH1_AC10_SKM",
+        "Autocannon10",
+        "Torso_Right_BH1_autocannon10",
+        "Weapon.Ballistic.AutoCannon.Standard.AC10"
+      ],
+      [
+        "RightTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_CTF_Torso_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon3",
+        "Forearm_Right",
+        "Weapon_Mech_CTF_Forearm_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon4",
+        "Forearm_Right",
+        "Weapon_Mech_CTF_Forearm_Right_EH2_PPC_SKM",
+        "Ppc",
+        "Forearm_Right_EH2_ppc",
+        "Weapon.Energy.ParticleCannon.PPC"
+      ],
+      [
+        "LeftArm",
+        "Weapon5",
+        "Forearm_Left",
+        "Weapon_Mech_CTF_Forearm_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "centurion",
+    "chassis": "Centurion",
+    "variant": "CN9-A",
+    "prefix": "CN9",
+    "glass_section": 1,
+    "displayed_height": 2.9,
+    "model_scale": 1.15,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_CN9_Torso_Left_MH1_Missile10_SKM",
+        "Lrm10_Stream",
+        "Torso_Left_MH1_lrm10",
+        "Weapon.Missile.LRM.LRM10"
+      ],
+      [
+        "CenterTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_CN9_Torso_Center_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Center_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "CenterTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_CN9_Torso_Center_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Center_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon3",
+        "Forearm_Right",
+        "Weapon_Mech_CN9_Forearm_Right_BH1_AC10_SKM",
+        "Autocannon10",
+        "Forearm_Right_BH1_autocannon10",
+        "Weapon.Ballistic.AutoCannon.Standard.AC10"
+      ]
+    ]
+  },
+  {
+    "id": "cicada",
+    "chassis": "Cicada",
+    "variant": "CDA-2A",
+    "prefix": "CDA",
+    "glass_section": 0,
+    "displayed_height": 2.68,
+    "model_scale": 1.1,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_CDA_Torso_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "CenterTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_CDA_Torso_Center_EH1_Laser_SKM",
+        "Smalllaser",
+        "Torso_Center_EH1_smalllaser",
+        "Weapon.Energy.Laser.Standard.Small"
+      ],
+      [
+        "RightTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_CDA_Torso_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "commando",
+    "chassis": "Commando",
+    "variant": "COM-2D",
+    "prefix": "COM",
+    "glass_section": 0,
+    "displayed_height": 2.35,
+    "model_scale": 1.025,
+    "weapons": [
+      [
+        "CenterTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_COM_Torso_Center_MH1_Missile6_SKM",
+        "Srm6",
+        "Torso_Center_MH1_srm6",
+        "Weapon.Missile.SRM.SRM6"
+      ],
+      [
+        "RightArm",
+        "Weapon1",
+        "Forearm_Right",
+        "Weapon_Mech_COM_Forearm_Right_MH1_Missile4_SKM",
+        "Srm4",
+        "Forearm_Right_MH1_srm4",
+        "Weapon.Missile.SRM.SRM4"
+      ],
+      [
+        "LeftArm",
+        "Weapon2",
+        "Forearm_Left",
+        "Weapon_Mech_COM_Forearm_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "crab",
+    "chassis": "Crab",
+    "variant": "CRB-20",
+    "prefix": "CRB",
+    "glass_section": 2,
+    "displayed_height": 2.9,
+    "model_scale": 1.15,
+    "weapons": [
+      [
+        "Head",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_CRB_Head_EH1_Laser_SKM",
+        "Smalllaser",
+        "Head_EH1_Laser_smalllaser",
+        "Weapon.Energy.Laser.Standard.Small"
+      ],
+      [
+        "CenterTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_CRB_Torso_Center_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Center_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon2",
+        "Forearm_Right",
+        "Weapon_Mech_CRB_Forearm_Right_EH1_Laser_SKM",
+        "Largelaser",
+        "Forearm_Right_EH1_largelaser",
+        "Weapon.Energy.Laser.Standard.Large"
+      ],
+      [
+        "LeftArm",
+        "Weapon3",
+        "Forearm_Left",
+        "Weapon_Mech_CRB_Forearm_Left_EH1_Laser_SKM",
+        "Largelaser",
+        "Forearm_Left_EH1_largelaser",
+        "Weapon.Energy.Laser.Standard.Large"
+      ]
+    ]
+  },
+  {
+    "id": "cyclops",
+    "chassis": "Cyclops",
+    "variant": "CP-10-Z",
+    "prefix": "CP",
+    "glass_section": 0,
+    "displayed_height": 3.78,
+    "model_scale": 1.35,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_CP_Torso_Left_MH1_Missile10_SKM",
+        "Lrm10",
+        "Torso_Left_MH1_lrm10",
+        "Weapon.Missile.LRM.LRM10"
+      ],
+      [
+        "CenterTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_CP_Torso_Center_MH1_Missile4_SKM",
+        "Srm4",
+        "Torso_Center_MH1_srm4",
+        "Weapon.Missile.SRM.SRM4"
+      ],
+      [
+        "RightTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_CP_Torso_Right_BH1_AC20_SKM",
+        "Autocannon20",
+        "Torso_Right_BH1_autocannon20",
+        "Weapon.Ballistic.AutoCannon.Standard.AC20"
+      ],
+      [
+        "RightArm",
+        "Weapon3",
+        "Forearm_Right",
+        "Weapon_Mech_CP_Forearm_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon4",
+        "Forearm_Left",
+        "Weapon_Mech_CP_Forearm_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "dragon",
+    "chassis": "Dragon",
+    "variant": "DRG-1N",
+    "prefix": "DRG",
+    "glass_section": 0,
+    "displayed_height": 3.12,
+    "model_scale": 1.2,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_DRG_Torso_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "CenterTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_DRG_Torso_Center_MH1_Missile10_SKM",
+        "Lrm10",
+        "Torso_Center_MH1_lrm10",
+        "Weapon.Missile.LRM.LRM10"
+      ],
+      [
+        "RightArm",
+        "Weapon2",
+        "Forearm_Right",
+        "Weapon_Mech_DRG_Forearm_Right_BH1_AC5_SKM",
+        "Autocannon5_Burst",
+        "Forearm_Right_BH1_autocannon5",
+        "Weapon.Ballistic.AutoCannon.Standard.AC5"
+      ],
+      [
+        "LeftArm",
+        "Weapon3",
+        "Forearm_Left",
+        "Weapon_Mech_DRG_Forearm_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "enforcer",
+    "chassis": "Enforcer",
+    "variant": "ENF-4R",
+    "prefix": "ENF",
+    "glass_section": 0,
+    "displayed_height": 2.9,
+    "model_scale": 1.15,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_ENF_Torso_Left_EH1_Laser_SKM",
+        "Smalllaser",
+        "Torso_Left_EH1_smalllaser",
+        "Weapon.Energy.Laser.Standard.Small"
+      ],
+      [
+        "RightArm",
+        "Weapon1",
+        "Forearm_Right",
+        "Weapon_Mech_ENF_Forearm_Right_BH1_AC10_SKM",
+        "Autocannon10",
+        "Forearm_Right_BH1_autocannon10",
+        "Weapon.Ballistic.AutoCannon.Standard.AC10"
+      ],
+      [
+        "LeftArm",
+        "Weapon2",
+        "Forearm_Left",
+        "Weapon_Mech_ENF_Forearm_Left_EH1_Laser_SKM",
+        "Largelaser",
+        "Forearm_Left_EH1_largelaser",
+        "Weapon.Energy.Laser.Standard.Large"
+      ]
+    ]
+  },
+  {
+    "id": "flea",
+    "chassis": "Flea",
+    "variant": "FLE-15",
+    "prefix": "FLE",
+    "glass_section": 0,
+    "displayed_height": 2.24,
+    "model_scale": 1.0,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_FLE_Torso_Left_EH1_Laser_SKM",
+        "Smalllaser",
+        "Torso_Left_EH1_smalllaser",
+        "Weapon.Energy.Laser.Standard.Small"
+      ],
+      [
+        "CenterTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_FLE_Torso_Center_EH1_Flamer_SKM",
+        "Flamer",
+        "Torso_Center_EH1_flamer",
+        "Weapon.Energy.Flamer"
+      ],
+      [
+        "RightTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_FLE_Torso_Right_EH1_Laser_SKM",
+        "Smalllaser",
+        "Torso_Right_EH1_smalllaser",
+        "Weapon.Energy.Laser.Standard.Small"
+      ],
+      [
+        "RightArm",
+        "Weapon3",
+        "Forearm_Right",
+        "Weapon_Mech_FLE_Forearm_Right_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon4",
+        "Forearm_Right",
+        "Weapon_Mech_FLE_Forearm_Right_BH1_MG_SKM",
+        "Machinegun",
+        "Forearm_Right_BH1_machinegun",
+        "Weapon.Ballistic.MG.MachineGun"
+      ],
+      [
+        "LeftArm",
+        "Weapon5",
+        "Forearm_Left",
+        "Weapon_Mech_FLE_Forearm_Left_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon6",
+        "Forearm_Left",
+        "Weapon_Mech_FLE_Forearm_Left_BH1_MG_SKM",
+        "Machinegun",
+        "Forearm_Left_BH1_machinegun",
+        "Weapon.Ballistic.MG.MachineGun"
+      ]
+    ]
+  },
+  {
+    "id": "grasshopper",
+    "chassis": "Grasshopper",
+    "variant": "GHR-5H",
+    "prefix": "GHR",
+    "glass_section": 1,
+    "displayed_height": 3.34,
+    "model_scale": 1.25,
+    "weapons": [
+      [
+        "Head",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_GHR_Head_MH1_Missile5_SKM",
+        "Lrm5",
+        "Head_MH1_Missile5_lrm5",
+        "Weapon.Missile.LRM.LRM5"
+      ],
+      [
+        "LeftTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_GHR_Torso_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "CenterTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_GHR_Torso_Center_EH1_Laser_SKM",
+        "Largelaser",
+        "Torso_Center_EH1_largelaser",
+        "Weapon.Energy.Laser.Standard.Large"
+      ],
+      [
+        "RightTorso",
+        "Weapon3",
+        "Torso_Pitch",
+        "Weapon_Mech_GHR_Torso_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon4",
+        "Forearm_Right",
+        "Weapon_Mech_GHR_Forearm_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon5",
+        "Forearm_Left",
+        "Weapon_Mech_GHR_Forearm_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "highlander",
+    "chassis": "Highlander",
+    "variant": "HGN-733",
+    "prefix": "HGN",
+    "glass_section": 0,
+    "displayed_height": 3.78,
+    "model_scale": 1.35,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_HGN_Torso_Left_MH1_Missile20_SKM",
+        "Lrm20",
+        "Torso_Left_MH1_lrm20",
+        "Weapon.Missile.LRM.LRM20"
+      ],
+      [
+        "RightTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_HGN_Torso_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_HGN_Torso_Right_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon3",
+        "Forearm_Right",
+        "Weapon_Mech_HGN_Forearm_Right_BH1_AC10_SKM",
+        "Autocannon10",
+        "Forearm_Right_BH1_autocannon10",
+        "Weapon.Ballistic.AutoCannon.Standard.AC10"
+      ],
+      [
+        "LeftArm",
+        "Weapon4",
+        "Forearm_Left",
+        "Weapon_Mech_HGN_Forearm_Left_MH1_Missile6_SKM",
+        "Srm6",
+        "Forearm_Left_MH1_srm6",
+        "Weapon.Missile.SRM.SRM6"
+      ]
+    ]
+  },
+  {
+    "id": "hunchback",
+    "chassis": "Hunchback",
+    "variant": "HBK-4G",
+    "prefix": "HBK",
+    "glass_section": 1,
+    "displayed_height": 2.9,
+    "model_scale": 1.15,
+    "weapons": [
+      [
+        "Head",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_HBK_Head_EH1_Laser_SKM",
+        "Smalllaser",
+        "Head_EH1_Laser_smalllaser",
+        "Weapon.Energy.Laser.Standard.Small"
+      ],
+      [
+        "RightTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_HBK_Torso_Right_BH1_AC20_SKM",
+        "Autocannon20_Burst",
+        "Torso_Right_BH1_autocannon20",
+        "Weapon.Ballistic.AutoCannon.Standard.AC20"
+      ],
+      [
+        "RightArm",
+        "Weapon2",
+        "Forearm_Right",
+        "Weapon_Mech_HBK_Forearm_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon3",
+        "Forearm_Left",
+        "Weapon_Mech_HBK_Forearm_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "jagermech",
+    "chassis": "Jagermech",
+    "variant": "JM6-S",
+    "prefix": "JM6",
+    "glass_section": 1,
+    "displayed_height": 3.23,
+    "model_scale": 1.225,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_JM6_Torso_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_JM6_Torso_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon2",
+        "Forearm_Right",
+        "Weapon_Mech_JM6_Forearm_Right_BH1_AC5_SKM",
+        "Autocannon5_Burst",
+        "Forearm_Right_BH1_autocannon5",
+        "Weapon.Ballistic.AutoCannon.Standard.AC5"
+      ],
+      [
+        "RightArm",
+        "Weapon3",
+        "Forearm_Right",
+        "Weapon_Mech_JM6_Forearm_Right_BH2_AC2_SKM",
+        "Autocannon2_Burst",
+        "Forearm_Right_BH2_autocannon2",
+        "Weapon.Ballistic.AutoCannon.Standard.AC2"
+      ],
+      [
+        "LeftArm",
+        "Weapon4",
+        "Forearm_Left",
+        "Weapon_Mech_JM6_Forearm_Left_BH1_AC5_SKM",
+        "Autocannon5_Burst",
+        "Forearm_Left_BH1_autocannon5",
+        "Weapon.Ballistic.AutoCannon.Standard.AC5"
+      ],
+      [
+        "LeftArm",
+        "Weapon5",
+        "Forearm_Left",
+        "Weapon_Mech_JM6_Forearm_Left_BH2_AC2_SKM",
+        "Autocannon2_Burst",
+        "Forearm_Left_BH2_autocannon2",
+        "Weapon.Ballistic.AutoCannon.Standard.AC2"
+      ]
+    ]
+  },
+  {
+    "id": "javelin",
+    "chassis": "Javelin",
+    "variant": "JVN-10N",
+    "prefix": "JVN",
+    "glass_section": 0,
+    "displayed_height": 2.46,
+    "model_scale": 1.05,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_JVN_Torso_Left_MH1_Missile6_SKM",
+        "Srm6",
+        "Torso_Left_MH1_srm6",
+        "Weapon.Missile.SRM.SRM6"
+      ],
+      [
+        "RightTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_JVN_Torso_Right_MH1_Missile6_SKM",
+        "Srm6",
+        "Torso_Right_MH1_srm6",
+        "Weapon.Missile.SRM.SRM6"
+      ]
+    ]
+  },
+  {
+    "id": "king-crab",
+    "chassis": "Kingcrab",
+    "variant": "KGC-0000",
+    "prefix": "KGC",
+    "glass_section": 2,
+    "displayed_height": 4.0,
+    "model_scale": 1.4,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_KGC_Torso_Left_MH1_Missile15_SKM",
+        "Lrm15",
+        "Torso_Left_MH1_lrm15",
+        "Weapon.Missile.LRM.LRM15"
+      ],
+      [
+        "RightTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_KGC_Torso_Right_EH1_Laser_SKM",
+        "Largelaser",
+        "Torso_Right_EH1_largelaser",
+        "Weapon.Energy.Laser.Standard.Large"
+      ],
+      [
+        "RightArm",
+        "Weapon2",
+        "Forearm_Right",
+        "Weapon_Mech_KGC_Forearm_Right_BH1_AC20_SKM",
+        "Autocannon20",
+        "Forearm_Right_BH1_autocannon20",
+        "Weapon.Ballistic.AutoCannon.Standard.AC20"
+      ],
+      [
+        "LeftArm",
+        "Weapon3",
+        "Forearm_Left",
+        "Weapon_Mech_KGC_Forearm_Left_BH1_AC20_SKM",
+        "Autocannon20",
+        "Forearm_Left_BH1_autocannon20",
+        "Weapon.Ballistic.AutoCannon.Standard.AC20"
+      ]
+    ]
+  },
+  {
+    "id": "kintaro",
+    "chassis": "Kintaro",
+    "variant": "KTO-18",
+    "prefix": "KTO",
+    "glass_section": 0,
+    "displayed_height": 3.01,
+    "model_scale": 1.175,
+    "weapons": [
+      [
+        "CenterTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_KTO_Torso_Center_MH1_Missile6_SKM",
+        "Srm6",
+        "Torso_Center_MH1_srm6",
+        "Weapon.Missile.SRM.SRM6"
+      ],
+      [
+        "RightTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_KTO_Torso_Right_MH1_Missile6_SKM",
+        "Srm6",
+        "Torso_Right_MH1_srm6",
+        "Weapon.Missile.SRM.SRM6"
+      ],
+      [
+        "RightArm",
+        "Weapon2",
+        "Forearm_Right",
+        "Weapon_Mech_KTO_Forearm_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon3",
+        "Forearm_Left",
+        "Weapon_Mech_KTO_Forearm_Left_MH1_Missile6_SKM",
+        "Srm6",
+        "Forearm_Left_MH1_srm6",
+        "Weapon.Missile.SRM.SRM6"
+      ],
+      [
+        "LeftArm",
+        "Weapon4",
+        "Forearm_Left",
+        "Weapon_Mech_KTO_Forearm_Left_MH2_Missile5_SKM",
+        "Lrm5",
+        "Forearm_Left_MH2_lrm5",
+        "Weapon.Missile.LRM.LRM5"
+      ],
+      [
+        "LeftArm",
+        "Weapon5",
+        "Forearm_Left",
+        "Weapon_Mech_KTO_Forearm_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "locust",
+    "chassis": "Locust",
+    "variant": "LCT-1V",
+    "prefix": "LCT",
+    "glass_section": 1,
+    "displayed_height": 2.24,
+    "model_scale": 1.0,
+    "weapons": [
+      [
+        "CenterTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_LCT_Torso_Center_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Center_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon1",
+        "Upperarm_Right",
+        "Weapon_Mech_LCT_Upperarm_Right_BH1_MG_SKM",
+        "Machinegun",
+        "Upperarm_Right_BH1_machinegun",
+        "Weapon.Ballistic.MG.MachineGun"
+      ],
+      [
+        "LeftArm",
+        "Weapon2",
+        "Upperarm_Left",
+        "Weapon_Mech_LCT_Upperarm_Left_BH1_MG_SKM",
+        "Machinegun",
+        "Upperarm_Left_BH1_machinegun",
+        "Weapon.Ballistic.MG.MachineGun"
+      ]
+    ]
+  },
+  {
+    "id": "marauder",
+    "chassis": "Marauder",
+    "variant": "MAD-3R",
+    "prefix": "MAD",
+    "glass_section": 0,
+    "displayed_height": 3.45,
+    "model_scale": 1.275,
+    "weapons": [
+      [
+        "RightTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_MAD_Torso_Right_BH1_AC5_SKM",
+        "Autocannon5",
+        "Torso_Right_BH1_autocannon5",
+        "Weapon.Ballistic.AutoCannon.Standard.AC5"
+      ],
+      [
+        "RightArm",
+        "Weapon1",
+        "Forearm_Right",
+        "Weapon_Mech_MAD_Forearm_Right_EH1_PPC_SKM",
+        "Ppc",
+        "Forearm_Right_EH1_ppc",
+        "Weapon.Energy.ParticleCannon.PPC"
+      ],
+      [
+        "RightArm",
+        "Weapon2",
+        "Forearm_Right",
+        "Weapon_Mech_MAD_Forearm_Right_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon3",
+        "Forearm_Left",
+        "Weapon_Mech_MAD_Forearm_Left_EH1_PPC_SKM",
+        "Ppc",
+        "Forearm_Left_EH1_ppc",
+        "Weapon.Energy.ParticleCannon.PPC"
+      ],
+      [
+        "LeftArm",
+        "Weapon4",
+        "Forearm_Left",
+        "Weapon_Mech_MAD_Forearm_Left_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "mauler",
+    "chassis": "Mauler",
+    "variant": "MAL-1R",
+    "prefix": "MAL",
+    "glass_section": 0,
+    "displayed_height": 3.78,
+    "model_scale": 1.35,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_MAL_Torso_Left_BH1_AC2_SKM",
+        "Autocannon2",
+        "Torso_Left_BH1_autocannon2",
+        "Weapon.Ballistic.AutoCannon.Standard.AC2"
+      ],
+      [
+        "LeftTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_MAL_Torso_Left_BH2_AC2_SKM",
+        "Autocannon2",
+        "Torso_Left_BH2_autocannon2",
+        "Weapon.Ballistic.AutoCannon.Standard.AC2"
+      ],
+      [
+        "LeftTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_MAL_Torso_Left_MH1_Missile15_SKM",
+        "Lrm15",
+        "Torso_Left_MH1_lrm15",
+        "Weapon.Missile.LRM.LRM15"
+      ],
+      [
+        "RightTorso",
+        "Weapon3",
+        "Torso_Pitch",
+        "Weapon_Mech_MAL_Torso_Right_BH1_AC2_SKM",
+        "Autocannon2",
+        "Torso_Right_BH1_autocannon2",
+        "Weapon.Ballistic.AutoCannon.Standard.AC2"
+      ],
+      [
+        "RightTorso",
+        "Weapon4",
+        "Torso_Pitch",
+        "Weapon_Mech_MAL_Torso_Right_BH2_AC2_SKM",
+        "Autocannon2",
+        "Torso_Right_BH2_autocannon2",
+        "Weapon.Ballistic.AutoCannon.Standard.AC2"
+      ],
+      [
+        "RightTorso",
+        "Weapon5",
+        "Torso_Pitch",
+        "Weapon_Mech_MAL_Torso_Right_MH1_Missile15_SKM",
+        "Lrm15",
+        "Torso_Right_MH1_lrm15",
+        "Weapon.Missile.LRM.LRM15"
+      ],
+      [
+        "RightArm",
+        "Weapon6",
+        "Forearm_Right",
+        "Weapon_Mech_MAL_Forearm_Right_EH1_Laser_SKM",
+        "Erlargelaser",
+        "Forearm_Right_EH1_erlargelaser",
+        "Weapon.Energy.Laser.ER.Large"
+      ],
+      [
+        "LeftArm",
+        "Weapon7",
+        "Forearm_Left",
+        "Weapon_Mech_MAL_Forearm_Left_EH1_Laser_SKM",
+        "Erlargelaser",
+        "Forearm_Left_EH1_erlargelaser",
+        "Weapon.Energy.Laser.ER.Large"
+      ]
+    ]
+  },
+  {
+    "id": "orion",
+    "chassis": "Orion",
+    "variant": "ON1-K",
+    "prefix": "ON1",
+    "glass_section": 0,
+    "displayed_height": 3.45,
+    "model_scale": 1.275,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_ON1_Torso_Left_MH1_Missile15_SKM",
+        "Lrm15",
+        "Torso_Left_MH1_lrm15",
+        "Weapon.Missile.LRM.LRM15"
+      ],
+      [
+        "LeftTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_ON1_Torso_Left_MH2_Missile4_SKM",
+        "Srm4",
+        "Torso_Left_MH2_srm4",
+        "Weapon.Missile.SRM.SRM4"
+      ],
+      [
+        "RightTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_ON1_Torso_Right_BH1_AC10_SKM",
+        "Autocannon10",
+        "Torso_Right_BH1_autocannon10",
+        "Weapon.Ballistic.AutoCannon.Standard.AC10"
+      ],
+      [
+        "RightArm",
+        "Weapon3",
+        "Forearm_Right",
+        "Weapon_Mech_ON1_Forearm_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon4",
+        "Forearm_Left",
+        "Weapon_Mech_ON1_Forearm_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "phoenix-hawk",
+    "chassis": "Phoenixhawk",
+    "variant": "PXH-1",
+    "prefix": "PXH",
+    "glass_section": 0,
+    "displayed_height": 2.79,
+    "model_scale": 1.125,
+    "weapons": [
+      [
+        "RightArm",
+        "Weapon0",
+        "Forearm_Right",
+        "Weapon_Mech_PXH_Forearm_Right_EH1_Laser_SKM",
+        "Largelaser",
+        "Forearm_Right_EH1_largelaser",
+        "Weapon.Energy.Laser.Standard.Large"
+      ],
+      [
+        "RightArm",
+        "Weapon1",
+        "Forearm_Right",
+        "Weapon_Mech_PXH_Forearm_Right_EH3_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH3_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon2",
+        "Forearm_Right",
+        "Weapon_Mech_PXH_Forearm_Right_BH1_MG_SKM",
+        "Machinegun",
+        "Forearm_Right_BH1_machinegun",
+        "Weapon.Ballistic.MG.MachineGun"
+      ],
+      [
+        "LeftArm",
+        "Weapon3",
+        "Forearm_Left",
+        "Weapon_Mech_PXH_Forearm_Left_EH3_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH3_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon4",
+        "Forearm_Left",
+        "Weapon_Mech_PXH_Forearm_Left_BH1_MG_SKM",
+        "Machinegun",
+        "Forearm_Left_BH1_machinegun",
+        "Weapon.Ballistic.MG.MachineGun"
+      ]
+    ]
+  },
+  {
+    "id": "quickdraw",
+    "chassis": "Quickdraw",
+    "variant": "QKD-4G",
+    "prefix": "QKD",
+    "glass_section": 0,
+    "displayed_height": 3.12,
+    "model_scale": 1.2,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_QKD_Torso_Left_MH1_Missile10_SKM",
+        "Lrm10",
+        "Torso_Left_MH1_lrm10",
+        "Weapon.Missile.LRM.LRM10"
+      ],
+      [
+        "CenterTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_QKD_Torso_Center_MH1_Missile4_SKM",
+        "Srm4",
+        "Torso_Center_MH1_srm4",
+        "Weapon.Missile.SRM.SRM4"
+      ],
+      [
+        "RightTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_QKD_Torso_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightTorso",
+        "Weapon3",
+        "Torso_Pitch",
+        "Weapon_Mech_QKD_Torso_Right_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon4",
+        "Forearm_Right",
+        "Weapon_Mech_QKD_Forearm_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon5",
+        "Forearm_Left",
+        "Weapon_Mech_QKD_Forearm_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "raven",
+    "chassis": "Raven",
+    "variant": "RVN-2X",
+    "prefix": "RVN",
+    "glass_section": 0,
+    "displayed_height": 2.57,
+    "model_scale": 1.075,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_RVN_Torso_Left_EH1_Laser_SKM",
+        "Largelaser",
+        "Torso_Left_EH1_largelaser",
+        "Weapon.Energy.Laser.Standard.Large"
+      ],
+      [
+        "RightTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_RVN_Torso_Right_MH1_Missile6_SKM",
+        "Srm6",
+        "Torso_Right_MH1_srm6",
+        "Weapon.Missile.SRM.SRM6"
+      ],
+      [
+        "RightArm",
+        "Weapon2",
+        "Forearm_Right",
+        "Weapon_Mech_RVN_Forearm_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon3",
+        "Forearm_Right",
+        "Weapon_Mech_RVN_Forearm_Right_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "rifleman",
+    "chassis": "Rifleman",
+    "variant": "RFL-3N",
+    "prefix": "RFL",
+    "glass_section": 0,
+    "displayed_height": 3.12,
+    "model_scale": 1.2,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_RFL_Torso_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_RFL_Torso_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon2",
+        "Forearm_Right",
+        "Weapon_Mech_RFL_Forearm_Right_BH1_AC5_SKM",
+        "Autocannon5_Burst",
+        "Forearm_Right_BH1_autocannon5",
+        "Weapon.Ballistic.AutoCannon.Standard.AC5"
+      ],
+      [
+        "RightArm",
+        "Weapon3",
+        "Forearm_Right",
+        "Weapon_Mech_RFL_Forearm_Right_EH2_Laser_SKM",
+        "Largelaser",
+        "Forearm_Right_EH2_largelaser",
+        "Weapon.Energy.Laser.Standard.Large"
+      ],
+      [
+        "LeftArm",
+        "Weapon4",
+        "Forearm_Left",
+        "Weapon_Mech_RFL_Forearm_Left_BH1_AC5_SKM",
+        "Autocannon5_Burst",
+        "Forearm_Left_BH1_autocannon5",
+        "Weapon.Ballistic.AutoCannon.Standard.AC5"
+      ],
+      [
+        "LeftArm",
+        "Weapon5",
+        "Forearm_Left",
+        "Weapon_Mech_RFL_Forearm_Left_EH2_Laser_SKM",
+        "Largelaser",
+        "Forearm_Left_EH2_largelaser",
+        "Weapon.Energy.Laser.Standard.Large"
+      ]
+    ]
+  },
+  {
+    "id": "spider",
+    "chassis": "Spider",
+    "variant": "SDR-5V",
+    "prefix": "SDR",
+    "glass_section": 0,
+    "displayed_height": 2.46,
+    "model_scale": 1.05,
+    "weapons": [
+      [
+        "CenterTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_SDR_Torso_Center_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Center_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "CenterTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_SDR_Torso_Center_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Center_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ]
+    ]
+  },
+  {
+    "id": "stalker",
+    "chassis": "Stalker",
+    "variant": "STK-3F",
+    "prefix": "STK",
+    "glass_section": 0,
+    "displayed_height": 3.67,
+    "model_scale": 1.325,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_STK_Torso_Left_MH1_Missile6_SKM",
+        "Srm6",
+        "Torso_Left_MH1_srm6",
+        "Weapon.Missile.SRM.SRM6"
+      ],
+      [
+        "LeftTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_STK_Torso_Left_EH1_Laser_SKM",
+        "Largelaser",
+        "Torso_Left_EH1_largelaser",
+        "Weapon.Energy.Laser.Standard.Large"
+      ],
+      [
+        "RightTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_STK_Torso_Right_MH1_Missile6_SKM",
+        "Srm6",
+        "Torso_Right_MH1_srm6",
+        "Weapon.Missile.SRM.SRM6"
+      ],
+      [
+        "RightTorso",
+        "Weapon3",
+        "Torso_Pitch",
+        "Weapon_Mech_STK_Torso_Right_EH1_Laser_SKM",
+        "Largelaser",
+        "Torso_Right_EH1_largelaser",
+        "Weapon.Energy.Laser.Standard.Large"
+      ],
+      [
+        "RightArm",
+        "Weapon4",
+        "Forearm_Right",
+        "Weapon_Mech_STK_Forearm_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon5",
+        "Forearm_Right",
+        "Weapon_Mech_STK_Forearm_Right_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon6",
+        "Forearm_Right",
+        "Weapon_Mech_STK_Forearm_Right_MH1_Missile10_SKM",
+        "Lrm10",
+        "Forearm_Right_MH1_lrm10",
+        "Weapon.Missile.LRM.LRM10"
+      ],
+      [
+        "LeftArm",
+        "Weapon7",
+        "Forearm_Left",
+        "Weapon_Mech_STK_Forearm_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon8",
+        "Forearm_Left",
+        "Weapon_Mech_STK_Forearm_Left_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon9",
+        "Forearm_Left",
+        "Weapon_Mech_STK_Forearm_Left_MH1_Missile10_SKM",
+        "Lrm10",
+        "Forearm_Left_MH1_lrm10",
+        "Weapon.Missile.LRM.LRM10"
+      ]
+    ]
+  },
+  {
+    "id": "trebuchet",
+    "chassis": "Trebuchet",
+    "variant": "TBT-5N",
+    "prefix": "TBT",
+    "glass_section": 0,
+    "displayed_height": 2.9,
+    "model_scale": 1.15,
+    "weapons": [
+      [
+        "RightTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_TBT_Torso_Right_MH1_Missile15_SKM",
+        "Lrm15_Stream",
+        "Torso_Right_MH1_lrm15",
+        "Weapon.Missile.LRM.LRM15"
+      ],
+      [
+        "RightArm",
+        "Weapon1",
+        "Forearm_Right",
+        "Weapon_Mech_TBT_Forearm_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon2",
+        "Forearm_Right",
+        "Weapon_Mech_TBT_Forearm_Right_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Right_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon3",
+        "Forearm_Left",
+        "Weapon_Mech_TBT_Forearm_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Forearm_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftArm",
+        "Weapon4",
+        "Forearm_Left",
+        "Weapon_Mech_TBT_Forearm_Left_MH1_Missile15_SKM",
+        "Lrm15_Stream",
+        "Forearm_Left_MH1_lrm15",
+        "Weapon.Missile.LRM.LRM15"
+      ]
+    ]
+  },
+  {
+    "id": "warhammer",
+    "chassis": "Warhammer",
+    "variant": "WHM-6R",
+    "prefix": "WHM",
+    "glass_section": 0,
+    "displayed_height": 3.34,
+    "model_scale": 1.25,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_WHM_Torso_Left_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Left_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "LeftTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_WHM_Torso_Left_EH3_Laser_SKM",
+        "Smalllaser",
+        "Torso_Left_EH3_smalllaser",
+        "Weapon.Energy.Laser.Standard.Small"
+      ],
+      [
+        "LeftTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_WHM_Torso_Left_BH1_MG_SKM",
+        "Machinegun",
+        "Torso_Left_BH1_machinegun",
+        "Weapon.Ballistic.MG.MachineGun"
+      ],
+      [
+        "RightTorso",
+        "Weapon3",
+        "Torso_Pitch",
+        "Weapon_Mech_WHM_Torso_Right_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightTorso",
+        "Weapon4",
+        "Torso_Pitch",
+        "Weapon_Mech_WHM_Torso_Right_EH3_Laser_SKM",
+        "Smalllaser",
+        "Torso_Right_EH3_smalllaser",
+        "Weapon.Energy.Laser.Standard.Small"
+      ],
+      [
+        "RightTorso",
+        "Weapon5",
+        "Torso_Pitch",
+        "Weapon_Mech_WHM_Torso_Right_BH1_MG_SKM",
+        "Machinegun",
+        "Torso_Right_BH1_machinegun",
+        "Weapon.Ballistic.MG.MachineGun"
+      ],
+      [
+        "RightTorso",
+        "Weapon6",
+        "Torso_Pitch",
+        "Weapon_Mech_WHM_Torso_Right_MH1_Missile6_SKM",
+        "Srm6",
+        "Torso_Right_MH1_srm6",
+        "Weapon.Missile.SRM.SRM6"
+      ],
+      [
+        "RightArm",
+        "Weapon7",
+        "Forearm_Right",
+        "Weapon_Mech_WHM_Forearm_Right_EH1_PPC_SKM",
+        "Ppc",
+        "Forearm_Right_EH1_ppc",
+        "Weapon.Energy.ParticleCannon.PPC"
+      ],
+      [
+        "LeftArm",
+        "Weapon8",
+        "Forearm_Left",
+        "Weapon_Mech_WHM_Forearm_Left_EH1_PPC_SKM",
+        "Ppc",
+        "Forearm_Left_EH1_ppc",
+        "Weapon.Energy.ParticleCannon.PPC"
+      ]
+    ]
+  },
+  {
+    "id": "wolfhound",
+    "chassis": "Wolfhound",
+    "variant": "WLF-1",
+    "prefix": "WLF",
+    "glass_section": 0,
+    "displayed_height": 2.57,
+    "model_scale": 1.075,
+    "weapons": [
+      [
+        "LeftTorso",
+        "Weapon0",
+        "Torso_Pitch",
+        "Weapon_Mech_WLF_Torso_Left_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Left_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "CenterTorso",
+        "Weapon1",
+        "Torso_Pitch",
+        "Weapon_Mech_WLF_Torso_Center_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Center_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "CenterTorso",
+        "Weapon2",
+        "Torso_Pitch",
+        "Weapon_Mech_WLF_Torso_Center_EH2_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Center_EH2_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightTorso",
+        "Weapon3",
+        "Torso_Pitch",
+        "Weapon_Mech_WLF_Torso_Right_EH1_Laser_SKM",
+        "Mediumlaser",
+        "Torso_Right_EH1_mediumlaser",
+        "Weapon.Energy.Laser.Standard.Medium"
+      ],
+      [
+        "RightArm",
+        "Weapon4",
+        "Forearm_Right",
+        "Weapon_Mech_WLF_Forearm_Right_EH1_Laser_SKM",
+        "Largelaser",
+        "Forearm_Right_EH1_largelaser",
+        "Weapon.Energy.Laser.Standard.Large"
+      ]
+    ]
+  }
+]

@@ -1,0 +1,218 @@
+[
+  {
+    "id": "annihilator",
+    "chassis": "Annihilator",
+    "unit": "Annihilator ANH-1A",
+    "path": "data/mekfiles/meks/3050U/Annihilator ANH-1A.mtf"
+  },
+  {
+    "id": "archer",
+    "chassis": "Archer",
+    "unit": "Archer ARC-2R",
+    "path": "data/mekfiles/meks/3039u/Archer ARC-2R.mtf"
+  },
+  {
+    "id": "assassin",
+    "chassis": "Assassin",
+    "unit": "Assassin ASN-21",
+    "path": "data/mekfiles/meks/3039u/Assassin ASN-21.mtf"
+  },
+  {
+    "id": "banshee",
+    "chassis": "Banshee",
+    "unit": "Banshee BNC-3E",
+    "path": "data/mekfiles/meks/3039u/Banshee BNC-3E.mtf"
+  },
+  {
+    "id": "battlemaster",
+    "chassis": "Battlemaster",
+    "unit": "BattleMaster BLR-1G",
+    "path": "data/mekfiles/meks/3039u/BattleMaster BLR-1G.mtf"
+  },
+  {
+    "id": "blackjack",
+    "chassis": "Blackjack",
+    "unit": "Blackjack BJ-1",
+    "path": "data/mekfiles/meks/3039u/Blackjack BJ-1.mtf"
+  },
+  {
+    "id": "black-knight",
+    "chassis": "Blackknight",
+    "unit": "Black Knight BL-7-KNT",
+    "path": "data/mekfiles/meks/3039u/Black Knight BL-7-KNT.mtf"
+  },
+  {
+    "id": "cataphract",
+    "chassis": "Cataphract",
+    "unit": "Cataphract CTF-1X",
+    "path": "data/mekfiles/meks/3039u/Cataphract CTF-1X.mtf"
+  },
+  {
+    "id": "centurion",
+    "chassis": "Centurion",
+    "unit": "Centurion CN9-A",
+    "path": "data/mekfiles/meks/3039u/Centurion CN9-A.mtf"
+  },
+  {
+    "id": "cicada",
+    "chassis": "Cicada",
+    "unit": "Cicada CDA-2A",
+    "path": "data/mekfiles/meks/3039u/Cicada CDA-2A.mtf"
+  },
+  {
+    "id": "commando",
+    "chassis": "Commando",
+    "unit": "Commando COM-2D",
+    "path": "data/mekfiles/meks/3039u/Commando COM-2D.mtf"
+  },
+  {
+    "id": "crab",
+    "chassis": "Crab",
+    "unit": "Crab CRB-20",
+    "path": "data/mekfiles/meks/3039u/Crab CRB-20.mtf"
+  },
+  {
+    "id": "cyclops",
+    "chassis": "Cyclops",
+    "unit": "Cyclops CP-10-Z",
+    "path": "data/mekfiles/meks/3039u/Cyclops CP-10-Z.mtf"
+  },
+  {
+    "id": "dragon",
+    "chassis": "Dragon",
+    "unit": "Dragon DRG-1N",
+    "path": "data/mekfiles/meks/3039u/Dragon DRG-1N.mtf"
+  },
+  {
+    "id": "enforcer",
+    "chassis": "Enforcer",
+    "unit": "Enforcer ENF-4R",
+    "path": "data/mekfiles/meks/3039u/Enforcer ENF-4R.mtf"
+  },
+  {
+    "id": "flea",
+    "chassis": "Flea",
+    "unit": "Flea FLE-15",
+    "path": "data/mekfiles/meks/3039u/Flea FLE-15.mtf"
+  },
+  {
+    "id": "grasshopper",
+    "chassis": "Grasshopper",
+    "unit": "Grasshopper GHR-5H",
+    "path": "data/mekfiles/meks/3039u/Grasshopper GHR-5H.mtf"
+  },
+  {
+    "id": "highlander",
+    "chassis": "Highlander",
+    "unit": "Highlander HGN-733",
+    "path": "data/mekfiles/meks/3039u/Highlander HGN-733.mtf"
+  },
+  {
+    "id": "hunchback",
+    "chassis": "Hunchback",
+    "unit": "Hunchback HBK-4G",
+    "path": "data/mekfiles/meks/3039u/Hunchback HBK-4G.mtf"
+  },
+  {
+    "id": "jagermech",
+    "chassis": "Jagermech",
+    "unit": "JagerMech JM6-S",
+    "path": "data/mekfiles/meks/3039u/JagerMech JM6-S.mtf"
+  },
+  {
+    "id": "javelin",
+    "chassis": "Javelin",
+    "unit": "Javelin JVN-10N",
+    "path": "data/mekfiles/meks/3039u/Javelin JVN-10N.mtf"
+  },
+  {
+    "id": "king-crab",
+    "chassis": "Kingcrab",
+    "unit": "King Crab KGC-0000",
+    "path": "data/mekfiles/meks/3039u/King Crab KGC-0000.mtf"
+  },
+  {
+    "id": "kintaro",
+    "chassis": "Kintaro",
+    "unit": "Kintaro KTO-18",
+    "path": "data/mekfiles/meks/3039u/Kintaro KTO-18.mtf"
+  },
+  {
+    "id": "locust",
+    "chassis": "Locust",
+    "unit": "Locust LCT-1V",
+    "path": "data/mekfiles/meks/3039u/Locust LCT-1V.mtf"
+  },
+  {
+    "id": "marauder",
+    "chassis": "Marauder",
+    "unit": "Marauder MAD-3R",
+    "path": "data/mekfiles/meks/3039u/Marauder MAD-3R.mtf"
+  },
+  {
+    "id": "mauler",
+    "chassis": "Mauler",
+    "unit": "Mauler MAL-1R",
+    "path": "data/mekfiles/meks/3050U/Mauler MAL-1R.mtf"
+  },
+  {
+    "id": "orion",
+    "chassis": "Orion",
+    "unit": "Orion ON1-K",
+    "path": "data/mekfiles/meks/3039u/Orion ON1-K.mtf"
+  },
+  {
+    "id": "phoenix-hawk",
+    "chassis": "Phoenixhawk",
+    "unit": "Phoenix Hawk PXH-1",
+    "path": "data/mekfiles/meks/3039u/Phoenix Hawk PXH-1.mtf"
+  },
+  {
+    "id": "quickdraw",
+    "chassis": "Quickdraw",
+    "unit": "Quickdraw QKD-4G",
+    "path": "data/mekfiles/meks/3039u/Quickdraw QKD-4G.mtf"
+  },
+  {
+    "id": "raven",
+    "chassis": "Raven",
+    "unit": "Raven RVN-2X",
+    "path": "data/mekfiles/meks/3039u/Raven RVN-2X.mtf"
+  },
+  {
+    "id": "rifleman",
+    "chassis": "Rifleman",
+    "unit": "Rifleman RFL-3N",
+    "path": "data/mekfiles/meks/3039u/Rifleman RFL-3N.mtf"
+  },
+  {
+    "id": "spider",
+    "chassis": "Spider",
+    "unit": "Spider SDR-5V",
+    "path": "data/mekfiles/meks/3039u/Spider SDR-5V.mtf"
+  },
+  {
+    "id": "stalker",
+    "chassis": "Stalker",
+    "unit": "Stalker STK-3F",
+    "path": "data/mekfiles/meks/3039u/Stalker STK-3F.mtf"
+  },
+  {
+    "id": "trebuchet",
+    "chassis": "Trebuchet",
+    "unit": "Trebuchet TBT-5N",
+    "path": "data/mekfiles/meks/3039u/Trebuchet TBT-5N.mtf"
+  },
+  {
+    "id": "warhammer",
+    "chassis": "Warhammer",
+    "unit": "Warhammer WHM-6R",
+    "path": "data/mekfiles/meks/3039u/Warhammer WHM-6R.mtf"
+  },
+  {
+    "id": "wolfhound",
+    "chassis": "Wolfhound",
+    "unit": "Wolfhound WLF-1",
+    "path": "data/mekfiles/meks/3039u/Wolfhound WLF-1.mtf"
+  }
+]
