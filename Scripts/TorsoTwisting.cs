@@ -64,7 +64,7 @@ public sealed partial class CombatSimulation
         bool Eligible(CombatUnit target) => ValidEnemy(unit, target)
             && Terrain.ClearSight(unit.Position, target.Position)
             && unit.Weapons.Any(weapon => weapon.Spec.Rear && weapon.Enabled && unit.WeaponUsable(weapon)
-                && unit.Position.DistanceTo(target.Position) <= weapon.Spec.Long && CombatRules.InFiringArc(unit, target, weapon));
+                && unit.Position.DistanceTo(target.Position) <= weapon.LongRange && CombatRules.InFiringArc(unit, target, weapon));
         if (unit.Order == CombatOrder.Attack && unit.AttackTarget is { } attack && Eligible(Unit(attack))) return Unit(attack);
         if (unit.Firing == FiringMode.HoldFire) return null;
         if (unit.PriorityTarget is { } priority && Eligible(Unit(priority))) return Unit(priority);
@@ -73,7 +73,7 @@ public sealed partial class CombatSimulation
     }
     public bool CanFire(CombatUnit unit, CombatUnit target, CombatWeapon weapon) => unit.Active && weapon.Enabled
         && unit.WeaponUsable(weapon) && ValidEnemy(unit, target) && FirePermitted(unit, target)
-        && unit.Position.DistanceTo(target.Position) <= weapon.Spec.Long
+        && unit.Position.DistanceTo(target.Position) <= weapon.LongRange
         && Terrain.ClearSight(unit.Position, target.Position) && CombatRules.InFiringArc(unit, target, weapon);
 
     public string WeaponStatus(CombatUnit unit, CombatWeapon weapon, CombatUnit? target)
@@ -84,7 +84,7 @@ public sealed partial class CombatSimulation
         if (target is null) return unit.Firing == FiringMode.HoldFire ? "Hold fire" : "No target";
         if (!FirePermitted(unit, target)) return "Hold fire";
         if (!ValidEnemy(unit, target)) return "No contact";
-        if (unit.Position.DistanceTo(target.Position) > weapon.Spec.Long) return "Out of range";
+        if (unit.Position.DistanceTo(target.Position) > weapon.LongRange) return "Out of range";
         if (!Terrain.ClearSight(unit.Position, target.Position)) return "Line of fire blocked";
         if (!CombatRules.InFiringArc(unit, target, weapon))
             return weapon.Spec.Rear || CombatRules.IsLeg(weapon.Spec.Location)

@@ -24,10 +24,16 @@ internal static class TerrainChecks
         check(first.Patches.SequenceEqual(repeat.Patches) && first.Hills.SequenceEqual(repeat.Hills), "terrain seed recreates all geometry");
         check(!first.Patches.SequenceEqual(other.Patches), "different terrain seeds create different maps");
         check(Enum.GetValues<TerrainKind>().All(kind => first.Patches.Any(patch => patch.Kind == kind)) && first.Hills.Count > 0, "generated maps include rocks, vegetation, water and hills");
+        check(first.Hills.Count == 28 && first.Patches.Count(patch => patch.Kind == TerrainKind.Rock) > 48
+            && first.Patches.Count(patch => patch.Kind == TerrainKind.Vegetation) > 30
+            && first.Patches.Count(patch => patch.Kind == TerrainKind.Water) > 12,
+            "expanded battlefield preserves terrain density with approximately four times the feature counts");
+        check(first.Patches.Any(patch => Math.Abs(patch.Center.X) > 48) && first.Patches.Any(patch => Math.Abs(patch.Center.Y) > 48),
+            "terrain features populate the expanded battlefield beyond the old boundaries");
         check(first.Patches.Any(patch => !first.Patches.Any(mirror => mirror.Kind == patch.Kind && mirror.Center == new Vector2(patch.Center.X, -patch.Center.Y))), "terrain generation allows asymmetric layouts");
         foreach (var terrain in new[] { first, other, BattlefieldTerrain.Generate(int.MinValue), BattlefieldTerrain.Generate(int.MaxValue) })
         {
-            foreach (var x in new[] { -6f, -4, -2, 0, 2, 4, 6 }) foreach (var z in new[] { -32f, 32 })
+            foreach (var x in new[] { -12f, -8, -4, 0, 4, 8, 12 }) foreach (var z in new[] { -64f, 64 })
             {
                 var spawn = new Vector2(x, z);
                 check(terrain.Passable(spawn) && terrain.HeightAt(spawn) == 0 && !Enum.GetValues<TerrainKind>().Any(kind => terrain.Contains(kind, spawn)), "every force size has clear spawn positions");
@@ -53,6 +59,11 @@ internal static class TerrainChecks
         check(hill.HeightAt(Vector2.Zero) == 6 && !hill.ClearSight(new Vector2(-10, 0), new Vector2(10, 0)), "hills have actual elevation and block low sight rays");
         check(hill.ClearSight(new Vector2(-2, 0), new Vector2(2, 0)), "elevated viewpoints can see over the hill crest");
         check(!hill.Passable(new Vector2(4, 0)) && hill.Passable(new Vector2(12, 0)), "steep hill slopes are impassable");
+        var outerHill = new BattlefieldTerrain(6, [], [new(new Vector2(72, 70), 8, 6)]);
+        check(outerHill.HeightAt(new(72, 70)) == 6 && !outerHill.Passable(new(76, 70)), "expanded heightfield samples real elevation and slope beyond the old boundaries");
+        check(outerHill.RayDistance(new(72, 12, 70), Vector3.Down, 20) is { } ray && Math.Abs(ray - 6) < .001f,
+            "ground picking reaches terrain in the expanded battlefield");
+        check(outerHill.FindPath(new(60, 70), new(84, 70)).Count > 1, "navigation detours around terrain beyond the old boundaries");
         var isolated = hill.ReachableDestination(new Vector2(-12, 0), Vector2.Zero);
         check(isolated != Vector2.Zero && hill.FindPath(new Vector2(-12, 0), isolated).Count > 0, "isolated hilltops resolve to the nearest reachable component");
         var overRock = new BattlefieldTerrain(3, [new(TerrainKind.Rock, Vector2.Zero, 1, 1)],
@@ -120,7 +131,7 @@ internal static class TerrainChecks
         sim.Attack([friend.Id], enemy.Id); sim.Paused = false; var clear = true;
         for (var step = 0; step < 1200 && friend.ShotsFired == 0; step++) { sim.Advance(.05); clear &= terrain.Passable(friend.Position); }
         check(clear && friend.ShotsFired > 0 && terrain.ClearSight(friend.Position, enemy.Position), "blocked attack orders navigate to a clear firing position");
-        sim.Hold([friend.Id]); friend.Position = new Vector2(-8, 0); scout.Position = new Vector2(-30, 20); sim.RefreshDetection();
+        sim.Hold([friend.Id]); friend.Position = new Vector2(-8, 0); scout.Position = new Vector2(-90, 80); sim.RefreshDetection();
         check(!sim.Detected(friend.Side, enemy.Id) && sim.Contacts(friend.Side)[enemy.Id].LastKnownPosition == enemy.Position, "terrain occlusion loses detection and retains stationary last-known contact");
     }
 }

@@ -68,7 +68,7 @@ internal static partial class CombatChecks
 
         var f = Friendly(sim); var e = Enemy(sim);
         var group = sim.Units.Where(item => item.Side == CombatSide.Friendly).Select(item => item.Id).ToArray();
-        sim.Move(group, new Vector2(48, 48));
+        sim.Move(group, new Vector2(96, 96));
         var destinations = group.Select(id => sim.Unit(id).Destination).ToArray();
         check(destinations.All(point => CombatRules.Clamp(point) == point) && destinations.SelectMany((point, i) => destinations.Skip(i + 1).Select(other => point.DistanceTo(other))).All(distance => distance >= CombatRules.UnitRadius * 2), "group destinations remain separated at arena corner");
         var original = f.Position; sim.Advance(1);
@@ -93,6 +93,7 @@ internal static partial class CombatChecks
         check(f.Order == CombatOrder.Hold, "completed Move holds position");
 
         CheckTargeting(check);
+        CheckExtendedRanges(check);
         CheckDetection(check);
         CheckSensors(check);
         CheckDamage(check);
@@ -146,18 +147,59 @@ internal static partial class CombatChecks
         f.Moving = true; f.Movement = MovementMode.Run;
         check(CombatSimulation.HitChance(f, enemies[0], f.Weapons[0]) < walking, "running reduces firing accuracy");
     }
+    private static void CheckExtendedRanges(Action<bool, string> check)
+    {
+        var stock = DraftCatalog.Mech("jenner").Weapons.First(weapon => weapon.Name == "Medium Laser");
+        check(stock.Short == 3 && stock.Medium == 6 && stock.Long == 9, "imported catalog retains stock weapon ranges");
+        var sim = HeatFixture([stock], gunnery: 4); var f = Friendly(sim); var e = Enemy(sim);
+        var weapon = f.Weapons[0];
+        foreach (var (distance, chance) in new[] { (9f, 21d / 36), (9.01f, 10d / 36), (18f, 10d / 36), (18.01f, 3d / 36), (27f, 3d / 36), (27.01f, 0d) })
+        {
+            e.Position = Vector2.Right * distance; sim.RefreshDetection();
+            check(Math.Abs(CombatSimulation.HitChance(f, e, weapon) - chance) < .000001,
+                $"tripled range bracket at {distance} hexes has the expected exact hit chance");
+            check((sim.SelectTarget(f) == e) == (distance <= 27) && sim.CanFire(f, e, weapon) == (distance <= 27),
+                "target selection and discharge use the same tripled maximum range");
+            check(Math.Abs(CombatSimulation.HitChance(e, f, e.Weapons[0]) - chance) < .000001,
+                "both sides use identical extended firing brackets");
+        }
+        sim = HeatFixture([stock with { Rear = true }], gunnery: 4); f = Friendly(sim); e = Enemy(sim);
+        f.Facing = Vector2.Left; e.Position = new(27, 0); sim.RefreshDetection();
+        check(sim.SelectRearTarget(f) == e && sim.CanFire(f, e, f.Weapons[0]), "rear mounts acquire and fire at the extended range boundary");
+        e.Position = new(27.01f, 0); sim.RefreshDetection();
+        check(sim.SelectRearTarget(f) is null && sim.WeaponStatus(f, f.Weapons[0], e) == "Out of range", "rear targeting and readouts reject shots beyond extended range");
+
+        sim = HeatFixture([HeatGun("minimum", 0, 1) with { Minimum = 3, Short = 6, Medium = 12, Long = 18 }], gunnery: 4);
+        f = Friendly(sim); e = Enemy(sim);
+        foreach (var (distance, chance) in new[] { (1.5f, 6d / 36), (3f, 10d / 36), (6f, 15d / 36), (9f, 21d / 36) })
+        {
+            e.Position = Vector2.Right * distance;
+            check(Math.Abs(CombatSimulation.HitChance(f, e, f.Weapons[0]) - chance) < .000001,
+                $"expanded minimum range preserves proportional penalty severity at {distance} hexes");
+        }
+        var jenner = Battle(definition: "jenner");
+        check(jenner.Units.All(unit => unit.PreferredDistance == 9), "both sides prefer the tripled medium-laser short range");
+        var griffin = Battle(definition: "griffin");
+        check(griffin.Units.All(unit => Math.Abs(unit.PreferredDistance - 19.5f) < .001), "mixed long-range loadouts use expanded preferences beyond the old cap");
+        check(jenner.Units.All(unit => Math.Abs(unit.Position.Y) == 64), "expanded deployment doubles initial separation");
+        jenner.EnemyAiEnabled = false;
+        foreach (var unit in jenner.Units) unit.Firing = FiringMode.HoldFire;
+        f = Friendly(jenner); e = Enemy(jenner); f.Position = Vector2.Zero; e.Position = new(24, 0);
+        f.Facing = Vector2.Right; jenner.RefreshDetection(); jenner.Attack([f.Id], e.Id); jenner.Paused = false; jenner.Advance(30);
+        check(Math.Abs(f.Position.DistanceTo(e.Position) - 9) < .5f, "Attack settles at the extended stand-off distance rather than the original crowded range");
+    }
     private static void CheckDetection(Action<bool, string> check)
     {
         var sim = new CombatSimulation(new[]
         {
             SensorUnit("shooter", "awesome", 6, CombatSide.Friendly, Vector2.Zero),
-            SensorUnit("scout", "awesome", 2, CombatSide.Friendly, new Vector2(12, 3)),
-            SensorUnit("target", "locust", 6, CombatSide.Enemy, new Vector2(17, 0))
+            SensorUnit("scout", "awesome", 2, CombatSide.Friendly, new Vector2(24, 6)),
+            SensorUnit("target", "locust", 6, CombatSide.Enemy, new Vector2(34, 0))
         }, 41);
         sim.EnemyAiEnabled = false;
         var friends = sim.Units.Where(item => item.Side == CombatSide.Friendly).ToArray(); var enemy = Enemy(sim);
         friends[0].Position = Vector2.Zero; friends[0].Facing = Vector2.Right;
-        friends[1].Position = new Vector2(12, 3); enemy.Position = new Vector2(17, 0);
+        friends[1].Position = new Vector2(24, 6); enemy.Position = new Vector2(34, 0);
         sim.RefreshDetection();
         check(friends[0].Position.DistanceTo(enemy.Position) > CombatRules.DetectionRadius(friends[0], enemy)
             && sim.Detected(CombatSide.Friendly, enemy.Id) && sim.SelectTarget(friends[0]) == enemy, "shared detection enables fire outside shooter's own detection radius");
@@ -216,15 +258,16 @@ internal static partial class CombatChecks
         var ids = friends.Select(item => item.Id).ToArray();
         sim.Move(ids, new Vector2(0, 15)); sim.Paused = false;
         var separated = true;
+        var startDepth = friends[0].Position.Y;
         for (var tick = 0; tick < 400; tick++)
         {
             sim.Advance(.1);
             separated &= sim.Units.All(item => CombatRules.Clamp(item.Position).DistanceTo(item.Position) < .001)
                 && sim.Units.SelectMany((unit, i) => sim.Units.Skip(i + 1).Select(other => unit.Position.DistanceTo(other.Position))).All(distance => distance >= CombatRules.UnitRadius * 2 - .001);
         }
-        check(separated && friends.All(item => item.Position.Y < 20), "moving groups stay in arena and avoid overlap while advancing");
+        check(separated && friends.All(item => item.Position.Y < startDepth - 12), "moving groups stay in arena and avoid overlap while advancing");
         sim = Battle(); Arrange(sim, 4); var f = Friendly(sim); var e = Enemy(sim);
-        f.Position = new Vector2(46, 0); e.Position = new Vector2(42, 0); f.PreferredDistance = 21;
+        f.Position = new Vector2(94, 0); e.Position = new Vector2(90, 0); f.PreferredDistance = 63;
         f.Facing = Vector2.Left;
         sim.RefreshDetection(); sim.Attack([f.Id], e.Id); sim.Paused = false; sim.Advance(.2);
         check(f.ShotsFired > 0 && CombatRules.Clamp(f.Position) == f.Position, "unachievable distance does not prevent valid fire or escape arena");

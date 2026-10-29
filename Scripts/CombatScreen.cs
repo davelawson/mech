@@ -96,7 +96,8 @@ public partial class CombatScreen : Control
         AggressiveHeatButton.Pressed += () => ChangeUnits(unit => unit.HeatPolicy = HeatPolicy.Aggressive);
         Ui.Button(_settings, "Stop movement / clear order").Pressed += () => { Simulation?.Hold(_selected); RefreshDetails(); };
         RosterUi.Text(_settings, "Preferred engagement distance (hexes)", 12, Ui.Muted);
-        _distance = new SpinBox { MinValue = 1.5, MaxValue = 21, Step = .5, AllowGreater = false, AllowLesser = false };
+        _distance = new SpinBox { MinValue = CombatRules.MinimumPreferredDistance, MaxValue = CombatRules.MaximumPreferredDistance,
+            Step = .5, AllowGreater = false, AllowLesser = false };
         _settings.AddChild(_distance);
         _distance.ValueChanged += value => { if (!_refreshing) ChangeUnits(unit => unit.PreferredDistance = (float)value); };
         _priority = Ui.Button(_settings, "Set priority target…");

@@ -23,9 +23,9 @@ public partial class CombatViewport : Control
     private readonly Dictionary<string, MechModel> _models = [];
     private readonly Dictionary<string, Aabb> _pickBounds = [];
     private readonly List<(CombatShot Shot, float Life)> _effects = [];
-    private Vector3 _focus = new(0, 0, 12);
+    private Vector3 _focus = new(0, 0, CombatRules.DeploymentDepth - 20);
     private static readonly float DefaultPitch = Mathf.Atan2(80, 70);
-    private static readonly float OrbitRadius = new Vector2(70, 80).Length();
+    private static readonly float OrbitRadius = new Vector2(140, 160).Length();
     private const float RightDragThreshold = 5;
     private static readonly float OrbitSensitivity = Mathf.DegToRad(.25f);
     private float _yaw;
@@ -52,7 +52,7 @@ public partial class CombatViewport : Control
             RenderTargetUpdateMode = SubViewport.UpdateMode.WhenVisible, HandleInputLocally = false };
         surface.AddChild(_viewport);
         _world = new Node3D(); _viewport.AddChild(_world);
-        Camera = new Camera3D { Projection = Camera3D.ProjectionType.Orthogonal, Size = 50, Far = 400, Current = true };
+        Camera = new Camera3D { Projection = Camera3D.ProjectionType.Orthogonal, Size = 50, Far = 800, Current = true };
         _world.AddChild(Camera);
         var light = new DirectionalLight3D { RotationDegrees = new Vector3(-60, -30, 0), LightEnergy = 1.1f };
         _world.AddChild(light);
@@ -79,7 +79,7 @@ public partial class CombatViewport : Control
         Simulation = simulation; Simulation.ShotFired += OnShot; InspectedEnemy = null; Selection = Array.Empty<string>();
         if (_terrainView is not null) { _world.RemoveChild(_terrainView); _terrainView.QueueFree(); }
         _terrainView = BattlefieldTerrainView.Create(simulation.Terrain); _world.AddChild(_terrainView);
-        _focus = new Vector3(0, 0, 12); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 50; UpdateCamera();
+        _focus = new Vector3(0, 0, CombatRules.DeploymentDepth - 20); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 50; UpdateCamera();
         foreach (var unit in simulation.Units) CreateMech(unit);
         CancelDrag(); SyncModels(); QueueRedraw();
     }
@@ -223,8 +223,8 @@ public partial class CombatViewport : Control
     private void Pan(Vector2 amount)
     {
         var rotated = amount.Rotated(-_yaw);
-        _focus.X = Math.Clamp(_focus.X + rotated.X, -48, 48);
-        _focus.Z = Math.Clamp(_focus.Z + rotated.Y, -48, 48); UpdateCamera();
+        _focus.X = Math.Clamp(_focus.X + rotated.X, -CombatRules.ArenaHalfSize, CombatRules.ArenaHalfSize);
+        _focus.Z = Math.Clamp(_focus.Z + rotated.Y, -CombatRules.ArenaHalfSize, CombatRules.ArenaHalfSize); UpdateCamera();
     }
     // One camera ray drives hover, selection, inspection, attack, priority targeting and Follow.
     internal CombatUnit? PickMech(Vector2 at)
@@ -275,7 +275,7 @@ public partial class CombatViewport : Control
         {
             GrabFocus();
             if (mouse.ButtonIndex is MouseButton.WheelUp or MouseButton.WheelDown && mouse.Pressed)
-            { Camera.Size = Math.Clamp(Camera.Size * (mouse.ButtonIndex == MouseButton.WheelUp ? .85f : 1.18f), 12, 140); AcceptEvent(); }
+            { Camera.Size = Math.Clamp(Camera.Size * (mouse.ButtonIndex == MouseButton.WheelUp ? .85f : 1.18f), 12, 280); AcceptEvent(); }
             if (mouse.ButtonIndex == MouseButton.Middle)
             { _panning = mouse.Pressed && !mouse.ShiftPressed; _rotating = mouse.Pressed && mouse.ShiftPressed; SetHovered(null); AcceptEvent(); }
             if (mouse.ButtonIndex == MouseButton.Left)
@@ -320,7 +320,7 @@ public partial class CombatViewport : Control
         // Arrow navigation belongs to the camera, not Control's directional focus traversal.
         if (input is InputEventKey { Pressed: true, Keycode: Key.Up or Key.Down or Key.Left or Key.Right }) AcceptEvent();
         if (input is InputEventKey { Pressed: true, Keycode: Key.Home })
-        { CancelDrag(); _focus = Vector3.Zero; _yaw = 0; _pitch = DefaultPitch; Camera.Size = 110; UpdateCamera(); AcceptEvent(); }
+        { CancelDrag(); _focus = Vector3.Zero; _yaw = 0; _pitch = DefaultPitch; Camera.Size = 220; UpdateCamera(); AcceptEvent(); }
     }
     private CombatUnit? RangeTarget => Simulation is not null && InspectedEnemy is { } id && Simulation.Detected(CombatSide.Friendly, id) ? Simulation.Unit(id) : null;
     public IReadOnlyList<(CombatUnit Observer, float Identification, float? Detail)> DetectionRanges

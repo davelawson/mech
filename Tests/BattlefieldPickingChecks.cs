@@ -26,8 +26,9 @@ public partial class SmokeTests
             friendly.Position = new Vector2(0, 12);
             sim.Units.Last(unit => unit.Side == CombatSide.Friendly).Position = new Vector2(8, 12);
             field.Display(sim); field.Selection = [friendly.Id]; await Frames();
+            field.Camera.Position = new(0, 160, 152); field.Camera.LookAt(new(0, 0, 12));
             var model = field.FindChildren("*", "Node3D", true, false).OfType<MechModel>().Single(item => item.Position.X == 0 && item.Position.Z == 12);
-            foreach (var zoom in new[] { 12f, 50, 110 })
+            foreach (var zoom in new[] { 12f, 50, 220, 280 })
             {
                 field.Camera.Size = zoom; field._Process(0);
                 var upperBody = field.ScreenPoint(friendly.Position, model.Height * .8f);

@@ -7,10 +7,10 @@ The first tactical slice implements [the confirmed combat design](combat-design.
 | Value | Default |
 | --- | --- |
 | Distance unit | One stock range hex (nominally 30 metres) |
-| Arena | 96 × 96 hexes, centered on the origin |
-| Starts | Z = +32 / −32; four-hex spacing |
+| Arena | 192 × 192 hexes, centered on the origin |
+| Starts | Z = +64 / −64; eight-hex spacing |
 | Occupied radius | 0.65 hex, with swept-disc collision checks |
-| Identification range | `25 × (1 + (6 − Sensors) / 4) × (0.5 + (target tons − 20) / 160)` hexes |
+| Identification range | `50 × (1 + (6 − Sensors) / 4) × (0.5 + (target tons − 20) / 160)` hexes |
 | Detailed status range | Half identification range; same terrain sight requirement |
 | Movement limits | Stock Walk / Run MP × 0.18 hexes per second for every chassis |
 | Acceleration | Running speed × Walk MP / 9 hexes per second² |
@@ -24,8 +24,8 @@ The first tactical slice implements [the confirmed combat design](combat-design.
 | Reverse limit | Walking speed, including when Run is selected |
 | One leg lost | Half movement speed |
 | Simulation step | 0.05 seconds, independent of rendering rate |
-| Preferred distance | Damage-weighted average usable short range, clamped to 1–15 hexes |
-| Distance control | 1.5–21 hexes; 0.5-hex increments |
+| Preferred distance | Damage-weighted average usable scaled short range, clamped to 3–45 hexes |
+| Distance control | 4.5–63 hexes; 0.5-hex increments |
 | Follow spacing | About 3 hexes, with normal terrain and occupied-space clearance |
 | Position tolerances | 0.4 hex engagement distance; 0.2 hex arrival |
 
@@ -41,10 +41,10 @@ Terrain is an immutable, seeded heightfield shared by combat, navigation, render
 
 | Value | Default |
 | --- | --- |
-| Hills | Seven cosine hills, radius 6–11, height 3–7; overlapping elevations combine |
-| Rocks | Up to 16, radius 1.3–3, height 3–6; solid vertical cylinders |
-| Vegetation | Up to ten patches, radius 3–6; 70% speed |
-| Water | Up to four shallow patches, radius 3–6; 50% speed and flat banks |
+| Hills | 28 cosine hills, radius 6–11, height 3–7; overlapping elevations combine |
+| Rocks | Up to 64, radius 1.3–3, height 3–6; solid vertical cylinders |
+| Vegetation | Up to 40 patches, radius 3–6; 70% speed |
+| Water | Up to 16 shallow patches, radius 3–6; 50% speed and flat banks |
 | Steepness limit | Gradient 0.65 (about 33°), including the mech footprint |
 | Slope speed factor | Divide terrain speed by 1 + local gradient |
 | Solid clearance | Rock radius + mech radius + 0.1 hex |
@@ -53,7 +53,7 @@ Terrain is an immutable, seeded heightfield shared by combat, navigation, render
 | Navigation | Eight-neighbor one-hex grid, continuous segment clearance checks every 0.25 hex |
 | Hill sight checks | Every 0.2 hex along the elevated sight ray; rocks use ray/cylinder intersection |
 
-Generation permits unrestricted asymmetry while reserving clear spawn bands and a clear central rendezvous. It validates paths between all possible spawn slots and the center, retries disconnected candidates, and requires every terrain kind. Patch placement avoids overlapping patches. Hills may overlap patches; shallow water flattens its immediate surroundings. There is one default density.
+Generation permits unrestricted asymmetry while reserving clear spawn bands and a clear central rendezvous. It validates paths between all possible spawn slots and the center, retries disconnected candidates, and requires every terrain kind. Patch placement avoids overlapping patches. Hills may overlap patches; shallow water flattens its immediate surroundings. There is one default density. Doubling each battlefield dimension quadruples the feature counts while retaining individual feature sizes. The one-hex navigation and heightfield grid is 193 × 193.
 
 Move orders resolve inaccessible destinations to the nearest reachable navigation point in the unit's connected component. Paths detour around rocks and steep slopes, with terrain speed weighting for detours; direct clear routes remain direct. Waypoints feed the existing acceleration, braking, turning, and occupied-space avoidance. Both sides seek a reachable clear firing position when a detected attack target is behind terrain, reconsidering at most once per simulated second. There is no deliberate cover-seeking AI. Shared detection cannot authorize a shot through solid terrain.
 
@@ -66,14 +66,14 @@ Move orders resolve inaccessible destinations to the nearest reachable navigatio
 | Medium Laser | 8 seconds |
 | Other weapons | 10 seconds |
 
-Weapons start ready; cooldowns progress only during unpaused simulation time, including thermal shutdown. Stock weapon damage, ranges, armor and structure are retained. Missile racks deliver stock per-missile damage × rack size in one packet on one roll. Each successful flamer hit deals its ordinary damage and adds 2 target heat, including through armor. Misses add no target heat. Ammunition availability and destroyed bins affect usable weapons; ammunition is not consumed.
+Weapons start ready; cooldowns progress only during unpaused simulation time, including thermal shutdown. Stock weapon damage, armor and structure are retained. Combat multiplies all four stock weapon range boundaries by three; the imported catalog remains unchanged, and weapon inspection shows effective ranges. A medium laser therefore has short/medium/long ranges of 9/18/27 hexes. PPC minimum range is 9 and LRM minimum range is 18. Both sides use the same multiplier for targeting, firing, hit chance and terrain firing-position searches. Missile racks deliver stock per-missile damage × rack size in one packet on one roll. Each successful flamer hit deals its ordinary damage and adds 2 target heat, including through armor. Misses add no target heat. Ammunition availability and destroyed bins affect usable weapons; ammunition is not consumed.
 
 Hit chance is the exact probability of 2d6 meeting this threshold:
 
 `Gunnery + 3 (real-time aim modifier) + range + minimum-range penalty + attacker movement + target movement + vegetation + attacker heat`
 
 - Range: +0 short, +2 medium, +4 long; no shots beyond long range.
-- Minimum range: `ceil(minimum − distance)` when inside minimum.
+- Minimum range: `ceil((scaled minimum − distance) / 3)` when inside minimum, preserving penalty severity at equivalent relative distances.
 - Vegetation contributes +1 per intersected patch, including target vegetation, capped at +2. It does not block detection or reduce damage.
 - Each moving mech contributes +1 walking or +2 running; stationary contributes zero.
 - There is no artificial minimum/maximum chance clamp. Closing range and stopping can improve accuracy.
@@ -113,7 +113,7 @@ The stock total includes internal sinks. Explicit Heat Sink component entries gr
 
 Friendly ground labels and cards show current heat; selected details show heat band, policy and effective cooling. Normal/Aggressive controls apply to selected units including thermal shutdowns, with a Mixed group readout when appropriate. Exact enemy heat and cooling appear only at Detailed contact tier and disappear when that tier is lost. Water provides no cooling bonus. Heat damage, ammunition explosions and manual venting remain deferred.
 
-Five-to-ten minutes remains a provisional ordinary-engagement target. With heat management and Normal policies, the seeded flat-ground mixed-lance check finishes in 280 simulated seconds; one-on-one Jenner, Griffin and Awesome checks finish in 115, 214 and 199 seconds. The seeded natural-terrain mixed-lance check finishes in 566 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
+Five-to-ten minutes remains a provisional ordinary-engagement target. With the expanded ranges and Normal heat policies, the seeded flat-ground mixed-lance check finishes in 540 simulated seconds; one-on-one Jenner, Griffin and Awesome checks finish in 136, 234 and 237 seconds. The seeded natural-terrain mixed-lance check finishes in 491 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
 
 ## Interaction defaults
 
@@ -126,7 +126,7 @@ Five-to-ten minutes remains a provisional ordinary-engagement target. With heat 
 - Group order, movement, firing, priority and distance edits affect active selected units. Weapon controls and location values show the primary unit. Unselected mode buttons indicate mixed settings; mixed distances have a tooltip.
 - Space pauses with battlefield focus; the pause button always works. WASD/arrows pan across the ground relative to camera facing, starting and stopping immediately with normalized diagonal speed. Speed is half the orthographic zoom size in hexes per second. Middle-drag also pans; wheel zoom and Q/E or Shift-middle yaw rotation remain available. Camera controls work paused with battlefield focus, but not while a menu or text field has focus.
 - Right-drag orbits the center-view ground intersection. Rotation starts only after moving more than five screen pixels from the press position; threshold movement is discarded to avoid a jump. A drag never issues an order, even if it returns to its start. Sensitivity is 0.25° per screen pixel without smoothing: upward drag raises the camera, rightward drag orbits clockwise from above. Elevation is limited to 15°–85° downward. WASD can translate the orbit point during rotation; the point stays within the arena bounds.
-- The cursor is hidden and captured during right-drag, allowing continuous rotation at window edges. Release restores its mode and press position. Menus, loss of window or battlefield focus, and leaving battle cancel the gesture and release capture. Home restores arena center, default elevation (~49°), zero yaw and orthographic size 110; a new deployment starts at ground focus (0, 12), default elevation, zero yaw and size 50.
+- The cursor is hidden and captured during right-drag, allowing continuous rotation at window edges. Release restores its mode and press position. Menus, loss of window or battlefield focus, and leaving battle cancel the gesture and release capture. Home restores arena center, default elevation (~49°), zero yaw and orthographic size 220; zoom ranges from 12 to 280. A new deployment starts at ground focus (0, 44), default elevation, zero yaw and size 50.
 - Escape suspends combat. Resume restores the preceding running/paused state. End Simulation shows an ended damage summary; results return to the original hangar selection and tab.
 - Enemy inspection at full range reveals only the chassis model. Within half range it also shows exact armor, rear armor, internals and effective equipment condition/availability. The side shares its best current observation; live details disappear when all close observers lose them. Physical damage remains visible.
 - Inspection retains the friendly command selection and draws separate unions of target-specific identification (blue) and detailed-status (gold) ranges for all selected active mechs. Otherwise show the union of 100-ton identification ranges and label the 20–100-ton detection span. Only exposed outlines are drawn: no fill or internal overlap arcs; separated regions and uncovered holes remain. Disabled/destroyed mechs contribute no ranges. Multiple active contributors use “Selected mechs” with minimum–maximum ranges for each displayed tier; one active contributor keeps the single-mech readout. Terrain can block contacts within these boundaries; detection remains shared by the entire side independently of selection.

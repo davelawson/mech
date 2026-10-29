@@ -75,7 +75,7 @@ public partial class SmokeTests
             Check(field.Camera.Transform.IsEqualApprox(original), "mouse movement after release cannot continue orbit");
 
             await PressKey(Key.Home);
-            Near(field.Camera.Size, 110, "Home restores overview zoom");
+            Near(field.Camera.Size, 220, "Home restores expanded overview zoom");
             Near(-Mathf.RadToDeg(field.Camera.Rotation.X), Mathf.RadToDeg(Mathf.Atan2(80, 70)), "Home restores default elevation");
             Check(field.GroundPoint(field.Size / 2).Length() < .01f, "Home restores arena center");
             var start = field.Camera.Position;
@@ -96,7 +96,7 @@ public partial class SmokeTests
             Near(new Vector2(field.Camera.Position.X - start.X, field.Camera.Position.Z - start.Z).Length(), field.Camera.Size * .05f, "arrow movement retains zoom-scaled speed");
             CameraStep(field, 100, Key.W, Key.D);
             var groundFocus = field.GroundPoint(field.Size / 2);
-            Check(groundFocus.DistanceTo(new Vector2(47.35f, -47.35f)) < .01f, "camera pivot clamps to battlefield edges");
+            Check(groundFocus.DistanceTo(new Vector2(95.35f, -95.35f)) < .01f, "camera pivot clamps to expanded battlefield edges");
             await PressKey(Key.Home);
 
             await BeginCameraOrbit(at);

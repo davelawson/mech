@@ -22,7 +22,7 @@ internal static partial class CombatChecks
             var twist = unit.TorsoTwist; var facing = unit.TorsoFacing;
             sim.Paused = true; sim.Advance(10);
             check(unit.TorsoTwist == twist && unit.TorsoFacing == facing, "pause freezes simulated torso facing exactly");
-            target.Position = new(45, 45); sim.RefreshDetection(); sim.Paused = false; sim.Advance(.5);
+            target.Position = new(90, 90); sim.RefreshDetection(); sim.Paused = false; sim.Advance(.5);
             check(unit.CurrentTarget is null && Math.Abs(unit.TorsoTwist - (twist - Mathf.DegToRad(degrees * .5f))) < .0001f,
                 "lost detection stops live tracking and recenters at the class rate");
         }

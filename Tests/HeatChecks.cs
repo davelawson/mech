@@ -120,6 +120,7 @@ internal static partial class CombatChecks
         check(sim.SelectHeatVolley(f, e, null).Single().Weapon.Spec.Id == "last", "guaranteed-hit higher damage wins when both weapons fit individually");
         sim = HeatFixture([HeatGun("accurate", 12, 5), HeatGun("inaccurate", 12, 10) with { Short = 1, Medium = 1 }], gunnery: 4);
         f = Friendly(sim); e = Enemy(sim);
+        e.Position = new(6, 0);
         check(sim.SelectHeatVolley(f, e, null).Single().Weapon.Spec.Id == "accurate", "optimizer accounts for range-dependent hit chance rather than raw damage");
 
         sim = HeatFixture([HeatGun("free-a", 0, 1), HeatGun("free-b", 0, 1), HeatGun("hot", 12, 1)]); f = Friendly(sim); e = Enemy(sim); f.AddHeat(19.5);

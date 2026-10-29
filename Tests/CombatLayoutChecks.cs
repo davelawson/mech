@@ -68,9 +68,14 @@ public partial class SmokeTests
             var friendly = sim.Units.Single(unit => unit.Side == CombatSide.Friendly);
             var enemy = sim.Units.Single(unit => unit.Side == CombatSide.Enemy);
             sim.EnemyAiEnabled = false;
-            foreach (var unit in sim.Units) unit.Firing = FiringMode.HoldFire;
+            foreach (var unit in sim.Units)
+            {
+                unit.Firing = FiringMode.HoldFire;
+                // Keep this fixture's identification-before-weapons case after the LRM range increase.
+                foreach (var weapon in unit.Weapons) weapon.Enabled = weapon.LongRange < 48;
+            }
             sim.Paused = false;
-            Check(CombatRules.DetectionRadius(friendly, enemy) == 25 && friendly.Weapons.All(weapon => weapon.Spec.Long < 24),
+            Check(CombatRules.DetectionRadius(friendly, enemy) == 50 && friendly.Weapons.Where(weapon => weapon.Enabled).All(weapon => weapon.LongRange < 48),
                 "contact layout fixture detects a target before any weapon can reach it");
 
             Vector2 PositionAt(float distance) => Enumerable.Range(0, 32)
@@ -92,35 +97,35 @@ public partial class SmokeTests
                 await Frames();
                 for (var cycle = 0; cycle < 3; cycle++)
                 {
-                    await ContactAt(30);
+                    await ContactAt(60);
                     Check(!sim.Detected(friendly.Side, enemy.Id) && VisibleText().Any(text => text.Contains("No contact")),
                         $"lost contact clears the ordinary preview at {size}, cycle {cycle}");
-                    await ContactAt(24);
+                    await ContactAt(48);
                     Check(sim.Detected(friendly.Side, enemy.Id) && !sim.DetailsVisible(friendly.Side, enemy.Id)
                         && VisibleText().Any(text => text.Contains("Aim preview: Atlas")),
                         $"identification outside weapon range updates the ordinary preview at {size}, cycle {cycle}");
-                    await ContactAt(12);
+                    await ContactAt(24);
                     Check(sim.DetailsVisible(friendly.Side, enemy.Id) && tactical.Paperdoll.Unit == friendly
                         && tactical.Battlefield.InspectedEnemy is null,
                         $"close detection keeps the friendly sidebar without enemy inspection at {size}, cycle {cycle}");
                 }
-                await ContactAt(24);
+                await ContactAt(48);
                 await Capture($"combat-contact-preview-{size.X}x{size.Y}");
 
                 // Exercise information masking through the same UI refresh, without desktop input.
                 // Production keyboard/mouse focus guards remain enabled.
-                await ContactAt(12);
+                await ContactAt(24);
                 tactical.Battlefield.InspectedEnemy = enemy.Id;
                 tactical.SelectUnits([friendly.Id], false);
                 Check(tactical.Paperdoll.Unit == enemy && VisibleText().Contains(CombatScreen.SystemsReadout(enemy))
                     && VisibleText().Any(text => text.Contains(CombatScreen.HeatReadout(enemy))),
                     $"detailed inspection shows live condition at {size}");
                 await Capture($"combat-contact-details-{size.X}x{size.Y}");
-                await ContactAt(24);
+                await ContactAt(48);
                 Check(tactical.Paperdoll.Unit is null && !VisibleText().Any(text => text.Contains("SYSTEMS · CONDITION")
                     || text.Contains("ARMOR / STOCK") || text.Contains("Heat ")), $"model-only inspection clears detailed readouts including heat at {size}");
                 await Capture($"combat-contact-model-{size.X}x{size.Y}");
-                await ContactAt(30);
+                await ContactAt(60);
                 Check(tactical.Battlefield.InspectedEnemy is null && tactical.Paperdoll.Unit == friendly,
                     $"lost inspection restores the friendly sidebar at {size}");
                 tactical.SelectUnits([], false);

@@ -57,6 +57,8 @@ public partial class SmokeTests
         Check(tactical.Selected.Count == 1 && !sim.Contacts(CombatSide.Friendly).Any(), "first friendly selected and enemy starts hidden");
         _app.StartAdvancing(true); Check(!_app.IsAdvancing, "campaign calendar cannot run during combat");
         var friendly = sim.Units.First(item => item.Side == CombatSide.Friendly);
+        var distanceControl = tactical.FindChildren("*", "SpinBox", true, false).OfType<SpinBox>().Single();
+        Check(distanceControl.MinValue == 4.5 && distanceControl.MaxValue == 63, "preferred-distance control supports the expanded engagement distances");
         Check(sim.Terrain.Seed == 183, "deployment honors the entered terrain seed");
         var hilltop = sim.Terrain.Hills.OrderByDescending(hill => sim.Terrain.HeightAt(hill.Center)).First().Center;
         Check(field.GroundPoint(field.ScreenPoint(hilltop)).DistanceTo(hilltop) < .02f, "height-aware picking matches rendered hill elevation");

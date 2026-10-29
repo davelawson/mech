@@ -28,7 +28,8 @@ public static class BattlefieldTerrainView
             foreach (var point in new[] { a, b, c })
             { mesh.SurfaceSetNormal(normal); mesh.SurfaceSetColor(ColorAt(point)); mesh.SurfaceAddVertex(point); }
         }
-        for (var z = -48; z < 48; z++) for (var x = -48; x < 48; x++)
+        var halfSize = (int)CombatRules.ArenaHalfSize;
+        for (var z = -halfSize; z < halfSize; z++) for (var x = -halfSize; x < halfSize; x++)
         {
             var a = Ground(x, z); var b = Ground(x + 1, z); var c = Ground(x, z + 1); var d = Ground(x + 1, z + 1);
             Triangle(a, c, b); Triangle(d, b, c);
@@ -37,7 +38,7 @@ public static class BattlefieldTerrainView
         var grid = new ImmediateMesh();
         grid.SurfaceBegin(Mesh.PrimitiveType.Lines, new StandardMaterial3D
         { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = new Color("727e65") });
-        for (var n = -48; n <= 48; n += 8) for (var step = -48; step < 48; step++)
+        for (var n = -halfSize; n <= halfSize; n += 8) for (var step = -halfSize; step < halfSize; step++)
         {
             foreach (var point in new[] { Ground(n, step), Ground(n, step + 1), Ground(step, n), Ground(step + 1, n) })
                 grid.SurfaceAddVertex(point + Vector3.Up * .025f);

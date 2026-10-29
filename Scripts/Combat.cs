@@ -11,11 +11,16 @@ public enum CombatOutcome { Ongoing, Victory, Defeat, Draw, Ended }
 public enum CombatStatus { Active, Shutdown, Disabled, Destroyed }
 public enum ContactLevel { Lost, Identified, Detailed }
 
-/// <summary>Authored first-slice values. Distances are stock range hexes, time is seconds.</summary>
+/// <summary>Authored tactical values. Distances are hexes, time is seconds.</summary>
 public static partial class CombatRules
 {
-    public const float ArenaHalfSize = 48;
-    public const float NoviceDetectionRadius = 25;
+    public const float ArenaHalfSize = 96;
+    public const float DeploymentDepth = ArenaHalfSize * 2 / 3;
+    public const float DeploymentSpacing = 8;
+    public const float WeaponRangeScale = 3;
+    public const float MinimumPreferredDistance = 1.5f * WeaponRangeScale;
+    public const float MaximumPreferredDistance = 21 * WeaponRangeScale;
+    public const float NoviceDetectionRadius = 50;
     public static float DetectionRadius(int sensors, int targetTonnage) => NoviceDetectionRadius
         * (1 + (WarriorSkills.Novice - Math.Clamp(sensors, WarriorSkills.Expert, WarriorSkills.Novice))
             / (float)(WarriorSkills.Novice - WarriorSkills.Expert))
@@ -65,6 +70,10 @@ public sealed class CombatLocation
 public sealed class CombatWeapon
 {
     public WeaponSpec Spec { get; }
+    public float MinimumRange => Spec.Minimum * CombatRules.WeaponRangeScale;
+    public float ShortRange => Spec.Short * CombatRules.WeaponRangeScale;
+    public float MediumRange => Spec.Medium * CombatRules.WeaponRangeScale;
+    public float LongRange => Spec.Long * CombatRules.WeaponRangeScale;
     public bool Enabled { get; set; } = true;
     public double Remaining { get; internal set; }
     public int Damage => CombatRules.Damage(Spec);
@@ -117,8 +126,9 @@ public sealed partial class CombatUnit
         Weapons = Array.AsReadOnly(spec.Weapons.Select(item => new CombatWeapon(item)).ToArray());
         // A damage-weighted short-range preference keeps mixed loadouts relevant.
         var usable = Weapons.Where(WeaponUsable).ToArray();
-        PreferredDistance = usable.Length == 0 ? 3 : Math.Clamp(
-            usable.Sum(item => item.Spec.Short * item.Damage) / (float)usable.Sum(item => item.Damage), 1, 15);
+        PreferredDistance = usable.Length == 0 ? 3 * CombatRules.WeaponRangeScale : Math.Clamp(
+            usable.Sum(item => item.ShortRange * item.Damage) / usable.Sum(item => item.Damage),
+            CombatRules.WeaponRangeScale, 15 * CombatRules.WeaponRangeScale);
     }
     public bool Intact(MechLocation location) => Locations[location].Structure > 0;
     public bool WeaponUsable(CombatWeapon weapon) => Intact(weapon.Spec.Location)
@@ -232,14 +242,14 @@ public sealed partial class CombatSimulation
                 ?? throw new ArgumentException("Unknown BattleMech.");
             if (UnavailableReason(roster, source) is { } reason) throw new ArgumentException(reason);
             var pilot = roster.Pilot(source)!.Spec;
-            var x = (i - (ids.Length - 1) / 2f) * 4;
+            var x = (i - (ids.Length - 1) / 2f) * CombatRules.DeploymentSpacing;
             units.Add(new(source.Id, source.Spec, pilot, CombatSide.Friendly, source.Locations,
-                source.Equipment, source.Ammo, new Vector2(x, 32)));
+                source.Equipment, source.Ammo, new Vector2(x, CombatRules.DeploymentDepth)));
             var spec = source.Spec;
             units.Add(new($"enemy-{i + 1}", spec, pilot, CombatSide.Enemy,
                 spec.Locations.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)),
                 source.Equipment.Select(item => new EquipmentCondition(item.Id, ComponentCondition.Operational)),
-                spec.Ammo.Select(item => new AmmoCondition(item.Id, item.Shots)), new Vector2(x, -32)));
+                spec.Ammo.Select(item => new AmmoCondition(item.Id, item.Shots)), new Vector2(x, -CombatRules.DeploymentDepth)));
         }
         return new CombatSimulation(units, seed ?? Random.Shared.Next(), terrain ?? BattlefieldTerrain.Generate(terrainSeed ?? Random.Shared.Next()));
     }
@@ -441,7 +451,7 @@ public sealed partial class CombatSimulation
                         if (Elapsed >= unit.NextFiringSearch)
                         {
                             var range = unit.Weapons.Where(weapon => weapon.Enabled && unit.WeaponUsable(weapon))
-                                .Select(weapon => (float)weapon.Spec.Long).DefaultIfEmpty(unit.PreferredDistance).Max();
+                                .Select(weapon => weapon.LongRange).DefaultIfEmpty(unit.PreferredDistance).Max();
                             unit.FiringPosition = Terrain.FiringPosition(unit.Position, target.Position, unit.PreferredDistance, range);
                             unit.NextFiringSearch = Elapsed + 1;
                         }
@@ -543,7 +553,7 @@ public sealed partial class CombatSimulation
     {
         bool Engageable(CombatUnit target) => target.Side != unit.Side && !target.Defeated && Detected(unit.Side, target.Id)
             && Terrain.ClearSight(unit.Position, target.Position)
-            && unit.Weapons.Any(weapon => !weapon.Spec.Rear && weapon.Enabled && unit.WeaponUsable(weapon) && unit.Position.DistanceTo(target.Position) <= weapon.Spec.Long);
+            && unit.Weapons.Any(weapon => !weapon.Spec.Rear && weapon.Enabled && unit.WeaponUsable(weapon) && unit.Position.DistanceTo(target.Position) <= weapon.LongRange);
         if (unit.AttackTarget is { } attack && unit.Order == CombatOrder.Attack && Engageable(Unit(attack))) return Unit(attack);
         if (unit.Firing == FiringMode.HoldFire) return null;
         if (unit.PriorityTarget is { } priority && Engageable(Unit(priority))) return Unit(priority);
@@ -556,9 +566,10 @@ public sealed partial class CombatSimulation
     public static double HitChance(CombatUnit attacker, CombatUnit target, CombatWeapon weapon, int terrainModifier = 0)
     {
         var distance = attacker.Position.DistanceTo(target.Position);
-        if (distance > weapon.Spec.Long || !attacker.WeaponUsable(weapon) || !CombatRules.InFiringArc(attacker, target, weapon)) return 0;
-        var range = distance <= weapon.Spec.Short ? 0 : distance <= weapon.Spec.Medium ? 2 : 4;
-        var minimum = distance < weapon.Spec.Minimum ? (int)Math.Ceiling(weapon.Spec.Minimum - distance) : 0;
+        if (distance > weapon.LongRange || !attacker.WeaponUsable(weapon) || !CombatRules.InFiringArc(attacker, target, weapon)) return 0;
+        var range = distance <= weapon.ShortRange ? 0 : distance <= weapon.MediumRange ? 2 : 4;
+        var minimum = distance < weapon.MinimumRange
+            ? (int)Math.Ceiling((weapon.MinimumRange - distance) / CombatRules.WeaponRangeScale) : 0;
         var threshold = attacker.Warrior.Gunnery + CombatRules.AimModifier + range + minimum + terrainModifier + attacker.HeatAimModifier
             + (attacker.Moving ? attacker.Movement == MovementMode.Run ? 2 : 1 : 0)
             + (target.Moving ? target.Movement == MovementMode.Run ? 2 : 1 : 0);

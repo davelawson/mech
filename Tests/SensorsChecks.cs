@@ -18,9 +18,9 @@ internal static partial class CombatChecks
         CheckCircleUnions(check);
         foreach (var (sensors, tonnage, expected) in new[]
         {
-            (6, 20, 12.5f), (6, 60, 18.75f), (6, 100, 25f),
-            (4, 20, 18.75f), (4, 60, 28.125f), (4, 100, 37.5f),
-            (2, 20, 25f), (2, 60, 37.5f), (2, 100, 50f)
+            (6, 20, 25f), (6, 60, 37.5f), (6, 100, 50f),
+            (4, 20, 37.5f), (4, 60, 56.25f), (4, 100, 75f),
+            (2, 20, 50f), (2, 60, 75f), (2, 100, 100f)
         })
             check(CombatRules.DetectionRadius(sensors, tonnage) == expected, $"Sensors {sensors}, {tonnage}t gives {expected} hexes");
         foreach (var sensors in Enumerable.Range(2, 5))
@@ -42,12 +42,12 @@ internal static partial class CombatChecks
                 $"{sensors}/{definition}: leaving half radius immediately hides live details");
         }
         var novice = SensorUnit("novice", "atlas", 6, CombatSide.Friendly, Vector2.Zero);
-        var scout = SensorUnit("scout", "locust", 2, CombatSide.Friendly, new Vector2(15, 0));
-        var enemy = SensorUnit("enemy", "locust", 6, CombatSide.Enemy, new Vector2(20, 0));
+        var scout = SensorUnit("scout", "locust", 2, CombatSide.Friendly, new Vector2(30, 0));
+        var enemy = SensorUnit("enemy", "locust", 6, CombatSide.Enemy, new Vector2(40, 0));
         var shared = new CombatSimulation([novice, scout, enemy], 41);
         check(shared.Detected(CombatSide.Enemy, scout.Id) && shared.Detected(CombatSide.Enemy, novice.Id)
             && shared.DetailsVisible(CombatSide.Friendly, enemy.Id), "both sides calculate target mass and share their best current observation");
-        scout.Position = new Vector2(0, 10); shared.RefreshDetection();
+        scout.Position = new Vector2(0, 20); shared.RefreshDetection();
         check(shared.Detected(novice.Side, enemy.Id) && !shared.DetailsVisible(novice.Side, enemy.Id),
             "shared detailed contact downgrades when the scout leaves detailed range");
         var lastKnown = shared.Contacts(novice.Side)[enemy.Id].LastKnownPosition;
