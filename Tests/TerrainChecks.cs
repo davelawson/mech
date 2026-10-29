@@ -22,6 +22,7 @@ internal static class TerrainChecks
     {
         var first = BattlefieldTerrain.Generate(183); var repeat = BattlefieldTerrain.Generate(183); var other = BattlefieldTerrain.Generate(184);
         check(first.Patches.SequenceEqual(repeat.Patches) && first.Hills.SequenceEqual(repeat.Hills), "terrain seed recreates all geometry");
+        CheckNavigationQueries(first, check);
         check(!first.Patches.SequenceEqual(other.Patches), "different terrain seeds create different maps");
         check(Enum.GetValues<TerrainKind>().All(kind => first.Patches.Any(patch => patch.Kind == kind)) && first.Hills.Count > 0, "generated maps include rocks, vegetation, water and hills");
         check(first.Hills.Count == 28 && first.Patches.Count(patch => patch.Kind == TerrainKind.Rock) > 48
@@ -83,6 +84,43 @@ internal static class TerrainChecks
         CheckEngagement(first, new[] { "jenner" }, check);
         CheckEngagement(other, new[] { "awesome" }, check);
         CheckEngagement(first, new[] { "firestarter", "griffin", "catapult", "awesome" }, check);
+    }
+    private static void CheckNavigationQueries(BattlefieldTerrain terrain, Action<bool, string> check)
+    {
+        var from = new Vector2(-12, 64); var to = new Vector2(12, -64);
+        Vector2[] expected = [new(-13, 37), new(-4, 1), new(6, -31), to];
+        var retained = terrain.FindPath(from, to);
+        check(retained.SequenceEqual(expected), "seeded path retains its original waypoints and tie ordering");
+        var rocks = new BattlefieldTerrain(1, [new(TerrainKind.Rock, Vector2.Zero, 2, 4)], []);
+        check(rocks.FindPath(new(-8, 0), new(8, 0)).SequenceEqual(new Vector2[] { new(0, -3), new(3, -2), new(8, 0) }),
+            "symmetric rock detour preserves the original route choice");
+        check(rocks.FiringPosition(new(-8, 0), new(8, 0), 6, 15) == new Vector2(2, -2),
+            "equally ranked clear firing positions retain row-major tie ordering");
+        check(rocks.FiringPosition(new(-8, 0), new(8, 0), 6, 0) == new Vector2(-8, 0),
+            "firing search with no eligible cells returns its starting position");
+        var routes = new IReadOnlyList<Vector2>[8];
+        var firing = new Vector2[8];
+        Parallel.For(0, routes.Length, index =>
+        {
+            routes[index] = terrain.FindPath(index % 2 == 0 ? from : to, index % 2 == 0 ? to : from);
+            firing[index] = rocks.FiringPosition(new(-8, 0), new(8, 0), 6, 15);
+        });
+        var reverse = terrain.FindPath(to, from);
+        check(routes.Select((route, index) => route.SequenceEqual(index % 2 == 0 ? expected : reverse)).All(equal => equal)
+            && firing.All(point => point == new Vector2(2, -2)) && retained.SequenceEqual(expected),
+            "concurrent navigation queries and buffer reuse preserve independent returned paths");
+
+        // Wide allocation budgets catch grid-sized scratch arrays without depending on machine timing.
+        terrain.FindPath(from, to);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        terrain.FindPath(from, to);
+        var pathBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        check(pathBytes < 200_000, $"warmed navigation avoids grid-sized allocations: {pathBytes} bytes");
+        rocks.FiringPosition(new(-8, 0), new(8, 0), 6, 15);
+        before = GC.GetAllocatedBytesForCurrentThread();
+        rocks.FiringPosition(new(-8, 0), new(8, 0), 6, 15);
+        var firingBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        check(firingBytes < 16_000, $"warmed firing search avoids candidate-array allocations: {firingBytes} bytes");
     }
     private static void CheckEngagement(BattlefieldTerrain terrain, string[] definitions, Action<bool, string> check)
     {

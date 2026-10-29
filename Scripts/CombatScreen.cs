@@ -446,11 +446,14 @@ public partial class CombatScreen : Control
         }
         _unitInfo.Text += Simulation.Terrain.Contains(TerrainKind.Water, unit.Position) ? "\nWater slows movement" :
             Simulation.Terrain.Contains(TerrainKind.Vegetation, unit.Position) ? "\nVegetation slows movement" : "";
-        foreach (var (weapon, control) in _weaponControls)
+        var rearTarget = Simulation.SelectRearTarget(unit);
+        var weaponStatuses = Simulation.WeaponStatuses(unit, firingTarget, rearTarget, target);
+        for (var i = 0; i < _weaponControls.Count; i++)
         {
+            var (weapon, control) = _weaponControls[i];
             control.Disabled = unit.Defeated || !unit.WeaponUsable(weapon);
-            var weaponTarget = weapon.Spec.Rear ? Simulation.SelectRearTarget(unit) : firingTarget;
-            var status = Simulation.WeaponStatus(unit, weapon, weaponTarget ?? target);
+            var weaponTarget = weapon.Spec.Rear ? rearTarget : firingTarget;
+            var status = weaponStatuses[i];
             control.Text = $"{weapon.Spec.Name}{(weapon.Spec.Rear ? " (rear)" : "")} · {DraftCatalog.Abbreviation(weapon.Spec.Location)}\n"
                 + status + (weaponTarget is null ? "" : $" · {Simulation.TerrainHitChance(unit, weaponTarget, weapon):P0} hit")
                 + (weapon.Spec.Rear && weaponTarget is not null ? $" · {weaponTarget.Spec.Chassis}" : "");
