@@ -9,6 +9,7 @@ public partial class SmokeTests
         await TestPaperdollScrollLayout();
         await TestContactPreviewLayout();
         await TestHeatControls();
+        await TestTacticalEnhancements();
     }
 
     private async Task TestPaperdollScrollLayout()

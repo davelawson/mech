@@ -66,6 +66,13 @@ public partial class SmokeTests
                 $"hover previews the frontmost mech without changing selection or inspection: hovered={field.HoveredMech}, expected={enemy.Id}, gui={GetViewport().GuiGetHoveredControl()}, mouse={field.GetLocalMousePosition()}, expectedPoint={overlap}, focused={GetWindow().HasFocus()}");
             Check(field.FindChildren("*", "Node3D", true, false).OfType<MechModel>().Count(item => item.Hovered) == 1,
                 "only the hovered model receives its stronger outline");
+            field.Selection = [friendly.Id, second.Id];
+            Check(field.HoverRanges.Count == 2 && field.HoverRanges.All(range => range.Enemy == enemy
+                && Math.Abs(range.Distance - range.Friendly.Position.DistanceTo(enemy.Position)) < .001),
+                "hover range tracers cover every selected friendly with actual planar hex distance");
+            field.Selection = [];
+            Check(field.HoverRanges.Count == 0, "no selection suppresses hover range tracers");
+            field.Selection = [friendly.Id];
             await Capture("combat-mech-hover");
             string? selected = null; string? commanded = null;
             field.SelectionRequested += (ids, _) => selected = ids.SingleOrDefault();

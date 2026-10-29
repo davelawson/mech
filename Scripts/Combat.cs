@@ -201,7 +201,15 @@ public sealed class CombatContact
 }
 
 public sealed record CombatShot(string AttackerId, string TargetId, Vector2 From, Vector2 To,
-    string Weapon, bool Hit, MechLocation Location, int Damage, int GeneratedHeat = 0, int TargetHeat = 0);
+    string Weapon, bool Hit, MechLocation Location, int Damage, int GeneratedHeat = 0, int TargetHeat = 0)
+{
+    public double Chance { get; init; }
+    public double Roll { get; init; }
+    public string Mount { get; init; } = "";
+    public IReadOnlyList<CombatDamage> DamageApplied { get; init; } = [];
+    public IReadOnlyList<string> SystemsLost { get; init; } = [];
+    public CombatStatus? TargetStatus { get; init; }
+}
 
 /// <summary>Deterministic fixed-step combat with shared detection and simultaneous weapon resolution.</summary>
 public sealed partial class CombatSimulation
@@ -212,6 +220,8 @@ public sealed partial class CombatSimulation
     public double Elapsed { get; private set; }
     public CombatOutcome Outcome { get; private set; }
     public event Action<CombatShot>? ShotFired;
+    private readonly List<CombatLogEntry> _history = [];
+    public IReadOnlyList<CombatLogEntry> History { get; }
     private readonly Random _random;
     private readonly Dictionary<CombatSide, Dictionary<string, CombatContact>> _contacts = new()
     { [CombatSide.Friendly] = [], [CombatSide.Enemy] = [] };
@@ -289,7 +299,10 @@ public sealed partial class CombatSimulation
         return enemies.ToArray();
     }
     internal CombatSimulation(IEnumerable<CombatUnit> units, int seed, BattlefieldTerrain? terrain = null)
-    { Units = Array.AsReadOnly(units.ToArray()); Terrain = terrain ?? BattlefieldTerrain.Flat; _random = new Random(seed); RefreshDetection(); }
+    {
+        Units = Array.AsReadOnly(units.ToArray()); Terrain = terrain ?? BattlefieldTerrain.Flat;
+        History = _history.AsReadOnly(); _random = new Random(seed); RefreshDetection();
+    }
     public CombatUnit Unit(string id) => Units.Single(item => item.Id == id);
     public IReadOnlyDictionary<string, CombatContact> Contacts(CombatSide side) => _contacts[side];
     public bool Detected(CombatSide side, string id) => _contacts[side].TryGetValue(id, out var contact) && contact.Detected;
@@ -403,22 +416,50 @@ public sealed partial class CombatSimulation
             var rearTarget = SelectRearTarget(unit); unit.CurrentRearTarget = rearTarget?.Id;
             foreach (var (weapon, target) in SelectHeatVolley(unit, mainTarget, rearTarget))
             {
-                var hit = _random.NextDouble() < TerrainHitChance(unit, target, weapon);
+                var chance = TerrainHitChance(unit, target, weapon);
+                var roll = _random.NextDouble();
+                var hit = roll < chance;
                 var location = RollLocation();
                 shots.Add(new(unit.Id, target.Id, unit.Position, target.Position, weapon.Spec.Name, hit, location,
-                    hit ? weapon.Damage : 0, weapon.Spec.Heat, hit ? CombatRules.FlamerHeat(weapon.Spec) : 0));
+                    hit ? weapon.Damage : 0, weapon.Spec.Heat, hit ? CombatRules.FlamerHeat(weapon.Spec) : 0)
+                { Chance = chance, Roll = roll, Mount = DraftCatalog.Abbreviation(weapon.Spec.Location) + (weapon.Spec.Rear ? " rear" : "") });
                 weapon.Remaining = CombatRules.Cooldown(weapon.Spec); unit.ShotsFired++;
                 if (hit) { unit.Hits++; unit.DamageDealt += weapon.Damage; }
             }
         }
         // All shooters and rolls are captured before any damage or casualty can invalidate a return shot.
-        foreach (var shot in shots)
-            if (shot.Hit) Unit(shot.TargetId).ApplyDamage(shot.Location, shot.Damage, shot.From);
+        for (var i = 0; i < shots.Count; i++)
+        {
+            var shot = shots[i];
+            if (!shot.Hit) continue;
+            var target = Unit(shot.TargetId);
+            var before = target.Locations.Values.ToDictionary(part => part.Location,
+                part => (part.Armor, part.RearArmor, part.Structure));
+            var status = target.Status;
+            target.ApplyDamage(shot.Location, shot.Damage, shot.From);
+            var damage = target.Locations.Values.Select(part => new CombatDamage(part.Location,
+                before[part.Location].Armor - part.Armor, before[part.Location].RearArmor - part.RearArmor,
+                before[part.Location].Structure - part.Structure, before[part.Location].Structure > 0 && part.Structure == 0))
+                .Where(part => part.Armor + part.RearArmor + part.Structure > 0).ToArray();
+            var destroyed = damage.Where(part => part.Destroyed).Select(part => part.Location).ToHashSet();
+            var systems = target.Spec.Weapons.Select(item => (item.Id, item.Name, item.Location))
+                .Concat(target.Spec.Components.Select(item => (item.Id, item.Name, item.Location)))
+                .Concat(target.Spec.Ammo.Select(item => (item.Id, item.Name, item.Location)))
+                .Where(item => destroyed.Contains(item.Location) && target.Equipment[item.Id] != ComponentCondition.Destroyed)
+                .Select(item => $"{DraftCatalog.Abbreviation(item.Location)} {item.Name}").ToArray();
+            shots[i] = shot with { DamageApplied = Array.AsReadOnly(damage), SystemsLost = Array.AsReadOnly(systems),
+                TargetStatus = target.Status != status ? target.Status : null };
+        }
         var heat = Units.ToDictionary(unit => unit.Id, _ => 0d);
         foreach (var shot in shots)
         { heat[shot.AttackerId] += shot.GeneratedHeat; heat[shot.TargetId] += shot.TargetHeat; }
         foreach (var unit in Units) unit.AddHeat(heat[unit.Id]);
-        foreach (var shot in shots) ShotFired?.Invoke(shot);
+        foreach (var shot in shots)
+        {
+            // Contacts still describe the pre-exchange observation; heat now includes the entire exchange.
+            _history.Add(new CombatLogEntry(Elapsed, shot, LogUnit(Unit(shot.AttackerId)), LogUnit(Unit(shot.TargetId))));
+            ShotFired?.Invoke(shot);
+        }
         StopInvalidFollows();
         foreach (var unit in Units.Where(item => !item.Active))
         { unit.Moving = false; unit.CurrentSpeed = unit.AngularVelocity = 0; unit.CurrentTarget = unit.CurrentRearTarget = null; }

@@ -198,6 +198,34 @@ public partial class CombatViewport : Control
             OrbitRadius * Mathf.Sin(_pitch), Mathf.Cos(_yaw) * horizontal);
         Camera.LookAt(_focus); QueueRedraw();
     }
+    public void ResetToSelection()
+    {
+        if (Simulation is null) return;
+        CancelDrag(); SyncModels();
+        var group = Simulation.Units.Where(unit => unit.Side == CombatSide.Friendly && Selection.Contains(unit.Id)).ToArray();
+        if (group.Length == 0) group = Simulation.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
+        if (group.Length == 0) return;
+        _focus = World(new Vector2((group.Min(unit => unit.Position.X) + group.Max(unit => unit.Position.X)) / 2,
+            (group.Min(unit => unit.Position.Y) + group.Max(unit => unit.Position.Y)) / 2));
+        _yaw = 0; _pitch = DefaultPitch; Camera.Size = 50; UpdateCamera();
+        // Fit the complete visible models, including hills and projecting weapons, in camera space.
+        var extent = (Vector2)_viewport.Size / 2;
+        var available = (extent - Vector2.One * 24).Max(Vector2.One);
+        var scale = 1f;
+        foreach (var unit in group)
+        {
+            var model = _models[unit.Id];
+            if (model.PickBounds() is not { } bounds) continue;
+            for (var corner = 0; corner < 8; corner++)
+            {
+                var local = bounds.Position + new Vector3((corner & 1) == 0 ? 0 : bounds.Size.X,
+                    (corner & 2) == 0 ? 0 : bounds.Size.Y, (corner & 4) == 0 ? 0 : bounds.Size.Z);
+                var offset = (Camera.UnprojectPosition(model.GlobalTransform * local) - extent).Abs();
+                scale = Math.Max(scale, Math.Max(offset.X / available.X, offset.Y / available.Y));
+            }
+        }
+        Camera.Size = 50 * scale; QueueRedraw();
+    }
     public override void _Process(double delta)
     {
         if (!IsVisibleInTree() || Simulation is null) return;
@@ -268,6 +296,11 @@ public partial class CombatViewport : Control
         HoveredMech = id;
         if (id is not null && _models.TryGetValue(id, out var model)) model.SetHovered(true);
     }
+    public IReadOnlyList<(CombatUnit Friendly, CombatUnit Enemy, float Distance)> HoverRanges => Simulation is not null
+        && CommandsEnabled && HoveredMech is { } id && Simulation.Unit(id) is { Side: CombatSide.Enemy } enemy
+        && Simulation.Detected(CombatSide.Friendly, id)
+        ? Selection.Select(Simulation.Unit).Where(unit => unit.Side == CombatSide.Friendly)
+            .Select(unit => (unit, enemy, unit.Position.DistanceTo(enemy.Position))).ToArray() : [];
     public override void _GuiInput(InputEvent input)
     {
         if (!CommandsEnabled || Simulation is null || !_windowFocused) return;
@@ -429,6 +462,18 @@ public partial class CombatViewport : Control
             var at = ScreenPoint(contact.LastKnownPosition);
             DrawArc(at, 10, 0, Mathf.Tau, 16, Ui.Muted, 1, true);
             DrawString(font, at + new Vector2(13, 4), $"? Last seen {Math.Max(0, Simulation.Elapsed - contact.LastSeenAt):0}s", HorizontalAlignment.Left, -1, 12, Ui.Muted);
+        }
+        var rangeIndex = 0;
+        foreach (var (friendly, enemy, distance) in HoverRanges)
+        {
+            var from = ScreenPoint(friendly.Position, BattlefieldTerrain.EyeHeight);
+            var to = ScreenPoint(enemy.Position, BattlefieldTerrain.EyeHeight);
+            var color = new Color("9cdae3");
+            DrawDashedLine(from, to, new Color(color, .9f), 2, 7, true);
+            var label = (from + to) / 2 + new Vector2(6, -6 - rangeIndex++ * 16);
+            var text = FormattableString.Invariant($"{distance:0.0} hex");
+            DrawStringOutline(font, label, text, HorizontalAlignment.Left, -1, 12, 5, new Color("101820"));
+            DrawString(font, label, text, HorizontalAlignment.Left, -1, 12, color);
         }
         foreach (var (shot, life) in _effects)
         {

@@ -11,6 +11,7 @@ public partial class CombatScreen : Control
     public CombatViewport Battlefield { get; private set; } = null!;
     public CombatModal Modal { get; private set; }
     public CombatPaperdoll Paperdoll { get; private set; } = null!;
+    public CombatLogPanel BattleLog { get; private set; } = null!;
     public List<CheckBox> ForceChoices { get; } = [];
     public Button RandomizedEnemyButton { get; private set; } = null!;
     public Button MirrorMatchButton { get; private set; } = null!;
@@ -70,6 +71,8 @@ public partial class CombatScreen : Control
         Battlefield = new CombatViewport(); AddChild(Battlefield);
         Battlefield.SelectionRequested += SelectUnits;
         Battlefield.CommandRequested += IssueCommand;
+        BattleLog = new CombatLogPanel(); AddChild(BattleLog);
+        BattleLog.CloseRequested += ToggleBattleLog;
         _top = new Control(); AddChild(_top);
         Ui.Label(_top, "SIMULATED DEPLOYMENT", 20, Ui.Gold).Position = new Vector2(20, 9);
         _status = Ui.Label(_top, "Select your force", 13, Ui.Muted); _status.Position = new Vector2(20, 36);
@@ -125,7 +128,9 @@ public partial class CombatScreen : Control
         var sidebar = Size.X < 1100 ? 280 : 330;
         Ui.Place(_top, 0, 0, Size.X, 66);
         Ui.Place(PauseButton, Size.X - 360, 14, 160, 38); Ui.Place(MenuButton, Size.X - 190, 14, 174, 38);
-        Ui.Place(Battlefield, 0, 66, Size.X - sidebar - 8, Size.Y - 172);
+        var logWidth = BattleLog.Visible ? Math.Clamp(Size.X * .29f, 290, 420) : 0;
+        Ui.Place(BattleLog, 0, 66, logWidth, Math.Min(Size.Y - 172, 12 * 56 + 56));
+        Ui.Place(Battlefield, logWidth, 66, Size.X - sidebar - 8 - logWidth, Size.Y - 172);
         Ui.Place(_sidebar, Size.X - sidebar, 66, sidebar - 12, Size.Y - 172);
         Ui.Place(_unitBar, 16, Size.Y - 98, Size.X - 32, 52);
         Ui.Place(_help, 16, Size.Y - 43, Size.X - 32, 40);
@@ -135,6 +140,7 @@ public partial class CombatScreen : Control
     public void Open(ForceRoster roster, string selectedMechId)
     {
         _roster = roster; Simulation = null; _primary = null; _selected.Clear(); SettingPriority = false;
+        BattleLog.Hide(); Layout();
         Show(); ShowOpponentSelection(selectedMechId);
     }
     private void BeginModal(CombatModal modal, string title)
@@ -207,6 +213,7 @@ public partial class CombatScreen : Control
         Simulation = CombatSimulation.Deploy(_roster, _forceIds.Where((_, i) => ForceChoices[i].ButtonPressed),
             terrainSeed: int.Parse(TerrainSeedInput.Text, System.Globalization.CultureInfo.InvariantCulture), opponent: Opponent);
         Battlefield.Display(Simulation); _shade.Hide(); Modal = CombatModal.None; Battlefield.CommandsEnabled = true;
+        BattleLog.Hide(); BattleLog.Display(Simulation); Layout();
         Battlefield.MouseFilter = MouseFilterEnum.Stop;
         RosterUi.Clear(_unitBar); UnitButtons.Clear();
         var number = 0;
@@ -299,6 +306,11 @@ public partial class CombatScreen : Control
         ReturnButton.CallDeferred(Control.MethodName.GrabFocus); RosterUi.TrapFocus(_shade);
     }
     private void Exit() { Battlefield.CancelDrag(); Hide(); Closed?.Invoke(); }
+    private void ToggleBattleLog()
+    {
+        if (Simulation is null || Modal != CombatModal.None) return;
+        Battlefield.CancelDrag(); BattleLog.Visible = !BattleLog.Visible; Layout(); Battlefield.GrabFocus();
+    }
     public bool HandleKey(InputEvent input)
     {
         if (input is not InputEventKey { Pressed: true, Echo: false } key) return false;
@@ -311,6 +323,27 @@ public partial class CombatScreen : Control
             return true;
         }
         if (key.Keycode == Key.Space && Modal == CombatModal.None && Battlefield.HasFocus()) { TogglePause(); return true; }
+        if (Simulation is null || Modal != CombatModal.None || key.CtrlPressed || key.AltPressed || key.MetaPressed) return false;
+        // Preserve typing in the preferred-distance input; other combat controls share these shortcuts.
+        if (GetViewport().GuiGetFocusOwner() is LineEdit or TextEdit) return false;
+        var code = key.PhysicalKeycode != Key.None ? key.PhysicalKeycode : key.Keycode;
+        if (code is >= Key.Key1 and <= Key.Key4)
+        {
+            var slot = (int)code - (int)Key.Key1;
+            var unit = Simulation.Units.Where(item => item.Side == CombatSide.Friendly).ElementAtOrDefault(slot);
+            if (unit is not null)
+            {
+                Battlefield.CancelDrag(); Battlefield.InspectedEnemy = null;
+                SelectUnits([unit.Id], key.ShiftPressed); Battlefield.GrabFocus();
+            }
+            return true;
+        }
+        if (code == Key.Quoteleft || key.Keycode == Key.Asciitilde)
+        {
+            if (key.ShiftPressed || key.Keycode == Key.Asciitilde) ToggleBattleLog();
+            else { Battlefield.ResetToSelection(); Battlefield.GrabFocus(); }
+            return true;
+        }
         return false;
     }
     public override void _Process(double delta)
@@ -327,7 +360,7 @@ public partial class CombatScreen : Control
         _status.Text = $"{(Simulation.Paused ? "PAUSED · orders available" : "LIVE")}  |  {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}";
         PauseButton.Text = Simulation.Paused ? "Resume  [Space]" : "Pause  [Space]";
         _help.Text = SettingPriority ? "PRIORITY TARGET: right-click a detected enemy. This changes target preference without ordering pursuit. Escape cancels."
-            : "Click / drag: select · Shift: add · Right-click: Move / Attack / Follow · Space: pause · WASD / arrows / middle-drag: pan · Wheel: zoom · Right-drag: orbit · Q/E / Shift-middle: rotate · Home: arena";
+            : "Click / drag / 1–4: select · Shift: toggle · Right-click: Move / Attack / Follow · Space: pause · WASD / arrows / middle-drag: pan · Wheel: zoom · Right-drag / Q/E: orbit · `: frame selection · ~: battle log · Home: arena";
         var friends = Simulation.Units.Where(item => item.Side == CombatSide.Friendly).ToArray();
         for (var i = 0; i < UnitButtons.Count; i++)
         {
