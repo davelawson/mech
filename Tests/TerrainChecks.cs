@@ -62,7 +62,7 @@ internal static class TerrainChecks
         check(vegetation.ClearSight(new Vector2(-8, 0), new Vector2(12, 0)) && vegetation.VegetationModifier(new Vector2(-8, 0), Vector2.Zero) == 1
             && vegetation.VegetationModifier(new Vector2(-8, 0), new Vector2(12, 0)) == 2, "vegetation protects targets and crossing shots with a capped penalty without hiding contacts");
         var coverBattle = Battle(vegetation); var f = coverBattle.Units[0]; var e = coverBattle.Units[1];
-        f.Position = new Vector2(-8, 0); e.Position = Vector2.Zero;
+        f.Position = new Vector2(-8, 0); f.Facing = Vector2.Right; e.Position = Vector2.Zero;
         check(coverBattle.TerrainHitChance(f, e, f.Weapons[0]) < CombatSimulation.HitChance(f, e, f.Weapons[0]), "cover penalty changes the same hit probability used by combat");
         var water = new BattlefieldTerrain(5, [new(TerrainKind.Water, Vector2.Zero, 20)], []);
         check(water.Passable(Vector2.Zero) && water.SpeedFactor(Vector2.Zero) == .5f && vegetation.SpeedFactor(Vector2.Zero) == .7f, "water and vegetation are traversable with distinct movement penalties");

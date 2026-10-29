@@ -16,6 +16,11 @@ public partial class SmokeTests : Node
             _screenshots = OS.GetCmdlineUserArgs().Contains("--screenshots");
             // Synthetic headless mouse events need the enter notification a desktop window normally supplies.
             if (DisplayServer.GetName() == "headless") GetViewport().NotifyMouseEntered();
+            if (OS.GetCmdlineUserArgs().Contains("--combat-simulation-only"))
+            {
+                CombatChecks.Run(Check); TerrainChecks.Run(Check);
+                GD.Print($"PASS: {_checks} combat simulation checks"); GetTree().Quit(); return;
+            }
             var combatUiOnly = OS.GetCmdlineUserArgs().Contains("--combat-ui-only");
             var combatLayoutOnly = OS.GetCmdlineUserArgs().Contains("--combat-layout-only");
             await TestCombatLayouts();

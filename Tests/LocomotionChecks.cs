@@ -74,10 +74,10 @@ internal static partial class CombatChecks
         sim = MovementBattle(); f = Friendly(sim); enemy = Enemy(sim); enemy.Position = new(0, 2);
         f.Weapons.Single(weapon => weapon.Spec.Name == "Small Laser").Enabled = true;
         sim.RefreshDetection(); sim.Advance(.05);
-        check(f.ShotsFired > 0 && f.Position == Vector2.Zero && Math.Abs(f.Facing.AngleTo(Vector2.Up)) < .04f,
-            "stationary targeting observes turn rate while cosmetic facing does not restrict firing");
+        check(f.ShotsFired == 0 && f.Position == Vector2.Zero && Math.Abs(f.Facing.AngleTo(Vector2.Up)) < .04f,
+            "stationary targeting turns gradually and waits for torso firing alignment");
         sim.Advance(3.95);
-        check(f.Facing.Dot(Vector2.Down) > .999f, "stationary Awesome completes 180 degree target-facing turn in four seconds");
+        check(f.Facing.Dot(Vector2.Down) > .999f && f.ShotsFired > 0, "stationary Awesome completes its leg turn and fires after torso alignment");
 
         sim = MovementBattle(); f = Friendly(sim); f.Movement = MovementMode.Run;
         sim.Move([f.Id], new(0, -30)); sim.Advance(3);

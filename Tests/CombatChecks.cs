@@ -99,6 +99,7 @@ internal static partial class CombatChecks
         CheckNavigation(check);
         CheckFollowing(check);
         CheckLocomotion(check);
+        CheckTorsoTwisting(check);
         CheckOutcomes(check);
 
         sim = Deploy(roster, roster.Mechs.Select(item => item.Id), 12);
@@ -132,6 +133,7 @@ internal static partial class CombatChecks
         foreach (var weapon in f.Weapons) weapon.Enabled = false;
         check(f.Active && sim.SelectTarget(f) is null, "weapon toggles do not disable mech but suppress shots");
         f.Weapons[0].Enabled = true; f.PreferredDistance = 8;
+        f.Facing = Vector2.Right;
         sim.Paused = false; sim.Advance(.05);
         check(f.ShotsFired == 1 && f.Weapons[0].Remaining > 0 && f.Weapons[1].Remaining == 0, "only enabled ready weapons fire and receive cooldown");
         var remaining = f.Weapons[0].Remaining;
@@ -184,7 +186,7 @@ internal static partial class CombatChecks
         check(unit.Weapons.Where(item => item.Spec.Location == MechLocation.LeftArm).All(item => !unit.WeaponUsable(item)), "destroyed location loses mounted weapons");
         unit.ApplyDamage(MechLocation.RightTorso, 1000);
         check(!unit.Intact(MechLocation.RightArm) && !unit.Intact(MechLocation.RightTorso), "side torso loss also destroys attached arm");
-        check(unit.Locations.Values.Select(item => item.RearArmor).SequenceEqual(rear), "damage never changes rear armor");
+        check(unit.Locations.Values.Select(item => item.RearArmor).SequenceEqual(rear), "front damage leaves rear armor unchanged");
         sim = Battle(); unit = Friendly(sim); var speed = unit.Speed;
         var leg = unit.Locations[MechLocation.LeftLeg]; var center = unit.Locations[MechLocation.CenterTorso]; var centerArmor = center.Armor;
         var sideArmor = unit.Locations[MechLocation.LeftTorso].Armor;
@@ -222,6 +224,7 @@ internal static partial class CombatChecks
         check(separated && friends.All(item => item.Position.Y < 20), "moving groups stay in arena and avoid overlap while advancing");
         sim = Battle(); Arrange(sim, 4); var f = Friendly(sim); var e = Enemy(sim);
         f.Position = new Vector2(46, 0); e.Position = new Vector2(42, 0); f.PreferredDistance = 21;
+        f.Facing = Vector2.Left;
         sim.RefreshDetection(); sim.Attack([f.Id], e.Id); sim.Paused = false; sim.Advance(.2);
         check(f.ShotsFired > 0 && CombatRules.Clamp(f.Position) == f.Position, "unachievable distance does not prevent valid fire or escape arena");
         sim = Battle(); f = Friendly(sim); e = Enemy(sim); sim.Paused = false; var start = e.Position;
@@ -245,7 +248,12 @@ internal static partial class CombatChecks
         var lethal = source.Units.Select((unit, i) => new CombatUnit(unit.Id, unit.Spec, unit.Warrior with { Gunnery = -10 }, unit.Side,
             unit.Locations.Values.Select(loc => new LocationCondition(loc.Location, 0, loc.RearArmor, 1)),
             unit.Equipment.Select(item => new EquipmentCondition(item.Key, item.Value)), unit.Ammo, new Vector2(i * 2, 0))).ToArray();
-        foreach (var unit in lethal) { foreach (var weapon in unit.Weapons) weapon.Enabled = false; unit.Weapons[0].Enabled = true; }
+        foreach (var unit in lethal)
+        {
+            unit.Facing = unit.Side == CombatSide.Friendly ? Vector2.Right : Vector2.Left;
+            foreach (var weapon in unit.Weapons) weapon.Enabled = false;
+            unit.Weapons[0].Enabled = true;
+        }
         // Damage packet 10 transfers through any nonfatal part into the one-point center torso.
         var simultaneous = new CombatSimulation(lethal, 5) { EnemyAiEnabled = false, Paused = false };
         simultaneous.Advance(.05);

@@ -124,6 +124,15 @@ public partial class SmokeTests
             "stopping settles the Awesome back to its neutral pose");
         var frozen = ankles[0].GlobalTransform; model.AnimateLocomotion(0, run, walk, run);
         Check(ankles[0].GlobalTransform.IsEqualApprox(frozen), "zero animation time preserves the exact pose");
+        var body = (Node3D)model.FindChild("BodyMotion", true, false);
+        var legPoses = ankles.Select(ankle => ankle.GlobalTransform).ToArray();
+        model.SetTorsoTwist(Mathf.Pi / 2);
+        Check(Math.Abs(body.Rotation.Y + Mathf.Pi / 2) < .0001f
+            && ankles.Select((ankle, i) => ankle.GlobalTransform.IsEqualApprox(legPoses[i])).All(same => same),
+            "waist yaw twists the upper body while preserving both leg poses");
+        model.AnimateLocomotion(.1f, run, walk, run);
+        Check(Math.Abs(body.Rotation.Y + Mathf.Pi / 2) < .0001f, "gait animation preserves simulated torso yaw");
+        model.SetTorsoTwist(0);
         hangar.Select(1); Check(hangar.Preview.Model!.HasLocomotion && hangar.GaitPicker.Visible, "Victor exposes its imported locomotion preview");
         var generic = MechModel.Create(DraftCatalog.Mech("victor") with { Id = "future-generic" }, CombatSide.Friendly);
         Check(!generic.HasLocomotion, "unimported chassis retain generic geometry without unsupported gait previews"); generic.Free();

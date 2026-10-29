@@ -12,7 +12,7 @@ public enum CombatStatus { Active, Disabled, Destroyed }
 public enum ContactLevel { Lost, Identified, Detailed }
 
 /// <summary>Authored first-slice values. Distances are stock range hexes, time is seconds.</summary>
-public static class CombatRules
+public static partial class CombatRules
 {
     public const float ArenaHalfSize = 48;
     public const float NoviceDetectionRadius = 25;
@@ -50,14 +50,15 @@ public sealed class CombatLocation
 {
     public MechLocation Location { get; }
     public int Armor { get; internal set; }
-    public int RearArmor { get; }
+    public int RearArmor { get; internal set; }
     public int Structure { get; internal set; }
     public int InitialArmor { get; }
+    public int InitialRearArmor { get; }
     public int InitialStructure { get; }
     internal CombatLocation(LocationCondition source)
     {
         Location = source.Location; Armor = InitialArmor = source.Armor;
-        Structure = InitialStructure = source.Structure; RearArmor = source.RearArmor;
+        Structure = InitialStructure = source.Structure; RearArmor = InitialRearArmor = source.RearArmor;
     }
 }
 
@@ -71,7 +72,7 @@ public sealed class CombatWeapon
 }
 
 /// <summary>A private copy of deployed condition. No reference to an owned mech or campaign is retained.</summary>
-public sealed class CombatUnit
+public sealed partial class CombatUnit
 {
     public string Id { get; }
     public MechSpec Spec { get; }
@@ -137,10 +138,10 @@ public sealed class CombatUnit
     public float Acceleration => RunningSpeed * Spec.Walk / 9f;
     public float Braking => Acceleration * 2;
     public float TurnRate => Mathf.DegToRad(15 * Spec.Walk);
-    public int ArmorLost => Locations.Values.Sum(item => item.InitialArmor - item.Armor);
+    public int ArmorLost => Locations.Values.Sum(item => item.InitialArmor - item.Armor + item.InitialRearArmor - item.RearArmor);
     public int StructureLost => Locations.Values.Sum(item => item.InitialStructure - item.Structure);
 
-    public void ApplyDamage(MechLocation location, int damage)
+    public void ApplyDamage(MechLocation location, int damage, Vector2? attackFrom = null)
     {
         if (damage < 0) throw new ArgumentOutOfRangeException(nameof(damage));
         while (damage > 0)
@@ -148,7 +149,10 @@ public sealed class CombatUnit
             var part = Locations[location];
             if (part.Structure > 0)
             {
-                var armor = Math.Min(damage, part.Armor); part.Armor -= armor; damage -= armor;
+                var rear = attackFrom is { } from && CombatRules.IsTorso(location) && RearHitFrom(from);
+                var armor = Math.Min(damage, rear ? part.RearArmor : part.Armor);
+                if (rear) part.RearArmor -= armor; else part.Armor -= armor;
+                damage -= armor;
                 var structure = Math.Min(damage, part.Structure); part.Structure -= structure; damage -= structure;
                 if (part.Structure == 0)
                 {
@@ -186,7 +190,7 @@ public sealed record CombatShot(string AttackerId, string TargetId, Vector2 From
     string Weapon, bool Hit, MechLocation Location, int Damage);
 
 /// <summary>Deterministic fixed-step combat with shared detection and simultaneous weapon resolution.</summary>
-public sealed class CombatSimulation
+public sealed partial class CombatSimulation
 {
     public IReadOnlyList<CombatUnit> Units { get; }
     public BattlefieldTerrain Terrain { get; }
@@ -333,15 +337,22 @@ public sealed class CombatSimulation
         foreach (var unit in Units) { unit.Moving = false; unit.AngularVelocity = 0; }
         foreach (var unit in Units.Where(item => item.Active)) MoveUnit(unit, delta);
         RefreshDetection();
+        // Update every waist before selecting rear targets or taking a firing/damage snapshot.
+        foreach (var unit in Units.Where(item => item.Active))
+        {
+            var aim = SelectAimTarget(unit); unit.CurrentTarget = aim?.Id;
+            UpdateTorso(unit, aim, delta);
+        }
         var shots = new List<CombatShot>();
         foreach (var unit in Units.Where(item => item.Active))
         {
             foreach (var weapon in unit.Weapons) weapon.Remaining = Math.Max(0, weapon.Remaining - delta);
-            var target = SelectTarget(unit); unit.CurrentTarget = target?.Id;
-            if (target is null) continue;
+            var mainTarget = unit.CurrentTarget is { } main ? Unit(main) : null;
+            var rearTarget = SelectRearTarget(unit); unit.CurrentRearTarget = rearTarget?.Id;
             foreach (var weapon in unit.Weapons.Where(item => item.Enabled && item.Remaining <= 1e-6 && unit.WeaponUsable(item)))
             {
-                if (unit.Position.DistanceTo(target.Position) > weapon.Spec.Long) continue;
+                var target = weapon.Spec.Rear ? rearTarget : mainTarget;
+                if (target is null || !CanFire(unit, target, weapon)) continue;
                 var hit = _random.NextDouble() < TerrainHitChance(unit, target, weapon);
                 var location = RollLocation();
                 shots.Add(new(unit.Id, target.Id, unit.Position, target.Position, weapon.Spec.Name, hit, location, hit ? weapon.Damage : 0));
@@ -351,11 +362,11 @@ public sealed class CombatSimulation
         }
         // All shooters and rolls are captured before any damage or casualty can invalidate a return shot.
         foreach (var shot in shots)
-            if (shot.Hit) Unit(shot.TargetId).ApplyDamage(shot.Location, shot.Damage);
+            if (shot.Hit) Unit(shot.TargetId).ApplyDamage(shot.Location, shot.Damage, shot.From);
         foreach (var shot in shots) ShotFired?.Invoke(shot);
         StopInvalidFollows();
         foreach (var unit in Units.Where(item => !item.Active))
-        { unit.Moving = false; unit.CurrentSpeed = unit.AngularVelocity = 0; unit.CurrentTarget = null; }
+        { unit.Moving = false; unit.CurrentSpeed = unit.AngularVelocity = 0; unit.CurrentTarget = unit.CurrentRearTarget = null; }
         if (shots.Any(shot => shot.Hit && !Unit(shot.TargetId).Active)) RefreshDetection();
         var friendly = Units.Any(item => item.Side == CombatSide.Friendly && item.Active);
         var enemy = Units.Any(item => item.Side == CombatSide.Enemy && item.Active);
@@ -471,7 +482,7 @@ public sealed class CombatSimulation
                 desiredSpeed = Math.Min(limit * Mathf.Cos(error), arrivalSpeed) * (reverse ? -1 : 1);
             }
         }
-        else if (Math.Abs(unit.CurrentSpeed) < .001f && SelectTarget(unit) is { } target)
+        else if (Math.Abs(unit.CurrentSpeed) < .001f && SelectAimTarget(unit) is { } target)
             Turn(unit, (target.Position - unit.Position).Normalized(), delta);
 
         // A reversal must first spend its momentum; it cannot cross zero in the same step.
@@ -522,7 +533,7 @@ public sealed class CombatSimulation
     {
         bool Engageable(CombatUnit target) => target.Side != unit.Side && target.Active && Detected(unit.Side, target.Id)
             && Terrain.ClearSight(unit.Position, target.Position)
-            && unit.Weapons.Any(weapon => weapon.Enabled && unit.WeaponUsable(weapon) && unit.Position.DistanceTo(target.Position) <= weapon.Spec.Long);
+            && unit.Weapons.Any(weapon => !weapon.Spec.Rear && weapon.Enabled && unit.WeaponUsable(weapon) && unit.Position.DistanceTo(target.Position) <= weapon.Spec.Long);
         if (unit.AttackTarget is { } attack && unit.Order == CombatOrder.Attack && Engageable(Unit(attack))) return Unit(attack);
         if (unit.Firing == FiringMode.HoldFire) return null;
         if (unit.PriorityTarget is { } priority && Engageable(Unit(priority))) return Unit(priority);
@@ -535,7 +546,7 @@ public sealed class CombatSimulation
     public static double HitChance(CombatUnit attacker, CombatUnit target, CombatWeapon weapon, int terrainModifier = 0)
     {
         var distance = attacker.Position.DistanceTo(target.Position);
-        if (distance > weapon.Spec.Long || !attacker.WeaponUsable(weapon)) return 0;
+        if (distance > weapon.Spec.Long || !attacker.WeaponUsable(weapon) || !CombatRules.InFiringArc(attacker, target, weapon)) return 0;
         var range = distance <= weapon.Spec.Short ? 0 : distance <= weapon.Spec.Medium ? 2 : 4;
         var minimum = distance < weapon.Spec.Minimum ? (int)Math.Ceiling(weapon.Spec.Minimum - distance) : 0;
         var threshold = attacker.Warrior.Gunnery + CombatRules.AimModifier + range + minimum + terrainModifier

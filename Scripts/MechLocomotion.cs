@@ -64,6 +64,12 @@ public partial class MechModel
     private readonly List<Leg> _legs = [];
     private readonly List<Node3D> _shoulders = [];
     private Node3D? _body;
+    private float _torsoTwist;
+    public void SetTorsoTwist(float radians)
+    {
+        _torsoTwist = Math.Clamp(radians, -CombatRules.MaxTorsoTwist, CombatRules.MaxTorsoTwist);
+        if (_body is not null) _body.Rotation = new(_body.Rotation.X, -_torsoTwist, _body.Rotation.Z);
+    }
     private RigProfile? _rig;
     public bool HasLocomotion => _rig is not null;
     private double _stridePhase;
@@ -124,7 +130,7 @@ public partial class MechModel
         var bob = (-gait.BodyDrop - RunBlend * gait.RunDrop + gait.Bob * Mathf.Cos(phase * Mathf.Tau * 2)) * _motionBlend;
         var sway = wave * gait.Sway * _motionBlend;
         _body.Position = new(sway, _rig.Waist + bob, 0);
-        _body.Rotation = new(-gait.Lean * RunBlend * _motionBlend, 0, -wave * gait.Roll * _motionBlend);
+        _body.Rotation = new(-gait.Lean * RunBlend * _motionBlend, -_torsoTwist, -wave * gait.Roll * _motionBlend);
         foreach (var leg in _legs)
         {
             var step = (phase + (leg.Side > 0 ? .5f : 0)) % 1;

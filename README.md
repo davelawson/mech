@@ -46,6 +46,8 @@ All artwork and the stock mech catalog are packaged locally. Running the game re
 - 100% zoom fits the whole chart; maximum zoom is 1200%. Resizing preserves the image aspect ratio, hotspot alignment, and map location.
 - The default window is 1440 × 900, with a 900 × 500 minimum.
 
+Torso tracking is automatic for both sides: upper bodies twist up to ±90° while moving legs preserve their route. Light/Medium/Heavy/Assault twist at 90/75/60/45° per second. Weapons fire within ±30° of their mount facing; rear mounts engage independently, and leg weapons follow the legs. The rear 120° of torso facing exposes rear torso armor. Team-colored ground lines show leg direction; gold lines with tip dots show torso direction. Weapon readouts explain alignment restrictions. See [the confirmed rules](docs/combat-design.md#torso-twisting-confirmed-october-29-2026).
+
 ## Build and test
 
 ```sh

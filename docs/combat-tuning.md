@@ -17,6 +17,10 @@ The first tactical slice implements [the confirmed combat design](combat-design.
 | Braking | Twice acceleration |
 | Stationary turn rate | Walk MP × 15 degrees per second |
 | Moving turn rate | Stationary rate × (1 − 0.55 × actual speed / running speed) |
+| Torso twist limit | ±90° relative to legs |
+| Torso twist speed | Light 90°/s; Medium 75°/s; Heavy 60°/s; Assault 45°/s, relative to legs |
+| Weapon arc | ±30° about mount facing; leg mounts use legs; rear mounts point backward |
+| Rear armor arc | Rear 120° about torso facing, including boundaries |
 | Reverse limit | Walking speed, including when Run is selected |
 | One leg lost | Half movement speed |
 | Simulation step | 0.05 seconds, independent of rendering rate |
@@ -27,7 +31,7 @@ The first tactical slice implements [the confirmed combat design](combat-design.
 
 All chassis, including future imports, move 50% faster than the original 0.12-hex-per-MP scale. `CombatRules.MovementSpeed` supplies the shared 0.18 scale to combat and hangar previews without chassis exceptions. Wolverine keeps its accepted 0.90 walking / 1.44 running hexes per second. Catalog movement points and turn rates stay unchanged. Acceleration and braking scale with running speed, preserving their timing; reverse uses the increased walking limit and leg damage still halves both limits. The Awesome (3/5 MP) reaches full run in three seconds, stops from it in 1.5 seconds, and turns 180° in place in four seconds. The Jenner (7/11 MP) takes approximately 1.29, 0.64 and 1.71 seconds respectively. Walk/Run selects the speed limit; changing modes does not snap actual speed.
 
-Mechs travel along their leg facing. Moving turns become wider as speed rises; direction changes of 60° or more command braking while the chassis turns. Destination approach uses braking distance to stop within the arrival tolerance. Stop clears the order immediately and brakes existing momentum. Attack orders reverse at up to walking speed to open engagement distance, maintaining facing toward the target; forward/reverse transitions brake to zero first. Stationary target-facing uses the same turn rate. Facing still imposes no firing arcs or rear-hit rules. Collisions and arena boundaries can halt travel immediately.
+Mechs travel along their leg facing. Moving turns become wider as speed rises; direction changes of 60° or more command braking while the chassis turns. Destination approach uses braking distance to stop within the arrival tolerance. Stop clears the order immediately and brakes existing momentum. Attack orders reverse at up to walking speed to open engagement distance, maintaining facing toward the target; forward/reverse transitions brake to zero first. Stationary target-facing uses the same turn rate. Torso tracking and firing arcs follow the confirmed torso-twisting extension; stopped legs turn toward the aim target while the torso compensates independently. Collisions and arena boundaries can halt travel immediately.
 
 Move toward the center to make contact. Enemy AI advances there until it detects a target. Steering looks ahead by stopping distance and tries direct movement then ±30°, ±60° and ±90° alternatives around occupied space. Each candidate supplies a desired heading; the mech must turn toward it before traveling. Destroyed mechs immediately stop occupying movement space, including Follow destinations, while disabled mechs remain solid. Wrecks remain visible and selectable/inspectable. Arena bounds and separate group destinations apply to both forces. Preferred distance never prevents an otherwise valid shot.
 
@@ -88,9 +92,9 @@ Hit locations use a separate 2d6 roll:
 | 10, 11 | Left arm | 5/36 |
 | 12 | Head | 1/36 |
 
-Each step captures every due discharge and hit roll before applying damage. Outcomes follow the entire batch, permitting simultaneous lethal return fire and draws. Visual effects illustrate already-resolved results.
+Each step moves units, refreshes detection, updates every torso, and then captures every eligible discharge and hit roll before applying directional damage. Outcomes follow the entire batch, permitting simultaneous lethal return fire and draws. Visual effects illustrate already-resolved results.
 
-Five-to-ten minutes remains a provisional ordinary-engagement target. With the budgeted pilot catalog and Sensors ranges, the seeded flat-ground mixed-lance check finishes in 262 simulated seconds; one-on-one Jenner, Griffin and Awesome checks finish in 54, 206 and 143 seconds. The seeded natural-terrain mixed-lance check finishes in 370 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
+Five-to-ten minutes remains a provisional ordinary-engagement target. With the budgeted pilot catalog and Sensors ranges, the seeded flat-ground mixed-lance check finishes in 253 simulated seconds; one-on-one Jenner, Griffin and Awesome checks finish in 54, 206 and 143 seconds. The seeded natural-terrain mixed-lance check finishes in 296 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
 
 ## Interaction defaults
 
@@ -108,8 +112,10 @@ Five-to-ten minutes remains a provisional ordinary-engagement target. With the b
 - Enemy inspection at full range reveals only the chassis model. Within half range it also shows exact armor, rear armor, internals and effective equipment condition/availability. The side shares its best current observation; live details disappear when all close observers lose them. Physical damage remains visible.
 - Inspection retains the friendly command selection and draws separate unions of target-specific identification (blue) and detailed-status (gold) ranges for all selected active mechs. Otherwise show the union of 100-ton identification ranges and label the 20–100-ton detection span. Only exposed outlines are drawn: no fill or internal overlap arcs; separated regions and uncovered holes remain. Disabled/destroyed mechs contribute no ranges. Multiple active contributors use “Selected mechs” with minimum–maximum ranges for each displayed tier; one active contributor keeps the single-mech readout. Terrain can block contacts within these boundaries; detection remains shared by the entire side independently of selection.
 - Pilot skills are rated 2–6. Each improvement from 6 costs one point, with six points for regulars and eight for veterans. Fixed catalog allocations include Sensors specialists; no allocation screen or progression is added.
-- Procedural 3D mech stand-ins have faction colors, facing indicators, selection/priority rings, order lines and shot/hit effects. Facing is cosmetic: it introduces no firing arcs or rear-armor hits.
+- Procedural 3D mech stand-ins have faction colors, facing indicators, selection/priority rings, order lines and shot/hit effects. Team-colored ground lines show leg facing; longer gold lines with tip dots show torso facing. Weapon arcs and incoming torso armor use those simulation headings.
 
 ## Validation
+
+After building, the pinned .NET Godot engine can run `--headless --path . --scene res://Tests/SmokeTests.tscn -- --combat-simulation-only` for combat and terrain checks, including twist rates/limits, tracking, firing arcs, rear targets and directional damage transfer.
 
 `./scripts/mech test` exercises seeded generation, connected spawns, slope/rock clearance, terrain detours, cover, sight, water movement, generated-map engagements, terrain picking and seed controls alongside the ten acceptance scenarios with deterministic model checks and actual mouse/keyboard input. `./scripts/mech capture` repeats the suite with graphical rendering and saves deployment, combat, minimum-window, menu and report captures in `TestResults/`. Linux checks do not establish native Windows/macOS runtime verification.

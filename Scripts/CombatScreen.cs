@@ -262,7 +262,7 @@ public partial class CombatScreen : Control
             foreach (var unit in Simulation.Units.Where(item => item.Side == side))
             {
                 RosterUi.Text(body, $"{unit.Spec.DisplayName} · {unit.Warrior.Callsign} · {unit.Status}", 14);
-                RosterUi.Text(body, $"Front armor lost: {unit.ArmorLost} · Structure lost: {unit.StructureLost}\nShots: {unit.ShotsFired} · Hits: {unit.Hits} · Damage delivered: {unit.DamageDealt}\n"
+                RosterUi.Text(body, $"Armor lost (front + rear): {unit.ArmorLost} · Structure lost: {unit.StructureLost}\nShots: {unit.ShotsFired} · Hits: {unit.Hits} · Damage delivered: {unit.DamageDealt}\n"
                     + string.Join("  ", unit.Locations.Values.Select(loc => $"{DraftCatalog.Abbreviation(loc.Location)} {loc.Armor}/{loc.Structure}")), 12, Ui.Muted);
             }
         }
@@ -366,7 +366,7 @@ public partial class CombatScreen : Control
             _refreshing = false;
         }
         _priority.Text = SettingPriority ? "Choose enemy on battlefield…" : "Set priority target…";
-        var firingTarget = Simulation.SelectTarget(unit);
+        var firingTarget = Simulation.SelectAimTarget(unit);
         var target = firingTarget ?? Simulation.Units.Where(item => item.Side != unit.Side && item.Active && Simulation.Detected(unit.Side, item.Id))
             .OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
         _targetInfo.Text = $"Priority: {(unit.PriorityTarget is { } priority ? Simulation.Unit(priority).Spec.Chassis : "none")}\n"
@@ -382,12 +382,14 @@ public partial class CombatScreen : Control
         foreach (var (weapon, control) in _weaponControls)
         {
             control.Disabled = !unit.Active || !unit.WeaponUsable(weapon);
-            control.Text = $"{weapon.Spec.Name} · {DraftCatalog.Abbreviation(weapon.Spec.Location)}\n"
-                + (!unit.WeaponUsable(weapon) ? "Unavailable" : weapon.Remaining > .05 ? $"Ready in {weapon.Remaining:0.0}s" : "Ready")
-                + (target is null ? "" : $" · {Simulation.TerrainHitChance(unit, target, weapon):P0} hit");
+            var weaponTarget = weapon.Spec.Rear ? Simulation.SelectRearTarget(unit) : firingTarget;
+            var status = Simulation.WeaponStatus(unit, weapon, weaponTarget ?? target);
+            control.Text = $"{weapon.Spec.Name}{(weapon.Spec.Rear ? " (rear)" : "")} · {DraftCatalog.Abbreviation(weapon.Spec.Location)}\n"
+                + status + (weaponTarget is null ? "" : $" · {Simulation.TerrainHitChance(unit, weaponTarget, weapon):P0} hit")
+                + (weapon.Spec.Rear && weaponTarget is not null ? $" · {weaponTarget.Spec.Chassis}" : "");
         }
         _locations.Text = CombatPaperdoll.Readout(unit)
-            + "\nRear armor preserved.\nPrimary unit's weapons and locations shown; group orders and settings apply to all active selections.";
+            + "\nGround markers: team color = legs; gold dot = torso.\nPrimary unit's weapons and locations shown; group orders and settings apply to all active selections.";
         _systems.Text = SystemsReadout(unit);
 
     }
@@ -397,7 +399,7 @@ public partial class CombatScreen : Control
             : unit.Equipment[id] == ComponentCondition.Destroyed ? "Destroyed"
             : !usable ? $"{unit.Equipment[id]} · Unavailable" : unit.Equipment[id].ToString();
         return "SYSTEMS · CONDITION / AVAILABILITY\n" + string.Join("\n",
-            unit.Weapons.Select(weapon => $"{DraftCatalog.Abbreviation(weapon.Spec.Location)} · {weapon.Spec.Name}: {State(weapon.Spec.Id, weapon.Spec.Location, unit.WeaponUsable(weapon))}")
+            unit.Weapons.Select(weapon => $"{DraftCatalog.Abbreviation(weapon.Spec.Location)} · {weapon.Spec.Name}{(weapon.Spec.Rear ? " (rear)" : "")}: {State(weapon.Spec.Id, weapon.Spec.Location, unit.WeaponUsable(weapon))}")
             .Concat(unit.Spec.Components.Select(item => $"{DraftCatalog.Abbreviation(item.Location)} · {item.Name}: {State(item.Id, item.Location)}"))
             .Concat(unit.Spec.Ammo.Select(item => $"{DraftCatalog.Abbreviation(item.Location)} · {item.Name}: {State(item.Id, item.Location, unit.Ammo.Any(bin => bin.Id == item.Id && bin.Shots > 0))}")));
     }

@@ -106,6 +106,7 @@ public partial class CombatViewport : Control
             model.Rotation = new Vector3(unit.Status == CombatStatus.Destroyed ? Mathf.Pi / 2 : 0,
                 Mathf.Atan2(-unit.Facing.X, -unit.Facing.Y), 0);
             model.SetCondition(unit.Intact);
+            model.SetTorsoTwist(unit.TorsoTwist);
             model.AnimateLocomotion(animationDelta, unit.Active ? unit.CurrentSpeed : 0,
                 unit.WalkingSpeed, unit.RunningSpeed, unit.Active ? unit.AngularVelocity : 0);
             if (model.Visible && model.PickBounds() is { } bounds) _pickBounds[unit.Id] = bounds.Grow(.08f);
@@ -402,6 +403,9 @@ public partial class CombatViewport : Control
             }
             var forward = ScreenPoint(unit.Position + unit.Facing * 1.5f);
             DrawLine(at, forward, color, 2, true);
+            var torso = ScreenPoint(unit.Position + unit.TorsoFacing * 2.1f);
+            DrawLine(at, torso, Ui.Gold, 2, true);
+            DrawCircle(torso, 2.5f, Ui.Gold);
             var label = ScreenPoint(unit.Position, _models[unit.Id].Height + .3f);
             var text = friendly ? Selection.Count == 1 && Selection.Contains(unit.Id) ? $"{friendlyIndex} · {unit.Warrior.Callsign}" : friendlyIndex.ToString()
                 : InspectedEnemy == unit.Id && Simulation.DetailsVisible(CombatSide.Friendly, unit.Id) ? unit.Spec.DisplayName : unit.Spec.Chassis;
