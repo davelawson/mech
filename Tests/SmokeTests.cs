@@ -23,7 +23,7 @@ public partial class SmokeTests : Node
                 _saveFile = ProjectSettings.GlobalizePath(_app.SavePath);
                 AddChild(_app); await Frames();
                 await Click(_app.MainMenu.NewButton); await FinishDraft();
-                await TestMenuResumeUi(); await TestUnsavedChangesUi();
+                await TestNavigationTransitions(); await TestMenuResumeUi(); await TestUnsavedChangesUi();
                 GD.Print($"PASS: {_checks} menu, resume and unsaved-change checks");
                 if (OS.GetCmdlineUserArgs().Contains("--discard-quit"))
                 {
@@ -138,6 +138,7 @@ public partial class SmokeTests : Node
             await TestCampaignUi();
             await TestTravelUi();
             await TestLegacyDraftUi();
+            await TestNavigationTransitions();
             await TestMenuResumeUi();
             await TestUnsavedChangesUi();
             await Frames();

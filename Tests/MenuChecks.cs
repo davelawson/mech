@@ -176,7 +176,7 @@ public partial class SmokeTests
             System.IO.Directory.Delete(_saveFile);
             System.IO.File.WriteAllText(_saveFile, saved);
         }
-        _app.Dialog.Hide();
+        _app.ShowOffice();
         await SaveMenuTestCompany();
         _app.ShowMainMenu(); await Frames(); await Click(_app.MainMenu.NewButton);
         Check(_app.Drafting.Visible && !_app.UnsavedDialog.Visible && !_app.MainMenu.ResumeButton.IsVisibleInTree(),

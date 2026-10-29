@@ -71,7 +71,7 @@ After building, the menu and unsaved-change checks can also run independently:
 timeout 90s "$GODOT_BIN" --headless --path . --scene res://Tests/SmokeTests.tscn -- --menu-only
 ```
 
-This checks screen restoration, dirty and clean replacement flows, canceled quit, save/load failures, and clean menu Quit. Add `--clean-window-quit` to check clean window close instead, or `--discard-quit` to check confirmed Quit Without Saving. These exit checks use separate processes because success terminates the game.
+This checks explicit navigation routes, nested popup and modal back actions, draft abandonment, screen restoration and focus recovery, dirty and clean replacement flows, canceled quit, save/load failures, and clean menu Quit. Add `--clean-window-quit` to check clean window close instead, or `--discard-quit` to check confirmed Quit Without Saving. These exit checks use separate processes because success terminates the game.
 
 The focused callback-queue regression can run without desktop mouse focus. After building, run the following with the pinned .NET Godot executable; the external timeout also catches layout loops that block engine timers:
 
