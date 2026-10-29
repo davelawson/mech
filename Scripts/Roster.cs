@@ -21,10 +21,22 @@ public sealed record MechSpec(string Id, string Chassis, string Variant, int Ton
     public int ArmorTotal => Locations.Sum(item => item.Armor + item.RearArmor);
     public int StructureTotal => Locations.Sum(item => item.Structure);
 }
-public sealed record WarriorSpec(string Id, string Name, string Callsign, int Gunnery, int Piloting, string Experience)
+public sealed record WarriorSpec(string Id, string Name, string Callsign, int Gunnery, int Piloting, int Sensors, string Experience)
 {
     public string DisplayName => $"{Name}  “{Callsign}”";
     public string Artwork => $"res://Assets/Roster/{Id}.png";
+    public int SkillPoints => WarriorSkills.Cost(Gunnery) + WarriorSkills.Cost(Piloting) + WarriorSkills.Cost(Sensors);
+    public int SkillBudget => Experience.StartsWith("Veteran", StringComparison.Ordinal) ? WarriorSkills.VeteranBudget : WarriorSkills.RegularBudget;
+}
+
+public static class WarriorSkills
+{
+    public const int Expert = 2, Novice = 6;
+    public const int RegularBudget = 6, VeteranBudget = 8;
+    public static int Cost(int rating) => rating is >= Expert and <= Novice ? Novice - rating
+        : throw new ArgumentOutOfRangeException(nameof(rating), "Pilot skills must be between 2 and 6.");
+    internal static WarriorSpec Validate(WarriorSpec warrior) => warrior.SkillPoints == warrior.SkillBudget ? warrior
+        : throw new InvalidOperationException($"{warrior.Id} must spend exactly {warrior.SkillBudget} skill points.");
 }
 
 public static class DraftCatalog
@@ -40,31 +52,31 @@ public static class DraftCatalog
     }.Select(id => AllMechs.Single(mech => mech.Id == id)).ToArray());
     public static readonly IReadOnlyList<WarriorSpec> Warriors = Array.AsReadOnly(new WarriorSpec[]
     {
-        new("mara-vale", "Mara Vale", "Kestrel", 4, 5, "Regular"),
-        new("ivo-chen", "Ivo Chen", "Needle", 3, 6, "Regular · Gunnery"),
-        new("sana-idris", "Sana Idris", "Drift", 5, 4, "Regular · Piloting"),
-        new("tomas-reed", "Tomas Reed", "Rook", 4, 5, "Regular"),
-        new("elena-voss", "Elena Voss", "Flint", 3, 6, "Regular · Gunnery"),
-        new("amir-solano", "Amir Solano", "Switch", 5, 4, "Regular · Piloting"),
-        new("niko-ward", "Niko Ward", "Anchor", 4, 5, "Regular"),
-        new("hana-sato", "Hana Sato", "Glint", 3, 6, "Regular · Gunnery"),
-        new("leila-darzi", "Leila Darzi", "Kite", 5, 4, "Regular · Piloting"),
-        new("renata-kovac", "Renata Kovac", "Iron", 3, 4, "Veteran"),
-        new("gideon-price", "Gideon Price", "Crosshair", 2, 5, "Veteran · Gunnery"),
-        new("oskar-lind", "Oskar Lind", "Skid", 4, 3, "Veteran · Piloting"),
-        new("ada-moreno", "Ada Moreno", "Sparrow", 4, 5, "Regular"),
-        new("malik-stone", "Malik Stone", "Hawk", 3, 6, "Regular · Gunnery"),
-        new("yara-ortiz", "Yara Ortiz", "Vector", 5, 4, "Regular · Piloting"),
-        new("lucas-chen", "Lucas Chen", "Scope", 4, 5, "Regular"),
-        new("imani-brooks", "Imani Brooks", "Viper", 3, 6, "Regular · Gunnery"),
-        new("erik-holm", "Erik Holm", "Dash", 5, 4, "Regular · Piloting"),
-        new("mei-tanaka", "Mei Tanaka", "Beacon", 4, 5, "Regular"),
-        new("rafiq-nasir", "Rafiq Nasir", "Bolt", 3, 6, "Regular · Gunnery"),
-        new("fiona-kerr", "Fiona Kerr", "Slip", 5, 4, "Regular · Piloting"),
-        new("vera-holt", "Vera Holt", "Bulwark", 3, 4, "Veteran"),
-        new("anton-mercer", "Anton Mercer", "Longshot", 2, 5, "Veteran · Gunnery"),
-        new("zara-okoro", "Zara Okoro", "Dancer", 4, 3, "Veteran · Piloting")
-    });
+        new("mara-vale", "Mara Vale", "Kestrel", 4, 4, 4, "Regular"),
+        new("ivo-chen", "Ivo Chen", "Needle", 3, 5, 4, "Regular · Gunnery"),
+        new("sana-idris", "Sana Idris", "Drift", 5, 3, 4, "Regular · Piloting"),
+        new("tomas-reed", "Tomas Reed", "Rook", 5, 5, 2, "Regular · Sensors"),
+        new("elena-voss", "Elena Voss", "Flint", 2, 4, 6, "Regular · Gunnery"),
+        new("amir-solano", "Amir Solano", "Switch", 4, 2, 6, "Regular · Piloting"),
+        new("niko-ward", "Niko Ward", "Anchor", 4, 4, 4, "Regular"),
+        new("hana-sato", "Hana Sato", "Glint", 3, 5, 4, "Regular · Gunnery"),
+        new("leila-darzi", "Leila Darzi", "Kite", 5, 3, 4, "Regular · Piloting"),
+        new("renata-kovac", "Renata Kovac", "Iron", 3, 3, 4, "Veteran"),
+        new("gideon-price", "Gideon Price", "Crosshair", 2, 4, 4, "Veteran · Gunnery"),
+        new("oskar-lind", "Oskar Lind", "Skid", 4, 2, 4, "Veteran · Piloting"),
+        new("ada-moreno", "Ada Moreno", "Sparrow", 5, 4, 3, "Regular · Sensors"),
+        new("malik-stone", "Malik Stone", "Hawk", 2, 5, 5, "Regular · Gunnery"),
+        new("yara-ortiz", "Yara Ortiz", "Vector", 5, 2, 5, "Regular · Piloting"),
+        new("lucas-chen", "Lucas Chen", "Scope", 6, 4, 2, "Regular · Sensors"),
+        new("imani-brooks", "Imani Brooks", "Viper", 3, 4, 5, "Regular · Gunnery"),
+        new("erik-holm", "Erik Holm", "Dash", 4, 3, 5, "Regular · Piloting"),
+        new("mei-tanaka", "Mei Tanaka", "Beacon", 4, 6, 2, "Regular · Sensors"),
+        new("rafiq-nasir", "Rafiq Nasir", "Bolt", 2, 6, 4, "Regular · Gunnery"),
+        new("fiona-kerr", "Fiona Kerr", "Slip", 6, 2, 4, "Regular · Piloting"),
+        new("vera-holt", "Vera Holt", "Bulwark", 4, 4, 2, "Veteran · Sensors"),
+        new("anton-mercer", "Anton Mercer", "Longshot", 2, 3, 5, "Veteran · Gunnery"),
+        new("zara-okoro", "Zara Okoro", "Dancer", 3, 2, 5, "Veteran · Piloting")
+    }.Select(WarriorSkills.Validate).ToArray());
     public static readonly string[] PoolNames = ["Light · 20–35 tons", "Medium · 40–55 tons", "Heavy · 60–75 tons", "Assault · 80–100 tons",
         "MechWarriors · I", "MechWarriors · II", "MechWarriors · III", "MechWarriors · Veterans"];
 

@@ -73,7 +73,7 @@
 # Draft, travel, and interface
 
 - Generate eight draft pools at campaign creation, without a reroll button.
-- Initial MechWarrior skills are Gunnery and Piloting; progression and special abilities are deferred.
+- Initial MechWarrior skills are Gunnery, Piloting and Sensors, each rated 2–6 with lower values better. Each starts at 6; every improvement costs one point. Regulars spend six points and veterans eight across all three skills. Allocations are fixed per named pilot; progression, special abilities and player allocation controls are deferred.
 - Systems connect when separated by at most 30 light-years. Choose the fewest jumps, breaking ties by total distance. Each jump takes ceil(distance / 6) whole days. Explicit regions will determine regional offer visibility.
 - Damaged mechs and wrecks have guaranteed local sale at a displayed condition-adjusted price. Selling cancels associated repair orders under the cancellation rules.
 - The first playable interface is a standalone Godot game written in C#, targeting Windows 11 x64, Linux x64, and macOS on Apple Silicon and Intel.
@@ -116,13 +116,13 @@ The user confirmed shared understanding of this design on October 24, 2026. The 
 
 ## Roster and initial draft interface (confirmed October 24, 2026)
 
-The desk rolodex displays the number of healthy MechWarriors ready for immediate deployment, including assigned warriors. Clicking it opens a panel over the office: one personnel card at a time, previous/next controls and a name index. Cards show portrait, name/callsign, Gunnery, Piloting, health/recovery date and assigned BattleMech. Injured warriors retain assignments. Deceased warriors are automatically unassigned and retained separately in memoriam.
+The desk rolodex displays the number of healthy MechWarriors ready for immediate deployment, including assigned warriors. Clicking it opens a panel over the office: one personnel card at a time, previous/next controls and a name index. Cards show portrait, name/callsign, Gunnery, Piloting, Sensors, skill budget, health/recovery date and assigned BattleMech. Injured warriors retain assignments. Deceased warriors are automatically unassigned and retained separately in memoriam.
 
 The existing right porthole looks into an enclosed repair bay. Clicking it opens a dedicated hangar interface with a new painted background, a large selected BattleMech, roster selection along the bottom, classic specifications and pilot assignment controls. Assignment is one-to-one; transfers and swaps require explicit confirmation. New rosters start unassigned. This slice provides viewing and assignment, without sales, dismissal, renaming, repair controls or combat resolution.
 
 Roster art includes a maintenance-bay background, original warrior portraits, and 3D model previews for draft candidates. Unit detail includes classic stock 3025 loadouts, front/rear armor and internal structure by location, component condition, weapons and ammunition, movement and heat information.
 
-A new company enters the office and immediately opens the shared initial draft before normal operations. Eight pools of three candidates are simultaneously visible: Light, Medium, Heavy and Assault BattleMechs, plus three regular MechWarrior pools and one more experienced pool. The warrior catalog contains balanced, Gunnery-focused and Piloting-focused recruits; candidates are randomly sampled within their experience class. Individual candidate records can be inspected without selecting. There are no rounds or rerolls.
+A new company enters the office and immediately opens the shared initial draft before normal operations. Eight pools of three candidates are simultaneously visible: Light, Medium, Heavy and Assault BattleMechs, plus three regular MechWarrior pools and one more experienced pool. The warrior catalog contains balanced, Gunnery-focused, Piloting-focused and Sensors-focused recruits; candidates are randomly sampled within their experience class. Individual candidate records can be inspected without selecting. There are no rounds or rerolls.
 
 The company name and all eight choices remain editable until **Establish Company** commits the complete roster. Escape from an unfinished draft asks to abandon it and return to the main menu. Unfinished drafts cannot be saved, and established drafts cannot reopen. Existing finance-only saves require this same draft while retaining their date, cash, obligations and scheduled events; loading or drafting does not overwrite the manual save.
 

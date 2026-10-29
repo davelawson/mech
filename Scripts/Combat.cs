@@ -9,12 +9,18 @@ public enum MovementMode { Walk, Run }
 public enum FiringMode { FireAtWill, HoldFire }
 public enum CombatOutcome { Ongoing, Victory, Defeat, Draw, Ended }
 public enum CombatStatus { Active, Disabled, Destroyed }
+public enum ContactLevel { Lost, Identified, Detailed }
 
 /// <summary>Authored first-slice values. Distances are stock range hexes, time is seconds.</summary>
 public static class CombatRules
 {
     public const float ArenaHalfSize = 48;
-    public const float DetectionRadius = 15;
+    public const float NoviceDetectionRadius = 25;
+    public static float DetectionRadius(int sensors, int targetTonnage) => NoviceDetectionRadius
+        * (1 + (WarriorSkills.Novice - Math.Clamp(sensors, WarriorSkills.Expert, WarriorSkills.Novice))
+            / (float)(WarriorSkills.Novice - WarriorSkills.Expert))
+        * (.5f + (Math.Clamp(targetTonnage, 20, 100) - 20) / 160f);
+    public static float DetectionRadius(CombatUnit observer, CombatUnit target) => DetectionRadius(observer.Warrior.Sensors, target.Spec.Tonnage);
     public const float UnitRadius = .65f;
     public const float MovementScale = .18f;
     public const int AimModifier = 3;
@@ -166,7 +172,9 @@ public sealed class CombatUnit
 public sealed class CombatContact
 {
     public string UnitId { get; }
-    public bool Detected { get; internal set; }
+    public ContactLevel Level { get; internal set; }
+    public bool Detected => Level != ContactLevel.Lost;
+    public bool DetailsVisible => Level == ContactLevel.Detailed;
     public Vector2 LastKnownPosition { get; internal set; }
     public double LastSeenAt { get; internal set; }
     internal CombatContact(string id) { UnitId = id; }
@@ -232,6 +240,8 @@ public sealed class CombatSimulation
     public IReadOnlyDictionary<string, CombatContact> Contacts(CombatSide side) => _contacts[side];
     public bool Detected(CombatSide side, string id) => _contacts[side].TryGetValue(id, out var contact) && contact.Detected;
 
+    public bool DetailsVisible(CombatSide side, string id) => _contacts[side].TryGetValue(id, out var contact) && contact.DetailsVisible;
+
     internal void RefreshDetection()
     {
         foreach (var side in Enum.GetValues<CombatSide>())
@@ -239,14 +249,22 @@ public sealed class CombatSimulation
             var observers = Units.Where(item => item.Side == side && item.Active).ToArray();
             foreach (var target in Units.Where(item => item.Side != side))
             {
-                var visible = observers.Any(item => item.Position.DistanceTo(target.Position) <= CombatRules.DetectionRadius && Terrain.ClearSight(item.Position, target.Position));
+                var level = ContactLevel.Lost;
+                foreach (var observer in observers)
+                {
+                    var radius = CombatRules.DetectionRadius(observer, target);
+                    var distance = observer.Position.DistanceSquaredTo(target.Position);
+                    if (distance > radius * radius || !Terrain.ClearSight(observer.Position, target.Position)) continue;
+                    level = distance <= radius * radius * .25f ? ContactLevel.Detailed : ContactLevel.Identified;
+                    if (level == ContactLevel.Detailed) break;
+                }
                 if (!_contacts[side].TryGetValue(target.Id, out var contact))
                 {
-                    if (!visible) continue;
+                    if (level == ContactLevel.Lost) continue;
                     contact = new CombatContact(target.Id); _contacts[side].Add(target.Id, contact);
                 }
-                contact.Detected = visible;
-                if (visible) { contact.LastKnownPosition = target.Position; contact.LastSeenAt = Elapsed; }
+                contact.Level = level;
+                if (contact.Detected) { contact.LastKnownPosition = target.Position; contact.LastSeenAt = Elapsed; }
             }
         }
     }
@@ -320,6 +338,7 @@ public sealed class CombatSimulation
         foreach (var shot in shots) ShotFired?.Invoke(shot);
         foreach (var unit in Units.Where(item => !item.Active))
         { unit.Moving = false; unit.CurrentSpeed = unit.AngularVelocity = 0; unit.CurrentTarget = null; }
+        if (shots.Any(shot => shot.Hit && !Unit(shot.TargetId).Active)) RefreshDetection();
         var friendly = Units.Any(item => item.Side == CombatSide.Friendly && item.Active);
         var enemy = Units.Any(item => item.Side == CombatSide.Enemy && item.Active);
         if (!friendly || !enemy)

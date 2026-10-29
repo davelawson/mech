@@ -40,6 +40,7 @@ public partial class CombatScreen : Control
     private Label _unitInfo = null!;
     private Label _targetInfo = null!;
     private Label _locations = null!;
+    private Label _systems = null!;
     private Label _forceCount = null!;
     private Label _groupInfo = null!;
     private VBoxContainer _settings = null!;
@@ -96,6 +97,7 @@ public partial class CombatScreen : Control
         _weaponsTitle = RosterUi.Text(body, "WEAPONS · PRIMARY SELECTION", 12, Ui.Gold);
         _weapons = new VBoxContainer(); body.AddChild(_weapons);
         _locations = RosterUi.Text(body, "", 12);
+        _systems = RosterUi.Text(body, "", 12);
         _unitBar = new HBoxContainer(); _unitBar.AddThemeConstantOverride("separation", 6); AddChild(_unitBar);
         _help = Ui.Label(this, "", 12, Ui.Muted); _help.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         _shade = new Control { MouseFilter = MouseFilterEnum.Stop }; _shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(_shade);
@@ -293,10 +295,21 @@ public partial class CombatScreen : Control
         PauseButton.Text = Simulation.Paused ? "Resume  [Space]" : "Pause  [Space]";
         _help.Text = SettingPriority ? "PRIORITY TARGET: right-click a detected enemy. This changes target preference without ordering pursuit. Escape cancels."
             : "Click / drag: select · Shift: add · Right-click: Move / Attack · Space: pause · WASD / arrows / middle-drag: pan · Wheel: zoom · Right-drag: orbit · Q/E / Shift-middle: rotate · Home: arena";
+        var friends = Simulation.Units.Where(item => item.Side == CombatSide.Friendly).ToArray();
+        for (var i = 0; i < UnitButtons.Count; i++)
+        {
+            var friend = friends[i]; var button = UnitButtons[i];
+            button.Text = $"{i + 1} · {friend.Warrior.Callsign} · {friend.Status}\n{friend.Spec.DisplayName}";
+            button.AddThemeStyleboxOverride("normal", Ui.Box(_selected.Contains(friend.Id) ? new Color("344431") : Ui.Panel, _selected.Contains(friend.Id) ? Ui.Gold : Ui.Line));
+        }
         var primary = _selected.FirstOrDefault(); var unit = primary is null ? null : Simulation.Unit(primary);
         var active = _selected.Select(Simulation.Unit).Where(item => item.Active).ToArray();
-        _settings.Visible = active.Length > 0;
-        _weaponsTitle.Visible = unit is not null;
+        var inspected = Battlefield.InspectedEnemy;
+        if (inspected is not null && !Simulation.Detected(CombatSide.Friendly, inspected))
+            Battlefield.InspectedEnemy = inspected = null;
+        _settings.Visible = active.Length > 0 && inspected is null;
+        _weapons.Visible = inspected is null;
+        _weaponsTitle.Visible = unit is not null && inspected is null;
         Paperdoll.Display(unit);
         if (_primary != primary)
         {
@@ -309,22 +322,28 @@ public partial class CombatScreen : Control
                     toggle.Toggled += value => weapon.Enabled = value;
                 }
         }
+        if (inspected is not null)
+        {
+            var enemy = Simulation.Unit(inspected);
+            var detailed = Simulation.DetailsVisible(CombatSide.Friendly, inspected);
+            _selectionTitle.Text = detailed ? enemy.Spec.DisplayName : enemy.Spec.Chassis;
+            _unitInfo.Text = detailed ? $"OPPOSITION · {enemy.Spec.Tonnage}t · {enemy.Status}"
+                : "OPPOSITION · Model identified\nClose to half detection range for armour, internals and systems.";
+            Paperdoll.Display(detailed ? enemy : null);
+            _locations.Text = detailed ? CombatPaperdoll.Readout(enemy) : "";
+            _systems.Text = detailed ? SystemsReadout(enemy) : "";
+            _targetInfo.Text = "";
+            return;
+        }
         if (unit is null)
         {
-            var inspected = Battlefield.InspectedEnemy;
-            if (inspected is not null && Simulation.Detected(CombatSide.Friendly, inspected))
-            {
-                var enemy = Simulation.Unit(inspected);
-                _selectionTitle.Text = enemy.Spec.DisplayName;
-                _unitInfo.Text = $"OPPOSITION · {enemy.Spec.Tonnage}t · {enemy.Status}";
-                Paperdoll.Display(enemy);
-                _locations.Text = CombatPaperdoll.Readout(enemy);
-            }
-            else { _selectionTitle.Text = "Select a BattleMech"; _unitInfo.Text = "Click a friendly unit or its card below. Drag across the field to select a group."; _locations.Text = ""; }
-            _targetInfo.Text = ""; return;
+            _selectionTitle.Text = "Select a BattleMech";
+            _unitInfo.Text = "Click a friendly unit or its card below. Drag across the field to select a group.";
+            _locations.Text = _targetInfo.Text = _systems.Text = "";
+            return;
         }
         _selectionTitle.Text = _selected.Count > 1 ? $"{_selected.Count} selected · {unit.Warrior.Callsign}" : $"{unit.Warrior.Callsign} · {unit.Spec.Chassis}";
-        _unitInfo.Text = $"{unit.Spec.DisplayName} · {unit.Status}\nGunnery {unit.Warrior.Gunnery} / Piloting {unit.Warrior.Piloting}\nOrder: {unit.Order}{(unit.AttackTarget is { } attack ? $" → {Simulation.Unit(attack).Spec.Chassis}" : "")}";
+        _unitInfo.Text = $"{unit.Spec.DisplayName} · {unit.Status}\n{RosterUi.SkillText(unit.Warrior)}\nOrder: {unit.Order}{(unit.AttackTarget is { } attack ? $" → {Simulation.Unit(attack).Spec.Chassis}" : "")}";
         if (active.Length > 0)
         {
             _groupInfo.Visible = active.Length > 1;
@@ -364,12 +383,18 @@ public partial class CombatScreen : Control
         }
         _locations.Text = CombatPaperdoll.Readout(unit)
             + "\nRear armor preserved.\nPrimary unit's weapons and locations shown; group orders and settings apply to all active selections.";
-        var friends = Simulation.Units.Where(item => item.Side == CombatSide.Friendly).ToArray();
-        for (var i = 0; i < UnitButtons.Count; i++)
-        {
-            var friend = friends[i]; var button = UnitButtons[i];
-            button.Text = $"{i + 1} · {friend.Warrior.Callsign} · {friend.Status}\n{friend.Spec.DisplayName}";
-            button.AddThemeStyleboxOverride("normal", Ui.Box(_selected.Contains(friend.Id) ? new Color("344431") : Ui.Panel, _selected.Contains(friend.Id) ? Ui.Gold : Ui.Line));
-        }
+        _systems.Text = SystemsReadout(unit);
+
     }
+    internal static string SystemsReadout(CombatUnit unit)
+    {
+        string State(string id, MechLocation location, bool usable = true) => !unit.Intact(location) ? "Lost"
+            : unit.Equipment[id] == ComponentCondition.Destroyed ? "Destroyed"
+            : !usable ? $"{unit.Equipment[id]} · Unavailable" : unit.Equipment[id].ToString();
+        return "SYSTEMS · CONDITION / AVAILABILITY\n" + string.Join("\n",
+            unit.Weapons.Select(weapon => $"{DraftCatalog.Abbreviation(weapon.Spec.Location)} · {weapon.Spec.Name}: {State(weapon.Spec.Id, weapon.Spec.Location, unit.WeaponUsable(weapon))}")
+            .Concat(unit.Spec.Components.Select(item => $"{DraftCatalog.Abbreviation(item.Location)} · {item.Name}: {State(item.Id, item.Location)}"))
+            .Concat(unit.Spec.Ammo.Select(item => $"{DraftCatalog.Abbreviation(item.Location)} · {item.Name}: {State(item.Id, item.Location, unit.Ammo.Any(bin => bin.Id == item.Id && bin.Shots > 0))}")));
+    }
+
 }

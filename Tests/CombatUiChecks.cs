@@ -59,7 +59,8 @@ public partial class SmokeTests
         Check(field.GroundPoint(field.ScreenPoint(rock.Center, rock.Height)).DistanceTo(rock.Center) < .02f, "clicking a rock top picks its footprint rather than ground behind it");
         await RightClick(field.GlobalPosition + field.ScreenPoint(rock.Center, rock.Height));
         Check(friendly.Order == CombatOrder.Move && sim.Terrain.Passable(friendly.Destination)
-            && friendly.Destination.DistanceTo(rock.Center) < rock.Radius + 3, "actual ground click inside rock shows a nearby reachable destination");
+            && friendly.Destination.DistanceTo(rock.Center) < rock.Radius + 3,
+            $"actual ground click inside rock shows a nearby reachable destination: order={friendly.Order}, destination={friendly.Destination}, rock={rock.Center}, focus={GetWindow().HasFocus()}/{field.HasFocus()}");
         await Capture("terrain-overview");
         var destination = field.GlobalPosition + field.ScreenPoint(new Vector2(0, 16));
         await RightClick(destination);
@@ -114,11 +115,37 @@ public partial class SmokeTests
         await RightClick(enemyAt);
         Check(tactical.Selected.Select(sim.Unit).All(item => item.PriorityTarget == enemy.Id) && !tactical.SettingPriority, "priority control stores target independently of active orders");
         MouseButton(enemyAt, Godot.MouseButton.Left, true); MouseButton(enemyAt, Godot.MouseButton.Left, false); await Delay(.15);
-        Check(tactical.Selected.Count == 0 && field.InspectedEnemy == enemy.Id, "enemy click inspects detected contact without selecting it as friendly");
+        Check(tactical.Selected.Count == 2 && field.InspectedEnemy == enemy.Id, "enemy inspection retains the friendly command group and range reference");
         var displayed = tactical.FindChildren("*", "Label", true, false).OfType<Label>().Where(label => label.IsVisibleInTree()).Select(label => label.Text).ToArray();
-        Check(tactical.Paperdoll.Unit == enemy && displayed.Contains(CombatPaperdoll.Readout(enemy)),
-            "enemy inspection exposes the same exact armor, rear armor and internal structure as friendly inspection");
+        Check(tactical.Paperdoll.Unit == enemy && displayed.Contains(CombatPaperdoll.Readout(enemy))
+            && displayed.Contains(CombatScreen.SystemsReadout(enemy)), "close enemy inspection reveals exact location condition and effective systems status");
+        var radius = CombatRules.DetectionRadius(friendly, enemy);
+        Check(field.DetectionRanges is { } ranges && ranges.Identification == radius && ranges.Detail == radius * .5f,
+            "enemy inspection shows target-specific identification and status ranges for the friendly reference");
+        scroll.ScrollVertical = 0; await Frames(); await Capture("combat-detailed-contact");
+        var closePosition = enemy.Position;
+        var otherFriends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly && unit != friendly).ToArray();
+        var previousPositions = otherFriends.Select(unit => unit.Position).ToArray();
+        foreach (var unit in otherFriends) unit.Position = new Vector2(-45, -45);
+        enemy.Position = Enumerable.Range(0, 32).Select(index => friendly.Position + Vector2.FromAngle(index * Mathf.Tau / 32) * radius * .75f)
+            .First(point => point == CombatRules.Clamp(point) && sim.Terrain.Passable(point) && sim.Terrain.ClearSight(friendly.Position, point));
+        sim.RefreshDetection(); await Delay(.15);
+        displayed = tactical.FindChildren("*", "Label", true, false).OfType<Label>().Where(label => label.IsVisibleInTree()).Select(label => label.Text).ToArray();
+        Check(sim.Detected(CombatSide.Friendly, enemy.Id) && !sim.DetailsVisible(CombatSide.Friendly, enemy.Id)
+            && tactical.Paperdoll.Unit is null && !tactical.Paperdoll.Visible && displayed.Contains(enemy.Spec.Chassis)
+            && !displayed.Any(text => text.Contains("ARMOR / STOCK") || text.Contains("SYSTEMS · CONDITION") || text.Contains(enemy.Spec.Variant)),
+            "model-only inspection hides variant, armor, internals, systems and stale detailed readouts");
+        await Capture("combat-model-contact");
+        await RightClick(field.GlobalPosition + field.ScreenPoint(enemy.Position, 1));
+        Check(friendly.Order == CombatOrder.Attack && friendly.AttackTarget == enemy.Id, "model-only contact accepts an actual mouse Attack order");
+        enemy.Position = new Vector2(-45, -10); sim.RefreshDetection(); await Delay(.15);
+        Check(field.InspectedEnemy is null && tactical.Paperdoll.Unit == friendly,
+            "losing inspection contact clears live enemy details and restores friendly information");
+        for (var i = 0; i < otherFriends.Length; i++) otherFriends[i].Position = previousPositions[i];
+        enemy.Position = closePosition; sim.RefreshDetection();
         await Click(tactical.UnitButtons[0]);
+        Check(field.DetectionRanges is { Detail: null } && field.SensorRangeText.Contains("20–100t"),
+            "without an inspected target the circle uses 100t and labels the 20–100t detection span");
         for (var zoom = 0; zoom < 4; zoom++)
         {
             var at = field.GlobalPosition + field.Size / 2;

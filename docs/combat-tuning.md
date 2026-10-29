@@ -10,7 +10,8 @@ The first tactical slice implements [the confirmed combat design](combat-design.
 | Arena | 96 × 96 hexes, centered on the origin |
 | Starts | Z = +32 / −32; four-hex spacing |
 | Occupied radius | 0.65 hex, with swept-disc collision checks |
-| Shared detection | 15 hexes, shorter than PPC/LRM reach |
+| Identification range | `25 × (1 + (6 − Sensors) / 4) × (0.5 + (target tons − 20) / 160)` hexes |
+| Detailed status range | Half identification range; same terrain sight requirement |
 | Movement limits | Stock Walk / Run MP × 0.18 hexes per second for every chassis |
 | Acceleration | Running speed × Walk MP / 9 hexes per second² |
 | Braking | Twice acceleration |
@@ -88,7 +89,7 @@ Hit locations use a separate 2d6 roll:
 
 Each step captures every due discharge and hit roll before applying damage. Outcomes follow the entire batch, permitting simultaneous lethal return fire and draws. Visual effects illustrate already-resolved results.
 
-Five-to-ten minutes remains a provisional ordinary-engagement target. The initial mixed-lance check finishes in 335 simulated seconds (about five minutes); one-on-one Jenner, Griffin and Awesome checks finish in 105, 211 and 169 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
+Five-to-ten minutes remains a provisional ordinary-engagement target. With the budgeted pilot catalog and Sensors ranges, the seeded flat-ground mixed-lance check finishes in 262 simulated seconds; one-on-one Jenner, Griffin and Awesome checks finish in 54, 206 and 143 seconds. The seeded natural-terrain mixed-lance check finishes in 370 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
 
 ## Interaction defaults
 
@@ -101,7 +102,9 @@ Five-to-ten minutes remains a provisional ordinary-engagement target. The initia
 - Right-drag orbits the center-view ground intersection. Rotation starts only after moving more than five screen pixels from the press position; threshold movement is discarded to avoid a jump. A drag never issues an order, even if it returns to its start. Sensitivity is 0.25° per screen pixel without smoothing: upward drag raises the camera, rightward drag orbits clockwise from above. Elevation is limited to 15°–85° downward. WASD can translate the orbit point during rotation; the point stays within the arena bounds.
 - The cursor is hidden and captured during right-drag, allowing continuous rotation at window edges. Release restores its mode and press position. Menus, loss of window or battlefield focus, and leaving battle cancel the gesture and release capture. Home restores arena center, default elevation (~49°), zero yaw and orthographic size 110; a new deployment starts at ground focus (0, 12), default elevation, zero yaw and size 50.
 - Escape suspends combat. Resume restores the preceding running/paused state. End Simulation shows an ended damage summary; results return to the original hangar selection and tab.
-- Enemy inspection shows identity and observable damage descriptions. Exact enemy internals appear only in the completed report.
+- Enemy inspection at full range reveals only the chassis model. Within half range it also shows exact armor, rear armor, internals and effective equipment condition/availability. The side shares its best current observation; live details disappear when all close observers lose them. Physical damage remains visible.
+- Inspection retains the friendly command selection and draws target-specific identification (blue) and detailed-status (gold) circles around its primary active unit. Otherwise show the 100-ton identification circle and label the 20–100-ton detection span. Terrain can block contacts within these circles.
+- Pilot skills are rated 2–6. Each improvement from 6 costs one point, with six points for regulars and eight for veterans. Fixed catalog allocations include Sensors specialists; no allocation screen or progression is added.
 - Procedural 3D mech stand-ins have faction colors, facing indicators, selection/priority rings, order lines and shot/hit effects. Facing is cosmetic: it introduces no firing arcs or rear-armor hits.
 
 ## Validation

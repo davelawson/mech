@@ -102,7 +102,7 @@ public partial class HangarScreen : Control
         foreach (var candidate in _roster.Warriors.Where(item => item.Health != WarriorHealth.Dead))
         {
             var assignment = _roster.Assignment(candidate.Id);
-            _pilotIds.Add(candidate.Id); PilotPicker.AddItem($"{candidate.Spec.Callsign} · G{candidate.Spec.Gunnery}/P{candidate.Spec.Piloting}{(candidate.Ready ? "" : " · injured")}{(assignment is null ? "" : $" · {assignment.Spec.Chassis}")}");
+            _pilotIds.Add(candidate.Id); PilotPicker.AddItem($"{candidate.Spec.Callsign} · G{candidate.Spec.Gunnery}/P{candidate.Spec.Piloting}/S{candidate.Spec.Sensors}{(candidate.Ready ? "" : " · injured")}{(assignment is null ? "" : $" · {assignment.Spec.Chassis}")}");
             PilotPicker.SetItemTooltip(_pilotIds.Count - 1, $"{candidate.Spec.DisplayName}\n{candidate.Status}\n{assignment?.Spec.DisplayName ?? "Unassigned"}");
         }
         var current = warrior is null ? _pilotIds.FindIndex(id => _roster.Assignment(id) is null) : _pilotIds.IndexOf(warrior.Id);

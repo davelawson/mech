@@ -14,6 +14,15 @@ internal static class RosterChecks
         check(DraftCatalog.Mech("atlas").Weapons.Count(weapon => weapon.Rear && weapon.Location == MechLocation.CenterTorso) == 2, "Atlas retains both stock rear-facing lasers");
         check(DraftCatalog.Warriors.Count == 24 && DraftCatalog.Warriors.Count(w => w.Experience.StartsWith("Regular")) == 18
             && DraftCatalog.Warriors.Count(w => w.Experience.StartsWith("Veteran")) == 6, "expanded pilot catalog preserves regular and veteran balance");
+        check(DraftCatalog.Warriors.All(w => new[] { w.Gunnery, w.Piloting, w.Sensors }.All(value => value is >= 2 and <= 6)
+            && w.SkillPoints == (w.Experience.StartsWith("Veteran") ? 8 : 6)), "every authored pilot spends its quality budget across three bounded skills");
+        check(WarriorSkills.Cost(6) == 0 && WarriorSkills.Cost(4) == 2 && WarriorSkills.Cost(2) == 4,
+            "skill improvements each cost one point from the novice baseline");
+        Reject(() => WarriorSkills.Cost(1), "ratings better than expert rejected by skill costs");
+        Reject(() => WarriorSkills.Cost(7), "ratings worse than novice rejected by skill costs");
+        check(DraftCatalog.Warriors.Any(w => w.Sensors < w.Gunnery && w.Sensors < w.Piloting)
+            && DraftCatalog.Warriors.Any(w => w.Sensors == 2) && DraftCatalog.Warriors.Any(w => w.Sensors == 6),
+            "catalog includes sensor specialists and both expert and novice sensor ratings");
         var seeded = InitialDraft.CreateRandom(new Random(3025));
         var replay = InitialDraft.CreateRandom(new Random(3025));
         check(seeded.ForceName == replay.ForceName && Enumerable.Range(0, 8).All(pool => seeded.Choice(pool) == replay.Choice(pool))
@@ -69,6 +78,8 @@ internal static class RosterChecks
         roster.SetHealth(first.Id, WarriorHealth.Injured, fresh.Date.AddDays(2), fresh.Date);
         check(a.WarriorId == first.Id && roster.ReadyWarriors == 3, "injury retains assignment and reduces ready count");
         var restored = Campaign.Restore(fresh.Snapshot());
+        check(restored.Roster!.Warriors.All(w => w.Spec.Sensors == DraftCatalog.Warrior(w.Id).Sensors
+            && w.Spec.SkillPoints == w.Spec.SkillBudget), "existing ID-based saves resolve budgeted Sensors ratings without a schema change");
         check(restored.Roster!.Mechs[0].WarriorId == first.Id && restored.Roster.Warriors[0].Health == WarriorHealth.Injured, "save restores injury, recovery and assignments");
         restored.AdvanceOneDay(); restored.AdvanceOneDay();
         check(restored.Roster.ReadyWarriors == 4 && restored.Roster.Warriors[0].RecoveryDate is null, "injury recovers on the recorded campaign date");

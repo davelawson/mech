@@ -54,9 +54,9 @@ public partial class DraftScreen : Control
                 _candidateNames[pool, choice] = Ui.Label(button, isMech ? DraftCatalog.Mechs[index].Chassis : $"“{DraftCatalog.Warriors[index].Callsign}”", 15);
                 _candidateNames[pool, choice].ClipText = true;
                 var spec = isMech ? DraftCatalog.Mechs[index] : null;
-                _candidateStats[pool, choice] = Ui.Label(button, spec is not null ? $"{spec.Variant} · {spec.Walk}/{spec.Run}/{spec.Jump}" : $"G {DraftCatalog.Warriors[index].Gunnery}  /  P {DraftCatalog.Warriors[index].Piloting}", 11, Ui.Muted);
+                _candidateStats[pool, choice] = Ui.Label(button, spec is not null ? $"{spec.Variant} · {spec.Walk}/{spec.Run}/{spec.Jump}" : $"G{DraftCatalog.Warriors[index].Gunnery} / P{DraftCatalog.Warriors[index].Piloting} / S{DraftCatalog.Warriors[index].Sensors}", 11, Ui.Muted);
                 _candidateStats[pool, choice].ClipText = true;
-                button.TooltipText = spec is not null ? $"{spec.DisplayName}\n{spec.Role} · Armor {spec.ArmorTotal} · {spec.HeatSinks} heat sinks\nSelect this candidate; … opens the complete record." : $"{DraftCatalog.Warriors[index].DisplayName}\n{DraftCatalog.Warriors[index].Experience}\n{RosterUi.SkillText(DraftCatalog.Warriors[index])}\nLower skill numbers are better.";
+                button.TooltipText = spec is not null ? $"{spec.DisplayName}\n{spec.Role} · Armor {spec.ArmorTotal} · {spec.HeatSinks} heat sinks\nSelect this candidate; … opens the complete record." : $"{DraftCatalog.Warriors[index].DisplayName}\n{DraftCatalog.Warriors[index].Experience}\n{RosterUi.SkillText(DraftCatalog.Warriors[index])}\n{RosterUi.SkillBudgetText(DraftCatalog.Warriors[index])}\nSkills 2–6; lower is better.";
                 var inspect = Ui.Button(panel, "…"); inspect.TooltipText = "Inspect candidate without changing your selection";
                 _inspect[pool, choice] = inspect; inspect.Pressed += () => Preview(p, c, inspect);
             }
@@ -96,8 +96,8 @@ public partial class DraftScreen : Control
                 var spec = Draft.WarriorCandidate(pool, choice);
                 _portraits[pool, choice].Texture = Ui.LoadTexture(spec.Artwork);
                 _candidateNames[pool, choice].Text = $"“{spec.Callsign}”";
-                _candidateStats[pool, choice].Text = $"G {spec.Gunnery}  /  P {spec.Piloting}";
-                Choices[pool, choice].TooltipText = $"{spec.DisplayName}\n{spec.Experience}\n{RosterUi.SkillText(spec)}\nLower skill numbers are better.";
+                _candidateStats[pool, choice].Text = $"G{spec.Gunnery} / P{spec.Piloting} / S{spec.Sensors}";
+                Choices[pool, choice].TooltipText = $"{spec.DisplayName}\n{spec.Experience}\n{RosterUi.SkillText(spec)}\n{RosterUi.SkillBudgetText(spec)}\nSkills 2–6; lower is better.";
             }
         }
     }
@@ -110,7 +110,7 @@ public partial class DraftScreen : Control
             Choices[p, c].AddThemeStyleboxOverride("normal", Ui.Box(chosen ? new Color("344431") : Ui.Background, chosen ? Ui.Gold : Ui.Line));
         }
         EstablishButton.Disabled = !Draft.Complete;
-        _progress.Text = $"{Draft.SelectedCount}/8 selected · {(InitialDraft.ValidName(Draft.ForceName) ? "Company named" : "Enter a company name")} · Lower G/P is better";
+        _progress.Text = $"{Draft.SelectedCount}/8 selected · {(InitialDraft.ValidName(Draft.ForceName) ? "Company named" : "Enter a company name")} · Lower G/P/S is better";
     }
     private void Preview(int pool, int choice, Control source)
     {
@@ -129,7 +129,7 @@ public partial class DraftScreen : Control
             var spec = Draft.WarriorCandidate(pool, choice);
             var image = RosterUi.Picture(_previewBody, spec.Artwork, new Vector2(180, 180)); image.SizeFlagsVertical = SizeFlags.ExpandFill;
             RosterUi.Text(_previewBody, spec.DisplayName, 22, Ui.Gold);
-            RosterUi.Text(_previewBody, $"{spec.Experience}\n{RosterUi.SkillText(spec)}\nHealthy · Ready for deployment\nLower skill numbers are better.", 16);
+            RosterUi.Text(_previewBody, $"{spec.Experience}\n{RosterUi.SkillText(spec)}\n{RosterUi.SkillBudgetText(spec)}\nHealthy · Ready for deployment\nSkills 2–6; lower is better.", 16);
         }
         var actions = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End }; _previewBody.AddChild(actions);
         var back = Ui.Button(actions, "Back to draft"); back.Pressed += ClosePreview;

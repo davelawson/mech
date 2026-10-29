@@ -37,7 +37,9 @@ internal static class RosterUi
             control.FocusNeighborLeft = control.FocusPrevious; control.FocusNeighborRight = control.FocusNext;
         }
     }
-    public static string SkillText(WarriorSpec warrior) => $"Gunnery {warrior.Gunnery}  /  Piloting {warrior.Piloting}";
+    public static string SkillText(WarriorSpec warrior) => $"Gunnery {warrior.Gunnery}  /  Piloting {warrior.Piloting}  /  Sensors {warrior.Sensors}";
+    public static string SkillBudgetText(WarriorSpec warrior) => $"Skill points: {warrior.SkillPoints}/{warrior.SkillBudget} spent\n"
+        + $"Gunnery {WarriorSkills.Cost(warrior.Gunnery)} · Piloting {WarriorSkills.Cost(warrior.Piloting)} · Sensors {WarriorSkills.Cost(warrior.Sensors)}";
 }
 
 /// <summary>A location map drawn from the selected unit's real armor/structure, rather than decorative image labels.</summary>

@@ -24,7 +24,9 @@ public partial class CombatPaperdoll : Control
     public override void _Ready()
     {
         CustomMinimumSize = new(0, 220); MouseFilter = MouseFilterEnum.Ignore;
-        Resized += () => { CustomMinimumSize = new(0, Math.Min(244, Size.X * 244 / 300)); QueueRedraw(); };
+        // A width-dependent minimum height can oscillate with an automatic scrollbar.
+        // Keep layout stable and fit the drawing to the allocated size instead.
+        Resized += QueueRedraw;
     }
     public void Display(CombatUnit? unit) { Unit = unit; Visible = unit is not null; QueueRedraw(); }
     public static string Readout(CombatUnit unit) => "ARMOR / STOCK · INTERNAL / STOCK\n"

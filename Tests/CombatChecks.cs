@@ -94,6 +94,7 @@ internal static partial class CombatChecks
 
         CheckTargeting(check);
         CheckDetection(check);
+        CheckSensors(check);
         CheckDamage(check);
         CheckNavigation(check);
         CheckLocomotion(check);
@@ -143,12 +144,18 @@ internal static partial class CombatChecks
     }
     private static void CheckDetection(Action<bool, string> check)
     {
-        var sim = Battle(2); sim.EnemyAiEnabled = false;
+        var sim = new CombatSimulation(new[]
+        {
+            SensorUnit("shooter", "awesome", 6, CombatSide.Friendly, Vector2.Zero),
+            SensorUnit("scout", "awesome", 2, CombatSide.Friendly, new Vector2(12, 3)),
+            SensorUnit("target", "locust", 6, CombatSide.Enemy, new Vector2(17, 0))
+        }, 41);
+        sim.EnemyAiEnabled = false;
         var friends = sim.Units.Where(item => item.Side == CombatSide.Friendly).ToArray(); var enemy = Enemy(sim);
         friends[0].Position = Vector2.Zero; friends[0].Facing = Vector2.Right;
         friends[1].Position = new Vector2(12, 3); enemy.Position = new Vector2(17, 0);
         sim.RefreshDetection();
-        check(friends[0].Position.DistanceTo(enemy.Position) > CombatRules.DetectionRadius
+        check(friends[0].Position.DistanceTo(enemy.Position) > CombatRules.DetectionRadius(friends[0], enemy)
             && sim.Detected(CombatSide.Friendly, enemy.Id) && sim.SelectTarget(friends[0]) == enemy, "shared detection enables fire outside shooter's own detection radius");
         sim.Attack([friends[0].Id], enemy.Id); sim.Paused = false; sim.Advance(.05);
         check(friends[0].ShotsFired > 0, "shared out-of-radius contact can actually be fired upon");

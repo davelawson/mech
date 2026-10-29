@@ -72,7 +72,7 @@ public partial class CombatViewport : Control
         if (Simulation is not null) Simulation.ShotFired -= OnShot;
         foreach (var model in _models.Values) { _world.RemoveChild(model); model.QueueFree(); }
         _models.Clear(); _effects.Clear();
-        Simulation = simulation; Simulation.ShotFired += OnShot;
+        Simulation = simulation; Simulation.ShotFired += OnShot; InspectedEnemy = null; Selection = Array.Empty<string>();
         if (_terrainView is not null) { _world.RemoveChild(_terrainView); _terrainView.QueueFree(); }
         _terrainView = BattlefieldTerrainView.Create(simulation.Terrain); _world.AddChild(_terrainView);
         _focus = new Vector3(0, 0, 12); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 50; UpdateCamera();
@@ -261,7 +261,9 @@ public partial class CombatViewport : Control
                     {
                         var friendly = Pick(mouse.Position, CombatSide.Friendly);
                         InspectedEnemy = friendly is null ? Pick(mouse.Position, CombatSide.Enemy)?.Id : null;
-                        SelectionRequested?.Invoke(friendly is null ? Array.Empty<string>() : [friendly.Id], mouse.ShiftPressed);
+                        // Inspection keeps the friendly selection as the range reference and command group.
+                        SelectionRequested?.Invoke(friendly is not null ? [friendly.Id]
+                            : InspectedEnemy is not null ? Selection.ToArray() : Array.Empty<string>(), mouse.ShiftPressed && InspectedEnemy is null);
                     }
                     else
                     {
@@ -292,6 +294,17 @@ public partial class CombatViewport : Control
         if (input is InputEventKey { Pressed: true, Keycode: Key.Home })
         { CancelDrag(); _focus = Vector3.Zero; _yaw = 0; _pitch = DefaultPitch; Camera.Size = 110; UpdateCamera(); AcceptEvent(); }
     }
+    private CombatUnit? RangeObserver => Simulation is null ? null : Selection.Select(Simulation.Unit).FirstOrDefault(unit => unit.Side == CombatSide.Friendly && unit.Active);
+    private CombatUnit? RangeTarget => Simulation is not null && InspectedEnemy is { } id && Simulation.Detected(CombatSide.Friendly, id) ? Simulation.Unit(id) : null;
+    public (float Identification, float? Detail)? DetectionRanges => RangeObserver is not { } observer ? null
+        : RangeTarget is { } target ? (CombatRules.DetectionRadius(observer, target), CombatRules.DetectionRadius(observer, target) * .5f)
+        : (CombatRules.DetectionRadius(observer.Warrior.Sensors, 100), null);
+    public string SensorRangeText => RangeObserver is not { } observer ? ""
+        : RangeTarget is { } target ? $"{observer.Warrior.Callsign} · {target.Spec.Chassis}: identify {CombatRules.DetectionRadius(observer, target):0.##} hexes (blue) · status {CombatRules.DetectionRadius(observer, target) * .5f:0.##} (gold)"
+        : $"{observer.Warrior.Callsign} · 20–100t: identify {CombatRules.DetectionRadius(observer.Warrior.Sensors, 20):0.##}–{CombatRules.DetectionRadius(observer.Warrior.Sensors, 100):0.##} hexes · circle: 100t";
+    private void DrawRange(Vector2 center, float radius, Color color) => DrawPolyline(
+        Enumerable.Range(0, 97).Select(segment => ScreenPoint(center + Vector2.FromAngle(segment * Mathf.Tau / 96) * radius)).ToArray(),
+        new Color(color, .45f), 1, true);
     public override void _Draw()
     {
         if (Simulation is null || Camera is null) return;
@@ -300,6 +313,12 @@ public partial class CombatViewport : Control
         DrawString(font, new Vector2(12, 34), "Rocks: blocked · Green: soft cover · Blue: slow water · Tan: steep", HorizontalAlignment.Left, -1, 11, Ui.Text);
         var center = ScreenPoint(Vector2.Zero);
         DrawString(font, center + new Vector2(-42, -8), "ARENA CENTER", HorizontalAlignment.Left, -1, 12, new Color(Ui.Muted, .7f));
+        if (RangeObserver is { } observer && DetectionRanges is { } ranges)
+        {
+            DrawRange(observer.Position, ranges.Identification, new Color("7fb8bf"));
+            if (ranges.Detail is { } detail) DrawRange(observer.Position, detail, Ui.Gold);
+            DrawString(font, new Vector2(12, 50), SensorRangeText, HorizontalAlignment.Left, -1, 11, Ui.Text);
+        }
         var friendlyIndex = 0;
         foreach (var unit in Simulation.Units)
         {
@@ -314,13 +333,6 @@ public partial class CombatViewport : Control
             if (!unit.Active) color = Ui.Muted;
             if (Selection.Contains(unit.Id))
             {
-                if (Selection.Count == 1 && unit.Active)
-                {
-                    var radius = CombatRules.DetectionRadius;
-                    for (var segment = 0; segment < 64; segment++)
-                        DrawLine(ScreenPoint(unit.Position + Vector2.FromAngle(segment * Mathf.Tau / 64) * radius),
-                            ScreenPoint(unit.Position + Vector2.FromAngle((segment + 1) * Mathf.Tau / 64) * radius), new Color(color, .25f), 1, true);
-                }
                 DrawArc(at, Math.Max(10, 1.15f * Size.Y / Camera.Size), 0, Mathf.Tau, 32, Ui.Gold, 2, true);
                 DrawCircle(at, 3, Ui.Gold);
                 var to = unit.Order == CombatOrder.Move ? unit.Destination : unit.AttackTarget is { } id
@@ -333,7 +345,7 @@ public partial class CombatViewport : Control
             DrawLine(at, forward, color, 2, true);
             var label = ScreenPoint(unit.Position, _models[unit.Id].Height + .3f);
             var text = friendly ? Selection.Count == 1 && Selection.Contains(unit.Id) ? $"{friendlyIndex} · {unit.Warrior.Callsign}" : friendlyIndex.ToString()
-                : InspectedEnemy == unit.Id ? unit.Spec.DisplayName : unit.Id.Replace("enemy-", "E", StringComparison.Ordinal);
+                : InspectedEnemy == unit.Id && Simulation.DetailsVisible(CombatSide.Friendly, unit.Id) ? unit.Spec.DisplayName : unit.Spec.Chassis;
             var labelOffset = new Vector2(-font.GetStringSize(text, fontSize: 12).X / 2, -4);
             DrawStringOutline(font, label + labelOffset, text, HorizontalAlignment.Left, -1, 12, 4, new Color("101820"));
             DrawString(font, label + labelOffset, text, HorizontalAlignment.Left, -1, 12, color);

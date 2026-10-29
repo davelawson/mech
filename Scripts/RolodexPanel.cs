@@ -83,7 +83,7 @@ public partial class RolodexPanel : Control
         _selected = Math.Clamp(_selected, 0, _visible.Length - 1);
         var warrior = _visible[_selected]; var assignment = _roster.Assignment(warrior.Id);
         _portrait.Texture = Ui.LoadTexture(warrior.Spec.Artwork); CardName.Text = $"“{warrior.Spec.Callsign}”\n{warrior.Spec.Name}";
-        _record.Text = $"{warrior.Spec.Experience}\n\nGunnery  {warrior.Spec.Gunnery}\nPiloting   {warrior.Spec.Piloting}\n\n{warrior.Status}\n\nAssigned BattleMech\n{assignment?.Spec.DisplayName ?? "Unassigned"}\n\nLower skill numbers are better.";
+        _record.Text = $"{warrior.Spec.Experience}\n\nGunnery  {warrior.Spec.Gunnery}\nPiloting   {warrior.Spec.Piloting}\nSensors  {warrior.Spec.Sensors}\n{RosterUi.SkillBudgetText(warrior.Spec)}\n\n{warrior.Status}\n\nAssigned BattleMech\n{assignment?.Spec.DisplayName ?? "Unassigned"}\n\nLower skill numbers are better.";
         _position.Text = $"{_selected + 1} / {_visible.Length}";
     }
     private void Layout()

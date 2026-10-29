@@ -9,7 +9,7 @@ Status: confirmed October 25, 2026. The initial design interview is complete. Th
 - The broader battlefield design uses continuous positions in three dimensions, with geometry governing movement and sight and understandable abstractions for cover and vegetation. The terrain extension adds procedural natural terrain with elevation, solid obstacles, vegetation and shallow water. Buildings remain deferred.
 - Movement is continuous and weapons have independent cooldowns, without shared combat rounds. Initial resolution draws on basic BattleTech rules, including hit chances, damage, heat, critical hits, Piloting checks, and weapon ranges and damage. The first slice retains hit resolution, weapon ranges and damage, and location armor/internal structure; criticals, heat, ammunition consumption, facing, falls, and MechWarrior injury are explicitly deferred. Hit chances use probability rolls influenced by Gunnery, weapon range bands, and both mechs’ movement. Damage is allocated to randomly selected body locations, reducing front armor before passing excess damage into that location’s internal structure. Rear armor is unused and unchanged while facing is deferred. Exact hit modifiers and hit-location weights remain tuning work. Further damage to a destroyed location transfers inward using the explicit paths below.
 - Tabletop fidelity is not a permanent constraint; mechanics may evolve further to exploit real time.
-- Enemy visibility depends on detection. Current sightings and last-known positions are distinct. Selected detected enemies reveal the same armor, rear armor and internal condition as friendly mechs through the shared paperdoll and numeric readout. The first slice uses a single detection radius: detected enemies are visible and identifiable, and enemies outside detection remain hidden. Lost contacts leave a last-known position that does not track subsequent movement. Detection is shared across the friendly force: any friendly detection reveals the enemy, and another friendly mech may fire if its weapons reach and its own line of fire is clear, even outside its own detection radius. Rocks and hills also block detection. A last-known marker appears when all friendly detection is lost. Separate sensor and visual contacts are deferred.
+- Enemy visibility depends on the observing pilot's Sensors and the target's tonnage. Sensors 6 detects a 100-ton target at 25 hexes; Sensors 2 doubles that to 50, with linear interpolation. Target mass multiplies that radius linearly from 0.5 at 20 tons to 1.0 at 100 tons. Full radius identifies only the chassis model; within half radius, exact armor, rear armor, internals and effective equipment condition/availability become visible. Physical damage and movement remain visible at either tier. Each side shares its best current observation from an active observer. Leaving detailed range hides live condition immediately; losing all detection retains a stationary last-known position. Rocks and hills block either tier. Shared identification permits firing when weapons reach and the shooter's own line of fire is clear. Enemy pilots obey identical rules.
 - The first playable slice includes only BattleMechs on both sides, on a procedurally generated natural battlefield. Its objective is defeat of the opposing force by destruction or disablement. The simulation has no tactical retreat mechanic; the combat menu permits ending the simulation.
 
 ## Orders, firing, and pacing
@@ -95,7 +95,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 - Combat explicitly overrides the existing office/subscreen right-click-back behavior: right-click remains a battlefield command while in combat.
 - Use an angled overhead camera with pan, zoom, and rotation.
 - Provide a friendly-unit selection bar and selected-unit panel showing orders, movement mode, firing setting, preferred engagement distance, weapon readiness, and armor/internal structure by location.
-- Enemy displays show identity and the same exact location armor/internal values and paperdoll as friendly displays. Detection still controls whether enemies can be inspected.
+- Enemy inspection retains the friendly selection. Model-only contacts show the chassis name; detailed contacts add exact location values, the shared paperdoll and effective systems status. Inspection draws identification and half-range status circles around the primary active selected friendly for that target. Without an inspected enemy, draw the 100-ton identification circle and label the 20–100-ton detection span. These are distance boundaries; terrain may still block observation.
 
 ## Existing campaign constraints
 
@@ -109,7 +109,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 ## Numerical authoring and tuning
 
 - Begin with the existing stock armor, internal structure, weapon damage, and weapon range data.
-- Exact hit modifiers, hit-location probabilities, detection radius, arena dimensions, movement scaling, default engagement distances, and weapon cooldowns remain authoring and tuning work.
+- Exact hit modifiers, hit-location probabilities, arena dimensions, movement scaling, default engagement distances, and weapon cooldowns remain authoring and tuning work. Detection distances and pilot budgets follow the confirmed Sensors design below.
 - Document explicit numerical defaults during implementation and tune toward five-to-ten-minute engagements, excluding pauses. Roughly ten-second cycles for major weapons are a provisional starting target.
 - These deliberately simplified rules take precedence over tabletop fidelity; numerical tuning must not silently introduce deferred mechanics.
 
@@ -147,3 +147,16 @@ The simulated battlefield uses reproducible, asymmetric procedural natural terra
 Rocks are impassable and block detection and fire. Hills affect movement and line of sight through their elevation, with no separate height bonus. Water slows movement. Vegetation slows movement and reduces hit chance when the target is within it or the shot passes through it; cap the penalty. Detection remains shared, but each attacker needs a clear line of fire.
 
 Both sides navigate around obstacles and seek a clear firing position for blocked attack orders. A movement order to an inaccessible point resolves to the nearest reachable point and displays the actual destination. Combat information explains blocked fire and vegetation penalties. Use simple, readable visuals and one default terrain density; document and test initial numerical tuning.
+
+
+## Sensors and pilot budgets (confirmed October 27, 2026)
+
+Each pilot has Gunnery, Piloting and Sensors in the range 2 (expert) to 6 (novice). All start at 6; each step of improvement costs one point, so a skill costs `6 - rating`. Regular pilots spend exactly six points, veterans eight. Existing named pilots retain identities and quality classifications but have rebalanced fixed ratings, including Sensors specialists. These allocations resolve through existing catalog IDs in saves.
+
+`identification radius = 25 × (1 + (6 − Sensors) / 4) × (0.5 + (target tonnage − 20) / 160)`
+
+`detailed status radius = identification radius / 2`
+
+Use continuous planar distances, including each boundary. Only the target's tonnage affects its signature. Current catalog weights are 20–100 tons; radius inputs are bounded to these endpoints and Sensors 2–6. A novice identifies a 20-ton mech at 12.5 hexes and a 100-ton mech at 25; an expert identifies them at 25 and 50. Both tiers require clear terrain sight and are shared by each side. Disabled and destroyed units cannot observe but remain observable targets.
+
+Close inspection exposes existing equipment state and availability, including equipment lost with its location and weapons without usable ammunition. It adds no heat, critical-hit or other damage mechanics. Visible missing limbs, fallen wrecks and movement still provide physical clues at model-only range. Post-battle damage reports retain their existing full results. Piloting remains a roster skill pending its combat mechanics; the equal point costs establish the agreed allocation structure rather than equal current combat value.

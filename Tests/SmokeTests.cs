@@ -15,6 +15,12 @@ public partial class SmokeTests : Node
         {
             _screenshots = OS.GetCmdlineUserArgs().Contains("--screenshots");
             var combatUiOnly = OS.GetCmdlineUserArgs().Contains("--combat-ui-only");
+            var combatLayoutOnly = OS.GetCmdlineUserArgs().Contains("--combat-layout-only");
+            await TestCombatLayouts();
+            if (combatLayoutOnly)
+            {
+                GD.Print($"PASS: {_checks} combat layout checks"); GetTree().Quit(); return;
+            }
             if (!combatUiOnly)
             {
                 TestGeometry();
@@ -683,6 +689,12 @@ public partial class SmokeTests : Node
                 var button = _app.Drafting.Choices[pool, choice];
                 Check(button.IsVisibleInTree() && _app.Drafting.GetGlobalRect().Encloses(button.GetGlobalRect()) && button.Size.Y >= 36,
                     $"all 24 draft candidates visible and clickable at {size}");
+                if (pool >= 4)
+                {
+                    var stats = button.GetChildren().OfType<Label>().Single(label => label.Text.StartsWith("G") && label.Text.Contains("/ S"));
+                    var width = stats.GetThemeFont("font").GetStringSize(stats.Text, fontSize: stats.GetThemeFontSize("font_size")).X;
+                    Check(width <= stats.Size.X, $"Gunnery, Piloting and Sensors fit on the draft card at {size}");
+                }
             }
             await Capture($"draft-{size.X}x{size.Y}");
         }
