@@ -74,10 +74,10 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 - This is a standalone simulation using existing mech and MechWarrior definitions. It reports damage and outcome without changing the campaign; launching from an accepted mission and applying permanent results are deferred.
 - Use a bounded 192 × 192 arena with procedural natural terrain and authored opposing starting positions, initially outside detection range. Keep spawns clear and connected. Expose a reproducible terrain seed independent of combat rolls.
 - Start paused and support one to four mechs per side. There is no deployment-placement phase.
-- Every deployment goes through a force-selection panel, including Simulated Deployment; this is also a general rule for eventual campaign deployments.
+- Simulated Deployment first offers **Randomized enemy** or **Mirror match**, then opens the existing force-selection and terrain setup. Canceling returns to the hangar. Every deployment goes through force selection; this is also a general rule for eventual campaign deployments.
 - Select one to four operational roster mechs with healthy, assigned MechWarriors. Show why unavailable mechs cannot participate. Assignments remain managed in the hangar.
-- Copy selected mechs' current condition, equipment, and assigned MechWarrior skills into the simulation.
-- Simulated opposition is an undamaged mirror of the selected force, matching mech types and MechWarrior skills.
+- A mirror match copies the selected mech types and assigned MechWarrior skills, with both sides fully repaired and supplied inside the simulation.
+- Randomized opposition is generated on Launch using fresh candidate pools and uniformly random choices under the player's initial draft rules. Deploy the same number of enemies with the same weight categories as the selected player force, retaining their draft-assigned pilots. Generate another fresh legal draft whenever a category runs out, keeping unused pairs available for later slots. Enemy units start pristine; player units retain their current condition and ammunition in this mode. Repeating a terrain seed reproduces terrain independently of the enemy draft.
 - Enemy AI uses the same detection and combat rules. It advances toward the arena center until contact, then issues attack orders against the nearest detected enemy and maintains preferred engagement distance. Coordinated flanking and privileged hidden-position knowledge are excluded.
 
 ## Simulation completion and exit
@@ -128,7 +128,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 
 ## Acceptance scenarios
 
-1. Open **Simulated Deployment** from the hangar, select one to four eligible mechs, and start paused against an undamaged mirrored force. Ineligible roster entries explain their unavailable state.
+1. Open **Simulated Deployment** from the hangar, choose randomized opposition or a mirror match, select one to four eligible mechs, and start paused. Randomized opposition matches count and weight categories using fresh legal drafts; a mirror matches types and pilot skills with both sides pristine. Ineligible roster entries explain their unavailable state.
 2. Issue and replace movement/attack orders while paused; resume to execute them. Group movement uses separate destinations, and walking/running modes persist.
 3. Demonstrate that Attack causes pursuit and preferred-distance positioning, while assigning a priority target alone never causes movement. A moving mech fires opportunistically without diverting from its destination.
 4. Verify automatic target precedence, weapon enable/disable controls, independent cooldowns, and Hold fire's suppression of opportunistic shots while permitting an explicit attack on its target.

@@ -4,6 +4,7 @@ using System.Globalization;
 namespace Mech;
 
 public enum CombatSide { Friendly, Enemy }
+public enum SimulationOpponent { Mirror, Randomized }
 public enum CombatOrder { Hold, Move, Attack, Follow }
 public enum MovementMode { Walk, Run }
 public enum FiringMode { FireAtWill, HoldFire }
@@ -226,32 +227,66 @@ public sealed partial class CombatSimulation
         return reasons.Count == 0 ? null : string.Join(" · ", reasons);
     }
 
-    public static CombatSimulation Deploy(ForceRoster roster, IEnumerable<string> selected, int? seed = null, int? terrainSeed = null) =>
-        CreateDeployment(roster, selected, seed, terrainSeed, null);
-    internal static CombatSimulation DeployOnTerrain(ForceRoster roster, IEnumerable<string> selected, BattlefieldTerrain terrain, int seed = 41) =>
-        CreateDeployment(roster, selected, seed, null, terrain);
-    private static CombatSimulation CreateDeployment(ForceRoster roster, IEnumerable<string> selected, int? seed, int? terrainSeed, BattlefieldTerrain? terrain)
+    public static CombatSimulation Deploy(ForceRoster roster, IEnumerable<string> selected, int? seed = null, int? terrainSeed = null,
+        SimulationOpponent opponent = SimulationOpponent.Mirror) =>
+        CreateDeployment(roster, selected, seed, terrainSeed, null, opponent);
+    internal static CombatSimulation DeployOnTerrain(ForceRoster roster, IEnumerable<string> selected, BattlefieldTerrain terrain, int seed = 41,
+        SimulationOpponent opponent = SimulationOpponent.Mirror) =>
+        CreateDeployment(roster, selected, seed, null, terrain, opponent);
+    private static CombatSimulation CreateDeployment(ForceRoster roster, IEnumerable<string> selected, int? seed, int? terrainSeed,
+        BattlefieldTerrain? terrain, SimulationOpponent opponent)
     {
+        if (!Enum.IsDefined(opponent)) throw new ArgumentOutOfRangeException(nameof(opponent));
         var ids = selected.ToArray();
         if (ids.Length is < 1 or > 4 || ids.Distinct().Count() != ids.Length)
             throw new ArgumentException("Select one to four different BattleMechs.");
-        var units = new List<CombatUnit>();
-        for (var i = 0; i < ids.Length; i++)
+        var force = ids.Select(id =>
         {
-            var source = roster.Mechs.SingleOrDefault(item => item.Id == ids[i])
+            var source = roster.Mechs.SingleOrDefault(item => item.Id == id)
                 ?? throw new ArgumentException("Unknown BattleMech.");
             if (UnavailableReason(roster, source) is { } reason) throw new ArgumentException(reason);
+            return source;
+        }).ToArray();
+        var combatSeed = seed ?? Random.Shared.Next();
+        var enemies = opponent == SimulationOpponent.Randomized ? DraftOpposition(force, new Random(combatSeed)) : null;
+        var units = new List<CombatUnit>();
+        for (var i = 0; i < force.Length; i++)
+        {
+            var source = force[i];
             var pilot = roster.Pilot(source)!.Spec;
             var x = (i - (ids.Length - 1) / 2f) * CombatRules.DeploymentSpacing;
-            units.Add(new(source.Id, source.Spec, pilot, CombatSide.Friendly, source.Locations,
-                source.Equipment, source.Ammo, new Vector2(x, CombatRules.DeploymentDepth)));
-            var spec = source.Spec;
-            units.Add(new($"enemy-{i + 1}", spec, pilot, CombatSide.Enemy,
-                spec.Locations.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)),
-                source.Equipment.Select(item => new EquipmentCondition(item.Id, ComponentCondition.Operational)),
-                spec.Ammo.Select(item => new AmmoCondition(item.Id, item.Shots)), new Vector2(x, -CombatRules.DeploymentDepth)));
+            units.Add(DeploymentUnit(source.Id, source, pilot, CombatSide.Friendly, new Vector2(x, CombatRules.DeploymentDepth),
+                pristine: opponent == SimulationOpponent.Mirror));
+            var enemy = enemies is null ? (Mech: source, Pilot: pilot) : enemies[i];
+            units.Add(DeploymentUnit($"enemy-{i + 1}", enemy.Mech, enemy.Pilot, CombatSide.Enemy,
+                new Vector2(x, -CombatRules.DeploymentDepth), pristine: true));
         }
-        return new CombatSimulation(units, seed ?? Random.Shared.Next(), terrain ?? BattlefieldTerrain.Generate(terrainSeed ?? Random.Shared.Next()));
+        return new CombatSimulation(units, combatSeed, terrain ?? BattlefieldTerrain.Generate(terrainSeed ?? Random.Shared.Next()));
+    }
+    private static CombatUnit DeploymentUnit(string id, OwnedMech source, WarriorSpec pilot, CombatSide side, Vector2 position, bool pristine) =>
+        new(id, source.Spec, pilot, side,
+            pristine ? source.Spec.Locations.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)) : source.Locations,
+            pristine ? source.Equipment.Select(item => new EquipmentCondition(item.Id, ComponentCondition.Operational)) : source.Equipment,
+            pristine ? source.Spec.Ammo.Select(item => new AmmoCondition(item.Id, item.Shots)) : source.Ammo, position);
+
+    private static (OwnedMech Mech, WarriorSpec Pilot)[] DraftOpposition(IReadOnlyList<OwnedMech> force, Random random)
+    {
+        var available = new List<(OwnedMech Mech, WarriorSpec Pilot)>();
+        var enemies = new List<(OwnedMech Mech, WarriorSpec Pilot)>();
+        foreach (var source in force)
+        {
+            var match = available.FindIndex(item => item.Mech.Spec.WeightClass == source.Spec.WeightClass);
+            if (match < 0)
+            {
+                // Each legal draft contributes one mech/pilot pair per weight category.
+                // Retain unused pairs; repeated categories draw from another fresh draft.
+                var draft = InitialDraft.CreateRandom(random).Establish();
+                available.AddRange(draft.Mechs.Select(mech => (mech, draft.Pilot(mech)!.Spec)));
+                match = available.FindIndex(item => item.Mech.Spec.WeightClass == source.Spec.WeightClass);
+            }
+            enemies.Add(available[match]); available.RemoveAt(match);
+        }
+        return enemies.ToArray();
     }
     internal CombatSimulation(IEnumerable<CombatUnit> units, int seed, BattlefieldTerrain? terrain = null)
     { Units = Array.AsReadOnly(units.ToArray()); Terrain = terrain ?? BattlefieldTerrain.Flat; _random = new Random(seed); RefreshDetection(); }

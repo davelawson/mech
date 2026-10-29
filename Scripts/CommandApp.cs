@@ -246,6 +246,7 @@ public partial class CommandApp : Control
         else if (Drafting.Visible) Drafting.HandleEscape();
         else if (Rolodex.Visible) Rolodex.RequestBack();
         else if (Missions.Visible || StarMap.Visible || Hangar.Visible) ShowOffice();
+        else if (Office.Visible) ShowMainMenu();
     }
 
     public override void _Input(InputEvent @event)

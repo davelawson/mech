@@ -147,7 +147,16 @@ public partial class SmokeTests
         await Capture("awesome-hangar-damaged");
         hangar.Hide();
         var combat = new CombatScreen(); stage.AddChild(combat); combat.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        combat.Open(damagedRoster, damaged.Id); combat.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed); await Frames();
+        combat.Open(damagedRoster, damaged.Id); combat.RandomizedEnemyButton.EmitSignal(BaseButton.SignalName.Pressed);
+        combat.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed); await Frames();
+        var damagedFriendly = combat.Simulation!.Units.First(unit => unit.Side == CombatSide.Friendly);
+        Check(combat.Paperdoll.Unit == damagedFriendly
+            && damagedFriendly.Locations[MechLocation.RightTorso].Armor == damagedFriendly.Locations[MechLocation.RightTorso].InitialArmor
+            && CombatPaperdoll.ConditionColor(damagedFriendly.Locations[MechLocation.RightTorso].Armor,
+                damagedFriendly.Spec.Locations.Single(loc => loc.Location == MechLocation.RightTorso).Armor) == CombatPaperdoll.ModerateDamage,
+            "randomized battle preserves pre-deployment damage colored against stock maxima");
+        combat.Open(damagedRoster, damaged.Id); combat.MirrorMatchButton.EmitSignal(BaseButton.SignalName.Pressed);
+        combat.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed); await Frames();
         var sim = combat.Simulation!; var friendly = sim.Units.First(unit => unit.Side == CombatSide.Friendly);
         var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
         // Model review uses the guaranteed clear spawn band, independently of random scenery.
@@ -155,8 +164,8 @@ public partial class SmokeTests
         sim.RefreshDetection(); combat.Battlefield.Camera.Position += new Vector3(0, 0, 20);
         combat.Battlefield.Camera.Size = 12; await Frames();
         Check(combat.Paperdoll.Unit == friendly && friendly.Locations[MechLocation.RightTorso].Armor == friendly.Locations[MechLocation.RightTorso].InitialArmor
-            && CombatPaperdoll.ConditionColor(friendly.Locations[MechLocation.RightTorso].Armor, friendly.Spec.Locations.Single(loc => loc.Location == MechLocation.RightTorso).Armor) == CombatPaperdoll.ModerateDamage,
-            "pre-deployment damage remains colored against stock maxima rather than deployment values");
+            && CombatPaperdoll.ConditionColor(friendly.Locations[MechLocation.RightTorso].Armor, friendly.Spec.Locations.Single(loc => loc.Location == MechLocation.RightTorso).Armor) == CombatPaperdoll.Full
+            && friendly.Intact(MechLocation.LeftArm), "mirror battle restores the friendly model and paperdoll to pristine condition");
         Check(CombatPaperdoll.ConditionColor(100, 100) == CombatPaperdoll.Full
             && CombatPaperdoll.ConditionColor(99, 100) == CombatPaperdoll.LightDamage
             && CombatPaperdoll.ConditionColor(2, 3) == CombatPaperdoll.ModerateDamage

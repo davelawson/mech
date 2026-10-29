@@ -2,7 +2,7 @@ using Godot;
 
 namespace Mech;
 
-public enum CombatModal { None, ForceSelection, Menu, Results }
+public enum CombatModal { None, OpponentSelection, ForceSelection, Menu, Results }
 
 public partial class CombatScreen : Control
 {
@@ -12,6 +12,9 @@ public partial class CombatScreen : Control
     public CombatModal Modal { get; private set; }
     public CombatPaperdoll Paperdoll { get; private set; } = null!;
     public List<CheckBox> ForceChoices { get; } = [];
+    public Button RandomizedEnemyButton { get; private set; } = null!;
+    public Button MirrorMatchButton { get; private set; } = null!;
+    public SimulationOpponent Opponent { get; private set; }
     public LineEdit TerrainSeedInput { get; private set; } = null!;
     public Button NewTerrainButton { get; private set; } = null!;
     public Button LaunchButton { get; private set; } = null!;
@@ -132,7 +135,7 @@ public partial class CombatScreen : Control
     public void Open(ForceRoster roster, string selectedMechId)
     {
         _roster = roster; Simulation = null; _primary = null; _selected.Clear(); SettingPriority = false;
-        Show(); ShowForceSelection(selectedMechId);
+        Show(); ShowOpponentSelection(selectedMechId);
     }
     private void BeginModal(CombatModal modal, string title)
     {
@@ -145,10 +148,25 @@ public partial class CombatScreen : Control
         var buttons = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End };
         buttons.AddThemeConstantOverride("separation", 10); _modalContent.AddChild(buttons); return buttons;
     }
+    private void ShowOpponentSelection(string selectedMechId)
+    {
+        BeginModal(CombatModal.OpponentSelection, "Choose your opponent");
+        RosterUi.Text(_modalContent, "Choose an opponent, then select your force and terrain. Your campaign will be preserved.", 14);
+        RandomizedEnemyButton = Ui.Button(_modalContent, "Randomized enemy");
+        RosterUi.Text(_modalContent, "A fresh enemy draft matches your deployed count and weight categories. Your units keep their current condition.", 14, Ui.Muted);
+        RandomizedEnemyButton.Pressed += () => { Opponent = SimulationOpponent.Randomized; ShowForceSelection(selectedMechId); };
+        MirrorMatchButton = Ui.Button(_modalContent, "Mirror match");
+        RosterUi.Text(_modalContent, "Face the same mechs and pilot skills. Both sides start fully repaired and supplied.", 14, Ui.Muted);
+        MirrorMatchButton.Pressed += () => { Opponent = SimulationOpponent.Mirror; ShowForceSelection(selectedMechId); };
+        BackButton = Ui.Button(ModalActions(), "Back to hangar"); BackButton.Pressed += Exit;
+        RandomizedEnemyButton.GrabFocus(); RosterUi.TrapFocus(_shade);
+    }
     private void ShowForceSelection(string selectedMechId)
     {
-        BeginModal(CombatModal.ForceSelection, "Simulate Deployment");
-        RosterUi.Text(_modalContent, "Choose 1–4 BattleMechs. Opposition mirrors your force at full condition. Your campaign will be preserved.", 14);
+        BeginModal(CombatModal.ForceSelection, Opponent == SimulationOpponent.Mirror ? "Mirror match" : "Randomized enemy");
+        RosterUi.Text(_modalContent, Opponent == SimulationOpponent.Mirror
+            ? "Choose 1–4 BattleMechs. Opposition mirrors your mechs and pilot skills. Both sides start fully repaired and supplied. Your campaign will be preserved."
+            : "Choose 1–4 BattleMechs. A fresh enemy draft matches your count and weight categories. Your units keep their current condition. Your campaign will be preserved.", 14);
         RosterUi.Text(_modalContent, "Natural terrain · enter a seed to recreate a battlefield. Combat rolls vary independently.", 12, Ui.Muted);
         var seedRow = new HBoxContainer(); _modalContent.AddChild(seedRow);
         Ui.Label(seedRow, "Terrain seed", 13, Ui.Gold);
@@ -187,7 +205,7 @@ public partial class CombatScreen : Control
     {
         if (LaunchButton.Disabled) return;
         Simulation = CombatSimulation.Deploy(_roster, _forceIds.Where((_, i) => ForceChoices[i].ButtonPressed),
-            terrainSeed: int.Parse(TerrainSeedInput.Text, System.Globalization.CultureInfo.InvariantCulture));
+            terrainSeed: int.Parse(TerrainSeedInput.Text, System.Globalization.CultureInfo.InvariantCulture), opponent: Opponent);
         Battlefield.Display(Simulation); _shade.Hide(); Modal = CombatModal.None; Battlefield.CommandsEnabled = true;
         Battlefield.MouseFilter = MouseFilterEnum.Stop;
         RosterUi.Clear(_unitBar); UnitButtons.Clear();
@@ -286,7 +304,7 @@ public partial class CombatScreen : Control
         if (input is not InputEventKey { Pressed: true, Echo: false } key) return false;
         if (key.Keycode == Key.Escape)
         {
-            if (Modal == CombatModal.ForceSelection || Modal == CombatModal.Results) Exit();
+            if (Modal is CombatModal.OpponentSelection or CombatModal.ForceSelection or CombatModal.Results) Exit();
             else if (Modal == CombatModal.Menu) Resume();
             else if (SettingPriority) { SettingPriority = false; RefreshDetails(); }
             else OpenMenu();

@@ -61,6 +61,7 @@ public partial class SmokeTests
         {
             window.MinSize = new Vector2I(900, 500);
             tactical.Open(roster, roster.Mechs[0].Id);
+            tactical.MirrorMatchButton.EmitSignal(BaseButton.SignalName.Pressed);
             tactical.TerrainSeedInput.Text = "183";
             tactical.TerrainSeedInput.EmitSignal(LineEdit.SignalName.TextChanged, "183");
             tactical.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed);

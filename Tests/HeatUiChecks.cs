@@ -13,6 +13,7 @@ public partial class SmokeTests
         try
         {
             tactical.Open(roster, roster.Mechs[0].Id);
+            tactical.MirrorMatchButton.EmitSignal(BaseButton.SignalName.Pressed);
             foreach (var choice in tactical.ForceChoices) choice.ButtonPressed = true;
             tactical.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed);
             var sim = tactical.Simulation!;

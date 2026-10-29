@@ -61,8 +61,20 @@ internal static partial class CombatChecks
         };
         var damagedRoster = ForceRoster.Restore(saved with { Mechs = [damaged] }, Campaign.StartDate);
         var copied = Deploy(damagedRoster, [damaged.Id]);
-        check(Friendly(copied).Locations[MechLocation.CenterTorso].Armor + 3 == Enemy(copied).Locations[MechLocation.CenterTorso].Armor
-            && !Friendly(copied).WeaponUsable(Friendly(copied).Weapons[0]) && Enemy(copied).WeaponUsable(Enemy(copied).Weapons[0]), "current condition and equipment copied; enemy is undamaged");
+        check(copied.Units.All(unit => unit.Locations[MechLocation.CenterTorso].Armor == stock.Locations.Single(loc => loc.Location == MechLocation.CenterTorso).Armor
+            && unit.Equipment.Values.All(condition => condition == ComponentCondition.Operational)
+            && unit.Ammo.All(bin => bin.Shots == unit.Spec.Ammo.Single(item => item.Id == bin.Id).Shots)), "mirror restores armor, equipment and ammo on both sides");
+        var damagedBefore = JsonSerializer.Serialize(damagedRoster.Snapshot());
+        var randomized = CombatSimulation.DeployOnTerrain(damagedRoster, [damaged.Id], BattlefieldTerrain.Flat, opponent: SimulationOpponent.Randomized);
+        check(Friendly(randomized).Locations[MechLocation.CenterTorso].Armor + 3 == Friendly(copied).Locations[MechLocation.CenterTorso].Armor
+            && !Friendly(randomized).WeaponUsable(Friendly(randomized).Weapons[0]), "randomized battle retains friendly campaign condition");
+        foreach (var battle in new[] { copied, randomized })
+        {
+            foreach (var unit in battle.Units) unit.ApplyDamage(MechLocation.CenterTorso, 1000);
+            battle.End();
+        }
+        check(JsonSerializer.Serialize(damagedRoster.Snapshot()) == damagedBefore, "neither simulation mode repairs or damages the campaign roster");
+        CheckRandomizedOpposition(check);
         var nonoperational = ForceRoster.Restore(saved with { Mechs = [stock with { Locations = stock.Locations.Select(loc => loc.Location == MechLocation.LeftLeg ? loc with { Structure = 0 } : loc).ToArray() }] }, Campaign.StartDate);
         check(CombatSimulation.UnavailableReason(nonoperational, nonoperational.Mechs[0])!.Contains("not operational"), "nonoperational mech explains exclusion");
 
@@ -114,6 +126,47 @@ internal static partial class CombatChecks
         a.Advance(10); for (var i = 0; i < 100; i++) b.Advance(.1);
         check(a.Units.Zip(b.Units).All(pair => pair.First.Hits == pair.Second.Hits && pair.First.ArmorLost == pair.Second.ArmorLost), "fixed-step combat is independent of frame partitioning");
         RunEngagements(check);
+    }
+    private static void CheckRandomizedOpposition(Action<bool, string> check)
+    {
+        foreach (var definitions in new[]
+        {
+            new[] { "jenner" }, new[] { "awesome", "wolverine" },
+            new[] { "wolverine", "catapult", "wolverine" }, new[] { "awesome", "awesome", "awesome", "awesome" },
+            new[] { "awesome", "jenner", "catapult", "wolverine" }
+        })
+        {
+            var roster = ForceRoster.Create("Random opposition checks", definitions.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(definitions.Length));
+            for (var i = 0; i < definitions.Length; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
+            var before = JsonSerializer.Serialize(roster.Snapshot());
+            var signatures = new HashSet<string>();
+            for (var seed = 0; seed < 12; seed++)
+            {
+                var sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Reverse().Select(mech => mech.Id), BattlefieldTerrain.Flat,
+                    seed, SimulationOpponent.Randomized);
+                var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
+                var enemies = sim.Units.Where(unit => unit.Side == CombatSide.Enemy).ToArray();
+                check(enemies.Length == definitions.Length && friends.Zip(enemies).All(pair => pair.First.Spec.WeightClass == pair.Second.Spec.WeightClass),
+                    "random opposition matches count and each selected weight category, including repeats");
+                check(enemies.All(unit => unit.Equipment.Values.All(condition => condition == ComponentCondition.Operational)
+                    && unit.Locations.Values.All(loc => loc.Armor == unit.Spec.Locations.Single(stock => stock.Location == loc.Location).Armor)
+                    && unit.Ammo.All(bin => bin.Shots == unit.Spec.Ammo.Single(stock => stock.Id == bin.Id).Shots)
+                    && unit.Warrior.SkillPoints == unit.Warrior.SkillBudget
+                    && unit.Warrior.Experience.StartsWith(unit.Spec.WeightClass == "Assault" ? "Veteran" : "Regular")),
+                    "drafted enemies are pristine with legal pilots assigned by draft column");
+                signatures.Add(string.Join(",", enemies.Select(unit => $"{unit.Spec.Id}/{unit.Warrior.Id}")));
+                foreach (var unit in sim.Units) unit.ApplyDamage(MechLocation.CenterTorso, 1000);
+                sim.End();
+            }
+            check(signatures.Count > 1, "fresh enemy drafts vary across simulation seeds");
+            check(JsonSerializer.Serialize(roster.Snapshot()) == before, "random drafting and combat preserve the player's roster");
+        }
+        var fullRoster = InitialDraft.CreateRandom(new Random(73)).Establish();
+        var expected = InitialDraft.CreateRandom(new Random(91)).Establish();
+        var battle = CombatSimulation.DeployOnTerrain(fullRoster, fullRoster.Mechs.Select(mech => mech.Id), BattlefieldTerrain.Flat, 91, SimulationOpponent.Randomized);
+        check(battle.Units.Where(unit => unit.Side == CombatSide.Enemy).Zip(expected.Mechs)
+            .All(pair => pair.First.Spec == pair.Second.Spec && pair.First.Warrior == expected.Pilot(pair.Second)!.Spec),
+            "random opposition uses the same fresh candidate pools and random selections as a player draft");
     }
     private static void CheckTargeting(Action<bool, string> check)
     {

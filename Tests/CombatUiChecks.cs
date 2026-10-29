@@ -16,7 +16,19 @@ public partial class SmokeTests
         tabs.CurrentTab = 2;
         await Click(_app.Hangar.DeploymentButton);
         var tactical = _app.Tactical;
-        Check(tactical.Visible && !_app.Hangar.Visible && tactical.Modal == CombatModal.ForceSelection, "hangar simulation opens force selection");
+        Check(tactical.Visible && !_app.Hangar.Visible && tactical.Modal == CombatModal.OpponentSelection && tactical.Simulation is null,
+            "hangar simulation opens opponent selection before creating a battle");
+        GetWindow().Size = new Vector2I(900, 500); await Frames();
+        Check(tactical.GetGlobalRect().Encloses(tactical.RandomizedEnemyButton.GetGlobalRect())
+            && tactical.GetGlobalRect().Encloses(tactical.MirrorMatchButton.GetGlobalRect())
+            && tactical.GetGlobalRect().Encloses(tactical.BackButton.GetGlobalRect()), "opponent choices fit the minimum window");
+        await Capture("deployment-opponent-900x500");
+        await PressKey(Key.Escape);
+        Check(_app.Hangar.Visible && !tactical.Visible, "Escape cancels opponent selection and returns to hangar");
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        await Click(_app.Hangar.DeploymentButton); await Click(tactical.MirrorMatchButton);
+        Check(tactical.Modal == CombatModal.ForceSelection && tactical.Opponent == SimulationOpponent.Mirror,
+            "mirror choice opens force selection");
         Check(!tactical.LaunchButton.Disabled && tactical.ForceChoices.All(item => !item.Disabled), "drafted company can deploy immediately with its assigned pilots");
         await PressKey(Key.Escape);
         var roster = _app.State.Roster!;
@@ -24,6 +36,7 @@ public partial class SmokeTests
         _app.Hangar.Refresh();
         tabs = _app.Hangar.FindChildren("*", "TabContainer", true, false).OfType<TabContainer>().Single(); tabs.CurrentTab = 2;
         await Frames(); await Click(_app.Hangar.DeploymentButton);
+        await Click(tactical.MirrorMatchButton);
         Check(tactical.LaunchButton.Disabled && tactical.ForceChoices.All(item => item.Disabled), "unassigned roster cannot launch simulation");
         await Capture("deployment-unavailable");
         await PressKey(Key.Escape);
@@ -35,6 +48,7 @@ public partial class SmokeTests
         await Frames();
         var before = JsonSerializer.Serialize(_app.State.Snapshot());
         await Click(_app.Hangar.DeploymentButton);
+        await Click(tactical.MirrorMatchButton);
         Check(tactical.ForceChoices[1].ButtonPressed && tactical.ForceChoices.Count(item => item.ButtonPressed) == 1, "force selection preselects eligible hangar mech");
         await Click(tactical.ForceChoices[0]);
         tactical.TerrainSeedInput.Text = "invalid";
@@ -192,7 +206,18 @@ public partial class SmokeTests
         Check(JsonSerializer.Serialize(_app.State.Snapshot()) == before, "UI simulation preserves campaign date, finances, roster, equipment, assignments and warriors");
         Check(_app.Hangar.DeploymentButton.HasFocus(), "return restores focus to simulation launcher");
         // Relaunch and exercise automatic completion through the UI.
-        await Click(_app.Hangar.DeploymentButton); await Click(tactical.LaunchButton);
+        await Click(_app.Hangar.DeploymentButton); await Click(tactical.RandomizedEnemyButton);
+        Check(tactical.Modal == CombatModal.ForceSelection && tactical.Opponent == SimulationOpponent.Randomized && tactical.Simulation is null,
+            "randomized choice defers enemy generation until launch");
+        await Click(tactical.ForceChoices[0]);
+        tactical.TerrainSeedInput.Text = "183";
+        tactical.TerrainSeedInput.EmitSignal(LineEdit.SignalName.TextChanged, "183");
+        await Click(tactical.LaunchButton);
+        var randomFriends = tactical.Simulation!.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
+        var randomEnemies = tactical.Simulation.Units.Where(unit => unit.Side == CombatSide.Enemy).ToArray();
+        Check(randomFriends.Length == 2 && randomEnemies.Length == 2 && randomFriends.Zip(randomEnemies)
+            .All(pair => pair.First.Spec.WeightClass == pair.Second.Spec.WeightClass) && tactical.Simulation.Terrain.Seed == 183,
+            "randomized launch honors selected force categories, count and terrain seed");
         foreach (var unit in tactical.Simulation!.Units.Where(item => item.Side == CombatSide.Enemy)) unit.ApplyDamage(MechLocation.CenterTorso, 1000);
         tactical.TogglePause(); await Delay(.15);
         Check(tactical.Modal == CombatModal.Results && tactical.Simulation.Outcome == CombatOutcome.Victory, "automatic combat outcome opens results");

@@ -339,8 +339,10 @@ public partial class SmokeTests : Node
         var date = _app.State.Date;
         _app.StartAdvancing(true);
         await RightClick(_app.Office.CalendarButton.GetGlobalRect().GetCenter());
-        Check(!_app.IsAdvancing && _app.State.Date == date && _app.Office.Visible && !_app.MainMenu.Visible,
-            "office right-click stops time without opening another screen");
+        Check(!_app.IsAdvancing && _app.State.Date == date && !_app.Office.Visible && _app.MainMenu.Visible,
+            "office right-click stops time and opens the main menu");
+        await Click(_app.MainMenu.ResumeButton);
+        Check(_app.Office.Visible && !_app.IsAdvancing, "Resume returns to the office with time paused after right-click");
         _app.ShowMap(); await Frames();
         await RightClick(_app.StarMap.Search.GetGlobalRect().GetCenter());
         Check(_app.Office.Visible && !_app.StarMap.Visible && _app.Office.Hotspot.HasFocus(),
