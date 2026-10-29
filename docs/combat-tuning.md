@@ -115,6 +115,14 @@ Friendly ground labels and cards show current heat; selected details show heat b
 
 Five-to-ten minutes remains a provisional ordinary-engagement target. With the expanded ranges and Normal heat policies, the seeded flat-ground mixed-lance check finishes in 540 simulated seconds; one-on-one Jenner, Griffin and Awesome checks finish in 136, 234 and 237 seconds. The seeded natural-terrain mixed-lance check finishes in 491 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
 
+## Calculation reuse
+
+Navigation stores immutable per-edge movement costs alongside the terrain's connectivity graph. A* rents its cost and predecessor buffers per query and returns independent waypoint lists; concurrent queries share no writable search state. Firing-position searches limit candidates to the weapon-range bounding box and reuse a pooled sorting buffer. Equal scores still favor the original row-major node order.
+
+The weapon sidebar evaluates each distinct main/rear target pair's heat volley once per refresh, sharing it across weapon statuses. Preview-only targets retain the existing mount-specific fallback. Results are discarded after that refresh so paused edits, cooldowns, contacts, heat and damage are reflected immediately; previews never consume random draws.
+
+The terrain and heat checks cover stable route/firing choices, concurrent searches, allocation budgets, batched status equivalence and unchanged firing events. Allocation checks warm the buffer pools first and avoid wall-clock timing assertions.
+
 ## Interaction defaults
 
 - Enter a terrain seed or use New terrain before launching; the chosen seed reproduces terrain only.

@@ -1,4 +1,5 @@
 using Godot;
+using System.Buffers;
 
 namespace Mech;
 
@@ -22,7 +23,16 @@ public sealed class BattlefieldTerrain
     private readonly float[] _heights = new float[GridSize * GridSize];
     private readonly bool[] _walkable = new bool[GridSize * GridSize];
     private readonly int[] _components = new int[GridSize * GridSize];
-    private readonly List<int>[] _neighbors;
+    private readonly record struct NavigationEdge(int Node, float Cost);
+    private readonly record struct FiringCandidate(int Node, float Cost) : IComparable<FiringCandidate>
+    {
+        public int CompareTo(FiringCandidate other)
+        {
+            var cost = Cost.CompareTo(other.Cost);
+            return cost != 0 ? cost : Node.CompareTo(other.Node);
+        }
+    }
+    private readonly List<NavigationEdge>[] _neighbors;
     private readonly bool _flat;
     private readonly TerrainPatch[] _rocks;
     public static BattlefieldTerrain Flat { get; } = new(0, [], []);
@@ -42,9 +52,16 @@ public sealed class BattlefieldTerrain
                 height *= Mathf.SmoothStep(0, 1, Math.Clamp((point.DistanceTo(water.Center) - water.Radius - 1) / 3, 0, 1));
             _heights[Index(x, z)] = height;
         }
-        _neighbors = Enumerable.Range(0, _heights.Length).Select(_ => new List<int>(8)).ToArray();
+        _neighbors = Enumerable.Range(0, _heights.Length).Select(_ => new List<NavigationEdge>(8)).ToArray();
+        // Terrain never changes: evaluate traversal speeds once instead of for every A* expansion.
+        var speeds = new float[_heights.Length];
         for (var z = 0; z < GridSize; z++) for (var x = 0; x < GridSize; x++)
-            _walkable[Index(x, z)] = Passable(new Vector2(x - HalfSize, z - HalfSize));
+        {
+            var index = Index(x, z);
+            var point = Point(index);
+            _walkable[index] = Passable(point);
+            if (_walkable[index]) speeds[index] = SpeedFactor(point);
+        }
         for (var z = 1; z < GridSize - 1; z++) for (var x = 1; x < GridSize - 1; x++)
         {
             var index = Index(x, z);
@@ -53,7 +70,7 @@ public sealed class BattlefieldTerrain
             {
                 var next = Index(x + dx, z + dz);
                 if ((dx != 0 || dz != 0) && _walkable[next] && CanTraverse(Point(index), Point(next)))
-                    _neighbors[index].Add(next);
+                    _neighbors[index].Add(new(next, Point(index).DistanceTo(Point(next)) / speeds[next]));
             }
         }
         var component = 0;
@@ -61,8 +78,8 @@ public sealed class BattlefieldTerrain
         {
             if (!_walkable[index] || _components[index] != 0) continue;
             var open = new Queue<int>(); open.Enqueue(index); _components[index] = ++component;
-            while (open.TryDequeue(out var current)) foreach (var next in _neighbors[current])
-                if (_components[next] == 0) { _components[next] = component; open.Enqueue(next); }
+            while (open.TryDequeue(out var current)) foreach (var edge in _neighbors[current])
+                if (_components[edge.Node] == 0) { _components[edge.Node] = component; open.Enqueue(edge.Node); }
         }
     }
 
@@ -256,38 +273,76 @@ public sealed class BattlefieldTerrain
         if (CanTraverse(from, to)) return [to];
         var start = NearestNode(from); var end = NearestNode(to);
         if (start < 0 || end < 0 || _components[start] != _components[end]) return [];
-        var open = new PriorityQueue<int, (float, int)>(); var costs = new float[_walkable.Length]; Array.Fill(costs, float.PositiveInfinity);
-        var previous = new int[_walkable.Length]; Array.Fill(previous, -1); costs[start] = 0; open.Enqueue(start, (0, start));
-        while (open.TryDequeue(out var current, out _))
+        // Each query owns its rented buffers, so parallel searches cannot overwrite one another.
+        var costs = ArrayPool<float>.Shared.Rent(_walkable.Length);
+        var previous = ArrayPool<int>.Shared.Rent(_walkable.Length);
+        try
         {
-            if (current == end) break;
-            foreach (var next in _neighbors[current])
+            costs.AsSpan(0, _walkable.Length).Fill(float.PositiveInfinity);
+            previous.AsSpan(0, _walkable.Length).Fill(-1);
+            var open = new PriorityQueue<int, (float, int)>();
+            costs[start] = 0; open.Enqueue(start, (0, start));
+            while (open.TryDequeue(out var current, out _))
             {
-                var cost = costs[current] + Point(current).DistanceTo(Point(next)) / SpeedFactor(Point(next));
-                if (cost >= costs[next]) continue;
-                costs[next] = cost; previous[next] = current;
-                open.Enqueue(next, (cost + Point(next).DistanceTo(to), next));
+                if (current == end) break;
+                foreach (var edge in _neighbors[current])
+                {
+                    var next = edge.Node;
+                    var cost = costs[current] + edge.Cost;
+                    if (cost >= costs[next]) continue;
+                    costs[next] = cost; previous[next] = current;
+                    open.Enqueue(next, (cost + Point(next).DistanceTo(to), next));
+                }
             }
+            if (float.IsPositiveInfinity(costs[end])) return [];
+            var route = new List<Vector2> { to };
+            for (var node = end; node != start; node = previous[node]) route.Add(Point(node));
+            route.Add(Point(start)); route.Reverse();
+            var smooth = new List<Vector2>(); var anchor = from;
+            for (var i = 0; i < route.Count;)
+            {
+                var last = i;
+                while (last + 1 < route.Count && CanTraverse(anchor, route[last + 1])) last++;
+                smooth.Add(route[last]); anchor = route[last]; i = last + 1;
+            }
+            return smooth;
         }
-        if (float.IsPositiveInfinity(costs[end])) return [];
-        var route = new List<Vector2> { to };
-        for (var node = end; node != start; node = previous[node]) route.Add(Point(node));
-        route.Add(Point(start)); route.Reverse();
-        var smooth = new List<Vector2>(); var anchor = from;
-        for (var i = 0; i < route.Count;)
+        finally
         {
-            var last = i;
-            while (last + 1 < route.Count && CanTraverse(anchor, route[last + 1])) last++;
-            smooth.Add(route[last]); anchor = route[last]; i = last + 1;
+            ArrayPool<float>.Shared.Return(costs);
+            ArrayPool<int>.Shared.Return(previous);
         }
-        return smooth;
     }
+
     public Vector2 FiringPosition(Vector2 from, Vector2 target, float preferred, float maximumRange)
     {
         var component = Component(from);
-        return Enumerable.Range(0, _walkable.Length).Where(index => _components[index] == component)
-            .Select(Point).Where(point => point.DistanceTo(target) <= maximumRange && point.DistanceTo(target) >= CombatRules.UnitRadius * 2.5f)
-            .OrderBy(point => from.DistanceTo(point) + Math.Abs(point.DistanceTo(target) - preferred) * 1.5f)
-            .Where(point => ClearSight(point, target)).DefaultIfEmpty(from).First();
+        // Only cells inside the weapon's range can be candidates. Preserve row-major tie order.
+        var minX = Math.Clamp((int)MathF.Ceiling(target.X - maximumRange + HalfSize), 0, GridSize - 1);
+        var maxX = Math.Clamp((int)MathF.Floor(target.X + maximumRange + HalfSize), 0, GridSize - 1);
+        var minZ = Math.Clamp((int)MathF.Ceiling(target.Y - maximumRange + HalfSize), 0, GridSize - 1);
+        var maxZ = Math.Clamp((int)MathF.Floor(target.Y + maximumRange + HalfSize), 0, GridSize - 1);
+        var candidates = ArrayPool<FiringCandidate>.Shared.Rent(_walkable.Length);
+        try
+        {
+            var count = 0;
+            for (var z = minZ; z <= maxZ; z++) for (var x = minX; x <= maxX; x++)
+            {
+                var index = Index(x, z);
+                if (_components[index] != component) continue;
+                var point = Point(index);
+                var distance = point.DistanceTo(target);
+                if (distance > maximumRange || distance < CombatRules.UnitRadius * 2.5f) continue;
+                candidates[count++] = new(index, from.DistanceTo(point) + Math.Abs(distance - preferred) * 1.5f);
+            }
+            candidates.AsSpan(0, count).Sort();
+            for (var i = 0; i < count; i++)
+            {
+                var point = Point(candidates[i].Node);
+                if (ClearSight(point, target)) return point;
+            }
+            return from;
+        }
+        finally { ArrayPool<FiringCandidate>.Shared.Return(candidates); }
     }
 }

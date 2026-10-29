@@ -78,6 +78,46 @@ public sealed partial class CombatSimulation
 
     public string WeaponStatus(CombatUnit unit, CombatWeapon weapon, CombatUnit? target)
     {
+        if (WeaponRestriction(unit, weapon, target) is { } restriction) return restriction;
+        var volley = SelectHeatVolley(unit, weapon.Spec.Rear ? SelectAimTarget(unit) : target,
+            weapon.Spec.Rear ? target : SelectRearTarget(unit));
+        return VolleyStatus(unit, weapon, volley);
+    }
+
+    /// <summary>One refresh shares volley selection across weapons, without caching mutable combat state.</summary>
+    internal IReadOnlyList<string> WeaponStatuses(CombatUnit unit, CombatUnit? mainTarget,
+        CombatUnit? rearTarget, CombatUnit? previewTarget)
+    {
+        var statuses = new string[unit.Weapons.Count];
+        var volleys = new Dictionary<(CombatUnit? Main, CombatUnit? Rear), IReadOnlyList<(CombatWeapon Weapon, CombatUnit Target)>>();
+        for (var i = 0; i < unit.Weapons.Count; i++)
+        {
+            var weapon = unit.Weapons[i];
+            var target = (weapon.Spec.Rear ? rearTarget : mainTarget) ?? previewTarget;
+            if (WeaponRestriction(unit, weapon, target) is { } restriction)
+            {
+                statuses[i] = restriction;
+                continue;
+            }
+            // Preview-only targets retain the existing per-mount fallback and shared main/rear heat budget.
+            var pair = weapon.Spec.Rear ? (mainTarget, target) : (target, rearTarget);
+            if (!volleys.TryGetValue(pair, out var volley))
+            {
+                volley = SelectHeatVolley(unit, pair.Item1, pair.Item2);
+                volleys.Add(pair, volley);
+            }
+            statuses[i] = VolleyStatus(unit, weapon, volley);
+        }
+        return statuses;
+    }
+
+    private static string VolleyStatus(CombatUnit unit, CombatWeapon weapon,
+        IReadOnlyList<(CombatWeapon Weapon, CombatUnit Target)> volley) =>
+        volley.Any(shot => shot.Weapon == weapon) ? "Ready" : $"Cooling · {unit.HeatPolicy} heat policy";
+
+    // A null result means only the shared heat-budget decision remains.
+    private string? WeaponRestriction(CombatUnit unit, CombatWeapon weapon, CombatUnit? target)
+    {
         if (unit.Shutdown && !unit.Defeated) return "Thermal shutdown";
         if (!unit.Active || !unit.WeaponUsable(weapon)) return "Unavailable";
         if (!weapon.Enabled) return "Disabled";
@@ -92,8 +132,6 @@ public sealed partial class CombatSimulation
                     ? "Outside firing arc" : "Turning to target";
         if (weapon.Remaining > .000001) return $"Ready in {weapon.Remaining:0.0}s";
         if (TerrainHitChance(unit, target, weapon) == 0) return "Cannot hit";
-        var volley = SelectHeatVolley(unit, weapon.Spec.Rear ? SelectAimTarget(unit) : target,
-            weapon.Spec.Rear ? target : SelectRearTarget(unit));
-        return volley.Any(shot => shot.Weapon == weapon) ? "Ready" : $"Cooling · {unit.HeatPolicy} heat policy";
+        return null;
     }
 }

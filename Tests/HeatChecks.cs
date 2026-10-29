@@ -30,6 +30,7 @@ internal static partial class CombatChecks
     {
         CheckHeatRates(check);
         CheckHeatSelection(check);
+        CheckWeaponPreviews(check);
         CheckHeatShutdown(check);
         CheckFlamerHeat(check);
     }
@@ -156,6 +157,67 @@ internal static partial class CombatChecks
         sim = HeatFixture([HeatGun("impossible", 3, 1)], gunnery: 20); f = Friendly(sim); e = Enemy(sim);
         check(sim.SelectHeatVolley(f, e, null).Count == 0 && sim.WeaponStatus(f, f.Weapons[0], e) == "Cannot hit",
             "zero-probability weapons explain their firing solution rather than falsely reporting cooling");
+    }
+
+    private static void CheckWeaponPreviews(Action<bool, string> check)
+    {
+        var weapons = Enumerable.Range(0, 12).Select(index => HeatGun($"preview-{index}", 2 + index % 6, 3 + index % 5)
+            with { Rear = index >= 8 }).ToArray();
+        var sim = HeatFixture(weapons, gunnery: 4);
+        var f = Friendly(sim); var e = Enemy(sim);
+        var rear = new CombatUnit("rear", e.Spec, e.Warrior, e.Side,
+            e.Spec.Locations.Select(part => new LocationCondition(part.Location, part.Armor, part.RearArmor, part.Structure)),
+            e.Equipment.Select(part => new EquipmentCondition(part.Key, part.Value)), [], new(-2, 0));
+        sim = new CombatSimulation([f, e, rear], 41) { EnemyAiEnabled = false };
+        void Equivalent(string scenario)
+        {
+            sim.RefreshDetection();
+            var main = sim.SelectAimTarget(f); var back = sim.SelectRearTarget(f);
+            var preview = main ?? (sim.Detected(f.Side, e.Id) ? e : null);
+            var individual = f.Weapons.Select(weapon => sim.WeaponStatus(f, weapon,
+                (weapon.Spec.Rear ? back : main) ?? preview)).ToArray();
+            check(sim.WeaponStatuses(f, main, back, preview).SequenceEqual(individual),
+                $"batched weapon previews match individual statuses: {scenario}");
+        }
+        Equivalent("independent front/rear targets share a heat budget");
+        var statuses = sim.WeaponStatuses(f, e, rear, e);
+        check(statuses.Any(status => status == "Ready") && statuses.Any(status => status.StartsWith("Cooling")),
+            "mixed loadout previews distinguish selected and withheld weapons");
+        f.HeatPolicy = HeatPolicy.Aggressive; Equivalent("policy changes while paused");
+        f.AddHeat(9); Equivalent("fractional remaining heat budget");
+        f.Weapons[0].Enabled = false; f.Weapons[1].Remaining = 2; Equivalent("toggles and cooldowns");
+        f.Weapons[0].Enabled = true; f.Weapons[1].Remaining = 0;
+        rear.Position = new(200, 0); Equivalent("rear mount falls back to the main preview");
+        rear.Position = new(-2, 0);
+        f.Firing = FiringMode.HoldFire; Equivalent("hold fire previews without a main aim target");
+        sim.Attack([f.Id], e.Id); Equivalent("explicit Attack overrides hold fire");
+        f.Firing = FiringMode.FireAtWill; sim.Hold([f.Id]);
+        e.Position = new(2, 20); Equivalent("front aim rotates outside firing arc");
+        e.Position = new(200, 0); rear.Position = new(-200, 0); Equivalent("no detected target");
+        e.Position = new(2, 0); rear.Position = new(-2, 0);
+        f.AddHeat(30); Equivalent("thermal shutdown");
+        f.AddHeat(-f.Heat); sim.RefreshDetection();
+        f.ApplyDamage(MechLocation.RightArm, 1_000); Equivalent("lost weapon mount");
+
+        sim = HeatFixture(weapons, gunnery: 4); f = Friendly(sim); e = Enemy(sim);
+        // Warm both code paths before comparing allocation; no wall-clock timing assertion.
+        for (var warm = 0; warm < 3; warm++)
+        {
+            sim.WeaponStatuses(f, e, null, e);
+            foreach (var weapon in f.Weapons) sim.WeaponStatus(f, weapon, e);
+        }
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        foreach (var weapon in f.Weapons) sim.WeaponStatus(f, weapon, e);
+        var individualBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        before = GC.GetAllocatedBytesForCurrentThread();
+        sim.WeaponStatuses(f, e, null, e);
+        var batchedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        check(batchedBytes * 2 < individualBytes, "weapon preview batch allocates less than half of independent status queries");
+        var control = HeatFixture(weapons, gunnery: 4);
+        sim.Paused = control.Paused = false;
+        sim.Advance(.05); control.Advance(.05);
+        check(sim.History.Select(entry => entry.DebugText).SequenceEqual(control.History.Select(entry => entry.DebugText)),
+            "preview queries preserve random draws, damage and simultaneous firing");
     }
 
     private static void CheckHeatShutdown(Action<bool, string> check)
