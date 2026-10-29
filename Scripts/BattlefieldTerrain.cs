@@ -201,6 +201,32 @@ public sealed class BattlefieldTerrain
         }
         return nearest;
     }
+    /// <summary>Nearest rendered ground or solid rock along a normalized camera ray.</summary>
+    public float? RayDistance(Vector3 origin, Vector3 direction, float maximum)
+    {
+        var rock = RockRayDistance(origin, direction, maximum);
+        var limit = rock ?? maximum;
+        var previous = 0f;
+        for (var distance = .2f; distance <= limit + .2f; distance += .2f)
+        {
+            var sampleDistance = Math.Min(distance, limit);
+            var sample = origin + direction * sampleDistance;
+            var at = new Vector2(sample.X, sample.Z);
+            if (Math.Abs(at.X) <= 48 && Math.Abs(at.Y) <= 48 && sample.Y <= HeightAt(at))
+            {
+                var low = previous; var high = sampleDistance;
+                for (var iteration = 0; iteration < 16; iteration++)
+                {
+                    var middle = (low + high) * .5f;
+                    var point = origin + direction * middle;
+                    if (point.Y > HeightAt(new Vector2(point.X, point.Z))) low = middle; else high = middle;
+                }
+                return (low + high) * .5f;
+            }
+            previous = sampleDistance;
+        }
+        return rock;
+    }
     private int NearestNode(Vector2 point)
     {
         var node = Node(point);

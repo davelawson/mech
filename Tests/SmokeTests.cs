@@ -14,6 +14,8 @@ public partial class SmokeTests : Node
         try
         {
             _screenshots = OS.GetCmdlineUserArgs().Contains("--screenshots");
+            // Synthetic headless mouse events need the enter notification a desktop window normally supplies.
+            if (DisplayServer.GetName() == "headless") GetViewport().NotifyMouseEntered();
             var combatUiOnly = OS.GetCmdlineUserArgs().Contains("--combat-ui-only");
             var combatLayoutOnly = OS.GetCmdlineUserArgs().Contains("--combat-layout-only");
             await TestCombatLayouts();
@@ -21,6 +23,8 @@ public partial class SmokeTests : Node
             {
                 GD.Print($"PASS: {_checks} combat layout checks"); GetTree().Quit(); return;
             }
+            await TestBattlefieldPicking();
+            await TestDetectionOverlay();
             if (!combatUiOnly)
             {
                 TestGeometry();
@@ -726,7 +730,8 @@ public partial class SmokeTests : Node
         await FinishDraft();
         Check(!_app.Drafting.Visible && !_app.State.RequiresDraft && _app.State.Roster!.Mechs.Count == 4 && _app.State.Roster.Warriors.Count == 4,
             "Establish Company commits four mechs and four warriors");
-        Check(_app.State.Roster!.Mechs.All(item => item.WarriorId is null) && _app.Office.ReadyCount.Text == "4", "new roster is unassigned with four healthy warriors");
+        Check(_app.State.Roster!.Mechs.Zip(_app.State.Roster.Warriors).All(pair => pair.First.WarriorId == pair.Second.Id)
+            && _app.Office.ReadyCount.Text == "4", "new roster assigns four healthy warriors by draft column");
     }
 
     private async Task TestRosterUi()

@@ -10,6 +10,7 @@ public partial class CombatViewport : Control
     public CombatSimulation? Simulation { get; private set; }
     public IReadOnlyCollection<string> Selection { get; set; } = Array.Empty<string>();
     public string? InspectedEnemy { get; set; }
+    public string? HoveredMech { get; private set; }
     public bool CommandsEnabled
     {
         get => _commandsEnabled;
@@ -20,6 +21,7 @@ public partial class CombatViewport : Control
     private Node3D _world = null!;
     private Node3D? _terrainView;
     private readonly Dictionary<string, MechModel> _models = [];
+    private readonly Dictionary<string, Aabb> _pickBounds = [];
     private readonly List<(CombatShot Shot, float Life)> _effects = [];
     private Vector3 _focus = new(0, 0, 12);
     private static readonly float DefaultPitch = Mathf.Atan2(80, 70);
@@ -62,6 +64,7 @@ public partial class CombatViewport : Control
         } });
         Resized += QueueRedraw;
         FocusExited += CancelDrag;
+        MouseExited += () => SetHovered(null);
         VisibilityChanged += () => { if (!IsVisibleInTree()) CancelDrag(); };
         GetWindow().FocusExited += WindowFocusExited;
         GetWindow().FocusEntered += WindowFocusEntered;
@@ -69,9 +72,10 @@ public partial class CombatViewport : Control
     }
     public void Display(CombatSimulation simulation)
     {
+        CancelDrag();
         if (Simulation is not null) Simulation.ShotFired -= OnShot;
         foreach (var model in _models.Values) { _world.RemoveChild(model); model.QueueFree(); }
-        _models.Clear(); _effects.Clear();
+        _models.Clear(); _pickBounds.Clear(); _effects.Clear();
         Simulation = simulation; Simulation.ShotFired += OnShot; InspectedEnemy = null; Selection = Array.Empty<string>();
         if (_terrainView is not null) { _world.RemoveChild(_terrainView); _terrainView.QueueFree(); }
         _terrainView = BattlefieldTerrainView.Create(simulation.Terrain); _world.AddChild(_terrainView);
@@ -93,6 +97,7 @@ public partial class CombatViewport : Control
     private void SyncModels(float animationDelta = 0)
     {
         if (Simulation is null) return;
+        _pickBounds.Clear();
         foreach (var unit in Simulation.Units)
         {
             var model = _models[unit.Id];
@@ -103,6 +108,7 @@ public partial class CombatViewport : Control
             model.SetCondition(unit.Intact);
             model.AnimateLocomotion(animationDelta, unit.Active ? unit.CurrentSpeed : 0,
                 unit.WalkingSpeed, unit.RunningSpeed, unit.Active ? unit.AngularVelocity : 0);
+            if (model.Visible && model.PickBounds() is { } bounds) _pickBounds[unit.Id] = bounds.Grow(.08f);
         }
     }
     public static Vector3 World(Vector2 point, float height = 0) => new(point.X, height, point.Y);
@@ -110,40 +116,17 @@ public partial class CombatViewport : Control
     public Vector2 GroundPoint(Vector2 screen)
     {
         var from = Camera.ProjectRayOrigin(screen); var direction = Camera.ProjectRayNormal(screen);
-        if (Simulation is not null)
+        if (Simulation?.Terrain.RayDistance(from, direction, Camera.Far) is { } distance)
         {
-            var rockDistance = Simulation.Terrain.RockRayDistance(from, direction, Camera.Far);
-            var limit = rockDistance ?? Camera.Far;
-            var previous = 0f;
-            for (var distance = .5f; distance <= limit + .5f; distance += .5f)
-            {
-                var sampleDistance = Math.Min(distance, limit);
-                var current = from + direction * sampleDistance;
-                var at = new Vector2(current.X, current.Z);
-                if (Math.Abs(at.X) <= 48 && Math.Abs(at.Y) <= 48 && current.Y <= Simulation.Terrain.HeightAt(at))
-                {
-                    var low = previous; var high = sampleDistance;
-                    for (var iteration = 0; iteration < 16; iteration++)
-                    {
-                        var middle = (low + high) * .5f; var sample = from + direction * middle;
-                        if (sample.Y > Simulation.Terrain.HeightAt(new Vector2(sample.X, sample.Z))) low = middle; else high = middle;
-                    }
-                    var hit = from + direction * ((low + high) * .5f);
-                    return CombatRules.Clamp(new Vector2(hit.X, hit.Z));
-                }
-                previous = sampleDistance;
-            }
-            if (rockDistance is { } rockHit)
-            {
-                var hit = from + direction * rockHit;
-                return CombatRules.Clamp(new Vector2(hit.X, hit.Z));
-            }
+            var hit = from + direction * distance;
+            return CombatRules.Clamp(new Vector2(hit.X, hit.Z));
         }
         var point = from + direction * (-from.Y / direction.Y);
         return CombatRules.Clamp(new Vector2(point.X, point.Z));
     }
     public void CancelDrag()
     {
+        SetHovered(null);
         _selecting = _panning = _rotating = _rightPressed = false;
         if (_rightDragging)
         {
@@ -182,6 +165,7 @@ public partial class CombatViewport : Control
                 if (_rightDisplacement.LengthSquared() > RightDragThreshold * RightDragThreshold)
                 {
                     _rightDragging = true;
+                    SetHovered(null);
                     _previousMouseMode = Input.MouseMode;
                     Input.MouseMode = Input.MouseModeEnum.Captured;
                     // Discard the threshold movement so capture never jumps the camera.
@@ -193,12 +177,12 @@ public partial class CombatViewport : Control
         {
             var displacement = GetViewport().GetScreenTransform().BasisXform(mouse.Position - _rightCursorStart);
             var click = !_rightDragging && displacement.LengthSquared() <= RightDragThreshold * RightDragThreshold
-                && GetGlobalRect().HasPoint(mouse.Position);
+                && GetGlobalRect().HasPoint(mouse.Position) && GetViewport().GuiGetHoveredControl() == this;
             CancelDrag();
             if (click)
             {
                 var at = GetGlobalTransformWithCanvas().AffineInverse() * mouse.Position;
-                var target = Pick(at, CombatSide.Enemy);
+                var target = PickMech(at);
                 CommandRequested?.Invoke(GroundPoint(at), target?.Id);
             }
             GetViewport().SetInputAsHandled();
@@ -229,7 +213,11 @@ public partial class CombatViewport : Control
         }
         for (var i = _effects.Count - 1; i >= 0; i--)
         { var effect = _effects[i]; _effects[i] = (effect.Shot, effect.Life - (float)delta); if (_effects[i].Life <= 0) _effects.RemoveAt(i); }
-        SyncModels(!Simulation.Paused && Simulation.Outcome == CombatOutcome.Ongoing ? (float)delta : 0); QueueRedraw();
+        SyncModels(!Simulation.Paused && Simulation.Outcome == CombatOutcome.Ongoing ? (float)delta : 0);
+        var hovering = CommandsEnabled && _windowFocused && !_selecting && !_panning && !_rotating && !_rightDragging
+            && GetViewport().GuiGetHoveredControl() == this;
+        SetHovered(hovering ? PickMech(GetLocalMousePosition())?.Id : null);
+        QueueRedraw();
     }
     private void Pan(Vector2 amount)
     {
@@ -237,10 +225,48 @@ public partial class CombatViewport : Control
         _focus.X = Math.Clamp(_focus.X + rotated.X, -48, 48);
         _focus.Z = Math.Clamp(_focus.Z + rotated.Y, -48, 48); UpdateCamera();
     }
-    private CombatUnit? Pick(Vector2 at, CombatSide side) => Simulation?.Units
-        .Where(unit => unit.Side == side && (side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, unit.Id)))
-        .Where(unit => ScreenPoint(unit.Position, 1).DistanceTo(at) < 20)
-        .OrderBy(unit => ScreenPoint(unit.Position, 1).DistanceSquaredTo(at)).FirstOrDefault();
+    // One camera ray drives hover, selection, inspection, attack, priority targeting and Follow.
+    internal CombatUnit? PickMech(Vector2 at)
+    {
+        if (Simulation is null || !new Rect2(Vector2.Zero, Size).HasPoint(at)) return null;
+        var origin = Camera.ProjectRayOrigin(at); var direction = Camera.ProjectRayNormal(at);
+        var nearest = Camera.Far;
+        CombatUnit? picked = null;
+        foreach (var unit in Simulation.Units)
+        {
+            if (unit.Side != CombatSide.Friendly && !Simulation.Detected(CombatSide.Friendly, unit.Id)) continue;
+            if (!_pickBounds.TryGetValue(unit.Id, out var bounds)) continue;
+            var inverse = _models[unit.Id].GlobalTransform.AffineInverse();
+            // Keep the local direction unnormalized: its parameter still measures world distance.
+            if (RayBoxDistance(inverse * origin, inverse.Basis * direction, bounds, nearest) is not { } hit) continue;
+            nearest = hit; picked = unit;
+        }
+        return picked is not null && Simulation.Terrain.RayDistance(origin, direction, nearest) is null ? picked : null;
+    }
+    private static float? RayBoxDistance(Vector3 origin, Vector3 direction, Aabb bounds, float maximum)
+    {
+        var enter = 0f; var exit = maximum;
+        for (var axis = 0; axis < 3; axis++)
+        {
+            if (Math.Abs(direction[axis]) < 1e-8f)
+            {
+                if (origin[axis] < bounds.Position[axis] || origin[axis] > bounds.End[axis]) return null;
+                continue;
+            }
+            var a = (bounds.Position[axis] - origin[axis]) / direction[axis];
+            var b = (bounds.End[axis] - origin[axis]) / direction[axis];
+            enter = Math.Max(enter, Math.Min(a, b)); exit = Math.Min(exit, Math.Max(a, b));
+            if (enter > exit) return null;
+        }
+        return enter;
+    }
+    private void SetHovered(string? id)
+    {
+        if (HoveredMech == id) return;
+        if (HoveredMech is { } previous && _models.TryGetValue(previous, out var old)) old.SetHovered(false);
+        HoveredMech = id;
+        if (id is not null && _models.TryGetValue(id, out var model)) model.SetHovered(true);
+    }
     public override void _GuiInput(InputEvent input)
     {
         if (!CommandsEnabled || Simulation is null || !_windowFocused) return;
@@ -250,17 +276,18 @@ public partial class CombatViewport : Control
             if (mouse.ButtonIndex is MouseButton.WheelUp or MouseButton.WheelDown && mouse.Pressed)
             { Camera.Size = Math.Clamp(Camera.Size * (mouse.ButtonIndex == MouseButton.WheelUp ? .85f : 1.18f), 12, 140); AcceptEvent(); }
             if (mouse.ButtonIndex == MouseButton.Middle)
-            { _panning = mouse.Pressed && !mouse.ShiftPressed; _rotating = mouse.Pressed && mouse.ShiftPressed; AcceptEvent(); }
+            { _panning = mouse.Pressed && !mouse.ShiftPressed; _rotating = mouse.Pressed && mouse.ShiftPressed; SetHovered(null); AcceptEvent(); }
             if (mouse.ButtonIndex == MouseButton.Left)
             {
-                if (mouse.Pressed) { _selecting = true; _dragStart = _dragEnd = mouse.Position; }
+                if (mouse.Pressed) { _selecting = true; _dragStart = _dragEnd = mouse.Position; SetHovered(null); }
                 else if (_selecting)
                 {
                     _selecting = false;
                     if (_dragStart.DistanceTo(mouse.Position) < 6)
                     {
-                        var friendly = Pick(mouse.Position, CombatSide.Friendly);
-                        InspectedEnemy = friendly is null ? Pick(mouse.Position, CombatSide.Enemy)?.Id : null;
+                        var picked = PickMech(mouse.Position);
+                        var friendly = picked?.Side == CombatSide.Friendly ? picked : null;
+                        InspectedEnemy = picked?.Side == CombatSide.Enemy ? picked.Id : null;
                         // Inspection keeps the friendly selection as the range reference and command group.
                         SelectionRequested?.Invoke(friendly is not null ? [friendly.Id]
                             : InspectedEnemy is not null ? Selection.ToArray() : Array.Empty<string>(), mouse.ShiftPressed && InspectedEnemy is null);
@@ -294,17 +321,46 @@ public partial class CombatViewport : Control
         if (input is InputEventKey { Pressed: true, Keycode: Key.Home })
         { CancelDrag(); _focus = Vector3.Zero; _yaw = 0; _pitch = DefaultPitch; Camera.Size = 110; UpdateCamera(); AcceptEvent(); }
     }
-    private CombatUnit? RangeObserver => Simulation is null ? null : Selection.Select(Simulation.Unit).FirstOrDefault(unit => unit.Side == CombatSide.Friendly && unit.Active);
     private CombatUnit? RangeTarget => Simulation is not null && InspectedEnemy is { } id && Simulation.Detected(CombatSide.Friendly, id) ? Simulation.Unit(id) : null;
-    public (float Identification, float? Detail)? DetectionRanges => RangeObserver is not { } observer ? null
-        : RangeTarget is { } target ? (CombatRules.DetectionRadius(observer, target), CombatRules.DetectionRadius(observer, target) * .5f)
-        : (CombatRules.DetectionRadius(observer.Warrior.Sensors, 100), null);
-    public string SensorRangeText => RangeObserver is not { } observer ? ""
-        : RangeTarget is { } target ? $"{observer.Warrior.Callsign} · {target.Spec.Chassis}: identify {CombatRules.DetectionRadius(observer, target):0.##} hexes (blue) · status {CombatRules.DetectionRadius(observer, target) * .5f:0.##} (gold)"
-        : $"{observer.Warrior.Callsign} · 20–100t: identify {CombatRules.DetectionRadius(observer.Warrior.Sensors, 20):0.##}–{CombatRules.DetectionRadius(observer.Warrior.Sensors, 100):0.##} hexes · circle: 100t";
-    private void DrawRange(Vector2 center, float radius, Color color) => DrawPolyline(
-        Enumerable.Range(0, 97).Select(segment => ScreenPoint(center + Vector2.FromAngle(segment * Mathf.Tau / 96) * radius)).ToArray(),
-        new Color(color, .45f), 1, true);
+    public IReadOnlyList<(CombatUnit Observer, float Identification, float? Detail)> DetectionRanges
+    {
+        get
+        {
+            if (Simulation is null) return [];
+            var target = RangeTarget;
+            return Selection.Select(Simulation.Unit).Where(unit => unit.Side == CombatSide.Friendly && unit.Active).Select(observer =>
+            {
+                var radius = target is null ? CombatRules.DetectionRadius(observer.Warrior.Sensors, 100) : CombatRules.DetectionRadius(observer, target);
+                return (observer, radius, target is null ? (float?)null : radius * .5f);
+            }).ToArray();
+        }
+    }
+    public string SensorRangeText => RangeText(DetectionRanges);
+    private string RangeText(IReadOnlyList<(CombatUnit Observer, float Identification, float? Detail)> ranges)
+    {
+        if (ranges.Count == 0) return "";
+        if (ranges.Count == 1)
+        {
+            var (observer, identification, detail) = ranges[0];
+            return RangeTarget is { } target
+                ? $"{observer.Warrior.Callsign} · {target.Spec.Chassis}: identify {identification:0.##} hexes (blue) · status {detail:0.##} (gold)"
+                : $"{observer.Warrior.Callsign} · 20–100t: identify {CombatRules.DetectionRadius(observer.Warrior.Sensors, 20):0.##}–{identification:0.##} hexes · circle: 100t";
+        }
+        var identificationSpan = $"{ranges.Min(range => range.Identification):0.##}–{ranges.Max(range => range.Identification):0.##}";
+        return RangeTarget is { } inspected
+            ? $"Selected mechs · {inspected.Spec.Chassis}: identify {identificationSpan} hexes (blue) · status {ranges.Min(range => range.Detail):0.##}–{ranges.Max(range => range.Detail):0.##} (gold)"
+            : $"Selected mechs · 100t: identify {identificationSpan} hexes (blue) · 20–100t: {ranges.Min(range => CombatRules.DetectionRadius(range.Observer.Warrior.Sensors, 20)):0.##}–{ranges.Max(range => range.Identification):0.##} hexes";
+    }
+    private void DrawRangeUnion(IReadOnlyList<CircleUnion.Circle> circles, Color color)
+    {
+        foreach (var arc in CircleUnion.Boundary(circles))
+        {
+            var segments = Math.Max(1, Mathf.CeilToInt((arc.End - arc.Start) * 96 / Mathf.Tau));
+            DrawPolyline(Enumerable.Range(0, segments + 1).Select(segment => ScreenPoint(arc.Center
+                + Vector2.FromAngle(Mathf.Lerp(arc.Start, arc.End, (float)segment / segments)) * arc.Radius)).ToArray(),
+                new Color(color, .45f), 1, true);
+        }
+    }
     public override void _Draw()
     {
         if (Simulation is null || Camera is null) return;
@@ -313,11 +369,13 @@ public partial class CombatViewport : Control
         DrawString(font, new Vector2(12, 34), "Rocks: blocked · Green: soft cover · Blue: slow water · Tan: steep", HorizontalAlignment.Left, -1, 11, Ui.Text);
         var center = ScreenPoint(Vector2.Zero);
         DrawString(font, center + new Vector2(-42, -8), "ARENA CENTER", HorizontalAlignment.Left, -1, 12, new Color(Ui.Muted, .7f));
-        if (RangeObserver is { } observer && DetectionRanges is { } ranges)
+        var ranges = DetectionRanges;
+        if (ranges.Count > 0)
         {
-            DrawRange(observer.Position, ranges.Identification, new Color("7fb8bf"));
-            if (ranges.Detail is { } detail) DrawRange(observer.Position, detail, Ui.Gold);
-            DrawString(font, new Vector2(12, 50), SensorRangeText, HorizontalAlignment.Left, -1, 11, Ui.Text);
+            DrawRangeUnion(ranges.Select(range => new CircleUnion.Circle(range.Observer.Position, range.Identification)).ToArray(), new Color("7fb8bf"));
+            if (ranges[0].Detail is not null)
+                DrawRangeUnion(ranges.Select(range => new CircleUnion.Circle(range.Observer.Position, range.Detail!.Value)).ToArray(), Ui.Gold);
+            DrawString(font, new Vector2(12, 50), RangeText(ranges), HorizontalAlignment.Left, -1, 11, Ui.Text);
         }
         var friendlyIndex = 0;
         foreach (var unit in Simulation.Units)
@@ -335,7 +393,8 @@ public partial class CombatViewport : Control
             {
                 DrawArc(at, Math.Max(10, 1.15f * Size.Y / Camera.Size), 0, Mathf.Tau, 32, Ui.Gold, 2, true);
                 DrawCircle(at, 3, Ui.Gold);
-                var to = unit.Order == CombatOrder.Move ? unit.Destination : unit.AttackTarget is { } id
+                var to = unit.Order == CombatOrder.Move ? unit.Destination : unit.Order == CombatOrder.Follow && unit.FollowTarget is { } leader
+                    ? Simulation.Unit(leader).Position : unit.AttackTarget is { } id
                     && Simulation.Contacts(unit.Side).TryGetValue(id, out var contact) ? contact.LastKnownPosition : unit.Position;
                 if (to.DistanceTo(unit.Position) > .4f) { var end = ScreenPoint(to); DrawLine(at, end, new Color(Ui.Gold, .65f), 1, true); DrawArc(end, 5, 0, Mathf.Tau, 16, Ui.Gold); }
                 if (unit.PriorityTarget is { } priority && Simulation.Contacts(unit.Side).TryGetValue(priority, out var preferred))

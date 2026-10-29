@@ -13,6 +13,9 @@ public partial class MechModel : Node3D
     private readonly Dictionary<MechLocation, Node3D> _locations = [];
     private readonly Dictionary<Color, StandardMaterial3D> _materials = [];
     private ShaderMaterial _outline = null!;
+    private Color _teamColor;
+    private float _outlineWidth = 1.15f;
+    public bool Hovered { get; private set; }
     private static readonly Color Olive = new("777749"), LightOlive = new("909063"), DarkOlive = new("555b3e");
     private static readonly Color Joint = new("242d2c"), Steel = new("56605a"), Trim = new("b1a477"), Amber = new("eda82d");
 
@@ -38,8 +41,10 @@ public partial class MechModel : Node3D
             }
             void fragment() { ALBEDO = team_color.rgb; }
             """ } };
-        model._outline.SetShaderParameter("team_color", TeamColor(side));
-        if (spec.Id is "awesome" or "jenner" or "catapult" or "wolverine" or "atlas" or "panther" or "shadow-hawk" or "griffin" or "firestarter" or "crusader" or "thunderbolt" or "victor" or "zeus" || AdditionalRigs.ContainsKey(spec.Id)) model._outline.SetShaderParameter("outline_width", .65f);
+        model._teamColor = TeamColor(side);
+        model._outline.SetShaderParameter("team_color", model._teamColor);
+        if (spec.Id is "awesome" or "jenner" or "catapult" or "wolverine" or "atlas" or "panther" or "shadow-hawk" or "griffin" or "firestarter" or "crusader" or "thunderbolt" or "victor" or "zeus" || AdditionalRigs.ContainsKey(spec.Id)) model._outlineWidth = .65f;
+        model._outline.SetShaderParameter("outline_width", model._outlineWidth);
         foreach (var location in Enum.GetValues<MechLocation>())
         {
             var root = new Node3D { Name = location.ToString() };
@@ -69,16 +74,20 @@ public partial class MechModel : Node3D
                 else model.BuildGeneric(side);
                 break;
         }
-        model.RestBounds = model.MeasureBounds();
+        model.RestBounds = model.MeasureBounds() ?? new Aabb(Vector3.Zero, Vector3.One);
         model.Height = model.RestBounds.End.Y * model.Scale.Y;
         return model;
     }
 
-    private Aabb MeasureBounds()
+    // Re-measure visible animated geometry so lost limbs and fallen wrecks keep fitting their hit area.
+    internal Aabb? PickBounds() => MeasureBounds(visibleOnly: true);
+
+    private Aabb? MeasureBounds(bool visibleOnly = false)
     {
         Aabb? bounds = null;
         void Visit(Node3D node, Transform3D transform)
         {
+            if (visibleOnly && !node.Visible) return;
             if (node is MeshInstance3D { Mesh: { } mesh })
             {
                 var box = transform * mesh.GetAabb();
@@ -87,7 +96,15 @@ public partial class MechModel : Node3D
             foreach (var child in node.GetChildren().OfType<Node3D>()) Visit(child, transform * child.Transform);
         }
         foreach (var child in GetChildren().OfType<Node3D>()) Visit(child, child.Transform);
-        return bounds ?? new Aabb(Vector3.Zero, Vector3.One);
+        return bounds;
+    }
+
+    public void SetHovered(bool hovered)
+    {
+        if (Hovered == hovered) return;
+        Hovered = hovered;
+        _outline.SetShaderParameter("team_color", hovered ? _teamColor.Lerp(Colors.White, .5f) : _teamColor);
+        _outline.SetShaderParameter("outline_width", hovered ? _outlineWidth + 1.3f : _outlineWidth);
     }
 
     public void SetCondition(Func<MechLocation, bool> intact)

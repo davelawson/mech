@@ -15,6 +15,7 @@ Status: confirmed October 25, 2026. The initial design interview is complete. Th
 ## Orders, firing, and pacing
 
 - Attack orders attempt to establish and maintain a player-adjustable preferred engagement distance, with a default based on the mech's loadout.
+- Follow orders continuously track an active friendly mech using normal pathfinding and collision clearance, waiting about three hexes away and resuming when the leader moves. They retain each follower's movement mode, firing setting, and persistent priority target. Followers may fire opportunistically without diverting from following. A group order leaves the clicked leader's own orders unchanged, even when selected. Follow persists until replaced; disabling or destroying the leader switches its followers to Hold.
 - MechWarriors automatically choose and fire ready, enabled weapons. The player may enable or disable individual weapons. Broader combat includes configurable heat policies, with a normal policy avoiding predictable overheating and an aggressive policy permitting more risk; heat and these policies are outside the first slice.
 - Provisional pacing targets are five to ten minutes for an ordinary engagement, excluding pauses, and roughly ten-second cycles for major weapons. These are tuning targets, not settled per-weapon statistics.
 - Manual pause allows inspection and all normal commands. Orders issued while paused take effect when time resumes, without a separate planning-phase commitment.
@@ -28,7 +29,7 @@ Status: confirmed October 25, 2026. The initial design interview is complete. Th
 - Ground movement includes walking and running. Running is faster and reduces firing accuracy. Jumping is deferred.
 - Walking is the initial default; a new movement order retains each mech's chosen movement mode.
 - Group Move assigns separate, non-overlapping destinations around the clicked point. A formation system is deferred.
-- When preferred engagement distance cannot be achieved, move toward the nearest achievable position within the arena while avoiding occupied space. Continue firing whenever permitted and in range; preferred distance is a goal, not a firing prerequisite.
+- When preferred engagement distance cannot be achieved, move toward the nearest achievable position within the arena while avoiding occupied space. Destroyed mechs immediately stop obstructing movement and Follow destinations; disabled mechs remain solid. Wrecks remain visible and selectable/inspectable. Continue firing whenever permitted and in range; preferred distance is a goal, not a firing prerequisite.
 - Mechs occupy space and navigate around one another, without pushing or collision damage.
 - Hits select among Head, Center Torso, Left Torso, Right Torso, Left Arm, Right Arm, Left Leg, and Right Leg.
 - Damage reduces the selected location's front armor, then its internal structure. Rear armor remains unchanged.
@@ -89,13 +90,15 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 
 ## Battlefield controls
 
-- Left-click selects, drag selection selects multiple friendly mechs, right-click ground issues Move, and right-click an enemy issues Attack.
-- Priority targets have a separate explicit control, rather than sharing Attack's meaning.
+- Left-click selects, drag selection selects multiple friendly mechs, right-click ground issues Move, right-click an enemy issues Attack, and right-click a friendly issues Follow.
+- Every direct mech click uses the same padded envelope of the mech's visible model geometry, including gaps between limbs, scaled with the model and zoom. Overlaps resolve to the frontmost envelope regardless of allegiance; hills and rocks block hidden portions. Drag selection retains its center-point rule.
+- Hover previews that same mech with a brighter, thicker team-colored outline. It preserves the selected unit's gold ground ring and never changes selection, inspection, or orders. UI overlays, menus, camera gestures and loss of enemy detection suppress hover; the outline remains depth-tested against terrain.
+- Priority targets have a separate explicit control, rather than sharing Attack's meaning. While choosing one, a friendly right-click leaves priority targeting armed and issues no Follow order.
 - Escape opens the combat menu.
 - Combat explicitly overrides the existing office/subscreen right-click-back behavior: right-click remains a battlefield command while in combat.
 - Use an angled overhead camera with pan, zoom, and rotation.
 - Provide a friendly-unit selection bar and selected-unit panel showing orders, movement mode, firing setting, preferred engagement distance, weapon readiness, and armor/internal structure by location.
-- Enemy inspection retains the friendly selection. Model-only contacts show the chassis name; detailed contacts add exact location values, the shared paperdoll and effective systems status. Inspection draws identification and half-range status circles around the primary active selected friendly for that target. Without an inspected enemy, draw the 100-ton identification circle and label the 20–100-ton detection span. These are distance boundaries; terrain may still block observation.
+- Enemy inspection retains the friendly selection. Model-only contacts show the chassis name; detailed contacts add exact location values, the shared paperdoll and effective systems status. Inspection draws the union of identification ranges (blue) and, separately, half-range status ranges (gold) of all selected active friendlies for that target. Without an inspected enemy, draw the union of their 100-ton identification ranges and label the 20–100-ton detection span. Draw only exposed boundary arcs, preserving separate regions and uncovered holes, with no fill or internal overlap arcs. Disabled and destroyed selections contribute nothing. With multiple active contributors, label the readout “Selected mechs” and show minimum–maximum contributor ranges for each displayed tier; retain the single-mech readout when only one active contributor remains. These are distance boundaries; terrain may still block observation, and side-wide detection continues to use all active observers regardless of selection.
 
 ## Existing campaign constraints
 

@@ -4,7 +4,7 @@ using System.Globalization;
 namespace Mech;
 
 public enum CombatSide { Friendly, Enemy }
-public enum CombatOrder { Hold, Move, Attack }
+public enum CombatOrder { Hold, Move, Attack, Follow }
 public enum MovementMode { Walk, Run }
 public enum FiringMode { FireAtWill, HoldFire }
 public enum CombatOutcome { Ongoing, Victory, Defeat, Draw, Ended }
@@ -22,6 +22,7 @@ public static class CombatRules
         * (.5f + (Math.Clamp(targetTonnage, 20, 100) - 20) / 160f);
     public static float DetectionRadius(CombatUnit observer, CombatUnit target) => DetectionRadius(observer.Warrior.Sensors, target.Spec.Tonnage);
     public const float UnitRadius = .65f;
+    public const float FollowDistance = 3;
     public const float MovementScale = .18f;
     public const int AimModifier = 3;
     public const double StepSeconds = .05;
@@ -94,6 +95,7 @@ public sealed class CombatUnit
     public float AngularVelocity { get; internal set; }
     public CombatOrder Order { get; internal set; }
     public string? AttackTarget { get; internal set; }
+    public string? FollowTarget { get; internal set; }
     public string? PriorityTarget { get; internal set; }
     public string? CurrentTarget { get; internal set; }
     public MovementMode Movement { get; set; }
@@ -279,14 +281,25 @@ public sealed class CombatSimulation
             var goal = Terrain.ReachableDestination(group[i].Position, destination + offset);
             for (var attempt = 0; assigned.Any(point => point.DistanceTo(goal) < CombatRules.UnitRadius * 2.1f) && attempt < 100; attempt++)
                 goal = Terrain.ReachableDestination(group[i].Position, destination + Vector2.FromAngle(attempt * 2.4f) * (2 + attempt * .15f));
-            group[i].Route = Array.Empty<Vector2>(); assigned.Add(goal); group[i].Destination = goal; group[i].Order = CombatOrder.Move; group[i].AttackTarget = null;
+            group[i].Route = Array.Empty<Vector2>(); assigned.Add(goal); group[i].Destination = goal; group[i].Order = CombatOrder.Move;
+            group[i].AttackTarget = group[i].FollowTarget = null;
         }
     }
     public void Attack(IEnumerable<string> ids, string targetId)
     {
         var target = Unit(targetId);
         foreach (var unit in ids.Distinct().Select(Unit).Where(item => item.Active && item.Side != target.Side && Detected(item.Side, targetId) && target.Active))
-        { unit.Order = CombatOrder.Attack; unit.AttackTarget = targetId; unit.NextFiringSearch = 0; }
+        { unit.Order = CombatOrder.Attack; unit.AttackTarget = targetId; unit.FollowTarget = null; unit.NextFiringSearch = 0; }
+    }
+    public void Follow(IEnumerable<string> ids, string targetId)
+    {
+        var target = Unit(targetId);
+        if (!target.Active) return;
+        foreach (var unit in ids.Distinct().Select(Unit).Where(item => item.Active && item.Side == target.Side && item != target))
+        {
+            unit.Order = CombatOrder.Follow; unit.FollowTarget = targetId; unit.AttackTarget = null;
+            unit.Route = Array.Empty<Vector2>();
+        }
     }
     public void SetPriority(IEnumerable<string> ids, string? targetId)
     {
@@ -297,7 +310,10 @@ public sealed class CombatSimulation
     public void Hold(IEnumerable<string> ids)
     {
         foreach (var unit in ids.Distinct().Select(Unit).Where(item => item.Active))
-        { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
+        {
+            unit.Order = CombatOrder.Hold; unit.AttackTarget = unit.FollowTarget = null;
+            unit.Destination = unit.Position; unit.Route = Array.Empty<Vector2>();
+        }
     }
     public void End() { if (Outcome == CombatOutcome.Ongoing) { Outcome = CombatOutcome.Ended; Paused = true; } }
     public void Advance(double delta)
@@ -313,6 +329,7 @@ public sealed class CombatSimulation
         Elapsed += CombatRules.StepSeconds;
         RefreshDetection();
         if (EnemyAiEnabled) UpdateAi();
+        StopInvalidFollows();
         foreach (var unit in Units) { unit.Moving = false; unit.AngularVelocity = 0; }
         foreach (var unit in Units.Where(item => item.Active)) MoveUnit(unit, delta);
         RefreshDetection();
@@ -336,6 +353,7 @@ public sealed class CombatSimulation
         foreach (var shot in shots)
             if (shot.Hit) Unit(shot.TargetId).ApplyDamage(shot.Location, shot.Damage);
         foreach (var shot in shots) ShotFired?.Invoke(shot);
+        StopInvalidFollows();
         foreach (var unit in Units.Where(item => !item.Active))
         { unit.Moving = false; unit.CurrentSpeed = unit.AngularVelocity = 0; unit.CurrentTarget = null; }
         if (shots.Any(shot => shot.Hit && !Unit(shot.TargetId).Active)) RefreshDetection();
@@ -346,6 +364,11 @@ public sealed class CombatSimulation
             Outcome = friendly ? CombatOutcome.Victory : enemy ? CombatOutcome.Defeat : CombatOutcome.Draw;
             Paused = true;
         }
+    }
+    private void StopInvalidFollows()
+    {
+        Hold(Units.Where(unit => unit.Active && unit.Order == CombatOrder.Follow
+            && (unit.FollowTarget is null || !Unit(unit.FollowTarget).Active)).Select(unit => unit.Id));
     }
     private void UpdateAi()
     {
@@ -363,6 +386,25 @@ public sealed class CombatSimulation
         Vector2? goal = null;
         var reverse = false;
         if (unit.Order == CombatOrder.Move) goal = unit.Destination;
+        else if (unit.Order == CombatOrder.Follow && unit.FollowTarget is { } leaderId)
+        {
+            var leader = Unit(leaderId);
+            var away = unit.Position - leader.Position;
+            var yielding = away.Length() < CombatRules.FollowDistance - .4f;
+            if (away.LengthSquared() < .001f) away = -leader.Facing;
+            // Leave room when the leader turns back through the group, rather than pinning it between followers.
+            if (yielding || away.Length() > CombatRules.FollowDistance + .2f)
+                foreach (var angle in new[] { 0f, .52f, -.52f, 1.05f, -1.05f, 1.57f, -1.57f, Mathf.Pi })
+                {
+                    var followGoal = Terrain.ReachableDestination(unit.Position,
+                        leader.Position + away.Normalized().Rotated(angle) * CombatRules.FollowDistance);
+                    if (Units.Any(other => other != unit && other.Status != CombatStatus.Destroyed
+                        && other.Position.DistanceTo(followGoal) < CombatRules.UnitRadius * 2.1f)) continue;
+                    goal = followGoal;
+                    reverse = yielding && unit.Facing.Dot((followGoal - unit.Position).Normalized()) < -.5f;
+                    break;
+                }
+        }
         else if (unit.Order == CombatOrder.Attack && unit.AttackTarget is { } id)
         {
             if (Detected(unit.Side, id))
@@ -441,7 +483,7 @@ public sealed class CombatSimulation
         if (Math.Abs(travel) > 1e-8f)
         {
             if (CombatRules.Clamp(candidate).DistanceSquaredTo(candidate) > 1e-10f || Blocked(unit, candidate))
-                nextSpeed = 0; // Contact is a hard constraint, including wrecks and arena edges.
+                nextSpeed = 0; // Contact with terrain, solid mechs or arena edges is a hard constraint.
             else { unit.Position = candidate; unit.Moving = true; }
         }
         unit.CurrentSpeed = nextSpeed;
@@ -468,7 +510,7 @@ public sealed class CombatSimulation
         }
         return direction;
     }
-    private bool Blocked(CombatUnit unit, Vector2 candidate) => !Terrain.CanTraverse(unit.Position, candidate) || Units.Any(other => other != unit
+    private bool Blocked(CombatUnit unit, Vector2 candidate) => !Terrain.CanTraverse(unit.Position, candidate) || Units.Any(other => other != unit && other.Status != CombatStatus.Destroyed
         && DistanceToSegment(other.Position, unit.Position, candidate) < CombatRules.UnitRadius * 2);
     private static float DistanceToSegment(Vector2 point, Vector2 from, Vector2 to)
     {

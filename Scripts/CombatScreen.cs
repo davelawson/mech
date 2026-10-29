@@ -207,7 +207,11 @@ public partial class CombatScreen : Control
     {
         if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing) return;
         if (SettingPriority)
-        { if (target is not null) { Simulation.SetPriority(_selected, target); SettingPriority = false; } }
+        {
+            if (target is not null && Simulation.Unit(target) is { Side: CombatSide.Enemy, Active: true })
+            { Simulation.SetPriority(_selected, target); SettingPriority = false; }
+        }
+        else if (target is not null && Simulation.Unit(target).Side == CombatSide.Friendly) Simulation.Follow(_selected, target);
         else if (target is not null) Simulation.Attack(_selected, target);
         else Simulation.Move(_selected, ground);
         RefreshDetails();
@@ -294,7 +298,7 @@ public partial class CombatScreen : Control
         _status.Text = $"{(Simulation.Paused ? "PAUSED · orders available" : "LIVE")}  |  {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}";
         PauseButton.Text = Simulation.Paused ? "Resume  [Space]" : "Pause  [Space]";
         _help.Text = SettingPriority ? "PRIORITY TARGET: right-click a detected enemy. This changes target preference without ordering pursuit. Escape cancels."
-            : "Click / drag: select · Shift: add · Right-click: Move / Attack · Space: pause · WASD / arrows / middle-drag: pan · Wheel: zoom · Right-drag: orbit · Q/E / Shift-middle: rotate · Home: arena";
+            : "Click / drag: select · Shift: add · Right-click: Move / Attack / Follow · Space: pause · WASD / arrows / middle-drag: pan · Wheel: zoom · Right-drag: orbit · Q/E / Shift-middle: rotate · Home: arena";
         var friends = Simulation.Units.Where(item => item.Side == CombatSide.Friendly).ToArray();
         for (var i = 0; i < UnitButtons.Count; i++)
         {
@@ -343,7 +347,8 @@ public partial class CombatScreen : Control
             return;
         }
         _selectionTitle.Text = _selected.Count > 1 ? $"{_selected.Count} selected · {unit.Warrior.Callsign}" : $"{unit.Warrior.Callsign} · {unit.Spec.Chassis}";
-        _unitInfo.Text = $"{unit.Spec.DisplayName} · {unit.Status}\n{RosterUi.SkillText(unit.Warrior)}\nOrder: {unit.Order}{(unit.AttackTarget is { } attack ? $" → {Simulation.Unit(attack).Spec.Chassis}" : "")}";
+        var orderTarget = unit.FollowTarget ?? unit.AttackTarget;
+        _unitInfo.Text = $"{unit.Spec.DisplayName} · {unit.Status}\n{RosterUi.SkillText(unit.Warrior)}\nOrder: {unit.Order}{(orderTarget is { } targetId ? $" → {Simulation.Unit(targetId).Warrior.Callsign} · {Simulation.Unit(targetId).Spec.Chassis}" : "")}";
         if (active.Length > 0)
         {
             _groupInfo.Visible = active.Length > 1;

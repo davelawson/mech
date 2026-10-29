@@ -97,6 +97,7 @@ internal static partial class CombatChecks
         CheckSensors(check);
         CheckDamage(check);
         CheckNavigation(check);
+        CheckFollowing(check);
         CheckLocomotion(check);
         CheckOutcomes(check);
 

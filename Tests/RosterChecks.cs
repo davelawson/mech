@@ -41,8 +41,9 @@ internal static class RosterChecks
                     .Select(pool => generated.MechCandidate(pool, generated.Choice(pool)).Id))
                 && generatedRoster.Warriors.Select(item => item.Spec.Id).SequenceEqual(Enumerable.Range(4, 4)
                     .Select(pool => generated.WarriorCandidate(pool, generated.Choice(pool)).Id))
-                && generatedRoster.ForceName == generated.ForceName && generatedRoster.Mechs.All(item => item.WarriorId is null),
-                "random draft establishes its selected candidates from each pool with unassigned pilots");
+                && generatedRoster.ForceName == generated.ForceName
+                && generatedRoster.Mechs.Zip(generatedRoster.Warriors).All(pair => pair.First.WarriorId == pair.Second.Id),
+                "random draft establishes its selected candidates with pilots assigned by column");
             var candidates = Enumerable.Range(0,4).SelectMany(p => Enumerable.Range(0,3).Select(c => generated.MechCandidate(p,c))).ToArray();
             var pilots = Enumerable.Range(4,4).SelectMany(p => Enumerable.Range(0,3).Select(c => generated.WarriorCandidate(p,c))).ToArray();
             check(candidates.Select(m => m.Id).Distinct().Count() == 12 && pilots.Select(w => w.Id).Distinct().Count() == 12
@@ -64,7 +65,8 @@ internal static class RosterChecks
         draft.Select(0, 2); fresh.EstablishCompany(draft);
         var roster = fresh.Roster!;
         check(roster.ForceName == "Iron Lanterns" && roster.Mechs[0].Spec.Id == "panther", "draft commits revised choices and company identity");
-        check(roster.ReadyWarriors == 4 && roster.Mechs.All(item => item.Operational && item.WarriorId is null), "draft starts with healthy unassigned pilots and intact mechs");
+        check(roster.ReadyWarriors == 4 && roster.Mechs.Zip(roster.Warriors).All(pair => pair.First.Operational && pair.First.WarriorId == pair.Second.Id),
+            "draft starts with intact mechs and healthy pilots assigned by column");
         Reject(() => fresh.EstablishCompany(draft), "completed draft cannot reopen");
         var a = roster.Mechs[0]; var b = roster.Mechs[1]; var first = roster.Warriors[0]; var second = roster.Warriors[1];
         roster.Assign(a.Id, first.Id); roster.Assign(b.Id, second.Id);
@@ -78,6 +80,7 @@ internal static class RosterChecks
         roster.SetHealth(first.Id, WarriorHealth.Injured, fresh.Date.AddDays(2), fresh.Date);
         check(a.WarriorId == first.Id && roster.ReadyWarriors == 3, "injury retains assignment and reduces ready count");
         var restored = Campaign.Restore(fresh.Snapshot());
+        check(restored.Roster!.Mechs[1].WarriorId is null, "loading an established company preserves deliberately empty assignments");
         check(restored.Roster!.Warriors.All(w => w.Spec.Sensors == DraftCatalog.Warrior(w.Id).Sensors
             && w.Spec.SkillPoints == w.Spec.SkillBudget), "existing ID-based saves resolve budgeted Sensors ratings without a schema change");
         check(restored.Roster!.Mechs[0].WarriorId == first.Id && restored.Roster.Warriors[0].Health == WarriorHealth.Injured, "save restores injury, recovery and assignments");

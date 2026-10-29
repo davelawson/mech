@@ -15,6 +15,7 @@ internal static partial class CombatChecks
     }
     private static void CheckSensors(Action<bool, string> check)
     {
+        CheckCircleUnions(check);
         foreach (var (sensors, tonnage, expected) in new[]
         {
             (6, 20, 12.5f), (6, 60, 18.75f), (6, 100, 25f),
@@ -60,5 +61,44 @@ internal static partial class CombatChecks
         damaged.ApplyDamage(weapon.Spec.Location, damaged.Locations[weapon.Spec.Location].Armor + damaged.Locations[weapon.Spec.Location].Structure);
         check(damaged.Equipment[weapon.Spec.Id] == ComponentCondition.Operational && !damaged.WeaponUsable(weapon)
             && CombatScreen.SystemsReadout(damaged).Contains($"{weapon.Spec.Name}: Lost"), "systems inspection derives lost equipment from location integrity");
+    }
+
+    private static void CheckCircleUnions(Action<bool, string> check)
+    {
+        void Boundary(string name, CircleUnion.Circle[] circles, float? expectedLength = null)
+        {
+            var arcs = CircleUnion.Boundary(circles).ToArray();
+            if (expectedLength is { } length)
+                check(Math.Abs(arcs.Sum(arc => arc.Radius * (arc.End - arc.Start)) - length) < .0001f,
+                    $"{name}: union has the expected exposed perimeter without duplicate strokes");
+            var correct = true;
+            foreach (var circle in circles)
+            for (var sample = 0; sample < 360; sample++)
+            {
+                var angle = (sample + .37f) * Mathf.Tau / 360;
+                var point = circle.Center + Vector2.FromAngle(angle) * circle.Radius;
+                var exposed = !circles.Any(other => other != circle && point.DistanceTo(other.Center) < other.Radius - .00001f);
+                var drawn = arcs.Any(arc => arc.Center == circle.Center && arc.Radius == circle.Radius && angle >= arc.Start && angle <= arc.End);
+                correct &= exposed == drawn;
+            }
+            check(correct, $"{name}: boundary includes every uncovered arc and excludes covered arcs");
+        }
+        Boundary("single circle", [new(Vector2.Zero, 1)], Mathf.Tau);
+        Boundary("disjoint circles", [new(Vector2.Zero, 1), new(new(3, 0), 1)], 2 * Mathf.Tau);
+        Boundary("overlapping circles", [new(Vector2.Zero, 1), new(Vector2.Right, 1)], 8 * Mathf.Pi / 3);
+        Boundary("externally tangent circles", [new(Vector2.Zero, 1), new(new(2, 0), 1)], 2 * Mathf.Tau);
+        Boundary("contained circles", [new(Vector2.Zero, 2), new(new(.5f, 0), 1)], 2 * Mathf.Tau);
+        Boundary("internally tangent circles", [new(Vector2.Zero, 2), new(Vector2.Right, 1)], 2 * Mathf.Tau);
+        Boundary("concentric circles", [new(Vector2.Zero, 1), new(Vector2.Zero, 2)], 2 * Mathf.Tau);
+        Boundary("coincident circles", [new(Vector2.Zero, 1), new(Vector2.Zero, 1)], Mathf.Tau);
+        Boundary("unequal overlapping circles", [new(Vector2.Zero, 2), new(new(2, 0), 1)]);
+        CircleUnion.Circle[] ring = Enumerable.Range(0, 3).Select(index => new CircleUnion.Circle(Vector2.FromAngle(index * Mathf.Tau / 3) * 2, 1.8f)).ToArray();
+        Boundary("three-circle hole", ring);
+        check(CircleUnion.Boundary(ring).Any(arc => (arc.Center + Vector2.FromAngle((arc.Start + arc.End) * .5f) * arc.Radius).Length() < .5f),
+            "union preserves the inner boundary of an uncovered hole");
+        CircleUnion.Circle[] surrounded = [new(Vector2.Zero, 1), new(Vector2.Right, 1.1f), new(Vector2.Up, 1.1f), new(Vector2.Left, 1.1f), new(Vector2.Down, 1.1f)];
+        Boundary("collectively covered circle", surrounded);
+        check(CircleUnion.Boundary(surrounded).All(arc => arc.Center != Vector2.Zero), "several circles can cover an entire internal boundary");
+        check(!CircleUnion.Boundary([]).Any(), "empty selection has no range boundary");
     }
 }

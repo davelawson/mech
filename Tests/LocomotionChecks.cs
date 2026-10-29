@@ -108,14 +108,36 @@ internal static partial class CombatChecks
 
         sim = MovementBattle(count: 2); f = Friendly(sim); var wreck = Enemy(sim);
         wreck.Position = new(0, -4); wreck.ApplyDamage(MechLocation.Head, 1000);
-        sim.Move([f.Id], new(0, -8)); var separated = true; var aligned = true;
+        sim.Move([f.Id], new(0, -8)); var crossed = false; var aligned = true;
         for (var i = 0; i < 1200; i++)
         {
             position = f.Position; sim.Advance(.05);
-            separated &= f.Position.DistanceTo(wreck.Position) >= CombatRules.UnitRadius * 2 - .0001f;
+            crossed |= f.Position.DistanceTo(wreck.Position) < .2f;
             if (f.Moving) aligned &= Math.Abs((f.Position - position).Normalized().Cross(f.Facing)) < .001f;
         }
-        check(separated && aligned && f.Position.Y < -5, "physical steering navigates around a wreck without overlapping or sliding");
+        check(crossed && aligned && Math.Abs(f.Position.X) < .001f && f.Position.Y < -7.8f,
+            "mechs travel straight through a destroyed mech without steering around it or stopping");
+
+        sim = MovementBattle(count: 2); f = Friendly(sim); var disabled = Enemy(sim);
+        disabled.Position = new(0, -4);
+        foreach (var location in new[] { MechLocation.LeftLeg, MechLocation.RightLeg })
+            disabled.ApplyDamage(location, disabled.Locations[location].Armor + disabled.Locations[location].Structure);
+        sim.Move([f.Id], new(0, -8)); var separated = true;
+        for (var i = 0; i < 1200; i++)
+        {
+            sim.Advance(.05);
+            separated &= f.Position.DistanceTo(disabled.Position) >= CombatRules.UnitRadius * 2 - .0001f;
+        }
+        check(disabled.Status == CombatStatus.Disabled && separated && f.Position.Y < -5,
+            "disabled mechs remain solid obstacles that moving mechs steer around");
+
+        sim = MovementBattle(count: 2); f = Friendly(sim); wreck = Enemy(sim);
+        sim.Move([f.Id], new(0, -8)); sim.Advance(3);
+        wreck.Position = f.Position + f.Facing * (CombatRules.UnitRadius * 2 + .05f);
+        wreck.ApplyDamage(MechLocation.CenterTorso, 1000);
+        var wreckPosition = wreck.Position; sim.Advance(20);
+        check(f.Position.Y < wreckPosition.Y - 1 && wreck.Position == wreckPosition,
+            "a newly destroyed mech immediately becomes passable while its wreck stays in place");
 
         sim = MovementBattle(); f = Friendly(sim); f.Movement = MovementMode.Run;
         sim.Move([f.Id], new(0, -30)); sim.Advance(3);

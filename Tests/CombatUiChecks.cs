@@ -17,11 +17,17 @@ public partial class SmokeTests
         await Click(_app.Hangar.DeploymentButton);
         var tactical = _app.Tactical;
         Check(tactical.Visible && !_app.Hangar.Visible && tactical.Modal == CombatModal.ForceSelection, "hangar simulation opens force selection");
+        Check(!tactical.LaunchButton.Disabled && tactical.ForceChoices.All(item => !item.Disabled), "drafted company can deploy immediately with its assigned pilots");
+        await PressKey(Key.Escape);
+        var roster = _app.State.Roster!;
+        foreach (var mech in roster.Mechs) roster.Assign(mech.Id, null);
+        _app.Hangar.Refresh();
+        tabs = _app.Hangar.FindChildren("*", "TabContainer", true, false).OfType<TabContainer>().Single(); tabs.CurrentTab = 2;
+        await Frames(); await Click(_app.Hangar.DeploymentButton);
         Check(tactical.LaunchButton.Disabled && tactical.ForceChoices.All(item => item.Disabled), "unassigned roster cannot launch simulation");
         await Capture("deployment-unavailable");
         await PressKey(Key.Escape);
         Check(_app.Hangar.Visible && _app.Hangar.SelectedMech == _app.State.Roster!.Mechs[1] && tabs.CurrentTab == 2, "cancelling deployment preserves hangar mech and tab");
-        var roster = _app.State.Roster!;
         for (var i = 0; i < 4; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         _app.Hangar.Refresh();
         // Refresh recreates the detail panel, so capture its new tab container.
@@ -75,6 +81,17 @@ public partial class SmokeTests
         Check(tactical.Selected.Count == 2, "actual drag selection selects multiple friendly mechs");
         await RightClick(destination);
         Check(sim.Units.Where(item => item.Side == CombatSide.Friendly).Select(item => item.Destination).Distinct().Count() == 2, "UI group Move assigns distinct destinations");
+        var leader = sim.Units.Last(item => item.Side == CombatSide.Friendly);
+        var leaderDestination = leader.Destination;
+        await RightClick(field.GlobalPosition + field.ScreenPoint(leader.Position, 1));
+        Check(friendly.Order == CombatOrder.Follow && friendly.FollowTarget == leader.Id
+            && leader.Order == CombatOrder.Move && leader.Destination == leaderDestination && tactical.Selected.Count == 2,
+            "right-click friendly queues Follow for the group without changing the selected leader's order");
+        await Delay(.15);
+        Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.IsVisibleInTree()
+            && label.Text.Contains($"Order: Follow → {leader.Warrior.Callsign}")), "selected-unit details identify the Follow leader");
+        await Capture("combat-follow-order");
+        await RightClick(destination);
         var oldSize = field.Camera.Size;
         var center = field.GlobalPosition + field.Size / 2;
         MouseButton(center, Godot.MouseButton.WheelUp, true);
@@ -107,6 +124,9 @@ public partial class SmokeTests
         var scroll = priorityButton.GetParent().GetParent().GetParent<ScrollContainer>();
         scroll.EnsureControlVisible(priorityButton); await Frames();
         await Click(priorityButton); Check(tactical.SettingPriority, "separate priority control arms target selection");
+        await RightClick(field.GlobalPosition + field.ScreenPoint(friendly.Position, 1));
+        Check(tactical.SettingPriority && tactical.Selected.Select(sim.Unit).All(item => item.Order == CombatOrder.Attack
+            && item.FollowTarget is null && item.PriorityTarget is null), "friendly click while choosing priority leaves the mode armed and does not issue Follow");
         MouseButton(enemyAt, Godot.MouseButton.Right, true);
         CameraMotion(enemyAt + new Vector2(6, 0), new Vector2(6, 0));
         MouseButton(enemyAt, Godot.MouseButton.Right, false); await Frames();
@@ -120,8 +140,9 @@ public partial class SmokeTests
         Check(tactical.Paperdoll.Unit == enemy && displayed.Contains(CombatPaperdoll.Readout(enemy))
             && displayed.Contains(CombatScreen.SystemsReadout(enemy)), "close enemy inspection reveals exact location condition and effective systems status");
         var radius = CombatRules.DetectionRadius(friendly, enemy);
-        Check(field.DetectionRanges is { } ranges && ranges.Identification == radius && ranges.Detail == radius * .5f,
-            "enemy inspection shows target-specific identification and status ranges for the friendly reference");
+        Check(field.DetectionRanges.Count == 2 && field.DetectionRanges.All(range => range.Identification == CombatRules.DetectionRadius(range.Observer, enemy)
+            && range.Detail == range.Identification * .5f) && field.SensorRangeText.StartsWith("Selected mechs"),
+            "enemy inspection shows target-specific identification and status ranges for every selected active friendly");
         scroll.ScrollVertical = 0; await Frames(); await Capture("combat-detailed-contact");
         var closePosition = enemy.Position;
         var otherFriends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly && unit != friendly).ToArray();
@@ -144,7 +165,7 @@ public partial class SmokeTests
         for (var i = 0; i < otherFriends.Length; i++) otherFriends[i].Position = previousPositions[i];
         enemy.Position = closePosition; sim.RefreshDetection();
         await Click(tactical.UnitButtons[0]);
-        Check(field.DetectionRanges is { Detail: null } && field.SensorRangeText.Contains("20–100t"),
+        Check(field.DetectionRanges is [{ Detail: null }] && field.SensorRangeText.Contains("20–100t"),
             "without an inspected target the circle uses 100t and labels the 20–100t detection span");
         for (var zoom = 0; zoom < 4; zoom++)
         {

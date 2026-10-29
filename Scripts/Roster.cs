@@ -160,8 +160,11 @@ public sealed class InitialDraft
     public ForceRoster Establish()
     {
         if (!Complete) throw new InvalidOperationException("Name the company and select one candidate from each pool.");
-        return ForceRoster.Create(ForceName.Trim(), Enumerable.Range(0, 4).Select(pool => MechCandidate(pool, _choices[pool])),
+        var roster = ForceRoster.Create(ForceName.Trim(), Enumerable.Range(0, 4).Select(pool => MechCandidate(pool, _choices[pool])),
             Enumerable.Range(4, 4).Select(pool => WarriorCandidate(pool, _choices[pool])));
+        for (var column = 0; column < 4; column++)
+            roster.Assign(roster.Mechs[column].Id, roster.Warriors[column].Id);
+        return roster;
     }
 }
 
