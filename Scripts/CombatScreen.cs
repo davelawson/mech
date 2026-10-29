@@ -21,6 +21,8 @@ public partial class CombatScreen : Control
     public Button ResumeButton { get; private set; } = null!;
     public Button EndButton { get; private set; } = null!;
     public Button ReturnButton { get; private set; } = null!;
+    public Button NormalHeatButton { get; private set; } = null!;
+    public Button AggressiveHeatButton { get; private set; } = null!;
     public List<Button> UnitButtons { get; } = [];
     public IReadOnlyList<string> Selected => _selected;
     public bool SettingPriority { get; private set; }
@@ -86,6 +88,12 @@ public partial class CombatScreen : Control
         _fire = Ui.Button(fire, "Fire at will"); _hold = Ui.Button(fire, "Hold fire");
         _fire.Pressed += () => ChangeUnits(unit => unit.Firing = FiringMode.FireAtWill);
         _hold.Pressed += () => ChangeUnits(unit => unit.Firing = FiringMode.HoldFire);
+        var heat = new HBoxContainer(); _settings.AddChild(heat);
+        NormalHeatButton = Ui.Button(heat, "Normal heat"); AggressiveHeatButton = Ui.Button(heat, "Aggressive heat");
+        NormalHeatButton.TooltipText = "Fire the highest expected-damage volley that keeps heat below 20.";
+        AggressiveHeatButton.TooltipText = "Allow heat below 30 for a stronger burst, accepting movement and accuracy penalties.";
+        NormalHeatButton.Pressed += () => ChangeUnits(unit => unit.HeatPolicy = HeatPolicy.Normal);
+        AggressiveHeatButton.Pressed += () => ChangeUnits(unit => unit.HeatPolicy = HeatPolicy.Aggressive);
         Ui.Button(_settings, "Stop movement / clear order").Pressed += () => { Simulation?.Hold(_selected); RefreshDetails(); };
         RosterUi.Text(_settings, "Preferred engagement distance (hexes)", 12, Ui.Muted);
         _distance = new SpinBox { MinValue = 1.5, MaxValue = 21, Step = .5, AllowGreater = false, AllowLesser = false };
@@ -187,7 +195,9 @@ public partial class CombatScreen : Control
         {
             number++;
             var button = Ui.Button(_unitBar, $"{number} · {unit.Warrior.Callsign}\n{unit.Spec.DisplayName}");
-            button.SizeFlagsHorizontal = SizeFlags.ExpandFill; UnitButtons.Add(button);
+            button.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+            button.ClipText = true; button.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+            UnitButtons.Add(button);
             button.Pressed += () => { Battlefield.InspectedEnemy = null; SelectUnits([unit.Id], Input.IsKeyPressed(Key.Shift)); Battlefield.GrabFocus(); };
         }
         SelectUnits([Simulation.Units.First(item => item.Side == CombatSide.Friendly).Id], false);
@@ -208,7 +218,7 @@ public partial class CombatScreen : Control
         if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing) return;
         if (SettingPriority)
         {
-            if (target is not null && Simulation.Unit(target) is { Side: CombatSide.Enemy, Active: true })
+            if (target is not null && Simulation.Unit(target) is { Side: CombatSide.Enemy, Defeated: false })
             { Simulation.SetPriority(_selected, target); SettingPriority = false; }
         }
         else if (target is not null && Simulation.Unit(target).Side == CombatSide.Friendly) Simulation.Follow(_selected, target);
@@ -219,7 +229,7 @@ public partial class CombatScreen : Control
     private void ChangeUnits(Action<CombatUnit> change)
     {
         if (Simulation is null) return;
-        foreach (var unit in _selected.Select(Simulation.Unit).Where(item => item.Active)) change(unit);
+        foreach (var unit in _selected.Select(Simulation.Unit).Where(item => !item.Defeated)) change(unit);
         RefreshDetails();
     }
     public void TogglePause()
@@ -303,11 +313,12 @@ public partial class CombatScreen : Control
         for (var i = 0; i < UnitButtons.Count; i++)
         {
             var friend = friends[i]; var button = UnitButtons[i];
-            button.Text = $"{i + 1} · {friend.Warrior.Callsign} · {friend.Status}\n{friend.Spec.DisplayName}";
+            button.Text = $"{i + 1} · {friend.Warrior.Callsign} · {friend.Status}\n{friend.Spec.DisplayName} · H {friend.Heat:0.0}";
+            button.TooltipText = $"{friend.Spec.DisplayName} · {friend.Status}\n{HeatReadout(friend)}";
             button.AddThemeStyleboxOverride("normal", Ui.Box(_selected.Contains(friend.Id) ? new Color("344431") : Ui.Panel, _selected.Contains(friend.Id) ? Ui.Gold : Ui.Line));
         }
         var primary = _selected.FirstOrDefault(); var unit = primary is null ? null : Simulation.Unit(primary);
-        var active = _selected.Select(Simulation.Unit).Where(item => item.Active).ToArray();
+        var active = _selected.Select(Simulation.Unit).Where(item => !item.Defeated).ToArray();
         var inspected = Battlefield.InspectedEnemy;
         if (inspected is not null && !Simulation.Detected(CombatSide.Friendly, inspected))
             Battlefield.InspectedEnemy = inspected = null;
@@ -331,7 +342,7 @@ public partial class CombatScreen : Control
             var enemy = Simulation.Unit(inspected);
             var detailed = Simulation.DetailsVisible(CombatSide.Friendly, inspected);
             _selectionTitle.Text = detailed ? enemy.Spec.DisplayName : enemy.Spec.Chassis;
-            _unitInfo.Text = detailed ? $"OPPOSITION · {enemy.Spec.Tonnage}t · {enemy.Status}"
+            _unitInfo.Text = detailed ? $"OPPOSITION · {enemy.Spec.Tonnage}t · {enemy.Status}\n{HeatReadout(enemy)}"
                 : "OPPOSITION · Model identified\nClose to half detection range for armour, internals and systems.";
             Paperdoll.Display(detailed ? enemy : null);
             _locations.Text = detailed ? CombatPaperdoll.Readout(enemy) : "";
@@ -349,25 +360,29 @@ public partial class CombatScreen : Control
         _selectionTitle.Text = _selected.Count > 1 ? $"{_selected.Count} selected · {unit.Warrior.Callsign}" : $"{unit.Warrior.Callsign} · {unit.Spec.Chassis}";
         var orderTarget = unit.FollowTarget ?? unit.AttackTarget;
         _unitInfo.Text = $"{unit.Spec.DisplayName} · {unit.Status}\n{RosterUi.SkillText(unit.Warrior)}\nOrder: {unit.Order}{(orderTarget is { } targetId ? $" → {Simulation.Unit(targetId).Warrior.Callsign} · {Simulation.Unit(targetId).Spec.Chassis}" : "")}";
+        _unitInfo.Text += $"\n{HeatReadout(unit)}";
         if (active.Length > 0)
         {
             _groupInfo.Visible = active.Length > 1;
-            _groupInfo.Text = $"{active.Length} active units · edits apply to group\n"
+            _groupInfo.Text = $"{active.Length} units · edits apply to group\n"
                 + $"Movement: {(active.Select(item => item.Movement).Distinct().Count() > 1 ? "Mixed" : active[0].Movement)} · Fire: {(active.Select(item => item.Firing).Distinct().Count() > 1 ? "Mixed" : active[0].Firing == FiringMode.FireAtWill ? "At will" : "Hold")}\n"
-                + $"Distance: {(active.Select(item => item.PreferredDistance).Distinct().Count() > 1 ? "Mixed" : $"{active[0].PreferredDistance:0.0} hexes")}";
+                + $"Distance: {(active.Select(item => item.PreferredDistance).Distinct().Count() > 1 ? "Mixed" : $"{active[0].PreferredDistance:0.0} hexes")}\n"
+                + $"Heat policy: {(active.Select(item => item.HeatPolicy).Distinct().Count() > 1 ? "Mixed" : active[0].HeatPolicy.ToString())}";
             _walk.Text = active.All(item => item.Movement == MovementMode.Walk) ? "● Walk" : "Walk";
             _run.Text = active.All(item => item.Movement == MovementMode.Run) ? "● Run" : "Run";
             _fire.Text = active.All(item => item.Firing == FiringMode.FireAtWill) ? "● Fire at will" : "Fire at will";
             _hold.Text = active.All(item => item.Firing == FiringMode.HoldFire) ? "● Hold fire" : "Hold fire";
+            NormalHeatButton.Text = active.All(item => item.HeatPolicy == HeatPolicy.Normal) ? "● Normal heat" : "Normal heat";
+            AggressiveHeatButton.Text = active.All(item => item.HeatPolicy == HeatPolicy.Aggressive) ? "● Aggressive heat" : "Aggressive heat";
             _refreshing = true;
             // Leave the user's edit intact while the spin box owns focus.
             if (!_distance.GetLineEdit().HasFocus()) _distance.SetValueNoSignal(active[0].PreferredDistance);
-            _distance.TooltipText = active.Select(item => item.PreferredDistance).Distinct().Count() > 1 ? "Mixed distances; editing applies to all selected active units." : "Applies to all selected active units.";
+            _distance.TooltipText = active.Select(item => item.PreferredDistance).Distinct().Count() > 1 ? "Mixed distances; editing applies to all selected units that are not defeated." : "Applies to all selected units that are not defeated.";
             _refreshing = false;
         }
         _priority.Text = SettingPriority ? "Choose enemy on battlefield…" : "Set priority target…";
         var firingTarget = Simulation.SelectAimTarget(unit);
-        var target = firingTarget ?? Simulation.Units.Where(item => item.Side != unit.Side && item.Active && Simulation.Detected(unit.Side, item.Id))
+        var target = firingTarget ?? Simulation.Units.Where(item => item.Side != unit.Side && !item.Defeated && Simulation.Detected(unit.Side, item.Id))
             .OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
         _targetInfo.Text = $"Priority: {(unit.PriorityTarget is { } priority ? Simulation.Unit(priority).Spec.Chassis : "none")}\n"
             + (target is null ? "No contact · move toward arena center" : $"{(firingTarget is null ? "Aim preview" : "Target")}: {target.Spec.Chassis} · {unit.Position.DistanceTo(target.Position):0.0} hexes");
@@ -381,7 +396,7 @@ public partial class CombatScreen : Control
             Simulation.Terrain.Contains(TerrainKind.Vegetation, unit.Position) ? "\nVegetation slows movement" : "";
         foreach (var (weapon, control) in _weaponControls)
         {
-            control.Disabled = !unit.Active || !unit.WeaponUsable(weapon);
+            control.Disabled = unit.Defeated || !unit.WeaponUsable(weapon);
             var weaponTarget = weapon.Spec.Rear ? Simulation.SelectRearTarget(unit) : firingTarget;
             var status = Simulation.WeaponStatus(unit, weapon, weaponTarget ?? target);
             control.Text = $"{weapon.Spec.Name}{(weapon.Spec.Rear ? " (rear)" : "")} · {DraftCatalog.Abbreviation(weapon.Spec.Location)}\n"
@@ -389,10 +404,15 @@ public partial class CombatScreen : Control
                 + (weapon.Spec.Rear && weaponTarget is not null ? $" · {weaponTarget.Spec.Chassis}" : "");
         }
         _locations.Text = CombatPaperdoll.Readout(unit)
-            + "\nGround markers: team color = legs; gold dot = torso.\nPrimary unit's weapons and locations shown; group orders and settings apply to all active selections.";
+            + "\nGround markers: team color = legs; gold dot = torso.\nPrimary unit's weapons and locations shown; group orders and settings include shut-down selections.";
         _systems.Text = SystemsReadout(unit);
 
     }
+    internal static string HeatReadout(CombatUnit unit) =>
+        $"Heat {unit.Heat:0.0} · {unit.HeatBand} · {unit.HeatPolicy}\n"
+        + $"Cooling {unit.CoolingRate:0.0} heat/s · {unit.EffectiveHeatSinks}/{unit.Spec.HeatSinks} {unit.Spec.HeatSinkType.ToLowerInvariant()} sinks"
+        + (unit.Shutdown && !unit.Defeated ? "\nAutomatic restart below 10 heat" : "");
+
     internal static string SystemsReadout(CombatUnit unit)
     {
         string State(string id, MechLocation location, bool usable = true) => !unit.Intact(location) ? "Lost"

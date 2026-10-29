@@ -8,7 +8,7 @@ public enum CombatOrder { Hold, Move, Attack, Follow }
 public enum MovementMode { Walk, Run }
 public enum FiringMode { FireAtWill, HoldFire }
 public enum CombatOutcome { Ongoing, Victory, Defeat, Draw, Ended }
-public enum CombatStatus { Active, Disabled, Destroyed }
+public enum CombatStatus { Active, Shutdown, Disabled, Destroyed }
 public enum ContactLevel { Lost, Identified, Detailed }
 
 /// <summary>Authored first-slice values. Distances are stock range hexes, time is seconds.</summary>
@@ -128,14 +128,17 @@ public sealed partial class CombatUnit
             && Ammo.Any(item => item.Id == bin.Id && item.Shots > 0)));
     public CombatStatus Status => !Intact(MechLocation.Head) || !Intact(MechLocation.CenterTorso)
         ? CombatStatus.Destroyed : (!Intact(MechLocation.LeftLeg) && !Intact(MechLocation.RightLeg))
-            || !Weapons.Any(WeaponUsable) ? CombatStatus.Disabled : CombatStatus.Active;
+            || !Weapons.Any(WeaponUsable) ? CombatStatus.Disabled : Shutdown ? CombatStatus.Shutdown : CombatStatus.Active;
     public bool Active => Status == CombatStatus.Active;
-    private float Mobility => !Active ? 0 : (!Intact(MechLocation.LeftLeg) || !Intact(MechLocation.RightLeg)) ? .5f : 1;
-    public float WalkingSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Walk) * Mobility;
-    public float RunningSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Run) * Mobility;
+    public bool Defeated => Status is CombatStatus.Disabled or CombatStatus.Destroyed;
+    private float Mobility => Defeated ? 0 : (!Intact(MechLocation.LeftLeg) || !Intact(MechLocation.RightLeg)) ? .5f : 1;
+    public float UnheatedWalkingSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Walk) * Mobility;
+    public float UnheatedRunningSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Run) * Mobility;
+    public float WalkingSpeed => Active ? UnheatedWalkingSpeed * HeatSpeedMultiplier : 0;
+    public float RunningSpeed => Active ? UnheatedRunningSpeed * HeatSpeedMultiplier : 0;
     public float Speed => Movement == MovementMode.Run ? RunningSpeed : WalkingSpeed;
     // Nine / Walk seconds to full run, half that to stop. No independent mass modifier.
-    public float Acceleration => RunningSpeed * Spec.Walk / 9f;
+    public float Acceleration => UnheatedRunningSpeed * Spec.Walk / 9f;
     public float Braking => Acceleration * 2;
     public float TurnRate => Mathf.DegToRad(15 * Spec.Walk);
     public int ArmorLost => Locations.Values.Sum(item => item.InitialArmor - item.Armor + item.InitialRearArmor - item.RearArmor);
@@ -187,7 +190,7 @@ public sealed class CombatContact
 }
 
 public sealed record CombatShot(string AttackerId, string TargetId, Vector2 From, Vector2 To,
-    string Weapon, bool Hit, MechLocation Location, int Damage);
+    string Weapon, bool Hit, MechLocation Location, int Damage, int GeneratedHeat = 0, int TargetHeat = 0);
 
 /// <summary>Deterministic fixed-step combat with shared detection and simultaneous weapon resolution.</summary>
 public sealed partial class CombatSimulation
@@ -276,7 +279,7 @@ public sealed partial class CombatSimulation
     }
     public void Move(IEnumerable<string> ids, Vector2 destination)
     {
-        var group = ids.Distinct().Select(Unit).Where(item => item.Active).ToArray();
+        var group = ids.Distinct().Select(Unit).Where(item => !item.Defeated).ToArray();
         var assigned = new List<Vector2>();
         for (var i = 0; i < group.Length; i++)
         {
@@ -292,14 +295,14 @@ public sealed partial class CombatSimulation
     public void Attack(IEnumerable<string> ids, string targetId)
     {
         var target = Unit(targetId);
-        foreach (var unit in ids.Distinct().Select(Unit).Where(item => item.Active && item.Side != target.Side && Detected(item.Side, targetId) && target.Active))
+        foreach (var unit in ids.Distinct().Select(Unit).Where(item => !item.Defeated && item.Side != target.Side && Detected(item.Side, targetId) && !target.Defeated))
         { unit.Order = CombatOrder.Attack; unit.AttackTarget = targetId; unit.FollowTarget = null; unit.NextFiringSearch = 0; }
     }
     public void Follow(IEnumerable<string> ids, string targetId)
     {
         var target = Unit(targetId);
-        if (!target.Active) return;
-        foreach (var unit in ids.Distinct().Select(Unit).Where(item => item.Active && item.Side == target.Side && item != target))
+        if (target.Defeated) return;
+        foreach (var unit in ids.Distinct().Select(Unit).Where(item => !item.Defeated && item.Side == target.Side && item != target))
         {
             unit.Order = CombatOrder.Follow; unit.FollowTarget = targetId; unit.AttackTarget = null;
             unit.Route = Array.Empty<Vector2>();
@@ -307,13 +310,13 @@ public sealed partial class CombatSimulation
     }
     public void SetPriority(IEnumerable<string> ids, string? targetId)
     {
-        foreach (var unit in ids.Distinct().Select(Unit).Where(item => item.Active))
-            if (targetId is null || (Unit(targetId).Side != unit.Side && Detected(unit.Side, targetId) && Unit(targetId).Active))
+        foreach (var unit in ids.Distinct().Select(Unit).Where(item => !item.Defeated))
+            if (targetId is null || (Unit(targetId).Side != unit.Side && Detected(unit.Side, targetId) && !Unit(targetId).Defeated))
                 unit.PriorityTarget = targetId;
     }
     public void Hold(IEnumerable<string> ids)
     {
-        foreach (var unit in ids.Distinct().Select(Unit).Where(item => item.Active))
+        foreach (var unit in ids.Distinct().Select(Unit).Where(item => !item.Defeated))
         {
             unit.Order = CombatOrder.Hold; unit.AttackTarget = unit.FollowTarget = null;
             unit.Destination = unit.Position; unit.Route = Array.Empty<Vector2>();
@@ -336,6 +339,11 @@ public sealed partial class CombatSimulation
         StopInvalidFollows();
         foreach (var unit in Units) { unit.Moving = false; unit.AngularVelocity = 0; }
         foreach (var unit in Units.Where(item => item.Active)) MoveUnit(unit, delta);
+        foreach (var unit in Units.Where(item => !item.Defeated))
+        {
+            unit.AdvanceHeat(CombatRules.StepSeconds);
+            foreach (var weapon in unit.Weapons) weapon.Remaining = Math.Max(0, weapon.Remaining - delta);
+        }
         RefreshDetection();
         // Update every waist before selecting rear targets or taking a firing/damage snapshot.
         foreach (var unit in Units.Where(item => item.Active))
@@ -346,16 +354,14 @@ public sealed partial class CombatSimulation
         var shots = new List<CombatShot>();
         foreach (var unit in Units.Where(item => item.Active))
         {
-            foreach (var weapon in unit.Weapons) weapon.Remaining = Math.Max(0, weapon.Remaining - delta);
             var mainTarget = unit.CurrentTarget is { } main ? Unit(main) : null;
             var rearTarget = SelectRearTarget(unit); unit.CurrentRearTarget = rearTarget?.Id;
-            foreach (var weapon in unit.Weapons.Where(item => item.Enabled && item.Remaining <= 1e-6 && unit.WeaponUsable(item)))
+            foreach (var (weapon, target) in SelectHeatVolley(unit, mainTarget, rearTarget))
             {
-                var target = weapon.Spec.Rear ? rearTarget : mainTarget;
-                if (target is null || !CanFire(unit, target, weapon)) continue;
                 var hit = _random.NextDouble() < TerrainHitChance(unit, target, weapon);
                 var location = RollLocation();
-                shots.Add(new(unit.Id, target.Id, unit.Position, target.Position, weapon.Spec.Name, hit, location, hit ? weapon.Damage : 0));
+                shots.Add(new(unit.Id, target.Id, unit.Position, target.Position, weapon.Spec.Name, hit, location,
+                    hit ? weapon.Damage : 0, weapon.Spec.Heat, hit ? CombatRules.FlamerHeat(weapon.Spec) : 0));
                 weapon.Remaining = CombatRules.Cooldown(weapon.Spec); unit.ShotsFired++;
                 if (hit) { unit.Hits++; unit.DamageDealt += weapon.Damage; }
             }
@@ -363,13 +369,17 @@ public sealed partial class CombatSimulation
         // All shooters and rolls are captured before any damage or casualty can invalidate a return shot.
         foreach (var shot in shots)
             if (shot.Hit) Unit(shot.TargetId).ApplyDamage(shot.Location, shot.Damage, shot.From);
+        var heat = Units.ToDictionary(unit => unit.Id, _ => 0d);
+        foreach (var shot in shots)
+        { heat[shot.AttackerId] += shot.GeneratedHeat; heat[shot.TargetId] += shot.TargetHeat; }
+        foreach (var unit in Units) unit.AddHeat(heat[unit.Id]);
         foreach (var shot in shots) ShotFired?.Invoke(shot);
         StopInvalidFollows();
         foreach (var unit in Units.Where(item => !item.Active))
         { unit.Moving = false; unit.CurrentSpeed = unit.AngularVelocity = 0; unit.CurrentTarget = unit.CurrentRearTarget = null; }
-        if (shots.Any(shot => shot.Hit && !Unit(shot.TargetId).Active)) RefreshDetection();
-        var friendly = Units.Any(item => item.Side == CombatSide.Friendly && item.Active);
-        var enemy = Units.Any(item => item.Side == CombatSide.Enemy && item.Active);
+        RefreshDetection();
+        var friendly = Units.Any(item => item.Side == CombatSide.Friendly && !item.Defeated);
+        var enemy = Units.Any(item => item.Side == CombatSide.Enemy && !item.Defeated);
         if (!friendly || !enemy)
         {
             Outcome = friendly ? CombatOutcome.Victory : enemy ? CombatOutcome.Defeat : CombatOutcome.Draw;
@@ -378,14 +388,14 @@ public sealed partial class CombatSimulation
     }
     private void StopInvalidFollows()
     {
-        Hold(Units.Where(unit => unit.Active && unit.Order == CombatOrder.Follow
-            && (unit.FollowTarget is null || !Unit(unit.FollowTarget).Active)).Select(unit => unit.Id));
+        Hold(Units.Where(unit => !unit.Defeated && unit.Order == CombatOrder.Follow
+            && (unit.FollowTarget is null || Unit(unit.FollowTarget).Defeated)).Select(unit => unit.Id));
     }
     private void UpdateAi()
     {
         foreach (var unit in Units.Where(item => item.Side == CombatSide.Enemy && item.Active))
         {
-            var nearest = Units.Where(item => item.Side != unit.Side && item.Active && Detected(unit.Side, item.Id))
+            var nearest = Units.Where(item => item.Side != unit.Side && !item.Defeated && Detected(unit.Side, item.Id))
                 .OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
             if (nearest is not null) { unit.Order = CombatOrder.Attack; unit.AttackTarget = nearest.Id; }
             else if (unit.Order != CombatOrder.Attack && unit.Position.Length() > 2)
@@ -421,7 +431,7 @@ public sealed partial class CombatSimulation
             if (Detected(unit.Side, id))
             {
                 var target = Unit(id);
-                if (!target.Active) { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
+                if (target.Defeated) { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
                 else
                 {
                     var away = unit.Position - target.Position;
@@ -502,7 +512,7 @@ public sealed partial class CombatSimulation
     private void Turn(CombatUnit unit, Vector2 heading, float delta)
     {
         if (heading.LengthSquared() < .001f) return;
-        var fast = unit.RunningSpeed > 0 ? Math.Clamp(Math.Abs(unit.CurrentSpeed) / unit.RunningSpeed, 0, 1) : 0;
+        var fast = unit.UnheatedRunningSpeed > 0 ? Math.Clamp(Math.Abs(unit.CurrentSpeed) / unit.UnheatedRunningSpeed, 0, 1) : 0;
         var angle = Math.Clamp(unit.Facing.AngleTo(heading), -unit.TurnRate * (1 - .55f * fast) * delta,
             unit.TurnRate * (1 - .55f * fast) * delta);
         unit.Facing = unit.Facing.Rotated(angle).Normalized();
@@ -531,7 +541,7 @@ public sealed partial class CombatSimulation
     }
     public CombatUnit? SelectTarget(CombatUnit unit)
     {
-        bool Engageable(CombatUnit target) => target.Side != unit.Side && target.Active && Detected(unit.Side, target.Id)
+        bool Engageable(CombatUnit target) => target.Side != unit.Side && !target.Defeated && Detected(unit.Side, target.Id)
             && Terrain.ClearSight(unit.Position, target.Position)
             && unit.Weapons.Any(weapon => !weapon.Spec.Rear && weapon.Enabled && unit.WeaponUsable(weapon) && unit.Position.DistanceTo(target.Position) <= weapon.Spec.Long);
         if (unit.AttackTarget is { } attack && unit.Order == CombatOrder.Attack && Engageable(Unit(attack))) return Unit(attack);
@@ -549,7 +559,7 @@ public sealed partial class CombatSimulation
         if (distance > weapon.Spec.Long || !attacker.WeaponUsable(weapon) || !CombatRules.InFiringArc(attacker, target, weapon)) return 0;
         var range = distance <= weapon.Spec.Short ? 0 : distance <= weapon.Spec.Medium ? 2 : 4;
         var minimum = distance < weapon.Spec.Minimum ? (int)Math.Ceiling(weapon.Spec.Minimum - distance) : 0;
-        var threshold = attacker.Warrior.Gunnery + CombatRules.AimModifier + range + minimum + terrainModifier
+        var threshold = attacker.Warrior.Gunnery + CombatRules.AimModifier + range + minimum + terrainModifier + attacker.HeatAimModifier
             + (attacker.Moving ? attacker.Movement == MovementMode.Run ? 2 : 1 : 0)
             + (target.Moving ? target.Movement == MovementMode.Run ? 2 : 1 : 0);
         var successes = 0;

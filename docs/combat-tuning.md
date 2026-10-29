@@ -66,11 +66,11 @@ Move orders resolve inaccessible destinations to the nearest reachable navigatio
 | Medium Laser | 8 seconds |
 | Other weapons | 10 seconds |
 
-Weapons start ready; cooldowns progress only during active simulation time. Stock weapon damage, ranges, armor and structure are retained. Missile racks deliver stock per-missile damage × rack size in one packet on one roll. Flamers apply numeric damage only. Ammunition availability and destroyed bins affect usable weapons; ammunition is not consumed.
+Weapons start ready; cooldowns progress only during unpaused simulation time, including thermal shutdown. Stock weapon damage, ranges, armor and structure are retained. Missile racks deliver stock per-missile damage × rack size in one packet on one roll. Each successful flamer hit deals its ordinary damage and adds 2 target heat, including through armor. Misses add no target heat. Ammunition availability and destroyed bins affect usable weapons; ammunition is not consumed.
 
 Hit chance is the exact probability of 2d6 meeting this threshold:
 
-`Gunnery + 3 (real-time aim modifier) + range + minimum-range penalty + attacker movement + target movement + vegetation`
+`Gunnery + 3 (real-time aim modifier) + range + minimum-range penalty + attacker movement + target movement + vegetation + attacker heat`
 
 - Range: +0 short, +2 medium, +4 long; no shots beyond long range.
 - Minimum range: `ceil(minimum − distance)` when inside minimum.
@@ -92,9 +92,28 @@ Hit locations use a separate 2d6 roll:
 | 10, 11 | Left arm | 5/36 |
 | 12 | Head | 1/36 |
 
-Each step moves units, refreshes detection, updates every torso, and then captures every eligible discharge and hit roll before applying directional damage. Outcomes follow the entire batch, permitting simultaneous lethal return fire and draws. Visual effects illustrate already-resolved results.
+Each step moves units, integrates movement heat and cooling, refreshes detection, updates every torso, and selects each unit's best volley within its heat policy. All discharges and hit rolls are captured before applying directional damage, firing heat and flamer heat. Shots in the same exchange use the starting heat penalties; received flamer heat cannot cancel simultaneous return fire. Outcomes follow the entire batch, permitting simultaneous lethal return fire and draws. Visual effects illustrate already-resolved results.
 
-Five-to-ten minutes remains a provisional ordinary-engagement target. With the budgeted pilot catalog and Sensors ranges, the seeded flat-ground mixed-lance check finishes in 253 simulated seconds; one-on-one Jenner, Griffin and Awesome checks finish in 54, 206 and 143 seconds. The seeded natural-terrain mixed-lance check finishes in 296 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
+## Heat
+
+All units begin at zero heat with Normal policy. Heat is continuous, never negative, and not capped at shutdown. Pausing freezes both generation and dissipation. Stock per-shot heat is added even on misses. Single sinks remove 1 heat per sink per 10 seconds; double sinks remove 2. Actual walking-speed travel adds 1 heat per 10 seconds, actual speed above the unheated walking limit adds 2, reversing counts as walking, and turning in place adds none. Selected Walk/Run mode alone does not generate heat.
+
+| Heat | Speed limit | Attacker hit difficulty |
+| --- | --- | --- |
+| Below 10 | 100% | +0 |
+| 10–below 20 | 90% | +1 |
+| 20–below 30 | 75% | +2 |
+| 30 or more | Thermal shutdown | Cannot fire |
+
+Heat reduces walking and running limits without changing the underlying acceleration, braking or turn-rate tuning. Thermal shutdown is latched until heat falls below 10, then restarts automatically without another timer. It stops travel, leg/torso turning, firing and sensor contribution. The unit remains targetable, solid, alive for victory checks, and editable. Orders, Follow relationships, weapon settings and policy survive shutdown. Excess flamer heat extends cooling time; multiple successful hits stack without a special cap.
+
+Normal only permits volleys whose projected heat is strictly below 20; Aggressive permits heat strictly below 30. Ready, enabled, usable weapons with valid firing arcs and targets compete in a single budget, including rear mounts. Selection maximizes ordinary damage × current hit chance, then minimizes heat, then favors catalog order. Rolls are made only after selection and remain in catalog order. Withheld weapons keep their cooldown ready; their readouts explain cooling. Zero-heat weapons may fire when the policy ceiling permits them. Both sides use the same rules; enemies initially use Normal.
+
+The stock total includes internal sinks. Explicit Heat Sink component entries group sinks using their Slots count. Remove the whole group's contribution when its component is Destroyed or its mounting location is lost, including attached arm loss; do not subtract it twice. Damaged groups retain full output. The unlisted internal remainder survives while the mech survives. Mauler's 11 internal double sinks remove 2.2 heat per second. Individual critical hits and engine heat are deferred.
+
+Friendly ground labels and cards show current heat; selected details show heat band, policy and effective cooling. Normal/Aggressive controls apply to selected units including thermal shutdowns, with a Mixed group readout when appropriate. Exact enemy heat and cooling appear only at Detailed contact tier and disappear when that tier is lost. Water provides no cooling bonus. Heat damage, ammunition explosions and manual venting remain deferred.
+
+Five-to-ten minutes remains a provisional ordinary-engagement target. With heat management and Normal policies, the seeded flat-ground mixed-lance check finishes in 280 simulated seconds; one-on-one Jenner, Griffin and Awesome checks finish in 115, 214 and 199 seconds. The seeded natural-terrain mixed-lance check finishes in 566 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
 
 ## Interaction defaults
 
@@ -116,6 +135,6 @@ Five-to-ten minutes remains a provisional ordinary-engagement target. With the b
 
 ## Validation
 
-After building, the pinned .NET Godot engine can run `--headless --path . --scene res://Tests/SmokeTests.tscn -- --combat-simulation-only` for combat and terrain checks, including twist rates/limits, tracking, firing arcs, rear targets and directional damage transfer.
+After building, the pinned .NET Godot engine can run `--headless --path . --scene res://Tests/SmokeTests.tscn -- --combat-simulation-only` for combat and terrain checks, including twist rates/limits, tracking, firing arcs, rear targets, directional damage transfer, heat rates, sink loss, exact policy budgets, optimal volley selection, threshold penalties, shutdown/restart, flamer stacking and simultaneous heat resolution. The optimizer is checked against exhaustive subset selection on generated small loadouts. `--combat-layout-only` includes group heat-policy controls, editing during shutdown and enemy heat masking at both window sizes.
 
 `./scripts/mech test` exercises seeded generation, connected spawns, slope/rock clearance, terrain detours, cover, sight, water movement, generated-map engagements, terrain picking and seed controls alongside the ten acceptance scenarios with deterministic model checks and actual mouse/keyboard input. `./scripts/mech capture` repeats the suite with graphical rendering and saves deployment, combat, minimum-window, menu and report captures in `TestResults/`. Linux checks do not establish native Windows/macOS runtime verification.

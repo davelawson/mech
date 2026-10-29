@@ -39,7 +39,7 @@ public sealed partial class CombatUnit
 public sealed partial class CombatSimulation
 {
     private bool ValidEnemy(CombatUnit unit, CombatUnit target) => target.Side != unit.Side
-        && target.Active && Detected(unit.Side, target.Id);
+        && !target.Defeated && Detected(unit.Side, target.Id);
     private static bool FirePermitted(CombatUnit unit, CombatUnit target) => unit.Firing != FiringMode.HoldFire
         || (unit.Order == CombatOrder.Attack && unit.AttackTarget == target.Id);
 
@@ -78,6 +78,7 @@ public sealed partial class CombatSimulation
 
     public string WeaponStatus(CombatUnit unit, CombatWeapon weapon, CombatUnit? target)
     {
+        if (unit.Shutdown && !unit.Defeated) return "Thermal shutdown";
         if (!unit.Active || !unit.WeaponUsable(weapon)) return "Unavailable";
         if (!weapon.Enabled) return "Disabled";
         if (target is null) return unit.Firing == FiringMode.HoldFire ? "Hold fire" : "No target";
@@ -89,6 +90,10 @@ public sealed partial class CombatSimulation
             return weapon.Spec.Rear || CombatRules.IsLeg(weapon.Spec.Location)
                 || Math.Abs(unit.Facing.AngleTo(target.Position - unit.Position)) > CombatRules.MaxTorsoTwist + CombatRules.FiringTolerance
                     ? "Outside firing arc" : "Turning to target";
-        return weapon.Remaining > .000001 ? $"Ready in {weapon.Remaining:0.0}s" : "Ready";
+        if (weapon.Remaining > .000001) return $"Ready in {weapon.Remaining:0.0}s";
+        if (TerrainHitChance(unit, target, weapon) == 0) return "Cannot hit";
+        var volley = SelectHeatVolley(unit, weapon.Spec.Rear ? SelectAimTarget(unit) : target,
+            weapon.Spec.Rear ? target : SelectRearTarget(unit));
+        return volley.Any(shot => shot.Weapon == weapon) ? "Ready" : $"Cooling · {unit.HeatPolicy} heat policy";
     }
 }

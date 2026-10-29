@@ -8,6 +8,7 @@ public partial class SmokeTests
     {
         await TestPaperdollScrollLayout();
         await TestContactPreviewLayout();
+        await TestHeatControls();
     }
 
     private async Task TestPaperdollScrollLayout()
@@ -111,12 +112,13 @@ public partial class SmokeTests
                 await ContactAt(12);
                 tactical.Battlefield.InspectedEnemy = enemy.Id;
                 tactical.SelectUnits([friendly.Id], false);
-                Check(tactical.Paperdoll.Unit == enemy && VisibleText().Contains(CombatScreen.SystemsReadout(enemy)),
+                Check(tactical.Paperdoll.Unit == enemy && VisibleText().Contains(CombatScreen.SystemsReadout(enemy))
+                    && VisibleText().Any(text => text.Contains(CombatScreen.HeatReadout(enemy))),
                     $"detailed inspection shows live condition at {size}");
                 await Capture($"combat-contact-details-{size.X}x{size.Y}");
                 await ContactAt(24);
                 Check(tactical.Paperdoll.Unit is null && !VisibleText().Any(text => text.Contains("SYSTEMS · CONDITION")
-                    || text.Contains("ARMOR / STOCK")), $"model-only inspection clears detailed readouts at {size}");
+                    || text.Contains("ARMOR / STOCK") || text.Contains("Heat ")), $"model-only inspection clears detailed readouts including heat at {size}");
                 await Capture($"combat-contact-model-{size.X}x{size.Y}");
                 await ContactAt(30);
                 Check(tactical.Battlefield.InspectedEnemy is null && tactical.Paperdoll.Unit == friendly,

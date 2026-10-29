@@ -48,6 +48,8 @@ All artwork and the stock mech catalog are packaged locally. Running the game re
 
 Torso tracking is automatic for both sides: upper bodies twist up to ±90° while moving legs preserve their route. Light/Medium/Heavy/Assault twist at 90/75/60/45° per second. Weapons fire within ±30° of their mount facing; rear mounts engage independently, and leg weapons follow the legs. The rear 120° of torso facing exposes rear torso armor. Team-colored ground lines show leg direction; gold lines with tip dots show torso direction. Weapon readouts explain alignment restrictions. See [the confirmed rules](docs/combat-design.md#torso-twisting-confirmed-october-29-2026).
 
+Weapons and movement build heat; surviving single/double heat sinks cool continuously. **Normal heat** keeps firing below 20; **Aggressive heat** allows bursts below 30. Automatic volley selection maximizes expected damage within that budget. Heat at 10/20 reduces speed and accuracy; 30 causes a recoverable shutdown until heat falls below 10. Shut-down mechs remain targetable and accept orders. Flamers add target heat, and lost sink groups reduce cooling. Friendly cards and battlefield indicators show heat; exact enemy heat requires Detailed contact. See [heat rules and rates](docs/combat-tuning.md#heat).
+
 ## Build and test
 
 ```sh

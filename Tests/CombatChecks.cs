@@ -100,6 +100,7 @@ internal static partial class CombatChecks
         CheckFollowing(check);
         CheckLocomotion(check);
         CheckTorsoTwisting(check);
+        CheckHeat(check);
         CheckOutcomes(check);
 
         sim = Deploy(roster, roster.Mechs.Select(item => item.Id), 12);

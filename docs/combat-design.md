@@ -7,7 +7,7 @@ Status: confirmed October 25, 2026. The initial design interview is complete. Th
 - Tactical combat runs in real time with pausing.
 - The player commands deployed BattleMechs through movement orders, attack orders, priority targets, and stances to defeat an opposing force or achieve battlefield objectives. An attack order directs a MechWarrior to path as necessary to reach and attack the specified target. A priority target instead biases target selection when an opportunity presents; it does not itself order pursuit. Each mech has one active order, replaced by a new order, and a separately stored persistent priority target. Moving permits opportunistic firing without diversion from the destination; an explicit attack order takes precedence over target preference. The first slice provides Fire at will and Hold fire settings; additional stances are deferred.
 - The broader battlefield design uses continuous positions in three dimensions, with geometry governing movement and sight and understandable abstractions for cover and vegetation. The terrain extension adds procedural natural terrain with elevation, solid obstacles, vegetation and shallow water. Buildings remain deferred.
-- Movement is continuous and weapons have independent cooldowns, without shared combat rounds. Initial resolution draws on basic BattleTech rules, including hit chances, damage, heat, critical hits, Piloting checks, and weapon ranges and damage. The first slice retains hit resolution, weapon ranges and damage, and location armor/internal structure; criticals, heat, ammunition consumption, falls, and MechWarrior injury are explicitly deferred. Hit chances use probability rolls influenced by Gunnery, weapon range bands, and both mechs’ movement. Damage is allocated to randomly selected body locations, reducing the incoming-facing armor before passing excess damage into that location’s internal structure. Torso twisting, firing arcs and rear armor follow the confirmed extension below. Exact hit modifiers and hit-location weights remain tuning work. Further damage to a destroyed location transfers inward using the explicit paths below.
+- Movement is continuous and weapons have independent cooldowns, without shared combat rounds. Initial resolution draws on basic BattleTech rules, including hit chances, damage, heat, critical hits, Piloting checks, and weapon ranges and damage. Combat includes hit resolution, weapon ranges and damage, location armor/internal structure, and the confirmed heat extension below; criticals, ammunition consumption, falls, and MechWarrior injury are deferred. Hit chances use probability rolls influenced by Gunnery, weapon range bands, movement and heat. Damage is allocated to randomly selected body locations, reducing the incoming-facing armor before passing excess damage into that location’s internal structure. Torso twisting, firing arcs and rear armor follow the confirmed extension below. Exact hit modifiers and hit-location weights remain tuning work. Further damage to a destroyed location transfers inward using the explicit paths below.
 - Tabletop fidelity is not a permanent constraint; mechanics may evolve further to exploit real time.
 - Enemy visibility depends on the observing pilot's Sensors and the target's tonnage. Sensors 6 detects a 100-ton target at 25 hexes; Sensors 2 doubles that to 50, with linear interpolation. Target mass multiplies that radius linearly from 0.5 at 20 tons to 1.0 at 100 tons. Full radius identifies only the chassis model; within half radius, exact armor, rear armor, internals and effective equipment condition/availability become visible. Physical damage and movement remain visible at either tier. Each side shares its best current observation from an active observer. Leaving detailed range hides live condition immediately; losing all detection retains a stationary last-known position. Rocks and hills block either tier. Shared identification permits firing when weapons reach and the shooter's own line of fire is clear. Enemy pilots obey identical rules.
 - The first playable slice includes only BattleMechs on both sides, on a procedurally generated natural battlefield. Its objective is defeat of the opposing force by destruction or disablement. The simulation has no tactical retreat mechanic; the combat menu permits ending the simulation.
@@ -16,7 +16,7 @@ Status: confirmed October 25, 2026. The initial design interview is complete. Th
 
 - Attack orders attempt to establish and maintain a player-adjustable preferred engagement distance, with a default based on the mech's loadout.
 - Follow orders continuously track an active friendly mech using normal pathfinding and collision clearance, waiting about three hexes away and resuming when the leader moves. They retain each follower's movement mode, firing setting, and persistent priority target. Followers may fire opportunistically without diverting from following. A group order leaves the clicked leader's own orders unchanged, even when selected. Follow persists until replaced; disabling or destroying the leader switches its followers to Hold.
-- MechWarriors automatically choose and fire ready, enabled weapons. The player may enable or disable individual weapons. Broader combat includes configurable heat policies, with a normal policy avoiding predictable overheating and an aggressive policy permitting more risk; heat and these policies are outside the first slice.
+- MechWarriors automatically choose and fire ready, enabled weapons within the selected Normal or Aggressive heat policy. The player may enable or disable individual weapons. The confirmed heat extension below specifies limits and volley selection.
 - Provisional pacing targets are five to ten minutes for an ordinary engagement, excluding pauses, and roughly ten-second cycles for major weapons. These are tuning targets, not settled per-weapon statistics.
 - Manual pause allows inspection and all normal commands. Orders issued while paused take effect when time resumes, without a separate planning-phase commitment.
 - The first slice provides pause and normal speed. Additional speeds and automatic pause triggers are deferred.
@@ -33,11 +33,11 @@ Status: confirmed October 25, 2026. The initial design interview is complete. Th
 - Mechs occupy space and navigate around one another, without pushing or collision damage.
 - Hits select among Head, Center Torso, Left Torso, Right Torso, Left Arm, Right Arm, Left Leg, and Right Leg.
 - Damage reduces the selected location's front or rear armor according to incoming direction, then its internal structure. Only torsos have separate rear armor; head and limbs always use ordinary armor.
-- No criticals, heat, ammunition consumption, falls, or MechWarrior injury/casualties are simulated. Location-loss and defeat rules are specified below.
+- No criticals, ammunition consumption, falls, or MechWarrior injury/casualties are simulated. Location-loss and defeat rules are specified below; heat is specified in its confirmed extension.
 - Show the selected friendly mech's calculated hit chance against a detected target.
 - Resolve hit and damage when a weapon fires. Projectile and beam effects illustrate that result; projectiles do not independently collide or intercept. Friendly fire is omitted. Firing arcs follow the torso-twisting rules below.
 - Each weapon discharge makes one hit roll and applies one damage packet, including missile launchers. Missile clustering and more detailed weapon-specific behavior are deferred.
-- Each enabled weapon fires independently when ready and a valid target is available. Weapons start ready, cooldown begins when fired, and cooldown progresses only while unpaused.
+- Ready, enabled weapons with valid targets enter heat-budgeted volley selection. Weapons start ready, cooldown begins only when fired, and cooldown progresses only while unpaused, including during thermal shutdown.
 
 ### Damage transfer
 
@@ -120,7 +120,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 
 - Buildings, destructible terrain, deep water, and advanced cover-seeking tactics.
 - Infantry, vehicles, aircraft, and other combatant types.
-- Critical hits, heat and heat policies, ammunition consumption, falls, jumping, and MechWarrior casualties.
+- Critical hits, heat damage and ammunition explosions, water cooling bonuses, ammunition consumption, falls, jumping, and MechWarrior casualties.
 - Missile clustering, physical projectile collision, friendly fire, melee, called shots, deliberate ammunition dumping, and other special actions.
 - Separate sensor/visual contacts, additional stances, formations, coordinated enemy tactics, additional time speeds, and automatic pause triggers.
 - Deployment placement, an opponent editor, tactical retreat/recovery mechanics, and saving in-progress simulations.
@@ -176,3 +176,24 @@ Forward head, torso and arm weapons fire within ±30° of torso facing. Leg-moun
 The rear armor arc is 120° centered directly behind torso facing, including its boundaries; all other incoming bearings use front armor. Hit-location probabilities remain unchanged. Head, arms and legs use ordinary armor. Transfers into any torso reevaluate the original incoming bearing against torso facing, including transfers from limbs. Depleted rear armor exposes structure without consuming front armor. All torsos update before shots are captured, and all shots resolve before casualties, retaining simultaneous return fire.
 
 The existing team-colored ground line indicates legs; a longer gold line and tip dot indicate torso direction. Weapon readouts label rear mounts, explain turning or outside-arc restrictions, and identify independently selected rear targets. Existing rear armor paperdolls update live, and damage totals include front plus rear armor loss.
+
+## Heat buildup and dissipation (confirmed October 29, 2026)
+
+Heat rewards deliberate bursts at the cost of future cooling time. Player and enemy mechs begin cold with Normal policy and use identical rules. Single sinks continuously remove 1 heat each per ten seconds; double sinks remove 2. Weapons generate their stock per-shot heat even on misses. Actual walking-speed travel generates 1 heat per ten seconds, actual running-speed travel generates 2, reversing counts as walking, and turning in place adds none. There is no water cooling bonus.
+
+| Heat | Movement speed limit | Accuracy target-number modifier |
+| --- | --- | --- |
+| Below 10 | 100% | +0 |
+| 10–below 20 | 90% | +1 |
+| 20–below 30 | 75% | +2 |
+| 30 or more | Shutdown | Cannot fire |
+
+Thermal shutdown immediately stops movement, leg/torso turning, firing and sensor contribution. The mech remains solid, targetable and alive for victory checks. Players can change orders, weapon settings and policy while it is shut down. Orders and Follow relationships persist. It restarts automatically once heat falls below 10, with no extra timer. Heat cannot go below zero and has no upper cap; further flamer hits prolong a shutdown. No internal heat damage or ammunition explosions are introduced.
+
+Normal permits firing only when resulting heat stays strictly below 20; Aggressive permits heat strictly below 30. Select the combination of ready, enabled, usable weapons with the greatest expected ordinary damage against their current targets, accounting for hit chance. Break equal-damage ties by lower heat, then catalog order. Withheld weapons remain ready. Main and independent rear targets share the same heat budget. Both sides default to Normal; no manual vent command or additional enemy aggression logic is added.
+
+All shots at the same simulation instant use the heat penalties from the start of that exchange. Apply firing and received flamer heat after all discharges and rolls are captured, preserving simultaneous return fire. Each successful flamer hit deals its existing damage plus 2 target heat, even through armor. Misses add no target heat; multiple hits and attackers stack without a special cap.
+
+Explicit sink component groups contribute their grouped sink count. A Destroyed group or lost mounting location removes that contribution once, including sinks in an attached lost arm. Damaged groups retain full output. Internal sinks are the stock remainder and remain available while the mech survives. Individual component criticals and engine heat remain deferred.
+
+Friendly battlefield indicators and unit cards show heat. Selected details show current heat, band, policy and effective cooling. Normal/Aggressive controls apply per mech or to the selected group, including shut-down units, with mixed-policy feedback. Weapon readouts explain heat withholding. Exact enemy heat appears only at Detailed contact tier. Numerical implementation details and checks are recorded in [tactical tuning](combat-tuning.md#heat).

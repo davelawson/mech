@@ -412,6 +412,17 @@ public partial class CombatViewport : Control
             var labelOffset = new Vector2(-font.GetStringSize(text, fontSize: 12).X / 2, -4);
             DrawStringOutline(font, label + labelOffset, text, HorizontalAlignment.Left, -1, 12, 4, new Color("101820"));
             DrawString(font, label + labelOffset, text, HorizontalAlignment.Left, -1, 12, color);
+            if (friendly)
+            {
+                var heatColor = unit.Shutdown ? new Color("ed735e") : unit.Heat >= CombatRules.HotHeat
+                    ? new Color("e7a185") : unit.Heat >= CombatRules.WarmHeat ? Ui.Gold : Ui.Muted;
+                var heatLabel = $"H {unit.Heat:0.0}";
+                var heatAt = label + new Vector2(-font.GetStringSize(heatLabel, fontSize: 11).X / 2, 10);
+                DrawStringOutline(font, heatAt, heatLabel, HorizontalAlignment.Left, -1, 11, 4, new Color("101820"));
+                DrawString(font, heatAt, heatLabel, HorizontalAlignment.Left, -1, 11, heatColor);
+                DrawRect(new Rect2(label + new Vector2(-15, 13), new Vector2(30, 3)), new Color("101820"));
+                DrawRect(new Rect2(label + new Vector2(-15, 13), new Vector2(30 * (float)Math.Clamp(unit.Heat / CombatRules.ShutdownHeat, 0, 1), 3)), heatColor);
+            }
         }
         foreach (var contact in Simulation.Contacts(CombatSide.Friendly).Values.Where(item => !item.Detected))
         {

@@ -92,6 +92,8 @@ internal static partial class CombatChecks
         enemies[0].Position = new(0, -6); enemies[1].Position = new(0, 8);
         sim.RefreshDetection(); sim.SetPriority([f.Id], enemies[0].Id);
         var rear = f.Weapons.First(weapon => weapon.Spec.Rear);
+        // This check isolates independent mount targets; allow the Atlas's full opening volley.
+        f.HeatPolicy = HeatPolicy.Aggressive;
         sim.Paused = false; sim.Advance(.05);
         check(f.CurrentTarget == enemies[0].Id && f.CurrentRearTarget == enemies[1].Id && rear.Remaining > 0 && f.TorsoTwist == 0,
             "rear mounts actually fire at independent rear targets without steering away from the main target");
