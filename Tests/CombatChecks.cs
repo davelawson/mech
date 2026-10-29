@@ -153,7 +153,7 @@ internal static partial class CombatChecks
                     && unit.Locations.Values.All(loc => loc.Armor == unit.Spec.Locations.Single(stock => stock.Location == loc.Location).Armor)
                     && unit.Ammo.All(bin => bin.Shots == unit.Spec.Ammo.Single(stock => stock.Id == bin.Id).Shots)
                     && unit.Warrior.SkillPoints == unit.Warrior.SkillBudget
-                    && unit.Warrior.Experience.StartsWith(unit.Spec.WeightClass == "Assault" ? "Veteran" : "Regular")),
+                    && unit.Warrior.Rank == (unit.Spec.WeightClass == MechWeightClass.Assault ? WarriorExperience.Veteran : WarriorExperience.Regular)),
                     "drafted enemies are pristine with legal pilots assigned by draft column");
                 signatures.Add(string.Join(",", enemies.Select(unit => $"{unit.Spec.Id}/{unit.Warrior.Id}")));
                 foreach (var unit in sim.Units) unit.ApplyDamage(MechLocation.CenterTorso, 1000);

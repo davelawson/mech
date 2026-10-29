@@ -462,7 +462,7 @@ public partial class CombatScreen : Control
     }
     internal static string HeatReadout(CombatUnit unit) =>
         $"Heat {unit.Heat:0.0} · {unit.HeatBand} · {unit.HeatPolicy}\n"
-        + $"Cooling {unit.CoolingRate:0.0} heat/s · {unit.EffectiveHeatSinks}/{unit.Spec.HeatSinks} {unit.Spec.HeatSinkType.ToLowerInvariant()} sinks"
+        + $"Cooling {unit.CoolingRate:0.0} heat/s · {unit.EffectiveHeatSinks}/{unit.Spec.HeatSinks} {DefinitionText.HeatSinks(unit.Spec.HeatSinkType)} sinks"
         + (unit.Shutdown && !unit.Defeated ? "\nAutomatic restart below 10 heat" : "");
 
     internal static string SystemsReadout(CombatUnit unit)

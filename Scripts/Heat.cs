@@ -7,7 +7,7 @@ public static partial class CombatRules
     public const double WarmHeat = 10, HotHeat = 20, ShutdownHeat = 30;
     public const double HeatClockSeconds = 10;
     public static double HeatLimit(HeatPolicy policy) => policy == HeatPolicy.Aggressive ? ShutdownHeat : HotHeat;
-    public static int FlamerHeat(WeaponSpec weapon) => weapon.Name == "Flamer" ? 2 : 0;
+    public static int FlamerHeat(WeaponSpec weapon) => weapon.DamageProfile.TargetHeat;
 }
 
 public sealed partial class CombatUnit
@@ -19,12 +19,12 @@ public sealed partial class CombatUnit
         : Heat >= CombatRules.WarmHeat ? "Warm" : "Cool";
     public int HeatAimModifier => Heat >= CombatRules.HotHeat ? 2 : Heat >= CombatRules.WarmHeat ? 1 : 0;
     public float HeatSpeedMultiplier => Heat >= CombatRules.HotHeat ? .75f : Heat >= CombatRules.WarmHeat ? .9f : 1;
-    // Catalog sink entries group single sinks by slot count. Internal sinks are the stock remainder.
+    // Catalog sink entries have explicit grouped sink contributions. Internal sinks are the stock remainder.
     public int EffectiveHeatSinks => Math.Max(0, Spec.HeatSinks - Spec.Components
-        .Where(component => component.Name == "Heat Sink"
+        .Where(component => component.Kind == ComponentKind.HeatSink
             && (!Intact(component.Location) || Equipment[component.Id] == ComponentCondition.Destroyed))
-        .Sum(component => component.Slots));
-    public double CoolingRate => EffectiveHeatSinks * (Spec.HeatSinkType == "Double" ? 2 : 1) / CombatRules.HeatClockSeconds;
+        .Sum(component => component.HeatSinkCount));
+    public double CoolingRate => EffectiveHeatSinks * Spec.CoolingPerSink / CombatRules.HeatClockSeconds;
     public double MovementHeatRate => !Moving || !Active ? 0
         : (CurrentSpeed > UnheatedWalkingSpeed + .00001f ? 2 : 1) / CombatRules.HeatClockSeconds;
 

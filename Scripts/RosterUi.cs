@@ -83,14 +83,14 @@ public partial class MechDetails : VBoxContainer
         RosterUi.Clear(this);
         AddThemeConstantOverride("separation", 8);
         RosterUi.Text(this, spec.DisplayName, 23, Ui.Gold);
-        RosterUi.Text(this, $"{spec.WeightClass.ToUpperInvariant()}  ·  {spec.Tonnage} TONS  ·  {spec.Role}", 12, Ui.Muted);
+        RosterUi.Text(this, $"{DefinitionText.WeightClass(spec.WeightClass).ToUpperInvariant()}  ·  {spec.Tonnage} TONS  ·  {spec.Role}", 12, Ui.Muted);
         var tabs = new TabContainer { SizeFlagsVertical = SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 150) };
         AddChild(tabs);
         var overview = RosterUi.Scroll(tabs); overview.GetParent<Control>().Name = "Overview";
         RosterUi.Text(overview, unit?.Status ?? "Stock configuration · fully operational", 16, new Color("a5c4a5"));
         RosterUi.Text(overview, $"MOVEMENT\nWalk {spec.Walk}  ·  Run {spec.Run}  ·  Jump {spec.Jump} MP");
         RosterUi.Text(overview, $"PROTECTION\nArmor {unit?.Locations.Sum(item => item.Armor + item.RearArmor) ?? spec.ArmorTotal}/{spec.ArmorTotal}  ·  Structure {unit?.Locations.Sum(item => item.Structure) ?? spec.StructureTotal}/{spec.StructureTotal}");
-        RosterUi.Text(overview, $"HEAT\n{spec.HeatSinks} {spec.HeatSinkType.ToLowerInvariant()} heat sinks · {spec.HeatSinks * (spec.HeatSinkType == "Double" ? 2 : 1)} heat dissipation\nAll weapons: {spec.Weapons.Sum(item => item.Heat)} heat before movement");
+        RosterUi.Text(overview, $"HEAT\n{spec.HeatSinks} {DefinitionText.HeatSinks(spec.HeatSinkType)} heat sinks · {spec.HeatSinks * spec.CoolingPerSink} heat dissipation\nAll weapons: {spec.Weapons.Sum(item => item.Heat)} heat before movement");
         RosterUi.Text(overview, $"ENGINE\n{spec.Engine}\nIntroduced {spec.Introduced}");
         RosterUi.Text(overview, "Stock 3025 specifications · ranges in hexes.\nWeapon heat is per shot; actual firing choices determine total heat.", 12, Ui.Muted);
         var armor = RosterUi.Scroll(tabs); armor.GetParent<Control>().Name = "Armor";
@@ -112,7 +112,7 @@ public partial class MechDetails : VBoxContainer
         {
             var status = unit is null ? "Operational" : unit.WeaponUsable(weapon) ? unit.Condition(weapon.Id).ToString() : "Unavailable";
             RosterUi.Text(weapons, $"{weapon.Name} · {DraftCatalog.Abbreviation(weapon.Location)}{(weapon.Rear ? " · rear" : "")}  /  {status}", 14, Ui.Gold);
-            RosterUi.Text(weapons, $"Heat {weapon.Heat} · Damage {weapon.Damage}\nRange {weapon.Short * CombatRules.WeaponRangeScale} / {weapon.Medium * CombatRules.WeaponRangeScale} / {weapon.Long * CombatRules.WeaponRangeScale}{(weapon.Minimum > 0 ? $" · minimum {weapon.Minimum * CombatRules.WeaponRangeScale}" : "")}", 12);
+            RosterUi.Text(weapons, $"Heat {weapon.Heat} · Damage {DefinitionText.Damage(weapon.DamageProfile)}\nRange {weapon.Short * CombatRules.WeaponRangeScale} / {weapon.Medium * CombatRules.WeaponRangeScale} / {weapon.Long * CombatRules.WeaponRangeScale}{(weapon.Minimum > 0 ? $" · minimum {weapon.Minimum * CombatRules.WeaponRangeScale}" : "")}", 12);
         }
         RosterUi.Text(weapons, "AMMUNITION", 13, Ui.Gold);
         if (spec.Ammo.Length == 0) RosterUi.Text(weapons, "Energy weapons · no ammunition required", 12, Ui.Muted);

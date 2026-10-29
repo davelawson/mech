@@ -1,0 +1,226 @@
+{
+  "Version": 4,
+  "Date": "3025-01-01",
+  "Cash": 2500000,
+  "PaymentDue": 0,
+  "DeferredDebt": 0,
+  "NextQuarter": "3025-04-01",
+  "Bankrupt": false,
+  "Events": [],
+  "Roster": {
+    "ForceName": "Legacy definitions",
+    "Mechs": [
+      {
+        "Id": "mech-1",
+        "DefinitionId": "firestarter",
+        "WarriorId": "mara-vale",
+        "Locations": [
+          {
+            "Location": "Head",
+            "Armor": 9,
+            "RearArmor": 0,
+            "Structure": 3
+          },
+          {
+            "Location": "CenterTorso",
+            "Armor": 11,
+            "RearArmor": 6,
+            "Structure": 11
+          },
+          {
+            "Location": "LeftTorso",
+            "Armor": 11,
+            "RearArmor": 5,
+            "Structure": 8
+          },
+          {
+            "Location": "RightTorso",
+            "Armor": 11,
+            "RearArmor": 5,
+            "Structure": 8
+          },
+          {
+            "Location": "LeftArm",
+            "Armor": 6,
+            "RearArmor": 0,
+            "Structure": 6
+          },
+          {
+            "Location": "RightArm",
+            "Armor": 6,
+            "RearArmor": 0,
+            "Structure": 6
+          },
+          {
+            "Location": "LeftLeg",
+            "Armor": 8,
+            "RearArmor": 0,
+            "Structure": 8
+          },
+          {
+            "Location": "RightLeg",
+            "Armor": 8,
+            "RearArmor": 0,
+            "Structure": 8
+          }
+        ],
+        "Equipment": [
+          {
+            "Id": "weapon-0",
+            "Condition": "Damaged"
+          },
+          {
+            "Id": "weapon-1",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "weapon-2",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "weapon-3",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "weapon-4",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "weapon-5",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "weapon-6",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "weapon-7",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-0",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-1",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-2",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-3",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-4",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-5",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-6",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-7",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-8",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-9",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-10",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-11",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-12",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-13",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-14",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-15",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-16",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-17",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-18",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-19",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-20",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-21",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "component-22",
+            "Condition": "Operational"
+          },
+          {
+            "Id": "ammo-0",
+            "Condition": "Operational"
+          }
+        ],
+        "Ammo": [
+          {
+            "Id": "ammo-0",
+            "Shots": 100
+          }
+        ]
+      }
+    ],
+    "Warriors": [
+      {
+        "DefinitionId": "mara-vale",
+        "Health": "Injured",
+        "RecoveryDate": "3025-01-03"
+      }
+    ]
+  },
+  "Missions": {
+    "SelectedMissionId": null,
+    "SeenMissionIds": []
+  },
+  "Travel": {
+    "OrbitSystemId": "pdf-8025137-8462169",
+    "Candidate": null,
+    "Journey": null,
+    "LegIndex": 0,
+    "DaysRemaining": 0
+  },
+  "AccruedTransitDays": 0,
+  "BilledTransitDays": 0
+}

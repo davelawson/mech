@@ -13,4 +13,7 @@
   <ItemGroup Condition="'$(Configuration)' == 'ExportRelease'">
     <Compile Remove="Tests/**/*.cs" />
   </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)' != 'ExportRelease'">
+    <EmbeddedResource Include="Tests/Fixtures/*.json" />
+  </ItemGroup>
 </Project>

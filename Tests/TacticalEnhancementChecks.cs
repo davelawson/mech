@@ -76,7 +76,7 @@ public partial class SmokeTests
 
             // Generate real resolved shots without damaging this screen's paused deployment.
             var spec = DraftCatalog.Mech("atlas") with { HeatSinks = 0, Components = [], Ammo = [],
-                Weapons = [new("log-laser", "Log Laser", MechLocation.RightArm, false, 0, "1", 0, 20, 25, 30, null)] };
+                Weapons = [new("log-laser", "Log Laser", MechLocation.RightArm, false, 0, new(DamageKind.Direct, 1, 1, 0), 0, 20, 25, 30, null, WeaponKind.LargeLaser)] };
             CombatUnit Unit(CombatSide side) => new(side.ToString(), spec, DraftCatalog.Warriors[0] with { Gunnery = -10 }, side,
                 spec.Locations.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)),
                 [new EquipmentCondition("log-laser", ComponentCondition.Operational)], [], side == CombatSide.Friendly ? Vector2.Zero : new Vector2(2, 0));

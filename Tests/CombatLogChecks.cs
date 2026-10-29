@@ -41,7 +41,7 @@ internal static partial class CombatChecks
             probe.Paused = false; probe.Advance(.05);
             return probe.History[0].Shot.Location == MechLocation.RightTorso;
         });
-        sim = HeatFixture([gun], components: [new("sink", "Heat Sink", MechLocation.RightArm, 1)], seed: seed);
+        sim = HeatFixture([gun], components: [new("sink", "Heat Sink", MechLocation.RightArm, 1, ComponentKind.HeatSink, 1)], seed: seed);
         sim.Paused = false; sim.Advance(.05);
         check(sim.History.Count == 2 && sim.Units.All(unit => unit.Defeated), "lethal simultaneous return fire is retained on both sides");
         var lethal = sim.History[0];
@@ -73,7 +73,7 @@ internal static partial class CombatChecks
         check((unknown with { Shot = unknown.Shot with { Hit = false } }).CombatText is null,
             "unseen enemy misses do not appear in the visibility-restricted log");
 
-        sim = HeatFixture([HeatGun("flamer", 3, 1) with { Name = "Flamer" }]); sim.Paused = false; sim.Advance(.05);
+        sim = HeatFixture([HeatGun("flamer", 3, 1) with { Name = "Flamer", Kind = WeaponKind.Flamer, DamageProfile = new(DamageKind.Direct, 1, 1, 2) }]); sim.Paused = false; sim.Advance(.05);
         check(sim.History.All(entry => entry.Attacker.Heat == 5 && entry.Target.Heat == 5 && entry.Shot.TargetHeat == 2
             && entry.DebugText.Contains("target heat +2 → 5.0")), "flamer events record both firing heat and received heat at exchange end");
     }

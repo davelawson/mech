@@ -1,18 +1,19 @@
 using Godot;
+using System.Collections.Immutable;
 
 namespace Mech.Tests;
 
 internal static partial class CombatChecks
 {
     private static WeaponSpec HeatGun(string id, int heat, int damage) =>
-        new(id, id, MechLocation.RightArm, false, heat, damage.ToString(), 0, 20, 25, 30, null);
+        new(id, id, MechLocation.RightArm, false, heat, new(DamageKind.Direct, damage, 1, 0), 0, 20, 25, 30, null, WeaponKind.LargeLaser);
 
-    private static CombatSimulation HeatFixture(WeaponSpec[] weapons, int sinks = 0, string sinkType = "Single",
+    private static CombatSimulation HeatFixture(WeaponSpec[] weapons, int sinks = 0, HeatSinkKind sinkType = HeatSinkKind.Single,
         ComponentSpec[]? components = null, ComponentCondition sinkCondition = ComponentCondition.Operational,
         int seed = 41, int gunnery = -10)
     {
         var spec = DraftCatalog.Mech("awesome") with
-        { Weapons = weapons, HeatSinks = sinks, HeatSinkType = sinkType, Components = components ?? [], Ammo = [] };
+        { Weapons = weapons.ToImmutableArray(), HeatSinks = sinks, HeatSinkType = sinkType, Components = (components ?? []).ToImmutableArray(), Ammo = [] };
         var units = Enum.GetValues<CombatSide>().Select(side =>
         {
             var unit = new CombatUnit(side.ToString(), spec, DraftCatalog.Warriors[0] with { Gunnery = gunnery }, side,
@@ -44,7 +45,7 @@ internal static partial class CombatChecks
         sim.Paused = true; sim.Advance(20);
         check(f.Heat == 7 && sim.Elapsed == .05, "pause freezes heat and cooling");
 
-        foreach (var (sinkType, expected) in new[] { ("Single", 14d), ("Double", 13d) })
+        foreach (var (sinkType, expected) in new[] { (HeatSinkKind.Single, 14d), (HeatSinkKind.Double, 13d) })
         {
             sim = HeatFixture([HeatGun("test", 0, 1)], 10, sinkType);
             foreach (var unit in sim.Units) unit.Firing = FiringMode.HoldFire;
@@ -65,7 +66,7 @@ internal static partial class CombatChecks
         f.Moving = false; f.AngularVelocity = 1; f.AdvanceHeat(10);
         check(f.Heat == 4, "stationary rotation produces no heat");
 
-        var sink = new ComponentSpec("sinks", "Heat Sink", MechLocation.LeftArm, 3);
+        var sink = new ComponentSpec("sinks", "Heat Sink", MechLocation.LeftArm, 3, ComponentKind.HeatSink, 3);
         foreach (var condition in Enum.GetValues<ComponentCondition>())
         {
             sim = HeatFixture([HeatGun("test", 0, 1)], 10, components: [sink], sinkCondition: condition); f = Friendly(sim);
@@ -74,8 +75,8 @@ internal static partial class CombatChecks
             check(f.EffectiveHeatSinks == 7 && Math.Abs(f.CoolingRate - .7) < .00001, "lost sink group subtracts grouped sinks once, preserving internal remainder");
         }
         sim = Battle(); f = Friendly(sim);
-        var lostSinks = f.Spec.Components.Where(component => component.Name == "Heat Sink"
-            && component.Location is MechLocation.RightTorso or MechLocation.RightArm).Sum(component => component.Slots);
+        var lostSinks = f.Spec.Components.Where(component => component.Kind == ComponentKind.HeatSink
+            && component.Location is MechLocation.RightTorso or MechLocation.RightArm).Sum(component => component.HeatSinkCount);
         f.ApplyDamage(MechLocation.RightTorso, f.Locations[MechLocation.RightTorso].Armor + f.Locations[MechLocation.RightTorso].Structure);
         check(f.EffectiveHeatSinks == f.Spec.HeatSinks - lostSinks, "torso loss also removes heat sinks in the attached arm");
         sim = Battle(definition: "mauler");
@@ -202,7 +203,7 @@ internal static partial class CombatChecks
     {
         foreach (var reverse in new[] { false, true })
         {
-            var flamers = Enumerable.Range(0, 4).Select(index => HeatGun($"flamer-{index}", 3, 2) with { Name = "Flamer" }).ToArray();
+            var flamers = Enumerable.Range(0, 4).Select(index => HeatGun($"flamer-{index}", 3, 2) with { Name = "Flamer", Kind = WeaponKind.Flamer, DamageProfile = new(DamageKind.Direct, 2, 1, 2) }).ToArray();
             var fixture = HeatFixture([.. flamers, HeatGun("return", 0, 1)]);
             var sim = reverse ? new CombatSimulation(fixture.Units.Reverse(), 41, BattlefieldTerrain.Flat) { EnemyAiEnabled = false } : fixture;
             var f = Friendly(sim); var e = Enemy(sim);
@@ -216,7 +217,7 @@ internal static partial class CombatChecks
             check(shots.Where(shot => shot.AttackerId == f.Id).All(shot => shot.Hit && shot.Damage == 2 && shot.TargetHeat == 2), "flamers retain ordinary damage and heat through armor");
         }
         var missSeed = Enumerable.Range(1, 100).First(seed => new Random(seed).NextDouble() >= 21d / 36);
-        var miss = HeatFixture([HeatGun("flamer", 3, 2) with { Name = "Flamer" }], seed: missSeed, gunnery: 4);
+        var miss = HeatFixture([HeatGun("flamer", 3, 2) with { Name = "Flamer", Kind = WeaponKind.Flamer, DamageProfile = new(DamageKind.Direct, 2, 1, 2) }], seed: missSeed, gunnery: 4);
         Enemy(miss).Firing = FiringMode.HoldFire; miss.Paused = false; miss.Advance(.05);
         check(Friendly(miss).ShotsFired == 1 && Friendly(miss).Hits == 0 && Friendly(miss).Heat == 3 && Enemy(miss).Heat == 0,
             "missed flamer generates firing heat but no target heat");

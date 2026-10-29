@@ -9,7 +9,7 @@ public static partial class CombatRules
     private const float ArcEpsilon = .00001f;
     public static float TorsoTurnRate(MechSpec spec) => Mathf.DegToRad(spec.WeightClass switch
     {
-        "Light" => 90, "Medium" => 75, "Heavy" => 60, "Assault" => 45,
+        MechWeightClass.Light => 90, MechWeightClass.Medium => 75, MechWeightClass.Heavy => 60, MechWeightClass.Assault => 45,
         _ => throw new ArgumentException($"Unknown weight class: {spec.WeightClass}", nameof(spec))
     });
     public static bool IsTorso(MechLocation location) => location is

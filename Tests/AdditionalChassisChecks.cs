@@ -28,13 +28,15 @@ public partial class SmokeTests
             foreach (var (location, root) in model.Locations)
             {
                 var weapons = spec.Weapons.Where(weapon => weapon.Location == location).ToArray();
-                var srms = weapons.Where(weapon => weapon.Name.StartsWith("SRM ")).Sum(weapon => int.Parse(weapon.Name.Split(' ')[1]));
-                var lrms = weapons.Where(weapon => weapon.Name.StartsWith("LRM ")).Sum(weapon => int.Parse(weapon.Name.Split(' ')[1]));
+                var srms = weapons.Where(weapon => weapon.Kind is WeaponKind.SRM2 or WeaponKind.SRM4 or WeaponKind.SRM6)
+                    .Sum(weapon => weapon.DamageProfile.ProjectileCount);
+                var lrms = weapons.Where(weapon => weapon.Kind is WeaponKind.LRM5 or WeaponKind.LRM10 or WeaponKind.LRM15 or WeaponKind.LRM20)
+                    .Sum(weapon => weapon.DamageProfile.ProjectileCount);
                 Check(root.FindChildren("MissileTube*", "Node3D", true, false).Count == srms
                     && root.FindChildren("LrmTube*", "Node3D", true, false).Count == lrms
-                    && root.FindChildren("CannonMuzzle", "Node3D", true, false).Count == weapons.Count(weapon => weapon.Name == "AC/5")
-                    && root.FindChildren("PpcEmitter", "MeshInstance3D", true, false).Count == weapons.Count(weapon => weapon.Name == "PPC")
-                    && root.FindChildren("LaserEmitter", "MeshInstance3D", true, false).Count == weapons.Count(weapon => weapon.Name == "Medium Laser"),
+                    && root.FindChildren("CannonMuzzle", "Node3D", true, false).Count == weapons.Count(weapon => weapon.Kind == WeaponKind.AC5)
+                    && root.FindChildren("PpcEmitter", "MeshInstance3D", true, false).Count == weapons.Count(weapon => weapon.Kind == WeaponKind.PPC)
+                    && root.FindChildren("LaserEmitter", "MeshInstance3D", true, false).Count == weapons.Count(weapon => weapon.Kind == WeaponKind.MediumLaser),
                     $"{spec.Chassis} {location} keeps stock weapon visuals and source firing positions");
             }
             Check(hangar.GaitPicker.Visible, $"{spec.Chassis} supports hangar gait previews");

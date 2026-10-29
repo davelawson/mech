@@ -10,12 +10,12 @@ internal static class RosterChecks
             try { action(); } catch (Exception error) when (error is ArgumentException or InvalidOperationException) { rejected = true; }
             check(rejected, name);
         }
-        check(DraftCatalog.AllMechs.Count == 49 && DraftCatalog.Mech("atlas") is { Variant: "AS7-D", Tonnage: 100 }, "all 49 chassis are catalogued");
+        check(DraftCatalog.AllMechs.Length == 49 && DraftCatalog.Mech("atlas") is { Variant: "AS7-D", Tonnage: 100 }, "all 49 chassis are catalogued");
         check(DraftCatalog.Mech("atlas").Weapons.Count(weapon => weapon.Rear && weapon.Location == MechLocation.CenterTorso) == 2, "Atlas retains both stock rear-facing lasers");
-        check(DraftCatalog.Warriors.Count == 24 && DraftCatalog.Warriors.Count(w => w.Experience.StartsWith("Regular")) == 18
-            && DraftCatalog.Warriors.Count(w => w.Experience.StartsWith("Veteran")) == 6, "expanded pilot catalog preserves regular and veteran balance");
+        check(DraftCatalog.Warriors.Length == 24 && DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Regular) == 18
+            && DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Veteran) == 6, "expanded pilot catalog preserves regular and veteran balance");
         check(DraftCatalog.Warriors.All(w => new[] { w.Gunnery, w.Piloting, w.Sensors }.All(value => value is >= 2 and <= 6)
-            && w.SkillPoints == (w.Experience.StartsWith("Veteran") ? 8 : 6)), "every authored pilot spends its quality budget across three bounded skills");
+            && w.SkillPoints == (w.Rank == WarriorExperience.Veteran ? 8 : 6)), "every authored pilot spends its quality budget across three bounded skills");
         check(WarriorSkills.Cost(6) == 0 && WarriorSkills.Cost(4) == 2 && WarriorSkills.Cost(2) == 4,
             "skill improvements each cost one point from the novice baseline");
         Reject(() => WarriorSkills.Cost(1), "ratings better than expert rejected by skill costs");
@@ -48,7 +48,7 @@ internal static class RosterChecks
             var pilots = Enumerable.Range(4,4).SelectMany(p => Enumerable.Range(0,3).Select(c => generated.WarriorCandidate(p,c))).ToArray();
             check(candidates.Select(m => m.Id).Distinct().Count() == 12 && pilots.Select(w => w.Id).Distinct().Count() == 12
                 && Enumerable.Range(0,4).All(p => Enumerable.Range(0,3).All(c => { var t = generated.MechCandidate(p,c).Tonnage; return p == (t <= 35 ? 0 : t <= 55 ? 1 : t <= 75 ? 2 : 3); }))
-                && pilots.Take(9).All(w => w.Experience.StartsWith("Regular")) && pilots.Skip(9).All(w => w.Experience.StartsWith("Veteran")), "draft candidates are distinct and belong to their intended pools");
+                && pilots.Take(9).All(w => w.Rank == WarriorExperience.Regular) && pilots.Skip(9).All(w => w.Rank == WarriorExperience.Veteran), "draft candidates are distinct and belong to their intended pools");
             foreach (var candidate in candidates) seenMechs.Add(candidate.Id);
             foreach (var pilot in pilots) seenWarriors.Add(pilot.Id);
             generatedNames.Add(generated.ForceName);

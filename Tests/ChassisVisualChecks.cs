@@ -31,14 +31,14 @@ public partial class SmokeTests
             foreach (var (location, root) in model.Locations)
             {
                 var weapons = spec.Weapons.Where(weapon => weapon.Location == location).ToArray();
-                var tubes = weapons.Where(weapon => weapon.Name.StartsWith("SRM ", StringComparison.Ordinal)
-                    || weapon.Name.StartsWith("LRM ", StringComparison.Ordinal)).Sum(weapon => int.Parse(weapon.Name.Split(' ')[^1]));
+                var tubes = weapons.Where(weapon => weapon.DamageProfile.Kind == DamageKind.Missile)
+                    .Sum(weapon => weapon.DamageProfile.ProjectileCount);
                 // Imported weapons retain non-rendering source Fire socket markers.
                 var displayedTubes = root.FindChildren("MissileTube*", "Node3D", true, false).Count;
-                if (spec.Id == "atlas") tubes -= weapons.Where(weapon => weapon.Name == "LRM 20").Sum(_ => 20);
+                if (spec.Id == "atlas") tubes -= weapons.Where(weapon => weapon.Kind == WeaponKind.LRM20).Sum(w => w.DamageProfile.ProjectileCount);
                 var displayedCannons = root.FindChildren("CannonMuzzle", "Node3D", true, false).Count;
-                Check(displayedTubes == tubes && Count(root, "LaserEmitter") == weapons.Count(weapon => weapon.Name == "Medium Laser")
-                    && displayedCannons == weapons.Count(weapon => weapon.Name is "AC/5" or "AC/20"),
+                Check(displayedTubes == tubes && Count(root, "LaserEmitter") == weapons.Count(weapon => weapon.Kind == WeaponKind.MediumLaser)
+                    && displayedCannons == weapons.Count(weapon => weapon.Kind is WeaponKind.AC5 or WeaponKind.AC20),
                     $"{spec.Chassis} {location} displays stock weapon counts rather than illustration discrepancies");
             }
             if (spec.Id == "atlas")

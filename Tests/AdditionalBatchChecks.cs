@@ -10,7 +10,7 @@ public partial class SmokeTests
         var mechs = DraftCatalog.AllMechs.Where(mech => !draftIds.Contains(mech.Id) && mech.Id != "atlas").ToArray();
         Check(mechs.Length == 36, "all 36 additional stock chassis are registered outside the draft");
         var mauler = DraftCatalog.Mech("mauler");
-        Check(mauler.HeatSinkType == "Double" && mauler.HeatSinks == 11 && mauler.Engine.Contains("XL")
+        Check(mauler.HeatSinkType == HeatSinkKind.Double && mauler.HeatSinks == 11 && mauler.Engine.Contains("XL")
             && mauler.Weapons.Count(w => w.Name == "AC/2") == 4 && mauler.Weapons.Count(w => w.Name == "ER Large Laser") == 2,
             "Mauler retains its later-era stock engine, heat sinks, and weapons");
         var stage = new Control(); AddChild(stage); stage.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);

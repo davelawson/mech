@@ -1,5 +1,4 @@
 using Godot;
-using System.Globalization;
 
 namespace Mech;
 
@@ -35,19 +34,15 @@ public static partial class CombatRules
     // Shared by combat, hangar previews and future chassis; catalog MP remain stock.
     public static float MovementSpeed(MechSpec spec, MovementMode mode) =>
         (mode == MovementMode.Run ? spec.Run : spec.Walk) * MovementScale;
-    public static float Cooldown(WeaponSpec weapon) => weapon.Name switch
+    public static float Cooldown(WeaponSpec weapon) => weapon.Kind switch
     {
-        "Machine Gun" => 4, "Flamer" => 6, "Small Laser" => 6, "Medium Laser" => 8,
-        _ => 10
+        WeaponKind.MachineGun => 4, WeaponKind.Flamer or WeaponKind.SmallLaser => 6, WeaponKind.MediumLaser => 8,
+        WeaponKind.LargeLaser or WeaponKind.ERLargeLaser or WeaponKind.PPC or WeaponKind.AC2 or WeaponKind.AC5
+            or WeaponKind.AC10 or WeaponKind.AC20 or WeaponKind.LRM5 or WeaponKind.LRM10 or WeaponKind.LRM15
+            or WeaponKind.LRM20 or WeaponKind.SRM2 or WeaponKind.SRM4 or WeaponKind.SRM6 => 10,
+        _ => throw new ArgumentOutOfRangeException(nameof(weapon))
     };
-    public static int Damage(WeaponSpec weapon)
-    {
-        var packet = int.Parse(weapon.Damage.Split(' ')[0], CultureInfo.InvariantCulture);
-        // Missiles use a single roll/packet for the entire rack in this slice.
-        if (weapon.Damage.Contains("/ missile", StringComparison.Ordinal))
-            packet *= int.Parse(weapon.Name.Split(' ')[^1], CultureInfo.InvariantCulture);
-        return packet;
-    }
+    public static int Damage(WeaponSpec weapon) => weapon.DamageProfile.PacketDamage;
     public static Vector2 Clamp(Vector2 point) => point.Clamp(
         Vector2.One * (-ArenaHalfSize + UnitRadius), Vector2.One * (ArenaHalfSize - UnitRadius));
 }
@@ -134,7 +129,7 @@ public sealed partial class CombatUnit
     public bool Intact(MechLocation location) => Locations[location].Structure > 0;
     public bool WeaponUsable(CombatWeapon weapon) => Intact(weapon.Spec.Location)
         && Equipment[weapon.Spec.Id] != ComponentCondition.Destroyed
-        && (weapon.Spec.AmmoType is null || Spec.Ammo.Any(bin => bin.AmmoType == weapon.Spec.AmmoType
+        && (weapon.Spec.AmmoKind is null || Spec.Ammo.Any(bin => bin.AmmoKind == weapon.Spec.AmmoKind
             && Intact(bin.Location) && Equipment[bin.Id] != ComponentCondition.Destroyed
             && Ammo.Any(item => item.Id == bin.Id && item.Shots > 0)));
     public CombatStatus Status => !Intact(MechLocation.Head) || !Intact(MechLocation.CenterTorso)

@@ -63,6 +63,7 @@ public partial class SmokeTests : Node
                 TestGeometry();
                 CampaignChecks.Run(Check);
                 TravelChecks.Run(Check);
+                CatalogChecks.Run(Check);
                 RosterChecks.Run(Check);
                 MissionChecks.Run(Check);
                 CombatChecks.Run(Check);

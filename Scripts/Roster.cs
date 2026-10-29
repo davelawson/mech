@@ -1,33 +1,7 @@
 using System.Collections.ObjectModel;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Collections.Immutable;
 
 namespace Mech;
-
-public enum MechLocation { Head, CenterTorso, LeftTorso, RightTorso, LeftArm, RightArm, LeftLeg, RightLeg }
-public enum WarriorHealth { Healthy, Injured, Dead }
-public enum ComponentCondition { Operational, Damaged, Destroyed }
-public sealed record LocationSpec(MechLocation Location, int Armor, int RearArmor, int Structure);
-public sealed record WeaponSpec(string Id, string Name, MechLocation Location, bool Rear, int Heat, string Damage,
-    int Minimum, int Short, int Medium, int Long, string? AmmoType);
-public sealed record ComponentSpec(string Id, string Name, MechLocation Location, int Slots);
-public sealed record AmmoSpec(string Id, string Name, MechLocation Location, string AmmoType, int Shots);
-public sealed record MechSpec(string Id, string Chassis, string Variant, int Tonnage, string WeightClass, int Introduced,
-    string Role, int Walk, int Run, int Jump, int HeatSinks, string Engine, LocationSpec[] Locations,
-    WeaponSpec[] Weapons, ComponentSpec[] Components, AmmoSpec[] Ammo, string Source, string HeatSinkType = "Single")
-{
-    public string DisplayName => $"{Chassis} {Variant}";
-    public string Artwork => $"res://Assets/Roster/{Id}.png";
-    public int ArmorTotal => Locations.Sum(item => item.Armor + item.RearArmor);
-    public int StructureTotal => Locations.Sum(item => item.Structure);
-}
-public sealed record WarriorSpec(string Id, string Name, string Callsign, int Gunnery, int Piloting, int Sensors, string Experience)
-{
-    public string DisplayName => $"{Name}  “{Callsign}”";
-    public string Artwork => $"res://Assets/Roster/{Id}.png";
-    public int SkillPoints => WarriorSkills.Cost(Gunnery) + WarriorSkills.Cost(Piloting) + WarriorSkills.Cost(Sensors);
-    public int SkillBudget => Experience.StartsWith("Veteran", StringComparison.Ordinal) ? WarriorSkills.VeteranBudget : WarriorSkills.RegularBudget;
-}
 
 public static class WarriorSkills
 {
@@ -35,56 +9,54 @@ public static class WarriorSkills
     public const int RegularBudget = 6, VeteranBudget = 8;
     public static int Cost(int rating) => rating is >= Expert and <= Novice ? Novice - rating
         : throw new ArgumentOutOfRangeException(nameof(rating), "Pilot skills must be between 2 and 6.");
-    internal static WarriorSpec Validate(WarriorSpec warrior) => warrior.SkillPoints == warrior.SkillBudget ? warrior
-        : throw new InvalidOperationException($"{warrior.Id} must spend exactly {warrior.SkillBudget} skill points.");
 }
 
 public static class DraftCatalog
 {
-    private sealed record CatalogFile(MechSpec[] Mechs);
-    private static readonly JsonSerializerOptions Options = new() { Converters = { new JsonStringEnumConverter() } };
-    public static readonly IReadOnlyList<MechSpec> AllMechs = LoadMechs();
+    private static readonly GameCatalog Catalog = LoadMechs();
+    internal static CatalogMetadata Metadata => Catalog.Metadata;
+    public static readonly ImmutableArray<MechSpec> AllMechs = Catalog.Mechs;
     // The initial draft is an explicit, stable subset of the complete catalog.
-    public static readonly IReadOnlyList<MechSpec> Mechs = Array.AsReadOnly(new[]
+    public static readonly ImmutableArray<MechSpec> Mechs = new[]
     {
         "firestarter", "jenner", "panther", "griffin", "shadow-hawk", "wolverine",
         "catapult", "crusader", "thunderbolt", "awesome", "victor", "zeus"
-    }.Select(id => AllMechs.Single(mech => mech.Id == id)).ToArray());
-    public static readonly IReadOnlyList<WarriorSpec> Warriors = Array.AsReadOnly(new WarriorSpec[]
+    }.Select(id => AllMechs.Single(mech => mech.Id == id)).ToImmutableArray();
+    public static readonly ImmutableArray<WarriorSpec> Warriors = CatalogLoader.ValidateWarriors(new WarriorSpec[]
     {
-        new("mara-vale", "Mara Vale", "Kestrel", 4, 4, 4, "Regular"),
-        new("ivo-chen", "Ivo Chen", "Needle", 3, 5, 4, "Regular · Gunnery"),
-        new("sana-idris", "Sana Idris", "Drift", 5, 3, 4, "Regular · Piloting"),
-        new("tomas-reed", "Tomas Reed", "Rook", 5, 5, 2, "Regular · Sensors"),
-        new("elena-voss", "Elena Voss", "Flint", 2, 4, 6, "Regular · Gunnery"),
-        new("amir-solano", "Amir Solano", "Switch", 4, 2, 6, "Regular · Piloting"),
-        new("niko-ward", "Niko Ward", "Anchor", 4, 4, 4, "Regular"),
-        new("hana-sato", "Hana Sato", "Glint", 3, 5, 4, "Regular · Gunnery"),
-        new("leila-darzi", "Leila Darzi", "Kite", 5, 3, 4, "Regular · Piloting"),
-        new("renata-kovac", "Renata Kovac", "Iron", 3, 3, 4, "Veteran"),
-        new("gideon-price", "Gideon Price", "Crosshair", 2, 4, 4, "Veteran · Gunnery"),
-        new("oskar-lind", "Oskar Lind", "Skid", 4, 2, 4, "Veteran · Piloting"),
-        new("ada-moreno", "Ada Moreno", "Sparrow", 5, 4, 3, "Regular · Sensors"),
-        new("malik-stone", "Malik Stone", "Hawk", 2, 5, 5, "Regular · Gunnery"),
-        new("yara-ortiz", "Yara Ortiz", "Vector", 5, 2, 5, "Regular · Piloting"),
-        new("lucas-chen", "Lucas Chen", "Scope", 6, 4, 2, "Regular · Sensors"),
-        new("imani-brooks", "Imani Brooks", "Viper", 3, 4, 5, "Regular · Gunnery"),
-        new("erik-holm", "Erik Holm", "Dash", 4, 3, 5, "Regular · Piloting"),
-        new("mei-tanaka", "Mei Tanaka", "Beacon", 4, 6, 2, "Regular · Sensors"),
-        new("rafiq-nasir", "Rafiq Nasir", "Bolt", 2, 6, 4, "Regular · Gunnery"),
-        new("fiona-kerr", "Fiona Kerr", "Slip", 6, 2, 4, "Regular · Piloting"),
-        new("vera-holt", "Vera Holt", "Bulwark", 4, 4, 2, "Veteran · Sensors"),
-        new("anton-mercer", "Anton Mercer", "Longshot", 2, 3, 5, "Veteran · Gunnery"),
-        new("zara-okoro", "Zara Okoro", "Dancer", 3, 2, 5, "Veteran · Piloting")
-    }.Select(WarriorSkills.Validate).ToArray());
-    public static readonly string[] PoolNames = ["Light · 20–35 tons", "Medium · 40–55 tons", "Heavy · 60–75 tons", "Assault · 80–100 tons",
+        new("mara-vale", "Mara Vale", "Kestrel", 4, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
+        new("ivo-chen", "Ivo Chen", "Needle", 3, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("sana-idris", "Sana Idris", "Drift", 5, 3, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("tomas-reed", "Tomas Reed", "Rook", 5, 5, 2, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("elena-voss", "Elena Voss", "Flint", 2, 4, 6, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("amir-solano", "Amir Solano", "Switch", 4, 2, 6, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("niko-ward", "Niko Ward", "Anchor", 4, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
+        new("hana-sato", "Hana Sato", "Glint", 3, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("leila-darzi", "Leila Darzi", "Kite", 5, 3, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("renata-kovac", "Renata Kovac", "Iron", 3, 3, 4, WarriorExperience.Veteran, WarriorSpecialty.None),
+        new("gideon-price", "Gideon Price", "Crosshair", 2, 4, 4, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
+        new("oskar-lind", "Oskar Lind", "Skid", 4, 2, 4, WarriorExperience.Veteran, WarriorSpecialty.Piloting),
+        new("ada-moreno", "Ada Moreno", "Sparrow", 5, 4, 3, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("malik-stone", "Malik Stone", "Hawk", 2, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("yara-ortiz", "Yara Ortiz", "Vector", 5, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("lucas-chen", "Lucas Chen", "Scope", 6, 4, 2, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("imani-brooks", "Imani Brooks", "Viper", 3, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("erik-holm", "Erik Holm", "Dash", 4, 3, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("mei-tanaka", "Mei Tanaka", "Beacon", 4, 6, 2, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("rafiq-nasir", "Rafiq Nasir", "Bolt", 2, 6, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("fiona-kerr", "Fiona Kerr", "Slip", 6, 2, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("vera-holt", "Vera Holt", "Bulwark", 4, 4, 2, WarriorExperience.Veteran, WarriorSpecialty.Sensors),
+        new("anton-mercer", "Anton Mercer", "Longshot", 2, 3, 5, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
+        new("zara-okoro", "Zara Okoro", "Dancer", 3, 2, 5, WarriorExperience.Veteran, WarriorSpecialty.Piloting)
+    });
+    public static readonly ImmutableArray<string> PoolNames = ["Light · 20–35 tons", "Medium · 40–55 tons", "Heavy · 60–75 tons", "Assault · 80–100 tons",
         "MechWarriors · I", "MechWarriors · II", "MechWarriors · III", "MechWarriors · Veterans"];
 
-    private static IReadOnlyList<MechSpec> LoadMechs()
+    private static GameCatalog LoadMechs()
     {
         using var stream = typeof(DraftCatalog).Assembly.GetManifestResourceStream("Mech.Data.mech-catalog.json")
             ?? throw new InvalidOperationException("The stock BattleMech catalog is missing.");
-        return Array.AsReadOnly(JsonSerializer.Deserialize<CatalogFile>(stream, Options)!.Mechs);
+        return CatalogLoader.Read(stream);
     }
     public static MechSpec Mech(string id) => AllMechs.SingleOrDefault(item => item.Id == id)
         ?? throw new ArgumentException("Unknown BattleMech variant.");
@@ -135,11 +107,11 @@ public sealed class InitialDraft
         for (var p = 0; p < 4; p++)
         {
             var pool = p;
-            var candidates = Shuffle(DraftCatalog.AllMechs.Where(m => (m.Tonnage <= 35 ? 0 : m.Tonnage <= 55 ? 1 : m.Tonnage <= 75 ? 2 : 3) == pool), random);
+            var candidates = Shuffle(DraftCatalog.AllMechs.Where(m => (int)m.WeightClass == pool), random);
             for (var c = 0; c < 3; c++) draft._mechs[p, c] = candidates[c];
         }
-        var regulars = Shuffle(DraftCatalog.Warriors.Where(w => w.Experience.StartsWith("Regular")), random);
-        var veterans = Shuffle(DraftCatalog.Warriors.Where(w => w.Experience.StartsWith("Veteran")), random);
+        var regulars = Shuffle(DraftCatalog.Warriors.Where(w => w.Rank == WarriorExperience.Regular), random);
+        var veterans = Shuffle(DraftCatalog.Warriors.Where(w => w.Rank == WarriorExperience.Veteran), random);
         for (var p = 0; p < 4; p++) for (var c = 0; c < 3; c++)
             draft._warriors[p, c] = p == 3 ? veterans[c] : regulars[p * 3 + c];
         for (var pool = 0; pool < draft._choices.Length; pool++) draft.Select(pool, random.Next(3));
@@ -184,20 +156,22 @@ public sealed class OwnedMech
     public IReadOnlyList<LocationCondition> Locations { get; }
     public IReadOnlyList<EquipmentCondition> Equipment { get; }
     public IReadOnlyList<AmmoCondition> Ammo { get; }
-    internal OwnedMech(MechSnapshot save)
+    internal OwnedMech(MechSnapshot save) : this(save, DraftCatalog.Mech(save.DefinitionId)) { }
+    internal OwnedMech(MechSnapshot save, MechSpec definition)
     {
-        Id = save.Id; Spec = DraftCatalog.Mech(save.DefinitionId); WarriorId = save.WarriorId;
+        if (definition.Id != save.DefinitionId) throw new ArgumentException("Definition identity does not match owned state.");
+        Id = save.Id; Spec = definition; WarriorId = save.WarriorId;
         Locations = Array.AsReadOnly(save.Locations.ToArray()); Equipment = Array.AsReadOnly(save.Equipment.ToArray()); Ammo = Array.AsReadOnly(save.Ammo.ToArray());
     }
     public ComponentCondition Condition(string id) => Equipment.Single(item => item.Id == id).Condition;
     public bool LocationIntact(MechLocation location) => Locations.Single(item => item.Location == location).Structure > 0;
-    private bool Functional(string name) => Spec.Components.Where(item => item.Name == name)
+    private bool Functional(ComponentKind kind) => Spec.Components.Where(item => item.Kind == kind)
         .All(item => Condition(item.Id) != ComponentCondition.Destroyed && LocationIntact(item.Location));
     public bool WeaponUsable(WeaponSpec weapon) => Condition(weapon.Id) != ComponentCondition.Destroyed && LocationIntact(weapon.Location)
-        && (weapon.AmmoType is null || Spec.Ammo.Any(bin => bin.AmmoType == weapon.AmmoType && LocationIntact(bin.Location)
+        && (weapon.AmmoKind is null || Spec.Ammo.Any(bin => bin.AmmoKind == weapon.AmmoKind && LocationIntact(bin.Location)
             && Condition(bin.Id) != ComponentCondition.Destroyed && Ammo.Single(item => item.Id == bin.Id).Shots > 0));
-    public bool Operational => Functional("Cockpit") && Functional("Fusion Engine") && Functional("Gyro")
-        && Functional("Hip") && Functional("Upper Leg Actuator") && Functional("Lower Leg Actuator")
+    public bool Operational => Functional(ComponentKind.Cockpit) && Functional(ComponentKind.FusionEngine) && Functional(ComponentKind.Gyro)
+        && Functional(ComponentKind.Hip) && Functional(ComponentKind.UpperLegActuator) && Functional(ComponentKind.LowerLegActuator)
         && LocationIntact(MechLocation.LeftLeg) && LocationIntact(MechLocation.RightLeg) && Spec.Weapons.Any(WeaponUsable);
     public bool Damaged => Locations.Any(item => { var spec = Spec.Locations.Single(loc => loc.Location == item.Location); return item.Armor < spec.Armor || item.RearArmor < spec.RearArmor || item.Structure < spec.Structure; })
         || Equipment.Any(item => item.Condition != ComponentCondition.Operational);
