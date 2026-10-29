@@ -8,8 +8,10 @@ public partial class MainMenuScreen : Control
     [Signal] public delegate void ResumeRequestedEventHandler();
     public Button ResumeButton { get; private set; } = null!;
     [Signal] public delegate void LoadRequestedEventHandler();
+    [Signal] public delegate void QuitRequestedEventHandler();
     public Button NewButton { get; private set; } = null!;
     public Button LoadButton { get; private set; } = null!;
+    public Button QuitButton { get; private set; } = null!;
     private VBoxContainer _menu = null!;
 
     public override void _Ready()
@@ -29,9 +31,9 @@ public partial class MainMenuScreen : Control
         NewButton.Pressed += () => EmitSignal(SignalName.NewRequested);
         LoadButton = Ui.Button(_menu, "Load Game");
         LoadButton.Pressed += () => EmitSignal(SignalName.LoadRequested);
-        var quit = Ui.Button(_menu, "Quit");
-        quit.Pressed += () => GetTree().Quit();
-        foreach (var button in new[] { ResumeButton, NewButton, LoadButton, quit }) button.CustomMinimumSize = new Vector2(0, 48);
+        QuitButton = Ui.Button(_menu, "Quit");
+        QuitButton.Pressed += () => EmitSignal(SignalName.QuitRequested);
+        foreach (var button in new[] { ResumeButton, NewButton, LoadButton, QuitButton }) button.CustomMinimumSize = new Vector2(0, 48);
         Resized += Layout;
         Layout();
     }

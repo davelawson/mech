@@ -16,6 +16,34 @@ public partial class SmokeTests : Node
             _screenshots = OS.GetCmdlineUserArgs().Contains("--screenshots");
             // Synthetic headless mouse events need the enter notification a desktop window normally supplies.
             if (DisplayServer.GetName() == "headless") GetViewport().NotifyMouseEntered();
+            if (OS.GetCmdlineUserArgs().Contains("--menu-only"))
+            {
+                _app = ResourceLoader.Load<PackedScene>("res://Scenes/Command.tscn").Instantiate<CommandApp>();
+                _app.SavePath = $"user://smoke-{Guid.NewGuid():N}.json";
+                _saveFile = ProjectSettings.GlobalizePath(_app.SavePath);
+                AddChild(_app); await Frames();
+                await Click(_app.MainMenu.NewButton); await FinishDraft();
+                await TestMenuResumeUi(); await TestUnsavedChangesUi();
+                GD.Print($"PASS: {_checks} menu, resume and unsaved-change checks");
+                if (OS.GetCmdlineUserArgs().Contains("--discard-quit"))
+                {
+                    _app.State.AdvanceOneDay(); _app.ShowMainMenu(); await Frames();
+                    await Click(_app.MainMenu.QuitButton);
+                    // Return through finally to remove the temporary save before the engine exits.
+                    // The external timeout fails this invocation if the quit action does not exit.
+                    DialogButton("Quit Without Saving").EmitSignal(BaseButton.SignalName.Pressed);
+                    return;
+                }
+                if (OS.GetCmdlineUserArgs().Contains("--clean-window-quit"))
+                    GetWindow().EmitSignal(Window.SignalName.CloseRequested);
+                else
+                {
+                    _app.ShowMainMenu(); await Frames();
+                    _app.MainMenu.QuitButton.EmitSignal(BaseButton.SignalName.Pressed);
+                }
+                Check(!_app.UnsavedDialog.Visible, "clean quit skips confirmation");
+                return;
+            }
             if (OS.GetCmdlineUserArgs().Contains("--combat-simulation-only"))
             {
                 CombatChecks.Run(Check); TerrainChecks.Run(Check);
@@ -110,6 +138,8 @@ public partial class SmokeTests : Node
             await TestCampaignUi();
             await TestTravelUi();
             await TestLegacyDraftUi();
+            await TestMenuResumeUi();
+            await TestUnsavedChangesUi();
             await Frames();
             _app.QueueFree();
             await Frames();
@@ -603,7 +633,7 @@ public partial class SmokeTests : Node
 
         await Click(_app.Office.FilingButton);
         await Click(DialogButton("Load Game"));
-        Check(_app.Dialog.Heading == "Load saved company?", "load asks before discarding progress");
+        Check(_app.UnsavedDialog.Heading == "Load saved company?", "load asks before discarding progress");
         await Click(DialogButton("Load Game"));
         Check(_app.State.PaymentPending && _app.State.DeferredDebt == 0 && _app.Office.QuarterText.Text == "Payment Due", "load restores unpaid quarter and calendar block");
         await Click(_app.Office.SafeButton);
@@ -627,7 +657,6 @@ public partial class SmokeTests : Node
         var beforeBankruptcy = System.IO.File.ReadAllText(_saveFile);
         await Click(_app.Office.FilingButton);
         await Click(DialogButton("Load Game"));
-        await Click(DialogButton("Load Game"));
         Check(_app.Office.SafeReadout.Text == "₡ 199,999", "loading a different company balance refreshes the safe");
         await Click(_app.Office.CalendarButton);
         await Delay(.15);
@@ -637,11 +666,11 @@ public partial class SmokeTests : Node
         Check(_app.MainMenu.Visible && !_app.Office.Visible && !_app.StarMap.Visible, "bankruptcy dismissal returns to menu");
         Check(System.IO.File.ReadAllText(_saveFile) == beforeBankruptcy, "bankruptcy preserves manual save");
         await Click(_app.MainMenu.LoadButton);
+        await Click(DialogButton("Load Game"));
         Check(_app.Office.Visible && _app.State.Date == deadline.Date && _app.State.DeferredDebt == 100_000, "main menu loads complete saved campaign");
         _app.ShowMainMenu();
         await Frames();
         await Click(_app.MainMenu.NewButton);
-        await Click(DialogButton("New Company"));
         await FinishDraft();
         Check(_app.State.Date == Campaign.StartDate && _app.State.Cash == Campaign.StartingCash, "New Company resets state");
         Check(_app.Office.SafeReadout.Text == "₡ 2,500,000" && _app.Office.SafeReadout.Modulate == Colors.White, "New Company resets the painted balance and stops blinking");
@@ -835,7 +864,7 @@ public partial class SmokeTests : Node
         await Click(DialogButton("Close"));
     }
 
-    private Button DialogButton(string text) => _app.Dialog.FindChildren("*", "Button", true, false)
+    private Button DialogButton(string text) => (_app.UnsavedDialog.Visible ? _app.UnsavedDialog : _app.Dialog).FindChildren("*", "Button", true, false)
         .OfType<Button>().Single(button => button.Text == text && button.IsInsideTree());
 
     private async Task RightClick(Vector2 at)

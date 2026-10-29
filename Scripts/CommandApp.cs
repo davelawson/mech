@@ -8,6 +8,7 @@ public partial class CommandApp : Control
     public MapScreen StarMap { get; private set; } = null!;
     public MainMenuScreen MainMenu { get; private set; } = null!;
     public CampaignDialog Dialog { get; private set; } = null!;
+    public CampaignDialog UnsavedDialog { get; private set; } = null!;
     public DraftScreen Drafting { get; private set; } = null!;
     public HangarScreen Hangar { get; private set; } = null!;
     public CombatScreen Tactical { get; private set; } = null!;
@@ -15,6 +16,7 @@ public partial class CommandApp : Control
     public MissionsPanel Missions { get; private set; } = null!;
     public Campaign State { get; private set; } = new();
     public bool IsAdvancing { get; private set; }
+    public bool HasUnsavedChanges => !State.RequiresDraft && (_savedSnapshot is null || CampaignData() != _savedSnapshot);
     [Export] public string SavePath { get; set; } = "user://campaign.json";
     public event Action<CampaignEvent>? EventReached;
     private ColorRect _header = null!;
@@ -29,11 +31,17 @@ public partial class CommandApp : Control
     private Control? _warriorsReturnFocus;
     private bool _swallowRightRelease;
     private readonly List<PopupMenu> _backPopups = [];
+    private string? _savedSnapshot;
+    private Control[] _resumeScreens = [];
+    private Control? _resumeFocus;
+    private string _resumeTitle = "";
 
     public override void _Ready()
     {
         Theme = Ui.CreateTheme();
         GetWindow().MinSize = new Vector2I(900, 500);
+        GetTree().AutoAcceptQuit = false;
+        GetWindow().CloseRequested += RequestQuit;
         Office = GetNode<OfficeScreen>("Office");
         StarMap = GetNode<MapScreen>("StarMap");
         StarMap.TextureChanged += Office.SetWallMap;
@@ -46,7 +54,7 @@ public partial class CommandApp : Control
         _date = Ui.Label(_header, "", 13, Ui.Gold);
         _date.HorizontalAlignment = HorizontalAlignment.Right;
         _menuButton = Ui.Button(_header, "Main menu");
-        _menuButton.Pressed += () => Confirm("Return to main menu?", "Unsaved progress will be discarded when you start or load another company.", ShowMainMenu, CloseDialog);
+        _menuButton.Pressed += ShowMainMenu;
         Hangar = new HangarScreen { Name = "Hangar" }; AddChild(Hangar);
         Tactical = new CombatScreen { Name = "Tactical" }; AddChild(Tactical);
         Drafting = new DraftScreen { Name = "InitialDraft" }; AddChild(Drafting);
@@ -56,17 +64,12 @@ public partial class CommandApp : Control
         Missions = new MissionsPanel { Name = "Missions" }; AddChild(Missions);
         Dialog = new CampaignDialog { Name = "CampaignDialog" };
         AddChild(Dialog);
-        MainMenu.NewRequested += () =>
-        {
-            if (!State.RequiresDraft && !State.Bankrupt) Confirm("Start a new company?", "Current unsaved progress will be discarded. Your manual save will be preserved.", StartNewCompany, CloseDialog, "New Company");
-            else StartNewCompany();
-        };
-        MainMenu.LoadRequested += () =>
-        {
-            if (!State.RequiresDraft && !State.Bankrupt) Confirm("Load saved company?", "Current unsaved progress will be discarded.", LoadGame, CloseDialog, "Load Game");
-            else LoadGame();
-        };
-        MainMenu.ResumeRequested += ShowOffice;
+        UnsavedDialog = new CampaignDialog { Name = "UnsavedChanges" };
+        AddChild(UnsavedDialog);
+        MainMenu.NewRequested += () => ConfirmUnsaved("Start a new company?", "New Company", StartNewCompany);
+        MainMenu.LoadRequested += RequestLoad;
+        MainMenu.QuitRequested += RequestQuit;
+        MainMenu.ResumeRequested += ResumeCampaign;
         Office.WarriorsRequested += ShowWarriors;
         Office.HangarRequested += ShowHangar;
         Rolodex.Closed += CloseWarriors;
@@ -157,6 +160,14 @@ public partial class CommandApp : Control
 
     public void ShowMainMenu()
     {
+        if (!MainMenu.Visible)
+        {
+            _resumeScreens = !State.RequiresDraft && !State.Bankrupt && !Tactical.Visible
+                ? new Control[] { Office, StarMap, Hangar, Rolodex, Missions, Dialog }.Where(screen => screen.Visible).ToArray()
+                : [];
+            _resumeFocus = GetViewport().GuiGetFocusOwner();
+            _resumeTitle = StarMap.Visible ? "Mech · Inner Sphere" : Hangar.Visible ? "Mech · Mech Hangar" : "Mech · Command";
+        }
         StopAdvancing();
         Tactical.Hide();
         Dialog.Hide();
@@ -166,15 +177,29 @@ public partial class CommandApp : Control
         StarMap.Hide();
         _header.Hide();
         MainMenu.LoadButton.Disabled = !_store.Exists;
-        MainMenu.ResumeButton.Visible = !State.RequiresDraft && !State.Bankrupt;
+        MainMenu.ResumeButton.Visible = !State.RequiresDraft && !State.Bankrupt && _resumeScreens.Length > 0;
         MainMenu.Show();
         (MainMenu.ResumeButton.Visible ? MainMenu.ResumeButton : MainMenu.NewButton).CallDeferred(Control.MethodName.GrabFocus);
         DisplayServer.WindowSetTitle("Mech · Mercenary Command");
     }
 
+    private void ResumeCampaign()
+    {
+        if (_resumeScreens.Length == 0 || State.RequiresDraft || State.Bankrupt) return;
+        StopAdvancing();
+        MainMenu.Hide();
+        _header.Show();
+        foreach (var screen in _resumeScreens) screen.Show();
+        if (GodotObject.IsInstanceValid(_resumeFocus) && _resumeFocus!.IsVisibleInTree())
+            _resumeFocus.CallDeferred(Control.MethodName.GrabFocus);
+        DisplayServer.WindowSetTitle(_resumeTitle);
+    }
+
     public void StartNewCompany()
     {
         State = new Campaign();
+        _savedSnapshot = null;
+        _resumeScreens = [];
         _officeReturnFocus = Office.Hotspot;
         Drafting.Hide();
         Dialog.Hide();
@@ -225,6 +250,23 @@ public partial class CommandApp : Control
 
     public override void _Input(InputEvent @event)
     {
+        if (UnsavedDialog.Visible)
+        {
+            if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }
+                or InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right })
+            {
+                UnsavedDialog.RequestBack();
+                GetViewport().SetInputAsHandled();
+                if (@event is InputEventMouseButton) _swallowRightRelease = true;
+            }
+            return;
+        }
+        if (_swallowRightRelease && @event is InputEventMouseButton { Pressed: false, ButtonIndex: MouseButton.Right })
+        {
+            _swallowRightRelease = false;
+            GetViewport().SetInputAsHandled();
+            return;
+        }
         // Tactical right-click is an order. Never send it through campaign back navigation.
         if (Tactical.Visible)
         {
@@ -347,7 +389,7 @@ public partial class CommandApp : Control
             ? "One manual campaign save is available. Saving replaces it; loading restores it."
             : "No campaign has been saved yet. Save your company to resume it later.", CloseDialog,
             new DialogAction("Close", CloseDialog),
-            new DialogAction("Load Game", () => Confirm("Load saved company?", "Current unsaved progress will be discarded.", LoadGame, ShowFiling, "Load Game"), !_store.Exists),
+            new DialogAction("Load Game", RequestLoad, !_store.Exists),
             new DialogAction("Save Game", () =>
             {
                 if (_store.Exists) Confirm("Overwrite campaign save?", "This will replace your previous manual save with the current company.", SaveGame, ShowFiling, "Save Game");
@@ -360,6 +402,7 @@ public partial class CommandApp : Control
         try
         {
             _store.Save(State);
+            _savedSnapshot = CampaignData();
             Dialog.Open("Company saved", $"{State.DateText}\n{Money(State.Cash)}\n\nYour campaign can now be loaded from the filing cabinet or main menu.", CloseDialog,
                 new DialogAction("Close", CloseDialog));
         }
@@ -377,6 +420,8 @@ public partial class CommandApp : Control
             var restored = _store.Load();
             StopAdvancing();
             State = restored;
+            _savedSnapshot = CampaignData();
+            _resumeScreens = [];
             Dialog.Hide();
             ShowOffice();
             RefreshCampaign();
@@ -384,10 +429,40 @@ public partial class CommandApp : Control
         }
         catch (Exception error) when (IsStorageError(error))
         {
-            Dialog.Open("Unable to load", "The campaign save is missing, unreadable, or invalid. Your current company has not been changed.", CloseDialog,
-                new DialogAction("Close", CloseDialog));
+            var errorDialog = MainMenu.Visible ? UnsavedDialog : Dialog;
+            void CloseError()
+            {
+                if (errorDialog == Dialog) CloseDialog();
+                else { errorDialog.Hide(); MainMenu.LoadButton.CallDeferred(Control.MethodName.GrabFocus); }
+            }
+            errorDialog.Open("Unable to load", "The campaign save is missing, unreadable, or invalid. Your current company has not been changed.", CloseError,
+                new DialogAction("Close", CloseError));
         }
     }
+
+    private string CampaignData() => System.Text.Json.JsonSerializer.Serialize(State.Snapshot());
+
+    private void RequestLoad() => ConfirmUnsaved("Load saved company?", "Load Game", LoadGame);
+
+    public void RequestQuit() => ConfirmUnsaved("Quit game?", "Quit Without Saving", () => GetTree().Quit());
+
+    private void ConfirmUnsaved(string title, string actionText, Action accept)
+    {
+        if (UnsavedDialog.Visible) return;
+        if (!HasUnsavedChanges) { accept(); return; }
+        StopAdvancing();
+        StarMap.Viewport.EndDrag();
+        var focus = GetViewport().GuiGetFocusOwner();
+        void Cancel()
+        {
+            UnsavedDialog.Hide();
+            if (GodotObject.IsInstanceValid(focus) && focus!.IsVisibleInTree()) focus.CallDeferred(Control.MethodName.GrabFocus);
+        }
+        UnsavedDialog.Open(title, "Your company has unsaved changes. Continuing will discard them. Your manual save will be preserved.", Cancel,
+            new DialogAction("Cancel", Cancel), new DialogAction(actionText, () => { UnsavedDialog.Hide(); accept(); }));
+    }
+
+    public override void _ExitTree() => GetWindow().CloseRequested -= RequestQuit;
 
     private static bool IsStorageError(Exception error) => error is System.IO.IOException or UnauthorizedAccessException
         or System.Text.Json.JsonException or ArgumentException or NotSupportedException;
@@ -487,7 +562,7 @@ public partial class CommandApp : Control
 
     public override void _UnhandledKeyInput(InputEvent @event)
     {
-        if (Tactical.Visible || Dialog.Visible || Drafting.Visible || Rolodex.Visible || Missions.Visible || @event is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }) return;
+        if (UnsavedDialog.Visible || Tactical.Visible || Dialog.Visible || Drafting.Visible || Rolodex.Visible || Missions.Visible || @event is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }) return;
         if (StarMap.Visible || Hangar.Visible) ShowOffice();
         else if (Office.Visible) ShowMainMenu();
         else return;
