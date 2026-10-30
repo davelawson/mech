@@ -27,13 +27,15 @@ public sealed record CombatLogEntry(double Time, CombatShot Shot, CombatLogUnit 
         var attackerDetails = Attacker.Detailed(debug);
         if (attackerDetails)
         {
-            fields.Add($"{Shot.Weapon} ({Shot.Mount})");
-            fields.Add(FormattableString.Invariant($"heat +{Shot.GeneratedHeat} → {Attacker.Heat:0.0}"));
+            fields.Add($"{Shot.Weapon} ({Shot.Mount})" + (Shot.Burn ? " burn continues" : ""));
+            if (!Shot.Burn) fields.Add(FormattableString.Invariant($"heat +{Shot.GeneratedHeat} → {Attacker.Heat:0.0}"));
         }
+        else if (Shot.Burn) fields.Add("burn continues");
         if (debug || Attacker.Visibility != ContactLevel.Lost)
             fields.Add(FormattableString.Invariant($"{Shot.From.DistanceTo(Shot.To):0.0} hex"));
         // Lower random draws hit. Increase precision when rounding would make a hit look like a tie.
-        if (attackerDetails)
+        if (Shot.Burn) { } // A burn continuation inherits its discharge's roll.
+        else if (attackerDetails)
         {
             var decimals = 1;
             while (decimals < 15 && Math.Round(Shot.Chance * 100, decimals) == Math.Round(Shot.Roll * 100, decimals)) decimals++;
@@ -43,7 +45,8 @@ public sealed record CombatLogEntry(double Time, CombatShot Shot, CombatLogUnit 
         else fields.Add(Shot.Hit ? "HIT" : "MISS");
         if (Target.Detailed(debug))
         {
-            fields.Add($"dmg {Shot.Damage}");
+            fields.Add($"dmg {Shot.Damage}" + (Shot.SecondLocation is { } second
+                ? FormattableString.Invariant($", burn +{Shot.SecondDamage} {DraftCatalog.Abbreviation(second)} in {CombatRules.LaserSecondHalfDelay:0.0}s") : ""));
             if (Shot.DamageApplied.Count == 0) fields.Add("armour −0, structure −0");
             foreach (var part in Shot.DamageApplied)
                 fields.Add($"{DraftCatalog.Abbreviation(part.Location)} armour −{part.Armor}"

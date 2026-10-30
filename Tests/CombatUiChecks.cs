@@ -236,6 +236,8 @@ public partial class SmokeTests
             "randomized launch honors selected force categories, count and terrain seed");
         foreach (var unit in tactical.Simulation!.Units.Where(item => item.Side == CombatSide.Enemy)) unit.ApplyDamage(MechLocation.CenterTorso, 1000);
         tactical.TogglePause(); await Delay(.15);
+        Check(tactical.Modal == CombatModal.None && tactical.Simulation.WindingDown, "the first defeat begins a wind-down before results");
+        await Delay(CombatRules.WindDownSeconds);
         Check(tactical.Modal == CombatModal.Results && tactical.Simulation.Outcome == CombatOutcome.Victory, "automatic combat outcome opens results");
         await PressKey(Key.Escape);
         Check(_app.Hangar.Visible && JsonSerializer.Serialize(_app.State.Snapshot()) == before, "result Escape preserves campaign and returns to hangar");

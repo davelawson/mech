@@ -64,12 +64,67 @@ public partial class SmokeTests
                 .Select(node => node.GlobalPosition).ToArray();
             Check(paths.Length > 0 && paths.All(path => markers.Any(marker => marker.IsEqualApprox(path.From))),
                 "every firing effect starts at a weapon's source firing marker");
-            Check(paths.Where(path => path.Shot.Hit).All(path =>
-                    path.To.IsEqualApprox(ModelAt(sim.Unit(path.Shot.TargetId)).LocationCenter(path.Shot.Location))),
-                "hits end at the struck location on the target model");
+            // A laser briefly slides between its two struck locations at half the burn.
+            bool OnStruck((CombatShot Shot, Vector3 From, Vector3 To, MechLocation Location) path)
+            {
+                var model = ModelAt(sim.Unit(path.Shot.TargetId));
+                var first = model.LocationCenter(path.Shot.Location);
+                if (path.Shot.SecondLocation is not { } second) return path.To.IsEqualApprox(first);
+                var span = model.LocationCenter(second) - first;
+                var t = span.LengthSquared() < 1e-8f ? 0 : Math.Clamp((path.To - first).Dot(span) / span.LengthSquared(), 0, 1);
+                return path.To.DistanceTo(first + span * t) < 1e-3f;
+            }
+            Check(paths.Where(path => path.Shot.Hit).All(OnStruck), "hits end at the struck location on the target model");
             Check(paths.Where(path => !path.Shot.Hit).All(path =>
                     path.To.DistanceTo(ModelAt(sim.Unit(path.Shot.TargetId)).LocationCenter(path.Shot.Location)) > 1),
                 "misses pass beside the rolled location");
+
+            // Follow a laser discharge from the step it fires.
+            CombatShot? Fresh(Func<CombatShot, bool> match)
+            {
+                for (var step = 0; step < 400; step++)
+                {
+                    var before = shots.Count; sim.Advance(CombatRules.StepSeconds); field._Process(0);
+                    if (shots.Skip(before).FirstOrDefault(shot => match(shot) && field.Beams().Any(beam => beam.Shot == shot)) is { } found)
+                        return found;
+                }
+                return null;
+            }
+            var burning = Fresh(shot => shot.SecondLocation is not null);
+            Check(burning is not null, "the exchange produced a visible laser hit");
+            var kind = sim.Unit(burning!.AttackerId).Spec.Weapons.Single(weapon => weapon.Id == burning.WeaponId).Kind;
+            var halo = field.Beams().Single(beam => beam.Shot == burning).Halo;
+            Check(new Color(((StandardMaterial3D)halo.MaterialOverride).AlbedoColor, 1).IsEqualApprox(CombatViewport.LaserColor(kind)),
+                "laser hits draw a 3D beam in their class color");
+            Check(CombatViewport.LaserColor(WeaponKind.SmallLaser).R > .9f && CombatViewport.LaserColor(WeaponKind.MediumLaser).G > .9f
+                    && CombatViewport.LaserColor(WeaponKind.LargeLaser).B > .9f
+                    && CombatViewport.LaserColor(WeaponKind.ERLargeLaser) == CombatViewport.LaserColor(WeaponKind.LargeLaser),
+                "small lasers are red, medium green, large and ER large blue");
+            Check(!halo.Visible, "a beam has no length at the instant it fires");
+            sim.Advance(.05); field._Process(0);
+            var growing = field.ShotPaths().Single(path => path.Shot == burning);
+            Check(halo.Visible && Math.Abs(halo.GlobalTransform.Basis.Y.Length() - growing.From.DistanceTo(growing.To) / 2) < 1e-3f,
+                "a beam reaches half its length after half its growth time");
+            sim.Advance(.6); field._Process(0);
+            var swept = field.ShotPaths().Where(path => path.Shot.Sequence == burning.Sequence).ToArray();
+            Check(swept.Length == 1 && swept[0].Location == burning.SecondLocation
+                    && swept[0].To.IsEqualApprox(ModelAt(sim.Unit(burning.TargetId)).LocationCenter(burning.SecondLocation!.Value))
+                    && Math.Abs(halo.GlobalTransform.Basis.Y.Length() - swept[0].From.DistanceTo(swept[0].To)) < 1e-3f,
+                "after half the burn the full-length beam holds on the adjacent location");
+
+            var miss = Fresh(shot => !shot.Hit);
+            Check(miss is not null, "the exchange produced a visible laser miss");
+            Vector3 MissOffset() => field.ShotPaths().Single(path => path.Shot == miss).To
+                - ModelAt(sim.Unit(miss!.TargetId)).LocationCenter(miss.Location);
+            var early = MissOffset(); sim.Advance(.7); field._Process(0);
+            // Both models may move; the miss stays the same distance beside its location rather than sweeping.
+            Check(Math.Abs(MissOffset().Length() - early.Length()) < 1e-3f, "a laser miss keeps its aim for the whole burn");
+
+            burning = Fresh(shot => shot.Hit);
+            var beams = field.Beams().Count();
+            sim.Unit(burning!.AttackerId).ApplyDamage(MechLocation.Head, 10000); field._Process(0);
+            Check(!field.ShotPaths().Any(path => path.Shot.Sequence == burning.Sequence) && field.Beams().Count() < beams,
+                "a destroyed shooter's beam vanishes immediately");
         }
         finally { field.QueueFree(); await Frames(); }
     }

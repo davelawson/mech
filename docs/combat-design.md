@@ -35,9 +35,18 @@ Status: confirmed October 25, 2026. The initial design interview is complete. Th
 - Damage reduces the selected location's front or rear armor according to incoming direction, then its internal structure. Only torsos have separate rear armor; head and limbs always use ordinary armor.
 - No criticals, ammunition consumption, falls, or MechWarrior injury/casualties are simulated. Location-loss and defeat rules are specified below; heat is specified in its confirmed extension.
 - Show the selected friendly mech's calculated hit chance against a detected target.
-- Resolve hit and damage when a weapon fires. Projectile and beam effects illustrate that result; projectiles do not independently collide or intercept. Friendly fire is omitted. Firing arcs follow the torso-twisting rules below.
+- Resolve hit and damage when a weapon fires; the second half of a laser burn is the one delayed application, described below. Projectile and beam effects illustrate that result; projectiles do not independently collide or intercept. Friendly fire is omitted. Firing arcs follow the torso-twisting rules below.
 - Each firing effect starts at the firing weapon's source firing marker on the shooter's model, cycling through a launcher's tubes on successive shots. A weapon without a marker in its catalog location uses an unclaimed marker of its kind elsewhere on the model (Crusader leg SRMs fire from the torso racks), or else the center of its location. Hits end at the center of the struck location on the target model. Misses pass beside and beyond that location. Both ends follow the animated models while the effect fades.
-- Each weapon discharge makes one hit roll and applies one damage packet, including missile launchers. Missile clustering and more detailed weapon-specific behavior are deferred.
+- Each weapon discharge makes one hit roll and applies one damage packet, including missile launchers, except that a laser divides its packet across two adjacent locations. Missile clustering and other weapon-specific behavior are deferred.
+- Weapon categories differ mechanically and visually. Lasers are the first refined category; other weapons retain the line effect until they receive their own treatment.
+
+### Lasers
+
+- Small, medium, large and ER large lasers discharge as a one-second burn. A laser hit applies half its damage, rounded up, to the rolled location at discharge. Half a second later the burn moves to an adjacent location and applies the remainder. The adjacent location is rolled at discharge from the struck location's neighbors, weighted by the hit-location table. Destroyed locations remain eligible and transfer damage normally.
+- The one hit roll covers both halves. Heat and cooldown apply at discharge, and volley selection uses full expected damage.
+- The second half lands with that step's exchange, using current positions and torso facing to choose front or rear armor. It lands even if the shooter is disabled or shut down, if its laser location is lost, or if the target moves out of sight or range. It is lost if the target has been destroyed. Destroying the shooter cancels the burn, unless the second half is due in the same step that destroys the shooter.
+- The combat log records the discharge, including the pending burn, and a separate burn-continuation entry when the second half lands. Misses and cancelled burns have no continuation entry.
+- Beams are glowing 3D cylinders with a bright core. Small lasers are red, medium green, large and ER large blue, with width increasing by class. The beam extends from the muzzle to full length over 0.1 seconds, holds on the first location for half the burn, slides briefly to the second and holds there before a short fade. A miss holds beside and beyond its first location for the whole burn. Each struck location shows an impact ring in the laser's color as the beam reaches it, while damage still applies at discharge and at half the burn. A destroyed shooter's beam vanishes at once. Effects age with simulation time, so pausing freezes them.
 - Ready, enabled weapons with valid targets enter heat-budgeted volley selection. Weapons start ready, cooldown begins only when fired, and cooldown progresses only while unpaused, including during thermal shutdown.
 
 ### Damage transfer
@@ -60,7 +69,8 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 - One destroyed leg halves movement speed; both destroyed legs immobilize the mech.
 - Head or center-torso destruction destroys the mech.
 - Loss of both legs or all usable weapons disables the mech. Player weapon enable/disable settings do not themselves constitute physical weapon loss.
-- Destroyed and disabled mechs both count as defeated and no longer participate in combat.
+- Destroyed and disabled mechs both count as defeated and no longer participate in combat. Thermal shutdown is not defeat.
+- When every mech on one side is defeated, a three-second wind-down begins and cannot be undone. The simulation continues without new discharges so pending effects can conclude and the player can see the final shots. The outcome is decided when the wind-down ends, so a pending burn that defeats the other side produces a draw. Pause, camera and inspection remain available, and ending the simulation manually remains immediate.
 - Individual component criticals and MechWarrior casualties remain outside this simulation.
 
 ## Automatic targeting

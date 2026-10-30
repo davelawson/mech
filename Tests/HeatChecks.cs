@@ -6,7 +6,7 @@ namespace Mech.Tests;
 internal static partial class CombatChecks
 {
     private static WeaponSpec HeatGun(string id, int heat, int damage) =>
-        new(id, id, MechLocation.RightArm, false, heat, new(DamageKind.Direct, damage, 1, 0), 0, 20, 25, 30, null, WeaponKind.LargeLaser);
+        new(id, id, MechLocation.RightArm, false, heat, new(DamageKind.Direct, damage, 1, 0), 0, 20, 25, 30, null, WeaponKind.PPC);
 
     private static CombatSimulation HeatFixture(WeaponSpec[] weapons, int sinks = 0, HeatSinkKind sinkType = HeatSinkKind.Single,
         ComponentSpec[]? components = null, ComponentCondition sinkCondition = ComponentCondition.Operational,
@@ -250,7 +250,7 @@ internal static partial class CombatChecks
         foreach (var unit in sim.Units) { unit.AddHeat(40); unit.Firing = FiringMode.HoldFire; }
         f = Friendly(sim); f.AddHeat(15); sim.Paused = false; sim.Advance(1);
         check(sim.Outcome == CombatOutcome.Ongoing && f.Heat > 53.9 && sim.Units.All(unit => unit.Shutdown), "both sides can shut down without a draw and excess heat extends cooling");
-        f.ApplyDamage(MechLocation.Head, 100); sim.Advance(.05);
+        f.ApplyDamage(MechLocation.Head, 100); sim.Advance(.05 + CombatRules.WindDownSeconds);
         check(sim.Outcome == CombatOutcome.Defeat && f.Status == CombatStatus.Destroyed, "physical defeat still ends combat during a thermal shutdown");
 
         sim = Battle(2); sim.EnemyAiEnabled = false;

@@ -43,6 +43,31 @@ public static partial class CombatRules
         _ => throw new ArgumentOutOfRangeException(nameof(weapon))
     };
     public static int Damage(WeaponSpec weapon) => weapon.DamageProfile.PacketDamage;
+    /// <summary>Time from the first defeat to the decided outcome, letting in-flight effects conclude.</summary>
+    public const double WindDownSeconds = 3;
+    public const double LaserBurnSeconds = 1;
+    public const double LaserSecondHalfDelay = LaserBurnSeconds / 2;
+    public static bool IsLaser(WeaponKind kind) => kind is WeaponKind.SmallLaser or WeaponKind.MediumLaser
+        or WeaponKind.LargeLaser or WeaponKind.ERLargeLaser;
+    /// <summary>The first half of a laser burn rounds up.</summary>
+    public static int LaserFirstHalf(int damage) => (damage + 1) / 2;
+    // 2d6 hit-location weights in 36ths; they also weight a laser's sweep into an adjacent location.
+    public static int LocationWeight(MechLocation location) => location switch
+    {
+        MechLocation.CenterTorso => 7, MechLocation.LeftLeg or MechLocation.RightLeg => 4, MechLocation.Head => 1, _ => 5
+    };
+    public static IReadOnlyList<MechLocation> AdjacentLocations(MechLocation location) => location switch
+    {
+        MechLocation.Head => [MechLocation.CenterTorso],
+        MechLocation.CenterTorso => [MechLocation.Head, MechLocation.LeftTorso, MechLocation.RightTorso, MechLocation.LeftLeg, MechLocation.RightLeg],
+        MechLocation.LeftTorso => [MechLocation.CenterTorso, MechLocation.LeftArm, MechLocation.LeftLeg],
+        MechLocation.RightTorso => [MechLocation.CenterTorso, MechLocation.RightArm, MechLocation.RightLeg],
+        MechLocation.LeftArm => [MechLocation.LeftTorso],
+        MechLocation.RightArm => [MechLocation.RightTorso],
+        MechLocation.LeftLeg => [MechLocation.CenterTorso, MechLocation.LeftTorso],
+        MechLocation.RightLeg => [MechLocation.CenterTorso, MechLocation.RightTorso],
+        _ => throw new ArgumentOutOfRangeException(nameof(location))
+    };
     public static Vector2 Clamp(Vector2 point) => point.Clamp(
         Vector2.One * (-ArenaHalfSize + UnitRadius), Vector2.One * (ArenaHalfSize - UnitRadius));
 }
@@ -205,6 +230,13 @@ public sealed record CombatShot(string AttackerId, string TargetId, Vector2 From
     public IReadOnlyList<CombatDamage> DamageApplied { get; init; } = [];
     public IReadOnlyList<string> SystemsLost { get; init; } = [];
     public CombatStatus? TargetStatus { get; init; }
+    /// <summary>Shared by a laser discharge and its delayed burn continuation.</summary>
+    public long Sequence { get; init; }
+    /// <summary>A hit laser's adjacent location and damage, rolled at discharge and applied after half the burn.</summary>
+    public MechLocation? SecondLocation { get; init; }
+    public int SecondDamage { get; init; }
+    /// <summary>True for the second half of a laser burn, logged separately from its discharge.</summary>
+    public bool Burn { get; init; }
 }
 
 /// <summary>Deterministic fixed-step combat with shared detection and simultaneous weapon resolution.</summary>
@@ -215,6 +247,13 @@ public sealed partial class CombatSimulation
     public bool Paused { get; set; } = true;
     public double Elapsed { get; private set; }
     public CombatOutcome Outcome { get; private set; }
+    /// <summary>Simulation time at which a wind-down started by a side's defeat decides the outcome.</summary>
+    public double? WindDownEnds { get; private set; }
+    public bool WindingDown => WindDownEnds is not null;
+    /// <summary>Elapsed time including the unstepped remainder, for smooth effect timing.</summary>
+    public double Clock => Elapsed + _accumulator;
+    private readonly List<(CombatShot Discharge, double Due)> _burns = [];
+    private long _sequence;
     public event Action<CombatShot>? ShotFired;
     private readonly List<CombatLogEntry> _history = [];
     public IReadOnlyList<CombatLogEntry> History { get; }
@@ -406,7 +445,20 @@ public sealed partial class CombatSimulation
             UpdateTorso(unit, aim, delta);
         }
         var shots = new List<CombatShot>();
-        foreach (var unit in Units.Where(item => item.Active))
+        // Due burns precede this exchange's discharges. A shooter destroyed since firing has already cancelled its burn.
+        for (var i = 0; i < _burns.Count; i++)
+        {
+            var (discharge, due) = _burns[i];
+            if (due > Elapsed + 1e-6) continue;
+            _burns.RemoveAt(i--);
+            var attacker = Unit(discharge.AttackerId); var target = Unit(discharge.TargetId);
+            if (target.Status == CombatStatus.Destroyed) continue;
+            shots.Add(discharge with { From = attacker.Position, To = target.Position, Location = discharge.SecondLocation!.Value,
+                Damage = discharge.SecondDamage, GeneratedHeat = 0, TargetHeat = 0, SecondLocation = null, SecondDamage = 0, Burn = true,
+                DamageApplied = [], SystemsLost = [], TargetStatus = null });
+            attacker.DamageDealt += discharge.SecondDamage;
+        }
+        foreach (var unit in Units.Where(item => item.Active && !WindingDown))
         {
             var mainTarget = unit.CurrentTarget is { } main ? Unit(main) : null;
             var rearTarget = SelectRearTarget(unit); unit.CurrentRearTarget = rearTarget?.Id;
@@ -416,11 +468,19 @@ public sealed partial class CombatSimulation
                 var roll = _random.NextDouble();
                 var hit = roll < chance;
                 var location = RollLocation();
-                shots.Add(new(unit.Id, target.Id, unit.Position, target.Position, weapon.Spec.Name, hit, location,
-                    hit ? weapon.Damage : 0, weapon.Spec.Heat, hit ? CombatRules.FlamerHeat(weapon.Spec) : 0)
-                { Chance = chance, Roll = roll, WeaponId = weapon.Spec.Id, Mount = DraftCatalog.Abbreviation(weapon.Spec.Location) + (weapon.Spec.Rear ? " rear" : "") });
+                var laser = hit && CombatRules.IsLaser(weapon.Spec.Kind);
+                var second = laser ? RollAdjacentLocation(location) : (MechLocation?)null;
+                var damage = !hit ? 0 : laser ? CombatRules.LaserFirstHalf(weapon.Damage) : weapon.Damage;
+                var shot = new CombatShot(unit.Id, target.Id, unit.Position, target.Position, weapon.Spec.Name, hit, location,
+                    damage, weapon.Spec.Heat, hit ? CombatRules.FlamerHeat(weapon.Spec) : 0)
+                {
+                    Chance = chance, Roll = roll, WeaponId = weapon.Spec.Id, Mount = DraftCatalog.Abbreviation(weapon.Spec.Location) + (weapon.Spec.Rear ? " rear" : ""),
+                    Sequence = ++_sequence, SecondLocation = second, SecondDamage = laser ? weapon.Damage - damage : 0
+                };
+                shots.Add(shot);
+                if (laser) _burns.Add((shot, Elapsed + CombatRules.LaserSecondHalfDelay));
                 weapon.Remaining = CombatRules.Cooldown(weapon.Spec); unit.ShotsFired++;
-                if (hit) { unit.Hits++; unit.DamageDealt += weapon.Damage; }
+                if (hit) { unit.Hits++; unit.DamageDealt += damage; }
             }
         }
         // All shooters and rolls are captured before any damage or casualty can invalidate a return shot.
@@ -459,10 +519,14 @@ public sealed partial class CombatSimulation
         StopInvalidFollows();
         foreach (var unit in Units.Where(item => !item.Active))
         { unit.Moving = false; unit.CurrentSpeed = unit.AngularVelocity = 0; unit.CurrentTarget = unit.CurrentRearTarget = null; }
+        // A burn lands in the step it comes due even if its shooter dies in that step; later destruction cuts it off.
+        _burns.RemoveAll(burn => Unit(burn.Discharge.AttackerId).Status == CombatStatus.Destroyed);
         RefreshDetection();
         var friendly = Units.Any(item => item.Side == CombatSide.Friendly && !item.Defeated);
         var enemy = Units.Any(item => item.Side == CombatSide.Enemy && !item.Defeated);
-        if (!friendly || !enemy)
+        // The first defeat starts an irrevocable wind-down; effects already in flight may still turn it into a draw.
+        if (WindDownEnds is null && (!friendly || !enemy)) WindDownEnds = Elapsed + CombatRules.WindDownSeconds;
+        if (WindDownEnds is { } ends && Elapsed + 1e-6 >= ends)
         {
             Outcome = friendly ? CombatOutcome.Victory : enemy ? CombatOutcome.Defeat : CombatOutcome.Draw;
             Paused = true;
@@ -648,6 +712,14 @@ public sealed partial class CombatSimulation
         var successes = 0;
         for (var a = 1; a <= 6; a++) for (var b = 1; b <= 6; b++) if (a + b >= threshold) successes++;
         return successes / 36.0;
+    }
+    private MechLocation RollAdjacentLocation(MechLocation location)
+    {
+        var adjacent = CombatRules.AdjacentLocations(location);
+        var roll = _random.Next(adjacent.Sum(CombatRules.LocationWeight));
+        foreach (var candidate in adjacent)
+            if ((roll -= CombatRules.LocationWeight(candidate)) < 0) return candidate;
+        throw new InvalidOperationException();
     }
     private MechLocation RollLocation() => (_random.Next(1, 7) + _random.Next(1, 7)) switch
     {

@@ -24,14 +24,34 @@ public partial class CombatViewport : Control
     private readonly Dictionary<string, Aabb> _pickBounds = [];
     private readonly List<ShotEffect> _effects = [];
     private const float ShotLife = .45f;
+    private const float BeamSlide = .08f;
+    private const float BeamReach = .1f;
+    private const float BeamFade = .15f;
+    private static readonly CylinderMesh BeamMesh = new() { TopRadius = 1, BottomRadius = 1, Height = 1, RadialSegments = 10, Rings = 1 };
     // The muzzle is chosen when the weapon fires; both ends follow the animated models while the effect fades.
-    private sealed class ShotEffect(CombatShot shot, MechLocation mount, Node3D? muzzle)
+    // Effects age with simulation time, so pause freezes a laser burn in step with its delayed damage.
+    private sealed class ShotEffect(CombatShot shot, MechLocation mount, Node3D? muzzle, double start, WeaponKind? laser)
     {
         public CombatShot Shot { get; } = shot;
         public MechLocation Mount { get; } = mount;
         public Node3D? Muzzle { get; } = muzzle;
-        public float Life { get; set; } = ShotLife;
+        public double Start { get; } = start;
+        public WeaponKind? Laser { get; } = laser;
+        public float Duration => Laser is null ? ShotLife : (float)CombatRules.LaserBurnSeconds + BeamFade;
+        public double? BurnLanded { get; set; }
+        public MeshInstance3D? Halo { get; set; }
+        public MeshInstance3D? Core { get; set; }
     }
+    internal static Color LaserColor(WeaponKind kind) => kind switch
+    {
+        WeaponKind.SmallLaser => new Color(1, .16f, .1f),
+        WeaponKind.MediumLaser => new Color(.2f, 1, .3f),
+        _ => new Color(.25f, .5f, 1)
+    };
+    internal static float LaserRadius(WeaponKind kind) => kind switch
+    {
+        WeaponKind.SmallLaser => .1f / 3, WeaponKind.MediumLaser => .14f / 3, _ => .18f / 3
+    };
     private Vector3 _focus = new(0, 0, CombatRules.DeploymentDepth - 20);
     private static readonly float DefaultPitch = Mathf.Atan2(80, 70);
     private static readonly float OrbitRadius = new Vector2(140, 160).Length();
@@ -84,7 +104,8 @@ public partial class CombatViewport : Control
         CancelDrag();
         if (Simulation is not null) Simulation.ShotFired -= OnShot;
         foreach (var model in _models.Values) { _world.RemoveChild(model); model.QueueFree(); }
-        _models.Clear(); _pickBounds.Clear(); _effects.Clear();
+        for (var i = _effects.Count - 1; i >= 0; i--) RemoveEffect(i);
+        _models.Clear(); _pickBounds.Clear();
         Simulation = simulation; Simulation.ShotFired += OnShot; InspectedEnemy = null; Selection = Array.Empty<string>();
         if (_terrainView is not null) { _world.RemoveChild(_terrainView); _terrainView.QueueFree(); }
         _terrainView = BattlefieldTerrainView.Create(simulation.Terrain); _world.AddChild(_terrainView);
@@ -95,12 +116,47 @@ public partial class CombatViewport : Control
     private void OnShot(CombatShot shot)
     {
         if (Simulation is null) return;
+        if (shot.Burn)
+        {
+            foreach (var effect in _effects.Where(item => item.Shot.Sequence == shot.Sequence)) effect.BurnLanded = Simulation.Elapsed;
+            return;
+        }
         var attacker = Simulation.Unit(shot.AttackerId);
         if (attacker.Side != CombatSide.Friendly && !Simulation.Detected(CombatSide.Friendly, shot.AttackerId)) return;
         var weapon = attacker.Spec.Weapons.FirstOrDefault(item => item.Id == shot.WeaponId);
-        _effects.Add(new(shot, weapon?.Location ?? MechLocation.CenterTorso,
-            weapon is null ? null : _models[shot.AttackerId].NextFiringMarker(weapon.Id)));
+        var laser = weapon is not null && CombatRules.IsLaser(weapon.Kind) ? weapon.Kind : (WeaponKind?)null;
+        var created = new ShotEffect(shot, weapon?.Location ?? MechLocation.CenterTorso,
+            weapon is null ? null : _models[shot.AttackerId].NextFiringMarker(weapon.Id), Simulation.Elapsed, laser);
+        if (laser is { } kind)
+        {
+            var color = LaserColor(kind);
+            created.Halo = Beam(color); created.Core = Beam(color.Lerp(Colors.White, .75f));
+        }
+        _effects.Add(created);
     }
+    // Unshaded additive cylinders read as a glowing beam from any camera angle without post-processing.
+    private MeshInstance3D Beam(Color color)
+    {
+        var beam = new MeshInstance3D
+        {
+            Mesh = BeamMesh, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            MaterialOverride = new StandardMaterial3D
+            {
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, BlendMode = BaseMaterial3D.BlendModeEnum.Add,
+                Transparency = BaseMaterial3D.TransparencyEnum.Alpha, CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+                AlbedoColor = color
+            }
+        };
+        _world.AddChild(beam);
+        return beam;
+    }
+    private void RemoveEffect(int index)
+    {
+        var effect = _effects[index];
+        effect.Halo?.QueueFree(); effect.Core?.QueueFree();
+        _effects.RemoveAt(index);
+    }
+    private float Age(ShotEffect effect) => (float)((Simulation?.Clock ?? effect.Start) - effect.Start);
     private void CreateMech(CombatUnit unit)
     {
         var model = MechModel.Create(unit.Spec, unit.Side);
@@ -252,9 +308,13 @@ public partial class CombatViewport : Control
             if (Input.IsPhysicalKeyPressed(Key.Q)) { _yaw -= (float)delta; UpdateCamera(); }
             if (Input.IsPhysicalKeyPressed(Key.E)) { _yaw += (float)delta; UpdateCamera(); }
         }
-        for (var i = _effects.Count - 1; i >= 0; i--)
-        { _effects[i].Life -= (float)delta; if (_effects[i].Life <= 0) _effects.RemoveAt(i); }
         SyncModels(!Simulation.Paused && Simulation.Outcome == CombatOutcome.Ongoing ? (float)delta : 0);
+        // A destroyed shooter's beam vanishes at once.
+        for (var i = _effects.Count - 1; i >= 0; i--)
+            if (Age(_effects[i]) >= _effects[i].Duration
+                || _effects[i].Laser is not null && Simulation.Unit(_effects[i].Shot.AttackerId).Status == CombatStatus.Destroyed)
+                RemoveEffect(i);
+        foreach (var effect in _effects) UpdateBeam(effect);
         var hovering = CommandsEnabled && _windowFocused && !_selecting && !_panning && !_rotating && !_rightDragging
             && GetViewport().GuiGetHoveredControl() == this;
         SetHovered(hovering ? PickMech(GetLocalMousePosition())?.Id : null);
@@ -267,19 +327,46 @@ public partial class CombatViewport : Control
         _focus.Z = Math.Clamp(_focus.Z + rotated.Y, -CombatRules.ArenaHalfSize, CombatRules.ArenaHalfSize); UpdateCamera();
     }
     // Shots leave the weapon's source muzzle (or its location's center) and end at the rolled hit location.
-    // Misses pass beside and beyond that location.
-    private (Vector3 From, Vector3 To) ShotPath(ShotEffect effect)
+    // Misses pass beside and beyond that location. A laser holds its first location for half the burn,
+    // slides briefly to the adjacent location and holds there; a miss holds beside its first location.
+    private (Vector3 From, Vector3 To, MechLocation Location) ShotPath(ShotEffect effect)
     {
         var shot = effect.Shot;
         var from = effect.Muzzle?.GlobalPosition ?? _models[shot.AttackerId].LocationCenter(effect.Mount);
         var to = _models[shot.TargetId].LocationCenter(shot.Location);
-        if (shot.Hit) return (from, to);
+        var sweep = effect.Laser is null ? 0 : Math.Clamp((Age(effect) - (float)CombatRules.LaserSecondHalfDelay) / BeamSlide, 0, 1);
+        var location = sweep >= 1 && shot.SecondLocation is { } second ? second : shot.Location;
         var direction = new Vector3(to.X - from.X, 0, to.Z - from.Z).Normalized();
-        var side = new Vector3(-direction.Z, 0, direction.X) * ((int)(shot.Roll * 100) % 2 == 0 ? 1.2f : -1.2f);
-        return (from, to + side + direction * 1.5f);
+        var side = new Vector3(-direction.Z, 0, direction.X) * ((int)(shot.Roll * 100) % 2 == 0 ? 1 : -1);
+        if (shot.Hit)
+            return (from, shot.SecondLocation is { } next ? to.Lerp(_models[shot.TargetId].LocationCenter(next), sweep) : to, location);
+        return (from, to + side * 1.2f + direction * 1.5f, location);
     }
-    internal IEnumerable<(CombatShot Shot, Vector3 From, Vector3 To)> ShotPaths()
-        => _effects.Select(effect => { var (from, to) = ShotPath(effect); return (effect.Shot, from, to); });
+    internal IEnumerable<(CombatShot Shot, Vector3 From, Vector3 To, MechLocation Location)> ShotPaths()
+        => _effects.Select(effect => { var (from, to, location) = ShotPath(effect); return (effect.Shot, from, to, location); });
+    internal IEnumerable<(CombatShot Shot, MeshInstance3D Halo, MeshInstance3D Core)> Beams() =>
+        _effects.Where(effect => effect.Halo is not null).Select(effect => (effect.Shot, effect.Halo!, effect.Core!));
+    private void UpdateBeam(ShotEffect effect)
+    {
+        if (effect.Laser is not { } kind) return;
+        var (from, to, _) = ShotPath(effect);
+        // The beam's front travels from the muzzle and reaches its full length after BeamReach.
+        to = from.Lerp(to, Math.Clamp(Age(effect) / BeamReach, 0, 1));
+        var alpha = Math.Clamp((effect.Duration - Age(effect)) / BeamFade, 0, 1);
+        var axis = to - from;
+        var visible = axis.LengthSquared() > 1e-6f && alpha > 0;
+        foreach (var (beam, scale) in new[] { (effect.Halo!, 1f), (effect.Core!, .4f) })
+        {
+            beam.Visible = visible;
+            if (!visible) continue;
+            var radius = LaserRadius(kind) * scale;
+            var across = axis.Cross(Math.Abs(axis.Normalized().Y) > .9f ? Vector3.Right : Vector3.Up).Normalized();
+            var depth = axis.Cross(across).Normalized();
+            beam.GlobalTransform = new Transform3D(new Basis(across * radius, axis, depth * radius), (from + to) / 2);
+            var material = (StandardMaterial3D)beam.MaterialOverride;
+            material.AlbedoColor = new Color(material.AlbedoColor, alpha);
+        }
+    }
     // One camera ray drives hover, selection, inspection, attack, priority targeting and Follow.
     internal CombatUnit? PickMech(Vector2 at)
     {
@@ -503,11 +590,25 @@ public partial class CombatViewport : Control
         }
         foreach (var effect in _effects)
         {
-            var shot = effect.Shot; var fade = effect.Life / ShotLife;
-            var (from, to) = ShotPath(effect);
-            var color = new Color(shot.Hit ? Ui.Gold : Ui.Muted, fade);
-            DrawLine(Camera.UnprojectPosition(from), Camera.UnprojectPosition(to), color, shot.Weapon.Contains("Laser") || shot.Weapon == "PPC" ? 3 : 1, true);
-            if (shot.Hit) DrawArc(Camera.UnprojectPosition(to), (1 - fade) * 14 + 3, 0, Mathf.Tau, 16, color, 2, true);
+            var shot = effect.Shot; var age = Age(effect);
+            var (from, to, _) = ShotPath(effect);
+            if (effect.Laser is { } kind)
+            {
+                // Each struck location flashes a ring in the laser's color as the burn reaches it.
+                if (!shot.Hit) continue;
+                ImpactRing(_models[shot.TargetId].LocationCenter(shot.Location), age - BeamReach, LaserColor(kind));
+                if (effect.BurnLanded is { } landed && shot.SecondLocation is { } second)
+                    ImpactRing(_models[shot.TargetId].LocationCenter(second), (float)(Simulation.Clock - landed), LaserColor(kind));
+                continue;
+            }
+            var color = new Color(shot.Hit ? Ui.Gold : Ui.Muted, 1 - age / ShotLife);
+            DrawLine(Camera.UnprojectPosition(from), Camera.UnprojectPosition(to), color, shot.Weapon == "PPC" ? 3 : 1, true);
+            if (shot.Hit) ImpactRing(to, age, Ui.Gold);
+        }
+        void ImpactRing(Vector3 at, float age, Color color)
+        {
+            var fade = 1 - age / ShotLife;
+            if (age >= 0 && fade > 0) DrawArc(Camera.UnprojectPosition(at), (1 - fade) * 14 + 3, 0, Mathf.Tau, 16, new Color(color, fade), 2, true);
         }
         if (_selecting && _dragStart.DistanceTo(_dragEnd) > 5)
         { var rect = new Rect2(_dragStart, _dragEnd - _dragStart).Abs(); DrawRect(rect, new Color(Ui.Gold, .12f)); DrawRect(rect, Ui.Gold, false); }

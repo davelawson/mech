@@ -68,6 +68,18 @@ Move orders resolve inaccessible destinations to the nearest reachable navigatio
 
 Weapons start ready; cooldowns progress only during unpaused simulation time, including thermal shutdown. Stock weapon damage, armor and structure are retained. Combat multiplies all four stock weapon range boundaries by three; the imported catalog remains unchanged, and weapon inspection shows effective ranges. A medium laser therefore has short/medium/long ranges of 9/18/27 hexes. PPC minimum range is 9 and LRM minimum range is 18. Both sides use the same multiplier for targeting, firing, hit chance and terrain firing-position searches. Missile racks deliver stock per-missile damage × rack size in one packet on one roll. Each successful flamer hit deals its ordinary damage and adds 2 target heat, including through armor. Misses add no target heat. Ammunition availability and destroyed bins affect usable weapons; ammunition is not consumed.
 
+Lasers split damage across a one-second burn: half (rounded up) at discharge, the remainder 0.5 seconds later. Small 2 + 1, medium 3 + 2, large and ER large 4 + 4. The second location is rolled at discharge, weighted by the hit-location table below among these neighbors:
+
+| Struck location | Adjacent locations |
+| --- | --- |
+| Head | Center torso |
+| Center torso | Head, left torso, right torso, left leg, right leg |
+| Left / right torso | Center torso, same-side arm, same-side leg |
+| Left / right arm | Same-side torso |
+| Left / right leg | Center torso, same-side torso |
+
+The extra location roll is drawn only for laser hits. Beam halo radii are 0.033 (small), 0.047 (medium) and 0.06 (large and ER large) hexes, with a core at 40% of the halo. The beam reaches full length 0.1 seconds after discharge, slides between locations over 0.08 seconds and fades over 0.15 seconds after the burn. A side's defeat starts a 3-second wind-down before the outcome.
+
 Hit chance is the exact probability of 2d6 meeting this threshold:
 
 `Gunnery + 3 (real-time aim modifier) + range + minimum-range penalty + attacker movement + target movement + vegetation + attacker heat`

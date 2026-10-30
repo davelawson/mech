@@ -116,6 +116,7 @@ internal static partial class CombatChecks
         CheckHeat(check);
         CheckCombatLog(check);
         CheckOutcomes(check);
+        CheckLasers(check);
 
         sim = Deploy(roster, roster.Mechs.Select(item => item.Id), 12);
         foreach (var unit in sim.Units.Where(item => item.Side == CombatSide.Friendly)) unit.ApplyDamage(MechLocation.CenterTorso, 500);
@@ -339,7 +340,11 @@ internal static partial class CombatChecks
             if (outcome != CombatOutcome.Defeat) Enemy(sim).ApplyDamage(MechLocation.CenterTorso, 1000);
             if (outcome != CombatOutcome.Victory) Friendly(sim).ApplyDamage(MechLocation.CenterTorso, 1000);
             sim.Paused = false; sim.Advance(.05);
-            check(sim.Outcome == outcome && sim.Paused, $"{outcome} stops combat");
+            check(sim.Outcome == CombatOutcome.Ongoing && sim.WindingDown, $"{outcome} begins the wind-down");
+            sim.Advance(CombatRules.WindDownSeconds - .05);
+            check(sim.Outcome == CombatOutcome.Ongoing && !sim.Paused, $"{outcome} wind-down continues the simulation");
+            sim.Advance(.05);
+            check(sim.Outcome == outcome && sim.Paused, $"{outcome} stops combat after the wind-down");
         }
         // Every location is one structure point: any successful shot is lethal. Both have a single ready gun.
         var source = Battle();
@@ -354,7 +359,7 @@ internal static partial class CombatChecks
         }
         // Damage packet 10 transfers through any nonfatal part into the one-point center torso.
         var simultaneous = new CombatSimulation(lethal, 5) { EnemyAiEnabled = false, Paused = false };
-        simultaneous.Advance(.05);
+        simultaneous.Advance(.05 + CombatRules.WindDownSeconds);
         check(simultaneous.Outcome == CombatOutcome.Draw && lethal.All(item => item.ShotsFired == 1), "same-instant lethal return shots resolve before outcome");
         var ended = Battle(); ended.End(); ended.Advance(2);
         check(ended.Outcome == CombatOutcome.Ended && ended.Elapsed == 0, "End Simulation works before any combat and freezes state");
