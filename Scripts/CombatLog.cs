@@ -27,14 +27,15 @@ public sealed record CombatLogEntry(double Time, CombatShot Shot, CombatLogUnit 
         var attackerDetails = Attacker.Detailed(debug);
         if (attackerDetails)
         {
-            fields.Add($"{Shot.Weapon} ({Shot.Mount})" + (Shot.Burn ? " burn continues" : ""));
-            if (!Shot.Burn) fields.Add(FormattableString.Invariant($"heat +{Shot.GeneratedHeat} → {Attacker.Heat:0.0}"));
+            fields.Add($"{Shot.Weapon} ({Shot.Mount})" + (Shot.Burn ? " burn continues" : Shot.Impact ? " impact" : ""));
+            if (!Shot.Burn && !Shot.Impact) fields.Add(FormattableString.Invariant($"heat +{Shot.GeneratedHeat} → {Attacker.Heat:0.0}"));
         }
         else if (Shot.Burn) fields.Add("burn continues");
+        else if (Shot.Impact) fields.Add("impact");
         if (debug || Attacker.Visibility != ContactLevel.Lost)
             fields.Add(FormattableString.Invariant($"{Shot.From.DistanceTo(Shot.To):0.0} hex"));
         // Lower random draws hit. Increase precision when rounding would make a hit look like a tie.
-        if (Shot.Burn) { } // A burn continuation inherits its discharge's roll.
+        if (Shot.Burn || Shot.Impact) { } // Continuations and impacts inherit their discharge's roll.
         else if (attackerDetails)
         {
             var decimals = 1;
@@ -43,7 +44,10 @@ public sealed record CombatLogEntry(double Time, CombatShot Shot, CombatLogUnit 
             fields.Add($"chance {(Shot.Chance * 100).ToString(pattern, CultureInfo.InvariantCulture)}%, roll {(Shot.Roll * 100).ToString(pattern, CultureInfo.InvariantCulture)}% {(Shot.Hit ? "HIT" : "MISS")}");
         }
         else fields.Add(Shot.Hit ? "HIT" : "MISS");
-        if (Target.Detailed(debug))
+        if (Shot.InFlight) fields.Add(FormattableString.Invariant($"in flight {Shot.FlightSeconds:0.00}s"));
+        if (Shot.Wreck) fields.Add("no damage, target destroyed");
+        else if (Shot.InFlight) { if (Shot.Hit && Target.Detailed(debug)) fields.Add($"dmg {Shot.Damage} on impact"); }
+        else if (Target.Detailed(debug))
         {
             fields.Add($"dmg {Shot.Damage}" + (Shot.SecondLocation is { } second
                 ? FormattableString.Invariant($", burn +{Shot.SecondDamage} {DraftCatalog.Abbreviation(second)} in {CombatRules.LaserSecondHalfDelay:0.0}s") : ""));

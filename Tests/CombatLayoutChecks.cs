@@ -119,7 +119,7 @@ public partial class SmokeTests
                 await ContactAt(24);
                 tactical.Battlefield.InspectedEnemy = enemy.Id;
                 tactical.SelectUnits([friendly.Id], false);
-                Check(tactical.Paperdoll.Unit == enemy && VisibleText().Contains(CombatScreen.SystemsReadout(enemy))
+                Check(tactical.Paperdoll.Unit == enemy && VisibleText().Contains(CombatScreen.SystemsReadout(enemy, enemy: true))
                     && VisibleText().Any(text => text.Contains(CombatScreen.HeatReadout(enemy))),
                     $"detailed inspection shows live condition at {size}");
                 await Capture($"combat-contact-details-{size.X}x{size.Y}");

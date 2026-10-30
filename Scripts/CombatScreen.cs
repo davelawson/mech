@@ -398,7 +398,7 @@ public partial class CombatScreen : Control
                 : "OPPOSITION · Model identified\nClose to half detection range for armour, internals and systems.";
             Paperdoll.Display(detailed ? enemy : null);
             _locations.Text = detailed ? CombatPaperdoll.Readout(enemy) : "";
-            _systems.Text = detailed ? SystemsReadout(enemy) : "";
+            _systems.Text = detailed ? SystemsReadout(enemy, enemy: true) : "";
             _targetInfo.Text = "";
             return;
         }
@@ -455,7 +455,7 @@ public partial class CombatScreen : Control
             var weaponTarget = weapon.Spec.Rear ? rearTarget : firingTarget;
             var status = weaponStatuses[i];
             control.Text = $"{weapon.Spec.Name}{(weapon.Spec.Rear ? " (rear)" : "")} · {DraftCatalog.Abbreviation(weapon.Spec.Location)}\n"
-                + status + (weaponTarget is null ? "" : $" · {Simulation.TerrainHitChance(unit, weaponTarget, weapon):P0} hit")
+                + status + (weapon.Spec.AmmoKind is { } ammo ? $" · {unit.AmmoRemaining(ammo)} shots" : "") + (weaponTarget is null ? "" : $" · {Simulation.TerrainHitChance(unit, weaponTarget, weapon):P0} hit")
                 + (weapon.Spec.Rear && weaponTarget is not null ? $" · {weaponTarget.Spec.Chassis}" : "");
         }
         _locations.Text = CombatPaperdoll.Readout(unit)
@@ -468,15 +468,22 @@ public partial class CombatScreen : Control
         + $"Cooling {unit.CoolingRate:0.0} heat/s · {unit.EffectiveHeatSinks}/{unit.Spec.HeatSinks} {DefinitionText.HeatSinks(unit.Spec.HeatSinkType)} sinks"
         + (unit.Shutdown && !unit.Defeated ? "\nAutomatic restart below 10 heat" : "");
 
-    internal static string SystemsReadout(CombatUnit unit)
+    // Enemy ammunition depletion is never known: inspection shows only physical equipment loss.
+    internal static string SystemsReadout(CombatUnit unit, bool enemy = false)
     {
         string State(string id, MechLocation location, bool usable = true) => !unit.Intact(location) ? "Lost"
             : unit.Equipment[id] == ComponentCondition.Destroyed ? "Destroyed"
             : !usable ? $"{unit.Equipment[id]} · Unavailable" : unit.Equipment[id].ToString();
+        string Bin(AmmoSpec bin)
+        {
+            var state = State(bin.Id, bin.Location);
+            if (enemy || state is "Lost" or "Destroyed") return state;
+            return unit.Shots(bin.Id) > 0 ? $"{state} · {unit.Shots(bin.Id)} shots" : $"{state} · Empty";
+        }
         return "SYSTEMS · CONDITION / AVAILABILITY\n" + string.Join("\n",
-            unit.Weapons.Select(weapon => $"{DraftCatalog.Abbreviation(weapon.Spec.Location)} · {weapon.Spec.Name}{(weapon.Spec.Rear ? " (rear)" : "")}: {State(weapon.Spec.Id, weapon.Spec.Location, unit.WeaponUsable(weapon))}")
+            unit.Weapons.Select(weapon => $"{DraftCatalog.Abbreviation(weapon.Spec.Location)} · {weapon.Spec.Name}{(weapon.Spec.Rear ? " (rear)" : "")}: {State(weapon.Spec.Id, weapon.Spec.Location, enemy ? unit.WeaponIntact(weapon) : unit.WeaponUsable(weapon))}")
             .Concat(unit.Spec.Components.Select(item => $"{DraftCatalog.Abbreviation(item.Location)} · {item.Name}: {State(item.Id, item.Location)}"))
-            .Concat(unit.Spec.Ammo.Select(item => $"{DraftCatalog.Abbreviation(item.Location)} · {item.Name}: {State(item.Id, item.Location, unit.Ammo.Any(bin => bin.Id == item.Id && bin.Shots > 0))}")));
+            .Concat(unit.Spec.Ammo.Select(item => $"{DraftCatalog.Abbreviation(item.Location)} · {item.Name}: {Bin(item)}")));
     }
 
 }

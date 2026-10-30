@@ -49,6 +49,10 @@ public static partial class CombatRules
     public const double LaserSecondHalfDelay = LaserBurnSeconds / 2;
     public static bool IsLaser(WeaponKind kind) => kind is WeaponKind.SmallLaser or WeaponKind.MediumLaser
         or WeaponKind.LargeLaser or WeaponKind.ERLargeLaser;
+    public static bool IsAutocannon(WeaponKind kind) => kind is WeaponKind.AC2 or WeaponKind.AC5 or WeaponKind.AC10 or WeaponKind.AC20;
+    /// <summary>Autocannon shells fly straight at one speed for every caliber: one second at 60 hexes.</summary>
+    public const float ShellSpeed = 60;
+    public static double ShellFlightSeconds(float distance) => distance / ShellSpeed;
     /// <summary>The first half of a laser burn rounds up.</summary>
     public static int LaserFirstHalf(int damage) => (damage + 1) / 2;
     // 2d6 hit-location weights in 36ths; they also weight a laser's sweep into an adjacent location.
@@ -112,6 +116,7 @@ public sealed partial class CombatUnit
     public IReadOnlyList<CombatWeapon> Weapons { get; }
     public IReadOnlyDictionary<string, ComponentCondition> Equipment { get; }
     public IReadOnlyList<AmmoCondition> Ammo { get; }
+    private readonly AmmoCondition[] _ammo;
     public Vector2 Position { get; internal set; }
     public Vector2 Destination { get; internal set; }
     internal IReadOnlyList<Vector2> Route { get; set; } = Array.Empty<Vector2>();
@@ -143,7 +148,7 @@ public sealed partial class CombatUnit
         Facing = side == CombatSide.Friendly ? Vector2.Up : Vector2.Down;
         Locations = locations.ToDictionary(item => item.Location, item => new CombatLocation(item));
         Equipment = equipment.ToDictionary(item => item.Id, item => item.Condition);
-        Ammo = Array.AsReadOnly(ammo.ToArray());
+        _ammo = ammo.ToArray(); Ammo = Array.AsReadOnly(_ammo);
         Weapons = Array.AsReadOnly(spec.Weapons.Select(item => new CombatWeapon(item)).ToArray());
         // A damage-weighted short-range preference keeps mixed loadouts relevant.
         var usable = Weapons.Where(WeaponUsable).ToArray();
@@ -152,14 +157,30 @@ public sealed partial class CombatUnit
             CombatRules.WeaponRangeScale, 15 * CombatRules.WeaponRangeScale);
     }
     public bool Intact(MechLocation location) => Locations[location].Structure > 0;
-    public bool WeaponUsable(CombatWeapon weapon) => Intact(weapon.Spec.Location)
+    /// <summary>Physically able to fire: the weapon and at least one compatible bin survive, whether or not it holds shots.</summary>
+    public bool WeaponIntact(CombatWeapon weapon) => Intact(weapon.Spec.Location)
         && Equipment[weapon.Spec.Id] != ComponentCondition.Destroyed
-        && (weapon.Spec.AmmoKind is null || Spec.Ammo.Any(bin => bin.AmmoKind == weapon.Spec.AmmoKind
-            && Intact(bin.Location) && Equipment[bin.Id] != ComponentCondition.Destroyed
-            && Ammo.Any(item => item.Id == bin.Id && item.Shots > 0)));
+        && (weapon.Spec.AmmoKind is not { } kind || AmmoBins(kind).Any());
+    public bool WeaponUsable(CombatWeapon weapon) => WeaponIntact(weapon)
+        && (weapon.Spec.AmmoKind is not { } kind || AmmoRemaining(kind) > 0);
+    /// <summary>Intact compatible bins form one pool per ammunition kind.</summary>
+    private IEnumerable<AmmoSpec> AmmoBins(AmmoKind kind) => Spec.Ammo.Where(bin => bin.AmmoKind == kind
+        && Intact(bin.Location) && Equipment[bin.Id] != ComponentCondition.Destroyed);
+    public int Shots(string binId) => _ammo.Single(item => item.Id == binId).Shots;
+    public int AmmoRemaining(AmmoKind kind) => AmmoBins(kind).Sum(bin => Shots(bin.Id));
+    /// <summary>Spends one shot from the intact bin with the fewest remaining, breaking ties in catalog order.</summary>
+    internal bool ConsumeAmmo(AmmoKind kind)
+    {
+        var bin = AmmoBins(kind).Where(item => Shots(item.Id) > 0).OrderBy(item => Shots(item.Id)).FirstOrDefault();
+        if (bin is null) return false;
+        var index = Array.FindIndex(_ammo, item => item.Id == bin.Id);
+        _ammo[index] = _ammo[index] with { Shots = _ammo[index].Shots - 1 };
+        return true;
+    }
+    // Running out of ammunition withholds fire but, like a weapon toggle, is not physical weapon loss.
     public CombatStatus Status => !Intact(MechLocation.Head) || !Intact(MechLocation.CenterTorso)
         ? CombatStatus.Destroyed : (!Intact(MechLocation.LeftLeg) && !Intact(MechLocation.RightLeg))
-            || !Weapons.Any(WeaponUsable) ? CombatStatus.Disabled : Shutdown ? CombatStatus.Shutdown : CombatStatus.Active;
+            || !Weapons.Any(WeaponIntact) ? CombatStatus.Disabled : Shutdown ? CombatStatus.Shutdown : CombatStatus.Active;
     public bool Active => Status == CombatStatus.Active;
     public bool Defeated => Status is CombatStatus.Disabled or CombatStatus.Destroyed;
     private float Mobility => Defeated ? 0 : (!Intact(MechLocation.LeftLeg) || !Intact(MechLocation.RightLeg)) ? .5f : 1;
@@ -237,6 +258,13 @@ public sealed record CombatShot(string AttackerId, string TargetId, Vector2 From
     public int SecondDamage { get; init; }
     /// <summary>True for the second half of a laser burn, logged separately from its discharge.</summary>
     public bool Burn { get; init; }
+    /// <summary>An autocannon shell's time from discharge to impact; its damage waits for the impact entry.</summary>
+    public double FlightSeconds { get; init; }
+    public bool InFlight => FlightSeconds > 0 && !Impact;
+    /// <summary>True when a hit shell lands, logged separately from its discharge.</summary>
+    public bool Impact { get; init; }
+    /// <summary>A shell that reached a destroyed target explodes on the wreck without damage.</summary>
+    public bool Wreck { get; init; }
 }
 
 /// <summary>Deterministic fixed-step combat with shared detection and simultaneous weapon resolution.</summary>
@@ -253,6 +281,7 @@ public sealed partial class CombatSimulation
     /// <summary>Elapsed time including the unstepped remainder, for smooth effect timing.</summary>
     public double Clock => Elapsed + _accumulator;
     private readonly List<(CombatShot Discharge, double Due)> _burns = [];
+    private readonly List<(CombatShot Discharge, double Due)> _shells = [];
     private long _sequence;
     public event Action<CombatShot>? ShotFired;
     private readonly List<CombatLogEntry> _history = [];
@@ -458,36 +487,52 @@ public sealed partial class CombatSimulation
                 DamageApplied = [], SystemsLost = [], TargetStatus = null });
             attacker.DamageDealt += discharge.SecondDamage;
         }
+        // Shells always land, even after their shooter is destroyed. A wreck takes the explosion without damage.
+        for (var i = 0; i < _shells.Count; i++)
+        {
+            var (discharge, due) = _shells[i];
+            if (due > Elapsed + 1e-6) continue;
+            _shells.RemoveAt(i--);
+            var wreck = Unit(discharge.TargetId).Status == CombatStatus.Destroyed;
+            shots.Add(discharge with { To = Unit(discharge.TargetId).Position, Damage = wreck ? 0 : discharge.Damage, GeneratedHeat = 0,
+                Impact = true, Wreck = wreck, DamageApplied = [], SystemsLost = [], TargetStatus = null });
+            if (!wreck) Unit(discharge.AttackerId).DamageDealt += discharge.Damage;
+        }
         foreach (var unit in Units.Where(item => item.Active && !WindingDown))
         {
             var mainTarget = unit.CurrentTarget is { } main ? Unit(main) : null;
             var rearTarget = SelectRearTarget(unit); unit.CurrentRearTarget = rearTarget?.Id;
             foreach (var (weapon, target) in SelectHeatVolley(unit, mainTarget, rearTarget))
             {
+                // A shared bin emptied by an earlier weapon in this volley withholds the rest; they remain ready.
+                if (weapon.Spec.AmmoKind is { } ammo && !unit.ConsumeAmmo(ammo)) continue;
                 var chance = TerrainHitChance(unit, target, weapon);
                 var roll = _random.NextDouble();
                 var hit = roll < chance;
                 var location = RollLocation();
                 var laser = hit && CombatRules.IsLaser(weapon.Spec.Kind);
+                var shell = CombatRules.IsAutocannon(weapon.Spec.Kind);
                 var second = laser ? RollAdjacentLocation(location) : (MechLocation?)null;
                 var damage = !hit ? 0 : laser ? CombatRules.LaserFirstHalf(weapon.Damage) : weapon.Damage;
                 var shot = new CombatShot(unit.Id, target.Id, unit.Position, target.Position, weapon.Spec.Name, hit, location,
                     damage, weapon.Spec.Heat, hit ? CombatRules.FlamerHeat(weapon.Spec) : 0)
                 {
                     Chance = chance, Roll = roll, WeaponId = weapon.Spec.Id, Mount = DraftCatalog.Abbreviation(weapon.Spec.Location) + (weapon.Spec.Rear ? " rear" : ""),
-                    Sequence = ++_sequence, SecondLocation = second, SecondDamage = laser ? weapon.Damage - damage : 0
+                    Sequence = ++_sequence, SecondLocation = second, SecondDamage = laser ? weapon.Damage - damage : 0,
+                    FlightSeconds = shell ? CombatRules.ShellFlightSeconds(unit.Position.DistanceTo(target.Position)) : 0
                 };
                 shots.Add(shot);
                 if (laser) _burns.Add((shot, Elapsed + CombatRules.LaserSecondHalfDelay));
+                if (shell && hit) _shells.Add((shot, Elapsed + shot.FlightSeconds));
                 weapon.Remaining = CombatRules.Cooldown(weapon.Spec); unit.ShotsFired++;
-                if (hit) { unit.Hits++; unit.DamageDealt += damage; }
+                if (hit) { unit.Hits++; if (!shell) unit.DamageDealt += damage; }
             }
         }
         // All shooters and rolls are captured before any damage or casualty can invalidate a return shot.
         for (var i = 0; i < shots.Count; i++)
         {
             var shot = shots[i];
-            if (!shot.Hit) continue;
+            if (!shot.Hit || shot.InFlight || shot.Wreck) continue;
             var target = Unit(shot.TargetId);
             var before = target.Locations.Values.ToDictionary(part => part.Location,
                 part => (part.Armor, part.RearArmor, part.Structure));

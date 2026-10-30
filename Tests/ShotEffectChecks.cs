@@ -125,6 +125,29 @@ public partial class SmokeTests
             sim.Unit(burning!.AttackerId).ApplyDamage(MechLocation.Head, 10000); field._Process(0);
             Check(!field.ShotPaths().Any(path => path.Shot.Sequence == burning.Sequence) && field.Beams().Count() < beams,
                 "a destroyed shooter's beam vanishes immediately");
+
+            Check(new[] { WeaponKind.AC2, WeaponKind.AC5, WeaponKind.AC10, WeaponKind.AC20 }
+                    .Select(CombatViewport.ExplosionRadius).Zip(new[] { .3f, .5f, .8f, 1.2f }).All(pair => pair.First == pair.Second),
+                "autocannon explosions scale with caliber");
+            CombatShot? shell = null;
+            var gunner = sim.Units.Single(unit => unit.Side == CombatSide.Friendly && unit.Spec.Id == "atlas");
+            gunner.Position = new Vector2(8, 0); gunner.Facing = Vector2.Up;
+            for (var step = 0; step < 4000 && shell is null; step++)
+            {
+                var before = shots.Count; sim.Advance(CombatRules.StepSeconds); field._Process(0);
+                shell = shots.Skip(before).FirstOrDefault(shot => shot.Hit && shot.InFlight && field.Shells().Any(item => item.Shot == shot));
+            }
+            Check(shell is not null, "the exchange produced a visible autocannon hit");
+            (CombatShot Shot, Vector3 Position, bool Flying, bool Exploding) Shell() => field.Shells().Single(item => item.Shot == shell);
+            var launched = Shell().Position;
+            sim.Advance(shell!.FlightSeconds / 2); field._Process(0);
+            var struck = ModelAt(sim.Unit(shell.TargetId)).LocationCenter(shell.Location);
+            Check(Shell().Flying && !Shell().Exploding && Shell().Position.DistanceTo(launched) > 1
+                    && Shell().Position.DistanceTo(struck) > 1, "an autocannon shell travels toward its target");
+            sim.Advance(shell.FlightSeconds / 2 + .05); field._Process(0);
+            struck = ModelAt(sim.Unit(shell.TargetId)).LocationCenter(shell.Location);
+            Check(!Shell().Flying && Shell().Exploding && Shell().Position.IsEqualApprox(struck),
+                "the shell explodes at the struck location when it lands");
         }
         finally { field.QueueFree(); await Frames(); }
     }

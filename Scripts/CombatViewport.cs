@@ -28,20 +28,47 @@ public partial class CombatViewport : Control
     private const float BeamReach = .1f;
     private const float BeamFade = .15f;
     private static readonly CylinderMesh BeamMesh = new() { TopRadius = 1, BottomRadius = 1, Height = 1, RadialSegments = 10, Rings = 1 };
+    private static readonly SphereMesh BlastMesh = new() { Radius = 1, Height = 2, RadialSegments = 16, Rings = 8 };
+    private const float MuzzleFlash = .1f;
+    private const float ShellFade = .1f;
+    private static readonly Color ShellColor = new(1, .72f, .25f);
+    private static readonly Color BlastColor = new(1, .5f, .12f);
     // The muzzle is chosen when the weapon fires; both ends follow the animated models while the effect fades.
     // Effects age with simulation time, so pause freezes a laser burn in step with its delayed damage.
-    private sealed class ShotEffect(CombatShot shot, MechLocation mount, Node3D? muzzle, double start, WeaponKind? laser)
+    private sealed class ShotEffect(CombatShot shot, MechLocation mount, Node3D? muzzle, double start, WeaponKind? laser, WeaponKind? shell = null)
     {
         public CombatShot Shot { get; } = shot;
         public MechLocation Mount { get; } = mount;
         public Node3D? Muzzle { get; } = muzzle;
         public double Start { get; } = start;
         public WeaponKind? Laser { get; } = laser;
-        public float Duration => Laser is null ? ShotLife : (float)CombatRules.LaserBurnSeconds + BeamFade;
+        public WeaponKind? Shell { get; } = shell;
+        public float Duration => Shell is { } kind ? Flight + (Shot.Hit || Grounded ? ExplosionSeconds(kind) : ShellFade)
+            : Laser is null ? ShotLife : (float)CombatRules.LaserBurnSeconds + BeamFade;
         public double? BurnLanded { get; set; }
         public MeshInstance3D? Halo { get; set; }
         public MeshInstance3D? Core { get; set; }
+        // A shell leaves from where it was fired. A miss flies on to the ground or fades beyond long range.
+        public Vector3 Launch { get; set; }
+        public Vector3 MissEnd { get; set; }
+        public bool Grounded { get; set; }
+        public float Flight { get; set; }
+        public MeshInstance3D? Slug { get; set; }
+        public MeshInstance3D? Flash { get; set; }
+        public MeshInstance3D? Blast { get; set; }
     }
+    internal static float ExplosionRadius(WeaponKind kind) => kind switch
+    {
+        WeaponKind.AC2 => .3f, WeaponKind.AC5 => .5f, WeaponKind.AC10 => .8f, _ => 1.2f
+    };
+    internal static float ExplosionSeconds(WeaponKind kind) => kind switch
+    {
+        WeaponKind.AC2 => .3f, WeaponKind.AC5 => .4f, WeaponKind.AC10 => .5f, _ => .6f
+    };
+    internal static float ShellRadius(WeaponKind kind) => kind switch
+    {
+        WeaponKind.AC2 => .04f, WeaponKind.AC5 => .06f, WeaponKind.AC10 => .08f, _ => .11f
+    };
     internal static Color LaserColor(WeaponKind kind) => kind switch
     {
         WeaponKind.SmallLaser => new Color(1, .16f, .1f),
@@ -121,17 +148,21 @@ public partial class CombatViewport : Control
             foreach (var effect in _effects.Where(item => item.Shot.Sequence == shot.Sequence)) effect.BurnLanded = Simulation.Elapsed;
             return;
         }
+        // The shell effect times its own flight from the discharge.
+        if (shot.Impact) return;
         var attacker = Simulation.Unit(shot.AttackerId);
         if (attacker.Side != CombatSide.Friendly && !Simulation.Detected(CombatSide.Friendly, shot.AttackerId)) return;
         var weapon = attacker.Spec.Weapons.FirstOrDefault(item => item.Id == shot.WeaponId);
         var laser = weapon is not null && CombatRules.IsLaser(weapon.Kind) ? weapon.Kind : (WeaponKind?)null;
+        var shell = weapon is not null && CombatRules.IsAutocannon(weapon.Kind) ? weapon.Kind : (WeaponKind?)null;
         var created = new ShotEffect(shot, weapon?.Location ?? MechLocation.CenterTorso,
-            weapon is null ? null : _models[shot.AttackerId].NextFiringMarker(weapon.Id), Simulation.Elapsed, laser);
+            weapon is null ? null : _models[shot.AttackerId].NextFiringMarker(weapon.Id), Simulation.Elapsed, laser, shell);
         if (laser is { } kind)
         {
             var color = LaserColor(kind);
             created.Halo = Beam(color); created.Core = Beam(color.Lerp(Colors.White, .75f));
         }
+        if (shell is not null) LaunchShell(created, weapon!);
         _effects.Add(created);
     }
     // Unshaded additive cylinders read as a glowing beam from any camera angle without post-processing.
@@ -150,10 +181,73 @@ public partial class CombatViewport : Control
         _world.AddChild(beam);
         return beam;
     }
+    private void LaunchShell(ShotEffect effect, WeaponSpec weapon)
+    {
+        var (from, to, _) = ShotPath(effect);
+        effect.Launch = from;
+        if (effect.Shot.Hit) effect.Flight = (float)effect.Shot.FlightSeconds;
+        else
+        {
+            var direction = (to - from).Normalized();
+            var reach = weapon.Long * CombatRules.WeaponRangeScale + 10;
+            var beyond = Math.Max(0, reach - from.DistanceTo(to));
+            var ground = Simulation!.Terrain.RayDistance(to, direction, beyond);
+            effect.Grounded = ground is not null;
+            effect.MissEnd = ground is { } distance ? to + direction * distance : from + direction * reach;
+            effect.Flight = from.DistanceTo(effect.MissEnd) / CombatRules.ShellSpeed;
+        }
+        effect.Slug = Beam(ShellColor); effect.Flash = Blob(ShellColor.Lerp(Colors.White, .5f)); effect.Blast = Blob(BlastColor);
+    }
+    private MeshInstance3D Blob(Color color)
+    {
+        var blob = Beam(color); blob.Mesh = BlastMesh; blob.Visible = false;
+        return blob;
+    }
+    // Where the shell is now, or where it struck: hits track the struck location on the moving target.
+    private Vector3 ShellPoint(ShotEffect effect, float age)
+    {
+        var end = effect.Shot.Hit ? ShotPath(effect).To : effect.MissEnd;
+        return effect.Flight <= 0 ? end : effect.Launch.Lerp(end, Math.Clamp(age / effect.Flight, 0, 1));
+    }
+    internal IEnumerable<(CombatShot Shot, Vector3 Position, bool Flying, bool Exploding)> Shells() =>
+        _effects.Where(effect => effect.Shell is not null)
+            .Select(effect => (effect.Shot, ShellPoint(effect, Age(effect)), effect.Slug!.Visible, effect.Blast!.Visible));
+    private void UpdateShell(ShotEffect effect)
+    {
+        if (effect.Shell is not { } kind) return;
+        var age = Age(effect);
+        static void Set(MeshInstance3D mesh, float alpha)
+        {
+            mesh.Visible = alpha > 0;
+            var material = (StandardMaterial3D)mesh.MaterialOverride;
+            material.AlbedoColor = new Color(material.AlbedoColor, alpha);
+        }
+        var flash = Math.Clamp(1 - age / MuzzleFlash, 0, 1);
+        Set(effect.Flash!, flash);
+        if (flash > 0) effect.Flash!.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * ExplosionRadius(kind) * (.6f - .2f * flash)), effect.Launch);
+        // The slug trails a short tracer streak back toward the muzzle.
+        var head = ShellPoint(effect, age);
+        var tail = ShellPoint(effect, age - (.8f + ShellRadius(kind) * 6) / CombatRules.ShellSpeed);
+        var flying = age < effect.Flight;
+        var fade = flying ? 1 : effect.Shot.Hit || effect.Grounded ? 0 : Math.Clamp(1 - (age - effect.Flight) / ShellFade, 0, 1);
+        Set(effect.Slug!, head.DistanceSquaredTo(tail) > 1e-6f ? fade : 0);
+        if (effect.Slug!.Visible)
+        {
+            var axis = head - tail; var radius = ShellRadius(kind);
+            var across = axis.Cross(Math.Abs(axis.Normalized().Y) > .9f ? Vector3.Right : Vector3.Up).Normalized();
+            effect.Slug.GlobalTransform = new Transform3D(new Basis(across * radius, axis, axis.Cross(across).Normalized() * radius), (head + tail) / 2);
+        }
+        // The fireball swells to its caliber's radius and fades over its caliber's duration.
+        var blast = flying || !(effect.Shot.Hit || effect.Grounded) ? -1 : (age - effect.Flight) / ExplosionSeconds(kind);
+        Set(effect.Blast!, blast is >= 0 and < 1 ? 1 - blast * blast : 0);
+        if (effect.Blast!.Visible)
+            effect.Blast.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * ExplosionRadius(kind) * (.35f + .65f * Mathf.Sqrt(blast))), head);
+    }
     private void RemoveEffect(int index)
     {
         var effect = _effects[index];
         effect.Halo?.QueueFree(); effect.Core?.QueueFree();
+        effect.Slug?.QueueFree(); effect.Flash?.QueueFree(); effect.Blast?.QueueFree();
         _effects.RemoveAt(index);
     }
     private float Age(ShotEffect effect) => (float)((Simulation?.Clock ?? effect.Start) - effect.Start);
@@ -314,7 +408,7 @@ public partial class CombatViewport : Control
             if (Age(_effects[i]) >= _effects[i].Duration
                 || _effects[i].Laser is not null && Simulation.Unit(_effects[i].Shot.AttackerId).Status == CombatStatus.Destroyed)
                 RemoveEffect(i);
-        foreach (var effect in _effects) UpdateBeam(effect);
+        foreach (var effect in _effects) { UpdateBeam(effect); UpdateShell(effect); }
         var hovering = CommandsEnabled && _windowFocused && !_selecting && !_panning && !_rotating && !_rightDragging
             && GetViewport().GuiGetHoveredControl() == this;
         SetHovered(hovering ? PickMech(GetLocalMousePosition())?.Id : null);
@@ -601,6 +695,7 @@ public partial class CombatViewport : Control
                     ImpactRing(_models[shot.TargetId].LocationCenter(second), (float)(Simulation.Clock - landed), LaserColor(kind));
                 continue;
             }
+            if (effect.Shell is not null) continue;
             var color = new Color(shot.Hit ? Ui.Gold : Ui.Muted, 1 - age / ShotLife);
             DrawLine(Camera.UnprojectPosition(from), Camera.UnprojectPosition(to), color, shot.Weapon == "PPC" ? 3 : 1, true);
             if (shot.Hit) ImpactRing(to, age, Ui.Gold);

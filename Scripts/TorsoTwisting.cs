@@ -119,7 +119,8 @@ public sealed partial class CombatSimulation
     private string? WeaponRestriction(CombatUnit unit, CombatWeapon weapon, CombatUnit? target)
     {
         if (unit.Shutdown && !unit.Defeated) return "Thermal shutdown";
-        if (!unit.Active || !unit.WeaponUsable(weapon)) return "Unavailable";
+        if (!unit.Active || !unit.WeaponIntact(weapon)) return "Unavailable";
+        if (!unit.WeaponUsable(weapon)) return "Out of ammunition";
         if (!weapon.Enabled) return "Disabled";
         if (target is null) return unit.Firing == FiringMode.HoldFire ? "Hold fire" : "No target";
         if (!FirePermitted(unit, target)) return "Hold fire";

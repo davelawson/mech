@@ -170,7 +170,7 @@ public partial class SmokeTests
         Check(tactical.Selected.Count == 2 && field.InspectedEnemy == enemy.Id, "enemy inspection retains the friendly command group and range reference");
         var displayed = tactical.FindChildren("*", "Label", true, false).OfType<Label>().Where(label => label.IsVisibleInTree()).Select(label => label.Text).ToArray();
         Check(tactical.Paperdoll.Unit == enemy && displayed.Contains(CombatPaperdoll.Readout(enemy))
-            && displayed.Contains(CombatScreen.SystemsReadout(enemy)), "close enemy inspection reveals exact location condition and effective systems status");
+            && displayed.Contains(CombatScreen.SystemsReadout(enemy, enemy: true)), "close enemy inspection reveals exact location condition and effective systems status");
         var radius = CombatRules.DetectionRadius(friendly, enemy);
         Check(field.DetectionRanges.Count == 2 && field.DetectionRanges.All(range => range.Identification == CombatRules.DetectionRadius(range.Observer, enemy)
             && range.Detail == range.Identification * .5f) && field.SensorRangeText.StartsWith("Selected mechs"),
