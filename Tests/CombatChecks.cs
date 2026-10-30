@@ -118,6 +118,7 @@ internal static partial class CombatChecks
         CheckOutcomes(check);
         CheckLasers(check);
         CheckAutocannons(check);
+        CheckLrms(check);
 
         sim = Deploy(roster, roster.Mechs.Select(item => item.Id), 12);
         foreach (var unit in sim.Units.Where(item => item.Side == CombatSide.Friendly)) unit.ApplyDamage(MechLocation.CenterTorso, 500);

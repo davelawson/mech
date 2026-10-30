@@ -53,6 +53,12 @@ public static partial class CombatRules
     /// <summary>Autocannon shells fly straight at one speed for every caliber: one second at 60 hexes.</summary>
     public const float ShellSpeed = 60;
     public static double ShellFlightSeconds(float distance) => distance / ShellSpeed;
+    public static bool IsLrm(WeaponKind kind) => kind is WeaponKind.LRM5 or WeaponKind.LRM10 or WeaponKind.LRM15 or WeaponKind.LRM20;
+    /// <summary>LRM salvos fly slower than shells so the swarm reads: 2.5 seconds at the 63-hex long range.</summary>
+    public const float MissileSpeed = 25;
+    public static double MissileFlightSeconds(float distance) => distance / MissileSpeed;
+    /// <summary>Target-number penalty for an LRM salvo guided by a spotter's sight.</summary>
+    public const int IndirectFireModifier = 1;
     /// <summary>The first half of a laser burn rounds up.</summary>
     public static int LaserFirstHalf(int damage) => (damage + 1) / 2;
     // 2d6 hit-location weights in 36ths; they also weight a laser's sweep into an adjacent location.
@@ -241,6 +247,9 @@ public sealed class CombatContact
     internal CombatContact(string id) { UnitId = id; }
 }
 
+/// <summary>One missile of an LRM salvo: its own hit roll and, rolled either way, its own location.</summary>
+public sealed record CombatMissile(bool Hit, double Roll, MechLocation Location);
+
 public sealed record CombatShot(string AttackerId, string TargetId, Vector2 From, Vector2 To,
     string Weapon, bool Hit, MechLocation Location, int Damage, int GeneratedHeat = 0, int TargetHeat = 0)
 {
@@ -258,13 +267,19 @@ public sealed record CombatShot(string AttackerId, string TargetId, Vector2 From
     public int SecondDamage { get; init; }
     /// <summary>True for the second half of a laser burn, logged separately from its discharge.</summary>
     public bool Burn { get; init; }
-    /// <summary>An autocannon shell's time from discharge to impact; its damage waits for the impact entry.</summary>
+    /// <summary>A shell's or missile salvo's time from discharge to impact; its damage waits for the impact entry.</summary>
     public double FlightSeconds { get; init; }
     public bool InFlight => FlightSeconds > 0 && !Impact;
-    /// <summary>True when a hit shell lands, logged separately from its discharge.</summary>
+    /// <summary>True when a hit shell or salvo lands, logged separately from its discharge.</summary>
     public bool Impact { get; init; }
-    /// <summary>A shell that reached a destroyed target explodes on the wreck without damage.</summary>
+    /// <summary>A shell or salvo that reached a destroyed target explodes on the wreck without damage.</summary>
     public bool Wreck { get; init; }
+    /// <summary>An LRM salvo's missiles. Hit is true when any missile hits; Damage totals the hits.</summary>
+    public IReadOnlyList<CombatMissile> Missiles { get; init; } = [];
+    public int MissileDamage { get; init; }
+    /// <summary>An LRM salvo fired without the shooter's own sight, guided by SpotterId.</summary>
+    public bool Indirect { get; init; }
+    public string? SpotterId { get; init; }
 }
 
 /// <summary>Deterministic fixed-step combat with shared detection and simultaneous weapon resolution.</summary>
@@ -281,7 +296,7 @@ public sealed partial class CombatSimulation
     /// <summary>Elapsed time including the unstepped remainder, for smooth effect timing.</summary>
     public double Clock => Elapsed + _accumulator;
     private readonly List<(CombatShot Discharge, double Due)> _burns = [];
-    private readonly List<(CombatShot Discharge, double Due)> _shells = [];
+    private readonly List<(CombatShot Discharge, double Due)> _projectiles = [];
     private long _sequence;
     public event Action<CombatShot>? ShotFired;
     private readonly List<CombatLogEntry> _history = [];
@@ -487,12 +502,12 @@ public sealed partial class CombatSimulation
                 DamageApplied = [], SystemsLost = [], TargetStatus = null });
             attacker.DamageDealt += discharge.SecondDamage;
         }
-        // Shells always land, even after their shooter is destroyed. A wreck takes the explosion without damage.
-        for (var i = 0; i < _shells.Count; i++)
+        // Shells and missile salvos always land, even after their shooter is destroyed. A wreck takes the explosion without damage.
+        for (var i = 0; i < _projectiles.Count; i++)
         {
-            var (discharge, due) = _shells[i];
+            var (discharge, due) = _projectiles[i];
             if (due > Elapsed + 1e-6) continue;
-            _shells.RemoveAt(i--);
+            _projectiles.RemoveAt(i--);
             var wreck = Unit(discharge.TargetId).Status == CombatStatus.Destroyed;
             shots.Add(discharge with { To = Unit(discharge.TargetId).Position, Damage = wreck ? 0 : discharge.Damage, GeneratedHeat = 0,
                 Impact = true, Wreck = wreck, DamageApplied = [], SystemsLost = [], TargetStatus = null });
@@ -507,25 +522,34 @@ public sealed partial class CombatSimulation
                 // A shared bin emptied by an earlier weapon in this volley withholds the rest; they remain ready.
                 if (weapon.Spec.AmmoKind is { } ammo && !unit.ConsumeAmmo(ammo)) continue;
                 var chance = TerrainHitChance(unit, target, weapon);
-                var roll = _random.NextDouble();
+                var spotter = IndirectSpotter(unit, target, weapon);
+                var lrm = CombatRules.IsLrm(weapon.Spec.Kind);
+                // Each LRM missile rolls its own hit and location at the salvo's chance.
+                CombatMissile[] missiles = lrm ? Enumerable.Range(0, weapon.Spec.DamageProfile.ProjectileCount)
+                    .Select(_ => { var draw = _random.NextDouble(); return new CombatMissile(draw < chance, draw, RollLocation()); }).ToArray() : [];
+                var roll = lrm ? missiles.Min(missile => missile.Roll) : _random.NextDouble();
                 var hit = roll < chance;
-                var location = RollLocation();
+                var location = lrm ? (missiles.FirstOrDefault(missile => missile.Hit) ?? missiles[0]).Location : RollLocation();
                 var laser = hit && CombatRules.IsLaser(weapon.Spec.Kind);
                 var shell = CombatRules.IsAutocannon(weapon.Spec.Kind);
                 var second = laser ? RollAdjacentLocation(location) : (MechLocation?)null;
-                var damage = !hit ? 0 : laser ? CombatRules.LaserFirstHalf(weapon.Damage) : weapon.Damage;
+                var damage = !hit ? 0 : laser ? CombatRules.LaserFirstHalf(weapon.Damage)
+                    : lrm ? missiles.Count(missile => missile.Hit) * weapon.Spec.DamageProfile.PerProjectile : weapon.Damage;
+                var distance = unit.Position.DistanceTo(target.Position);
                 var shot = new CombatShot(unit.Id, target.Id, unit.Position, target.Position, weapon.Spec.Name, hit, location,
                     damage, weapon.Spec.Heat, hit ? CombatRules.FlamerHeat(weapon.Spec) : 0)
                 {
                     Chance = chance, Roll = roll, WeaponId = weapon.Spec.Id, Mount = DraftCatalog.Abbreviation(weapon.Spec.Location) + (weapon.Spec.Rear ? " rear" : ""),
                     Sequence = ++_sequence, SecondLocation = second, SecondDamage = laser ? weapon.Damage - damage : 0,
-                    FlightSeconds = shell ? CombatRules.ShellFlightSeconds(unit.Position.DistanceTo(target.Position)) : 0
+                    FlightSeconds = shell ? CombatRules.ShellFlightSeconds(distance) : lrm ? CombatRules.MissileFlightSeconds(distance) : 0,
+                    Missiles = missiles, MissileDamage = lrm ? weapon.Spec.DamageProfile.PerProjectile : 0,
+                    Indirect = spotter is not null, SpotterId = spotter?.Id
                 };
                 shots.Add(shot);
                 if (laser) _burns.Add((shot, Elapsed + CombatRules.LaserSecondHalfDelay));
-                if (shell && hit) _shells.Add((shot, Elapsed + shot.FlightSeconds));
+                if (shot.InFlight && hit) _projectiles.Add((shot, Elapsed + shot.FlightSeconds));
                 weapon.Remaining = CombatRules.Cooldown(weapon.Spec); unit.ShotsFired++;
-                if (hit) { unit.Hits++; if (!shell) unit.DamageDealt += damage; }
+                if (hit) { unit.Hits++; if (!shot.InFlight) unit.DamageDealt += damage; }
             }
         }
         // All shooters and rolls are captured before any damage or casualty can invalidate a return shot.
@@ -537,7 +561,8 @@ public sealed partial class CombatSimulation
             var before = target.Locations.Values.ToDictionary(part => part.Location,
                 part => (part.Armor, part.RearArmor, part.Structure));
             var status = target.Status;
-            target.ApplyDamage(shot.Location, shot.Damage, shot.From);
+            if (shot.Missiles.Count == 0) target.ApplyDamage(shot.Location, shot.Damage, shot.From);
+            else foreach (var missile in shot.Missiles.Where(item => item.Hit)) target.ApplyDamage(missile.Location, shot.MissileDamage, shot.From);
             var damage = target.Locations.Values.Select(part => new CombatDamage(part.Location,
                 before[part.Location].Armor - part.Armor, before[part.Location].RearArmor - part.RearArmor,
                 before[part.Location].Structure - part.Structure, before[part.Location].Structure > 0 && part.Structure == 0))
@@ -558,7 +583,8 @@ public sealed partial class CombatSimulation
         foreach (var shot in shots)
         {
             // Contacts still describe the pre-exchange observation; heat now includes the entire exchange.
-            _history.Add(new CombatLogEntry(Elapsed, shot, LogUnit(Unit(shot.AttackerId)), LogUnit(Unit(shot.TargetId))));
+            _history.Add(new CombatLogEntry(Elapsed, shot, LogUnit(Unit(shot.AttackerId)), LogUnit(Unit(shot.TargetId)),
+                shot.SpotterId is { } spotter ? LogUnit(Unit(spotter)) : null));
             ShotFired?.Invoke(shot);
         }
         StopInvalidFollows();
@@ -743,7 +769,24 @@ public sealed partial class CombatSimulation
     }
     public double TerrainHitChance(CombatUnit attacker, CombatUnit target, CombatWeapon weapon) =>
         Terrain.ClearSight(attacker.Position, target.Position)
-            ? HitChance(attacker, target, weapon, Terrain.VegetationModifier(attacker.Position, target.Position)) : 0;
+            ? HitChance(attacker, target, weapon, Terrain.VegetationModifier(attacker.Position, target.Position))
+            : IndirectSpotter(attacker, target, weapon) is { } spotter ? HitChance(attacker, target, weapon,
+                Terrain.VegetationModifier(spotter.Position, target.Position) + CombatRules.IndirectFireModifier) : 0;
+    /// <summary>Clear sight, or an indirect LRM salvo guided by a spotter.</summary>
+    public bool LineOfFire(CombatUnit unit, CombatUnit target, CombatWeapon weapon) =>
+        Terrain.ClearSight(unit.Position, target.Position) || IndirectSpotter(unit, target, weapon) is not null;
+    /// <summary>
+    /// LRMs fire indirectly only at an Attack or priority target the shooter cannot see itself,
+    /// guided by an active friendly with its own clear sight: least vegetation to the target, then nearest.
+    /// </summary>
+    public CombatUnit? IndirectSpotter(CombatUnit unit, CombatUnit target, CombatWeapon weapon)
+    {
+        if (!CombatRules.IsLrm(weapon.Spec.Kind) || !(unit.Order == CombatOrder.Attack && unit.AttackTarget == target.Id
+            || unit.PriorityTarget == target.Id) || Terrain.ClearSight(unit.Position, target.Position)) return null;
+        return Units.Where(item => item != unit && item.Side == unit.Side && item.Active && Terrain.ClearSight(item.Position, target.Position))
+            .OrderBy(item => Terrain.VegetationModifier(item.Position, target.Position))
+            .ThenBy(item => item.Position.DistanceSquaredTo(target.Position)).FirstOrDefault();
+    }
     public static double HitChance(CombatUnit attacker, CombatUnit target, CombatWeapon weapon, int terrainModifier = 0)
     {
         var distance = attacker.Position.DistanceTo(target.Position);

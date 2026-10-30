@@ -66,6 +66,15 @@ A command to reach and attack a specified target, with the MechWarrior finding a
 A preferred target for a MechWarrior to select when an opportunity presents, without itself directing movement or pursuit.
 _Avoid_: Attack order
 
+**Salvo**:
+The missiles an LRM rack fires in one discharge, each rolling its own hit and location.
+
+**Indirect fire**:
+An LRM salvo at a priority or Attack target the shooter cannot see, guided by a spotter.
+
+**Spotter**:
+An active friendly BattleMech with its own clear sight to the target of an indirect salvo.
+
 **Preferred engagement distance**:
 The player-adjustable distance a MechWarrior attempts to establish and maintain from the target of an attack order.
 

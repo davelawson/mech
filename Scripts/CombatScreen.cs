@@ -442,7 +442,10 @@ public partial class CombatScreen : Control
         {
             var clear = Simulation.Terrain.ClearSight(unit.Position, target.Position);
             var cover = Simulation.Terrain.VegetationModifier(unit.Position, target.Position);
-            _targetInfo.Text += !clear ? "\nLine of fire blocked by terrain" : cover > 0 ? $"\nVegetation: +{cover} hit difficulty" : "\nClear line of fire";
+            var spotter = firingTarget is null ? null : unit.Weapons.Where(weapon => weapon.Enabled && unit.WeaponUsable(weapon))
+                .Select(weapon => Simulation.IndirectSpotter(unit, firingTarget, weapon)).FirstOrDefault(item => item is not null);
+            _targetInfo.Text += spotter is not null ? $"\nIndirect fire · spotted by {Simulation.SlotLabel(spotter)} · +{CombatRules.IndirectFireModifier}"
+                : !clear ? "\nLine of fire blocked by terrain" : cover > 0 ? $"\nVegetation: +{cover} hit difficulty" : "\nClear line of fire";
         }
         _unitInfo.Text += Simulation.Terrain.Contains(TerrainKind.Water, unit.Position) ? "\nWater slows movement" :
             Simulation.Terrain.Contains(TerrainKind.Vegetation, unit.Position) ? "\nVegetation slows movement" : "";

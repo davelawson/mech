@@ -66,7 +66,7 @@ Move orders resolve inaccessible destinations to the nearest reachable navigatio
 | Medium Laser | 8 seconds |
 | Other weapons | 10 seconds |
 
-Weapons start ready; cooldowns progress only during unpaused simulation time, including thermal shutdown. Stock weapon damage, armor and structure are retained. Combat multiplies all four stock weapon range boundaries by three; the imported catalog remains unchanged, and weapon inspection shows effective ranges. A medium laser therefore has short/medium/long ranges of 9/18/27 hexes. PPC minimum range is 9 and LRM minimum range is 18. Both sides use the same multiplier for targeting, firing, hit chance and terrain firing-position searches. Missile racks deliver stock per-missile damage × rack size in one packet on one roll. Each successful flamer hit deals its ordinary damage and adds 2 target heat, including through armor. Misses add no target heat. Each discharge of an ammunition-fed weapon spends one shot from the emptiest intact compatible bin; stock bins hold 45 (AC/2), 20 (AC/5), 10 (AC/10) and 5 (AC/20) shots per ton.
+Weapons start ready; cooldowns progress only during unpaused simulation time, including thermal shutdown. Stock weapon damage, armor and structure are retained. Combat multiplies all four stock weapon range boundaries by three; the imported catalog remains unchanged, and weapon inspection shows effective ranges. A medium laser therefore has short/medium/long ranges of 9/18/27 hexes. PPC minimum range is 9 and LRM minimum range is 18. Both sides use the same multiplier for targeting, firing, hit chance and terrain firing-position searches. SRM racks deliver stock per-missile damage × rack size in one packet on one roll; each LRM missile rolls its own hit and location and deals stock per-missile damage. Each successful flamer hit deals its ordinary damage and adds 2 target heat, including through armor. Misses add no target heat. Each discharge of an ammunition-fed weapon spends one shot from the emptiest intact compatible bin; stock bins hold 45 (AC/2), 20 (AC/5), 10 (AC/10) and 5 (AC/20) shots per ton.
 
 Lasers split damage across a one-second burn: half (rounded up) at discharge, the remainder 0.5 seconds later. Small 2 + 1, medium 3 + 2, large and ER large 4 + 4. The second location is rolled at discharge, weighted by the hit-location table below among these neighbors:
 
@@ -87,17 +87,19 @@ Autocannon shells fly at 60 hexes per second, so flight time is planar distance 
 | AC/10 | 0.08 hex | 0.8 hex | 0.5 s |
 | AC/20 | 0.11 hex | 1.2 hex | 0.6 s |
 
+LRM missiles fly at 25 hexes per second: 0.72 seconds at the 18-hex minimum range and 2.5 seconds at the 63-hex long range. Indirect fire adds +1 to the target number. A salvo ripples out over 0.25 seconds (or 40% of the flight, if shorter), and each missile's flight is shortened to land on the impact step. A direct arc peaks at 15% of the planar range; an indirect arc peaks at 35% or high enough to pass blocking terrain by 3 hexes, up to the full range. Each missile's skitter is two lateral and two vertical sine waves of 1.5–4 cycles per flight, with amplitude 0.75–1.5 hexes; it builds over the first quarter of the flight and fades to zero over the last fifth. The smoke trail spans 0.15 seconds of flight. Each impact bursts to 0.25 hex over 0.3 seconds. Missed missiles land 1–2.5 hexes beside and 1–3 hexes beyond their rolled location.
+
 The muzzle flash lasts 0.1 seconds. A tracer streak trails the slug by 0.8 hex plus six shell radii. Misses fly on up to long range plus 10 hexes from the muzzle before fading over 0.1 seconds.
 
 The extra location roll is drawn only for laser hits. Beam halo radii are 0.033 (small), 0.047 (medium) and 0.06 (large and ER large) hexes, with a core at 40% of the halo. The beam reaches full length 0.1 seconds after discharge, slides between locations over 0.08 seconds and fades over 0.15 seconds after the burn. A side's defeat starts a 3-second wind-down before the outcome.
 
 Hit chance is the exact probability of 2d6 meeting this threshold:
 
-`Gunnery + 3 (real-time aim modifier) + range + minimum-range penalty + attacker movement + target movement + vegetation + attacker heat`
+`Gunnery + 3 (real-time aim modifier) + range + minimum-range penalty + attacker movement + target movement + vegetation + attacker heat (+ 1 indirect)`
 
 - Range: +0 short, +2 medium, +4 long; no shots beyond long range.
 - Minimum range: `ceil((scaled minimum − distance) / 3)` when inside minimum, preserving penalty severity at equivalent relative distances.
-- Vegetation contributes +1 per intersected patch, including target vegetation, capped at +2. It does not block detection or reduce damage.
+- Vegetation contributes +1 per intersected patch, including target vegetation, capped at +2. Indirect LRM fire counts the spotter's line to the target instead. It does not block detection or reduce damage.
 - Each moving mech contributes +1 walking or +2 running; stationary contributes zero.
 - There is no artificial minimum/maximum chance clamp. Closing range and stopping can improve accuracy.
 - Target preference does not wait for cooldowns. Valid current targets persist until invalid or superseded by Attack / priority.

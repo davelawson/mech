@@ -33,6 +33,14 @@ public partial class CombatViewport : Control
     private const float ShellFade = .1f;
     private static readonly Color ShellColor = new(1, .72f, .25f);
     private static readonly Color BlastColor = new(1, .5f, .12f);
+    // LRM salvos ripple out of the rack and skitter in flight, gathering only as they reach their impact points.
+    internal const float MissileRipple = .25f;
+    internal const float MissileWobble = 1.5f;
+    internal const float MissileBlastRadius = .25f;
+    internal const float MissileBlastSeconds = .3f;
+    private const float MissileTrailSeconds = .15f;
+    private static readonly Color MissileGlow = new(1, .85f, .55f);
+    private static readonly Color MissileSmoke = new(.62f, .62f, .6f, .45f);
     // The muzzle is chosen when the weapon fires; both ends follow the animated models while the effect fades.
     // Effects age with simulation time, so pause freezes a laser burn in step with its delayed damage.
     private sealed class ShotEffect(CombatShot shot, MechLocation mount, Node3D? muzzle, double start, WeaponKind? laser, WeaponKind? shell = null)
@@ -43,7 +51,8 @@ public partial class CombatViewport : Control
         public double Start { get; } = start;
         public WeaponKind? Laser { get; } = laser;
         public WeaponKind? Shell { get; } = shell;
-        public float Duration => Shell is { } kind ? Flight + (Shot.Hit || Grounded ? ExplosionSeconds(kind) : ShellFade)
+        public float Duration => Salvo is { } salvo ? salvo.Max(missile => missile.Arrival) + MissileBlastSeconds
+            : Shell is { } kind ? Flight + (Shot.Hit || Grounded ? ExplosionSeconds(kind) : ShellFade)
             : Laser is null ? ShotLife : (float)CombatRules.LaserBurnSeconds + BeamFade;
         public double? BurnLanded { get; set; }
         public MeshInstance3D? Halo { get; set; }
@@ -56,6 +65,25 @@ public partial class CombatViewport : Control
         public MeshInstance3D? Slug { get; set; }
         public MeshInstance3D? Flash { get; set; }
         public MeshInstance3D? Blast { get; set; }
+        public IReadOnlyList<MissileFlight>? Salvo { get; set; }
+        /// <summary>Peak height of the salvo's arc above the straight line to its target.</summary>
+        public float Loft { get; set; }
+    }
+    private sealed class MissileFlight(CombatMissile missile, Node3D? tube, float delay, float arrival, float amplitude, float[] waves)
+    {
+        public CombatMissile Missile { get; } = missile;
+        public Node3D? Tube { get; } = tube;
+        public float Delay { get; } = delay;
+        public float Arrival { get; set; } = arrival;
+        public float Amplitude { get; } = amplitude;
+        /// <summary>Two lateral and two vertical waves: cycles per flight, then phases.</summary>
+        public float[] Waves { get; } = waves;
+        public Vector3 Launch { get; set; }
+        public Vector3 MissEnd { get; set; }
+        public MeshInstance3D Glow { get; set; } = null!;
+        public MeshInstance3D Trail { get; set; } = null!;
+        public MeshInstance3D Flash { get; set; } = null!;
+        public MeshInstance3D Blast { get; set; } = null!;
     }
     internal static float ExplosionRadius(WeaponKind kind) => kind switch
     {
@@ -163,6 +191,7 @@ public partial class CombatViewport : Control
             created.Halo = Beam(color); created.Core = Beam(color.Lerp(Colors.White, .75f));
         }
         if (shell is not null) LaunchShell(created, weapon!);
+        if (shot.Missiles.Count > 0) LaunchSalvo(created, weapon!);
         _effects.Add(created);
     }
     // Unshaded additive cylinders read as a glowing beam from any camera angle without post-processing.
@@ -243,11 +272,130 @@ public partial class CombatViewport : Control
         if (effect.Blast!.Visible)
             effect.Blast.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * ExplosionRadius(kind) * (.35f + .65f * Mathf.Sqrt(blast))), head);
     }
+    private void LaunchSalvo(ShotEffect effect, WeaponSpec weapon)
+    {
+        var shot = effect.Shot; var flight = (float)shot.FlightSeconds;
+        var ripple = Math.Min(MissileRipple, flight * .4f);
+        // Visual randomness is seeded by the discharge and never touches the simulation's draws.
+        var random = new Random(unchecked((int)shot.Sequence * 7919 + 17));
+        float Between(float low, float high) => low + (float)random.NextDouble() * (high - low);
+        var attacker = _models[shot.AttackerId]; var target = _models[shot.TargetId];
+        var from = effect.Muzzle?.GlobalPosition ?? attacker.LocationCenter(effect.Mount);
+        var aim = target.LocationCenter(shot.Location);
+        var reach = new Vector2(aim.X - from.X, aim.Z - from.Z).Length();
+        effect.Loft = shot.Indirect ? Math.Max(.35f * reach, Math.Min(reach, Clearance(from, aim))) : .15f * reach;
+        var salvo = new List<MissileFlight>();
+        for (var i = 0; i < shot.Missiles.Count; i++)
+        {
+            var missile = shot.Missiles[i];
+            var tube = i == 0 ? effect.Muzzle : attacker.NextFiringMarker(weapon.Id);
+            var delay = shot.Missiles.Count == 1 ? 0 : ripple * i / (shot.Missiles.Count - 1);
+            var waves = new[] { Between(1.5f, 4), Between(1.5f, 4), Between(1.5f, 4), Between(1.5f, 4),
+                Between(0, Mathf.Tau), Between(0, Mathf.Tau), Between(0, Mathf.Tau), Between(0, Mathf.Tau) };
+            var created = new MissileFlight(missile, tube, delay, flight, MissileWobble * Between(.5f, 1), waves)
+            { Launch = tube?.GlobalPosition ?? from };
+            if (!missile.Hit)
+            {
+                // A miss comes down beside and beyond its rolled location and bursts on the ground.
+                var struck = target.LocationCenter(missile.Location);
+                var direction = new Vector3(struck.X - created.Launch.X, 0, struck.Z - created.Launch.Z).Normalized();
+                var side = new Vector3(-direction.Z, 0, direction.X) * (random.Next(2) == 0 ? 1 : -1);
+                var ground = struck + side * Between(1, 2.5f) + direction * Between(1, 3);
+                created.MissEnd = new Vector3(ground.X, Simulation!.Terrain.HeightAt(new Vector2(ground.X, ground.Z)), ground.Z);
+                var span = new Vector2(struck.X - created.Launch.X, struck.Z - created.Launch.Z).Length();
+                created.Arrival = span < 1e-3f ? flight : flight * new Vector2(created.MissEnd.X - created.Launch.X, created.MissEnd.Z - created.Launch.Z).Length() / span;
+                created.Arrival = Math.Max(created.Arrival, delay + .05f);
+            }
+            created.Glow = Blob(MissileGlow); created.Flash = Blob(ShellColor.Lerp(Colors.White, .5f)); created.Blast = Blob(BlastColor);
+            created.Trail = Beam(MissileSmoke); created.Trail.Visible = false;
+            ((StandardMaterial3D)created.Trail.MaterialOverride).BlendMode = BaseMaterial3D.BlendModeEnum.Mix;
+            salvo.Add(created);
+        }
+        effect.Salvo = salvo;
+    }
+    // An indirect arc peaks high enough to pass blocking hills and rocks with room to spare.
+    private float Clearance(Vector3 from, Vector3 to)
+    {
+        var terrain = Simulation!.Terrain; var peak = 0f;
+        for (var i = 1; i < 20; i++)
+        {
+            var t = i / 20f; var point = from.Lerp(to, t); var ground = new Vector2(point.X, point.Z);
+            var height = terrain.HeightAt(ground);
+            foreach (var rock in terrain.Patches.Where(patch => patch.Kind == TerrainKind.Rock && ground.DistanceTo(patch.Center) <= patch.Radius))
+                height = Math.Max(height, terrain.HeightAt(rock.Center) + rock.Height);
+            peak = Math.Max(peak, (height + 3 - point.Y) / (4 * t * (1 - t)));
+        }
+        return peak;
+    }
+    private static float Smooth(float x) { x = Math.Clamp(x, 0, 1); return x * x * (3 - 2 * x); }
+    /// <summary>Skitter strength over a flight: building after launch, strongest mid-flight, gone over the last fifth.</summary>
+    internal static float WobbleEnvelope(float progress) => Smooth(progress / .25f) * (1 - Smooth((progress - .8f) / .2f));
+    private static float Progress(MissileFlight missile, float age) =>
+        Math.Clamp((age - missile.Delay) / Math.Max(1e-3f, missile.Arrival - missile.Delay), 0, 1);
+    // The lofted course to the live struck location (or the miss point), and the skittering point on it.
+    private (Vector3 Course, Vector3 Position) MissilePoint(ShotEffect effect, MissileFlight missile, float age)
+    {
+        var u = Progress(missile, age);
+        var end = missile.Missile.Hit ? _models[effect.Shot.TargetId].LocationCenter(missile.Missile.Location) : missile.MissEnd;
+        var course = missile.Launch.Lerp(end, u) + Vector3.Up * effect.Loft * 4 * u * (1 - u);
+        var heading = new Vector3(end.X - missile.Launch.X, 0, end.Z - missile.Launch.Z);
+        var side = heading.LengthSquared() < 1e-6f ? Vector3.Right : new Vector3(-heading.Z, 0, heading.X).Normalized();
+        var w = missile.Waves;
+        float Wave(int a, int b) => (Mathf.Sin(Mathf.Tau * w[a] * u + w[a + 4]) + Mathf.Sin(Mathf.Tau * w[b] * u + w[b + 4])) / 2;
+        // Each axis stays within amplitude / √2, so the combined offset stays inside the envelope.
+        var scale = missile.Amplitude * WobbleEnvelope(u) / Mathf.Sqrt2;
+        return (course, course + (side * Wave(0, 1) + Vector3.Up * Wave(2, 3)) * scale);
+    }
+    internal IEnumerable<(CombatShot Shot, CombatMissile Missile, Vector3 Position, Vector3 Course, Vector3 End, float Progress, bool Flying, bool Exploding)> Missiles() =>
+        _effects.Where(effect => effect.Salvo is not null).SelectMany(effect => effect.Salvo!.Select(missile =>
+        {
+            var age = Age(effect); var (course, position) = MissilePoint(effect, missile, age);
+            var end = missile.Missile.Hit ? _models[effect.Shot.TargetId].LocationCenter(missile.Missile.Location) : missile.MissEnd;
+            return (effect.Shot, missile.Missile, position, course, end, Progress(missile, age), missile.Glow.Visible, missile.Blast.Visible);
+        }));
+    private void UpdateSalvo(ShotEffect effect)
+    {
+        if (effect.Salvo is not { } salvo) return;
+        var age = Age(effect);
+        static void Set(MeshInstance3D mesh, float alpha, float maximum = 1)
+        {
+            mesh.Visible = alpha > 0;
+            var material = (StandardMaterial3D)mesh.MaterialOverride;
+            material.AlbedoColor = new Color(material.AlbedoColor, alpha * maximum);
+        }
+        foreach (var missile in salvo)
+        {
+            // Until it leaves, a missile waits in its tube on the moving shooter.
+            if (age <= missile.Delay && missile.Tube is { } tube) missile.Launch = tube.GlobalPosition;
+            var launched = age >= missile.Delay; var flying = launched && age < missile.Arrival;
+            var flash = launched ? Math.Clamp(1 - (age - missile.Delay) / MuzzleFlash, 0, 1) : 0;
+            Set(missile.Flash, flash);
+            if (flash > 0) missile.Flash.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * .15f), missile.Launch);
+            var head = MissilePoint(effect, missile, age).Position;
+            Set(missile.Glow, flying ? 1 : 0);
+            if (flying) missile.Glow.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * .07f), head);
+            // A short smoke trail follows the skittering path back toward the launcher.
+            var tail = MissilePoint(effect, missile, Math.Max(missile.Delay, age - MissileTrailSeconds)).Position;
+            var axis = head - tail;
+            Set(missile.Trail, flying && axis.LengthSquared() > 1e-6f ? 1 : 0, MissileSmoke.A);
+            if (missile.Trail.Visible)
+            {
+                var across = axis.Cross(Math.Abs(axis.Normalized().Y) > .9f ? Vector3.Right : Vector3.Up).Normalized();
+                missile.Trail.GlobalTransform = new Transform3D(new Basis(across * .05f, axis, axis.Cross(across).Normalized() * .05f), (head + tail) / 2);
+            }
+            var blast = flying || !launched ? -1 : (age - missile.Arrival) / MissileBlastSeconds;
+            Set(missile.Blast, blast is >= 0 and < 1 ? 1 - blast * blast : 0);
+            if (missile.Blast.Visible)
+                missile.Blast.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * MissileBlastRadius * (.35f + .65f * Mathf.Sqrt(blast))), head);
+        }
+    }
     private void RemoveEffect(int index)
     {
         var effect = _effects[index];
         effect.Halo?.QueueFree(); effect.Core?.QueueFree();
         effect.Slug?.QueueFree(); effect.Flash?.QueueFree(); effect.Blast?.QueueFree();
+        foreach (var missile in effect.Salvo ?? [])
+        { missile.Glow.QueueFree(); missile.Trail.QueueFree(); missile.Flash.QueueFree(); missile.Blast.QueueFree(); }
         _effects.RemoveAt(index);
     }
     private float Age(ShotEffect effect) => (float)((Simulation?.Clock ?? effect.Start) - effect.Start);
@@ -408,7 +556,7 @@ public partial class CombatViewport : Control
             if (Age(_effects[i]) >= _effects[i].Duration
                 || _effects[i].Laser is not null && Simulation.Unit(_effects[i].Shot.AttackerId).Status == CombatStatus.Destroyed)
                 RemoveEffect(i);
-        foreach (var effect in _effects) { UpdateBeam(effect); UpdateShell(effect); }
+        foreach (var effect in _effects) { UpdateBeam(effect); UpdateShell(effect); UpdateSalvo(effect); }
         var hovering = CommandsEnabled && _windowFocused && !_selecting && !_panning && !_rotating && !_rightDragging
             && GetViewport().GuiGetHoveredControl() == this;
         SetHovered(hovering ? PickMech(GetLocalMousePosition())?.Id : null);
@@ -695,7 +843,7 @@ public partial class CombatViewport : Control
                     ImpactRing(_models[shot.TargetId].LocationCenter(second), (float)(Simulation.Clock - landed), LaserColor(kind));
                 continue;
             }
-            if (effect.Shell is not null) continue;
+            if (effect.Shell is not null || effect.Salvo is not null) continue;
             var color = new Color(shot.Hit ? Ui.Gold : Ui.Muted, 1 - age / ShotLife);
             DrawLine(Camera.UnprojectPosition(from), Camera.UnprojectPosition(to), color, shot.Weapon == "PPC" ? 3 : 1, true);
             if (shot.Hit) ImpactRing(to, age, Ui.Gold);

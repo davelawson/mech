@@ -148,6 +148,38 @@ public partial class SmokeTests
             struck = ModelAt(sim.Unit(shell.TargetId)).LocationCenter(shell.Location);
             Check(!Shell().Flying && Shell().Exploding && Shell().Position.IsEqualApprox(struck),
                 "the shell explodes at the struck location when it lands");
+
+            CombatShot? salvo = null;
+            for (var step = 0; step < 4000 && salvo is null; step++)
+            {
+                var before = shots.Count; sim.Advance(CombatRules.StepSeconds); field._Process(0);
+                salvo = shots.Skip(before).FirstOrDefault(shot => shot.Hit && shot.Missiles.Count > 0 && field.Missiles().Any(item => item.Shot == shot));
+            }
+            Check(salvo is not null, "the exchange produced a visible LRM salvo");
+            (CombatShot Shot, CombatMissile Missile, Vector3 Position, Vector3 Course, Vector3 End, float Progress, bool Flying, bool Exploding)[] Swarm() =>
+                field.Missiles().Where(item => item.Shot == salvo).ToArray();
+            Check(Swarm().Length == salvo!.Missiles.Count && Swarm().All(item => item.Progress < .05f),
+                "each missile of a salvo has its own visual flight, starting at the rack");
+            sim.Advance(salvo.FlightSeconds / 2); field._Process(0);
+            var swarm = Swarm();
+            Check(swarm.All(item => item.Flying && !item.Exploding && item.Position.DistanceTo(item.Course)
+                    <= CombatViewport.MissileWobble * CombatViewport.WobbleEnvelope(item.Progress) + 1e-3f),
+                "missiles skitter within their wobble envelope mid-flight");
+            Check(swarm.Count(item => item.Position.DistanceTo(item.Course) > .1f) > swarm.Length / 2
+                    && swarm.Select(item => item.Position - item.Course).Distinct().Count() == swarm.Length,
+                "each missile skitters along its own randomized path");
+            Check(swarm.Where(item => item.Missile.Hit).All(item => item.Position.DistanceTo(item.End) > 1)
+                    && swarm.All(item => item.Course.Y > Math.Min(item.End.Y, item.Position.Y) - 1e-3f),
+                "the swarm is still lofted short of its impact points");
+            sim.Advance(salvo.FlightSeconds / 2 + .05); field._Process(0);
+            swarm = Swarm();
+            Check(swarm.Where(item => item.Missile.Hit).All(item => !item.Flying && item.Exploding && item.Position.IsEqualApprox(item.End)
+                    && item.End.IsEqualApprox(ModelAt(sim.Unit(salvo.TargetId)).LocationCenter(item.Missile.Location))),
+                "hit missiles gather onto their struck locations and burst");
+            Check(swarm.Where(item => !item.Missile.Hit).All(item => Math.Abs(item.End.Y - sim.Terrain.HeightAt(new Vector2(item.End.X, item.End.Z))) < 1e-3f),
+                "missed missiles come down on the ground");
+            Check(CombatViewport.WobbleEnvelope(0) == 0 && CombatViewport.WobbleEnvelope(1) == 0 && CombatViewport.WobbleEnvelope(.5f) == 1,
+                "the skitter builds after launch and vanishes on arrival");
         }
         finally { field.QueueFree(); await Frames(); }
     }

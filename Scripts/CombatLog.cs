@@ -12,7 +12,7 @@ public sealed record CombatLogUnit(CombatSide Side, int Slot, string Chassis, st
     public bool Detailed(bool debug) => debug || Visibility == ContactLevel.Detailed;
 }
 
-public sealed record CombatLogEntry(double Time, CombatShot Shot, CombatLogUnit Attacker, CombatLogUnit Target)
+public sealed record CombatLogEntry(double Time, CombatShot Shot, CombatLogUnit Attacker, CombatLogUnit Target, CombatLogUnit? Spotter = null)
 {
     public string? CombatText => Attacker.Side == CombatSide.Friendly || Attacker.Visibility != ContactLevel.Lost
         || Shot.Hit && Target.Side == CombatSide.Friendly ? Format(false) : null;
@@ -32,10 +32,21 @@ public sealed record CombatLogEntry(double Time, CombatShot Shot, CombatLogUnit 
         }
         else if (Shot.Burn) fields.Add("burn continues");
         else if (Shot.Impact) fields.Add("impact");
+        // Enemy spotters are named only at Detailed contact.
+        if (Shot.Indirect && !Shot.Impact)
+            fields.Add(Spotter is { } spotter && spotter.Detailed(debug) ? $"indirect, spotted by {spotter.Label(debug)}" : "indirect");
         if (debug || Attacker.Visibility != ContactLevel.Lost)
             fields.Add(FormattableString.Invariant($"{Shot.From.DistanceTo(Shot.To):0.0} hex"));
         // Lower random draws hit. Increase precision when rounding would make a hit look like a tie.
         if (Shot.Burn || Shot.Impact) { } // Continuations and impacts inherit their discharge's roll.
+        else if (Shot.Missiles.Count > 0)
+        {
+            var hits = Shot.Missiles.Count(missile => missile.Hit);
+            fields.Add(attackerDetails ? FormattableString.Invariant($"chance {Shot.Chance * 100:F1}%, {hits}/{Shot.Missiles.Count} {(Shot.Hit ? "HIT" : "MISS")}")
+                : Shot.Hit ? "HIT" : "MISS");
+            if (debug) fields.Add("rolls " + string.Join(", ", Shot.Missiles.Select(missile => FormattableString.Invariant(
+                $"{missile.Roll * 100:F1}% {(missile.Hit ? DraftCatalog.Abbreviation(missile.Location) : "miss")}"))));
+        }
         else if (attackerDetails)
         {
             var decimals = 1;
@@ -46,7 +57,14 @@ public sealed record CombatLogEntry(double Time, CombatShot Shot, CombatLogUnit 
         else fields.Add(Shot.Hit ? "HIT" : "MISS");
         if (Shot.InFlight) fields.Add(FormattableString.Invariant($"in flight {Shot.FlightSeconds:0.00}s"));
         if (Shot.Wreck) fields.Add("no damage, target destroyed");
-        else if (Shot.InFlight) { if (Shot.Hit && Target.Detailed(debug)) fields.Add($"dmg {Shot.Damage} on impact"); }
+        else if (Shot.InFlight)
+        {
+            if (!Shot.Hit || !Target.Detailed(debug)) { }
+            else if (Shot.Missiles.Count > 0)
+                fields.Add("hits " + string.Join(", ", Shot.Missiles.Where(missile => missile.Hit).GroupBy(missile => missile.Location)
+                    .OrderBy(group => group.Key).Select(group => $"{DraftCatalog.Abbreviation(group.Key)}×{group.Count()}")));
+            if (Shot.Hit && Target.Detailed(debug)) fields.Add($"dmg {Shot.Damage} on impact");
+        }
         else if (Target.Detailed(debug))
         {
             fields.Add($"dmg {Shot.Damage}" + (Shot.SecondLocation is { } second
@@ -73,4 +91,7 @@ public sealed partial class CombatSimulation
             : Contacts(CombatSide.Friendly).TryGetValue(unit.Id, out var contact) ? contact.Level : ContactLevel.Lost;
         return new(unit.Side, slot, unit.Spec.Chassis, unit.Spec.DisplayName, level, unit.Heat);
     }
+    /// <summary>The stable F1–F4 / E1–E4 slot label.</summary>
+    public string SlotLabel(CombatUnit unit) =>
+        $"{(unit.Side == CombatSide.Friendly ? "F" : "E")}{Units.Where(item => item.Side == unit.Side).TakeWhile(item => item.Id != unit.Id).Count() + 1}";
 }
