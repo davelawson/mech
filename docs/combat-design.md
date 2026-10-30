@@ -145,7 +145,7 @@ The user confirmed shared understanding of this initial combat design on October
 
 ## Confirmed terrain design
 
-The simulated battlefield uses reproducible, asymmetric procedural natural terrain: rocks, vegetation, hills and water. Players may enter or share a terrain seed, independent of combat randomness. Retain the 96 × 96 arena and existing starting positions, clear the spawn areas, and guarantee a traversable route between sides.
+The simulated battlefield uses reproducible, asymmetric procedural natural terrain: rocks, vegetation, hills and water. Players may enter or share a terrain seed, independent of combat randomness. Retain the existing arena and starting positions (192 × 192 since [engagement spacing](#engagement-spacing-confirmed-october-29-2026)), clear the spawn areas, and guarantee a traversable route between sides.
 
 Rocks are impassable and block detection and fire. Hills affect movement and line of sight through their elevation, with no separate height bonus. Water slows movement. Vegetation slows movement and reduces hit chance when the target is within it or the shot passes through it; cap the penalty. Detection remains shared, but each attacker needs a clear line of fire.
 
@@ -156,11 +156,11 @@ Both sides navigate around obstacles and seek a clear firing position for blocke
 
 Each pilot has Gunnery, Piloting and Sensors in the range 2 (expert) to 6 (novice). All start at 6; each step of improvement costs one point, so a skill costs `6 - rating`. Regular pilots spend exactly six points, veterans eight. Existing named pilots retain identities and quality classifications but have rebalanced fixed ratings, including Sensors specialists. These allocations resolve through existing catalog IDs in saves.
 
-`identification radius = 25 × (1 + (6 − Sensors) / 4) × (0.5 + (target tonnage − 20) / 160)`
+`identification radius = 50 × (1 + (6 − Sensors) / 4) × (0.5 + (target tonnage − 20) / 160)`
 
 `detailed status radius = identification radius / 2`
 
-Use continuous planar distances, including each boundary. Only the target's tonnage affects its signature. Current catalog weights are 20–100 tons; radius inputs are bounded to these endpoints and Sensors 2–6. A novice identifies a 20-ton mech at 12.5 hexes and a 100-ton mech at 25; an expert identifies them at 25 and 50. Both tiers require clear terrain sight and are shared by each side. Disabled and destroyed units cannot observe but remain observable targets.
+Use continuous planar distances, including each boundary. Only the target's tonnage affects its signature. Current catalog weights are 20–100 tons; radius inputs are bounded to these endpoints and Sensors 2–6. A novice identifies a 20-ton mech at 25 hexes and a 100-ton mech at 50; an expert identifies them at 50 and 100. These values include the doubling from [engagement spacing](#engagement-spacing-confirmed-october-29-2026). Both tiers require clear terrain sight and are shared by each side. Disabled and destroyed units cannot observe but remain observable targets.
 
 Close inspection exposes existing equipment state and availability, including equipment lost with its location and weapons without usable ammunition. It adds no heat, critical-hit or other damage mechanics. Visible missing limbs, fallen wrecks and movement still provide physical clues at model-only range. Post-battle damage reports retain their existing full results. Piloting remains a roster skill pending its combat mechanics; the equal point costs establish the agreed allocation structure rather than equal current combat value.
 

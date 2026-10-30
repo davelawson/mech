@@ -2,9 +2,7 @@
 
 A standalone BattleTech mercenary company management game built with **Godot and C#**, targeting Windows 11 x64, Linux x64, and macOS on Apple Silicon and Intel.
 
-The game opens at a main menu with New Company, Load Game, Quit, and **Resume** when a live company is in memory. A new company enters a painted DropShip office and immediately drafts four BattleMechs and four MechWarriors from eight simultaneously visible pools. Each new draft samples three distinct candidates per weight class from all 49 chassis and draws pilots from a roster of 18 regulars and six veterans. It starts with a random company name and one randomly selected candidate per pool. Review or edit these defaults, then click **Establish Company** to begin operations on January 1, 3025, with 2.5 million C-bills. Three warrior pools offer regular recruits; the fourth offers veterans. Pilots distribute six points (regular) or eight (veteran) across Gunnery, Piloting and Sensors; improving a skill from its initial rating of 6 costs one point per step, down to 2.
-
-The desk rolodex opens personnel cards over the office and displays the number of healthy warriors ready for deployment. The porthole opens an illustrated hangar with classic mech details, persistent pilot assignments, and **Simulate Deployment**: a standalone tactical battle against a freshly drafted enemy or a mirror of your selected force. The calendar advances time, the safe manages quarterly bills, the filing cabinet saves/loads the company, and the wall chart opens the official 3025 Inner Sphere map. Campaign mission combat and permanent battlefield consequences follow later.
+You draft a company of four BattleMechs and four MechWarriors, then run it from a painted DropShip office: advance the calendar, pay quarterly bills, travel the 3025 Inner Sphere map, accept missions, manage pilots in the hangar, and fight standalone real-time tactical simulations. Game rules live in [`docs/`](#structure-and-design), not in this README.
 
 ## Development prerequisites
 
@@ -30,30 +28,50 @@ All artwork and the stock mech catalog are packaged locally. Running the game re
 
 ## Controls
 
-- Initial draft: all eight pools of three remain visible, including at 900 × 500. A random name and one random choice per pool are filled in for every new draft, so you can establish immediately. Click a candidate to change a selection; use **…** to inspect the full record without selecting. Choices and the company name remain editable until **Establish Company**. Escape from a record returns to drafting; Escape from the draft asks to abandon it. Partial drafts cannot be saved or completed drafts reopened.
-- Rolodex: click the physical index file on the desk. Flip individual cards or choose a name from the index. Cards show skills, health, recovery date, and assignment. The desk count includes healthy assigned and unassigned warriors, excludes injured/deceased warriors, and updates after recovery. Injured warriors retain assignments; deceased warriors are unassigned and preserved in the memorial section.
-- Hangar: click the right porthole. Select a mech along the bottom to view its illustration and Overview, Armor, Weapons and Systems tabs. Use the Idle/Walk/Run selector to preview animated gaits for the Awesome, Jenner, Wolverine and Catapult. Choose a living warrior and assign or unassign them. Transferring an occupied assignment or swapping two pilots requires confirmation. Drafted mechs start intact with full ammunition. Establishing the company assigns each drafted pilot to the mech in the same column, from Warriors I with Light through Veterans with Assault. These assignments can be changed in the hangar; existing companies retain their saved assignments and empty seats.
-- Simulate Deployment: assign healthy MechWarriors, click the hangar button, and choose **Randomized enemy** or **Mirror match** before selecting 1–4 operational mechs. Randomized opposition uses fresh legal drafts to match your selected count and weight categories, drawing another draft when a category repeats; your units retain their current condition. Mirror matches copy your mech types and pilot skills, with both sides fully repaired and supplied. The enemy draft is generated on Launch independently of the terrain seed. Enter a terrain seed or use New terrain to generate an asymmetric natural battlefield; the 3D arena starts paused. Rocks and hills block sight and fire, steep slopes and rocks block movement, vegetation slows movement and reduces hit chance, and water slows movement. Mechs route around obstacles and seek clear shots; the seed recreates terrain independently of combat rolls. Click/drag selects; Shift adds; right-click ground moves, right-click a detected enemy attacks, and right-click a friendly orders the selected mechs to follow it. Followers keep roughly three hexes of spacing, resume when the leader moves, and Hold if it is disabled or destroyed. Destroyed mechs immediately stop blocking movement and Follow destinations; disabled mechs remain solid. Wrecks remain visible and selectable/inspectable. The leader retains its orders if also selected. Follow preserves each follower’s movement and firing settings. All direct mech clicks use a padded area fitted to the visible model at the current zoom, with gaps between limbs included; the frontmost mech wins overlaps, and terrain blocks hidden portions. Hover brightens and thickens that mech’s team outline without changing selection. A friendly click during priority targeting leaves that mode armed. Space pauses/resumes with battlefield focus. The selected-unit panel provides Walk/Run, Fire at will/Hold fire, preferred distance, separate priority targeting and weapon toggles. Move toward the center to find opposition. WASD/arrows or middle-drag pan, wheel zooms, and right-drag orbits the ground point at the center of the view. Right-click orders issue on release; moving more than five pixels starts rotation instead. Q/E or Shift-middle also rotates; Home restores the arena overview. Escape opens the combat menu. End Simulation and completed battles show damage/outcome reports before returning to the same hangar selection. Campaign condition, assignments, finances and time are preserved. Mechs accelerate, brake and turn according to their movement stats; attack-range retreats reverse at up to walking speed. The Awesome, Jenner, Wolverine and Catapult have distinct custom models with walking, running, reverse and pivot animations, and the hangar shows rotating 3D previews alongside the artwork. Broad launcher pods and projecting cannons remain framed throughout rotation. Sensors and enemy tonnage determine detection: a novice identifies a 100t mech at 50 hexes, an expert at 100; a 20t mech is detectable at half those distances, interpolating linearly between weights. Contacts share model identity across the side; exact armour, internals and effective systems condition appear only within half detection range of an active observer. Enemy inspection preserves the friendly selection and shows separate unions of target-specific identification/status ranges for all selected active mechs. Only exposed outlines are drawn, preserving gaps and separate regions. Multiple active contributors use a “Selected mechs” readout with minimum–maximum ranges; one active contributor retains its individual readout. With no enemy inspected, the outlines represent 100t and the readout also labels the 20–100t span. Terrain can still block detection within the outlines. Friendly and detailed enemy inspections share a front/rear damage paperdoll. See [tactical defaults](docs/combat-tuning.md) and [mech models](docs/mech-models.md).
-- Right-click closes the topmost popup, confirmation, or subscreen, returning one level toward the office and restoring focus. Personnel opened from the hangar returns to the same selected mech and tab; its Back button and Escape do the same. Right-click in the unobstructed office stops time and opens the main menu. Escape from the hangar, map, or office rolodex returns to the office. Escape in the office opens the main menu. The header's **Main menu** opens it immediately. **Resume** restores the previous strategic screen, panels, selections and focus, preserving unsaved company state while leaving time paused. It retains the session only while the app is open and does not write a save. Roster interfaces pause time.
-- New Company, Load Game, Quit, and closing the window ask before discarding campaign data only when it differs from the last successful save or load. A newly established company is unsaved until its first save. Time, assignments, seen mission offers and plotted routes count as campaign changes; navigation and view selections do not. Prompts offer Cancel and the explicit discard action, including **Quit Without Saving**. Failed saves or loads preserve the current unsaved status.
-- Office: click the wall chart or focus it with Tab and press Enter/Space. Hover or keyboard focus outlines the painted frame. Its miniature always shows the complete reference chart, independently of the opened map’s zoom and pan.
-- Calendar: click for one day. Click its “Reminder...” post-it to tick through days until the next event, at 100 ms per day. Any click stops time and activates the clicked object; calendar/post-it clicks only stop it. The painted display shows the current date and “bills due in XX days” (or “day” when one remains), and stays synchronized with the header on both screens. Hover the calendar for its date and countdown in small windows.
-- Safe: open quarterly finances. Transit accrues at 2,000 C-bills per whole day, with each jump taking ceil(distance / 6) days and a 30-light-year jump taking five days. Orbit is free. Accrued transit costs join the 100,000 C-bill company charge that falls due on April 1, July 1, October 1, and January 1. The safe’s digital display shows live cash, such as “₡ 2,500,000”. Time blocks and that readout blinks until you pay in full or confirm Pay Later. Hover the safe for the current balance in small windows. Deferral preserves cash, carries the full bill, and keeps the countdown red. At the following quarter, insufficient funds for both bills cause bankruptcy and return you to the main menu after its dialog.
-- Phone: a silent flashing light indicates new mission offers. Opening it marks all available offers as seen. Browse briefings beside the offer list, accept one mission, or inspect the current mission while browsing others. Accepting returns to the office; abandon with confirmation before accepting another. Abandoned offers remain available and seen. Mission selection and seen status use the same manual save slot. Easy Peasy is the initial offer; its terms are provisional, with no payment or deadline effects yet. Deployment follows starmap movement.
-- Filing cabinet: manually save or load the single campaign slot. Confirm before overwriting or discarding current progress. There is no autosave; use Load Game at the menu or cabinet to resume. Older finance-only saves require the initial draft while preserving their finances, calendar, and events; the saved file is changed only by a subsequent manual save. Saves are stored in Godot’s per-user application-data directory as `campaign.json`, outside the installation folder.
-- Map: click a named system to preview a blue route, or find it with the destination search. Embark commits it as a green journey; departure waits until the next day. In orbit, Cancel Journey removes only the embarked journey, and selecting another candidate leaves the active journey intact. Each arrival pauses the calendar for that day; the next office time advance continues onward. Plotting and cancellation are unavailable between systems. New companies and older saves start at Galatea. Drag to pan; scroll or use the + / − buttons to zoom. With the map focused, + / − zoom, arrow keys pan, and Home fits the complete chart.
-- The DropShip has a prominent gold ship symbol, halo, and permanent location label. If it is outside the viewed region, a gold direction arrow leads back to it. Click the arrow or **Find DropShip** to center its current orbit or position between systems without changing zoom or travel plans.
-- Return with “Back to office”, right-click, or Escape. Map position survives navigation, and keyboard focus returns to the wall chart.
-- 100% zoom fits the whole chart; maximum zoom is 1200%. Resizing preserves the image aspect ratio, hotspot alignment, and map location.
-- The default window is 1440 × 900, with a 900 × 500 minimum.
+Behavior behind each input is specified in [docs/design.md](docs/design.md) (strategy screens) and [docs/combat-design.md](docs/combat-design.md) with [docs/combat-tuning.md](docs/combat-tuning.md) (tactical combat).
 
-Tactical shortcuts: **1–4** select a friendly deployment slot; **Shift+1–4** toggle that mech in the group. Slots stay fixed after losses, and wrecks remain inspectable. The **backtick** key resets the camera orientation and tactical zoom, centers the selection, and zooms out enough to fit it; with no selection it frames all friendlies. Hover a detected enemy for dashed blue range lines from every selected friendly, labeled in hexes.
-
-**Shift+backtick (~)** toggles the initially hidden left battle-log panel. It docks beside the battlefield and displays roughly twelve compact wrapping entries, with the full battle available by scrolling. The wheel scrolls history while over the panel. Each weapon firing, including misses, records shooter, target, weapon/mount, firing heat and exchange-end heat, range, percentage hit chance and random draw (lower rolls hit), damage, armor/structure losses, and destruction. Heat appears before range. **Combat** respects visibility at the instant of firing, including unknown attackers hitting friendlies; exact enemy details require Detailed contact. **Debug** shows every shot with full details. Each tab preserves its scroll position; new events follow only while already at the bottom. Hiding the panel preserves history, and a new battle clears it.
-
-Torso tracking is automatic for both sides: upper bodies twist up to ±90° while moving legs preserve their route. Light/Medium/Heavy/Assault twist at 90/75/60/45° per second. Weapons fire within ±30° of their mount facing; rear mounts engage independently, and leg weapons follow the legs. The rear 120° of torso facing exposes rear torso armor. Team-colored ground lines show leg direction; gold lines with tip dots show torso direction. Weapon readouts explain alignment restrictions. See [the confirmed rules](docs/combat-design.md#torso-twisting-confirmed-october-29-2026).
-
-Weapons and movement build heat; surviving single/double heat sinks cool continuously. **Normal heat** keeps firing below 20; **Aggressive heat** allows bursts below 30. Automatic volley selection maximizes expected damage within that budget. Heat at 10/20 reduces speed and accuracy; 30 causes a recoverable shutdown until heat falls below 10. Shut-down mechs remain targetable and accept orders. Flamers add target heat, and lost sink groups reduce cooling. Friendly cards and battlefield indicators show heat; exact enemy heat requires Detailed contact. See [heat rules and rates](docs/combat-tuning.md#heat).
+| Input | Action |
+| --- | --- |
+| **Global** | |
+| Right-click | Close the topmost popup, confirmation or subscreen (outside combat) |
+| Escape | Return toward the office; in the office, open the main menu |
+| Header **Main menu** | Open the main menu |
+| **Initial draft** | |
+| Click candidate | Select it for that pool |
+| **…** | Inspect the full record without selecting |
+| **Establish Company** | Commit the company name and all eight choices |
+| **Office** | |
+| Click wall chart, or Tab then Enter/Space | Open the star map |
+| Click calendar | Advance one day |
+| Click “Reminder...” post-it | Advance to the next event |
+| Click anywhere while time advances | Stop time (and activate the clicked object) |
+| Click rolodex / porthole / safe / phone / filing cabinet | Personnel / hangar / finances / missions / save and load |
+| Right-click empty office | Stop time and open the main menu |
+| **Star map** | |
+| Click a named system, or destination search | Preview a route |
+| **Embark** / **Cancel Journey** | Commit / cancel the journey |
+| Drag, or arrow keys | Pan |
+| Scroll, + / − | Zoom |
+| Home | Fit the complete chart |
+| **Find DropShip**, or the gold arrow | Center the DropShip |
+| **Hangar** | |
+| Click a mech along the bottom | Select it |
+| Idle / Walk / Run | Preview gaits (articulated chassis only; see [mech models](docs/mech-models.md)) |
+| **Simulate Deployment** | Choose Randomized enemy or Mirror match, then 1–4 mechs and a terrain seed |
+| **Combat** | |
+| Click / drag | Select friendly mechs |
+| Shift+click | Add to / remove from selection |
+| 1–4 / Shift+1–4 | Select / toggle a deployment slot |
+| Right-click ground / enemy / friendly | Move / Attack / Follow |
+| Space | Pause or resume |
+| WASD / arrows, middle-drag | Pan |
+| Wheel | Zoom (scrolls the battle log while over it) |
+| Right-drag, Q/E, Shift+middle-drag | Rotate |
+| Home | Arena overview |
+| Backtick (`` ` ``) | Reset camera and frame the selection |
+| Shift+backtick (~) | Toggle the battle log |
+| Hover a detected enemy | Show range lines from selected friendlies |
+| Escape | Combat menu (End Simulation) |
 
 ## Build and test
 
@@ -126,8 +144,9 @@ The native acceptance loop is: launch without a separately installed .NET runtim
 
 - [Confirmed design](docs/design.md)
 - [Tactical combat design](docs/combat-design.md) and [implementation defaults](docs/combat-tuning.md)
+- [Mech models and condition display](docs/mech-models.md)
 - [Domain glossary](CONTEXT.md)
-- [Strategy and combat boundary](docs/adr/0001-strategy-and-combat-boundary.md)
+- [Strategy and combat boundary](docs/adr/0001-strategy-and-combat-boundary.md) and [continuous combat timing](docs/adr/0002-continuous-combat-timing.md)
 - [Artwork sources, image-edit prompts, and measured display regions](docs/artwork.md)
 - [Classic stock unit data, source revision and attribution](Data/README.md)
 
