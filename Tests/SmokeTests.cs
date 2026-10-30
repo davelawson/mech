@@ -58,6 +58,7 @@ public partial class SmokeTests : Node
             }
             await TestBattlefieldPicking();
             await TestDetectionOverlay();
+            await TestShotEffects();
             if (!combatUiOnly)
             {
                 TestGeometry();

@@ -36,6 +36,7 @@ Status: confirmed October 25, 2026. The initial design interview is complete. Th
 - No criticals, ammunition consumption, falls, or MechWarrior injury/casualties are simulated. Location-loss and defeat rules are specified below; heat is specified in its confirmed extension.
 - Show the selected friendly mech's calculated hit chance against a detected target.
 - Resolve hit and damage when a weapon fires. Projectile and beam effects illustrate that result; projectiles do not independently collide or intercept. Friendly fire is omitted. Firing arcs follow the torso-twisting rules below.
+- Each firing effect starts at the firing weapon's source firing marker on the shooter's model, cycling through a launcher's tubes on successive shots. A weapon without a marker in its catalog location uses an unclaimed marker of its kind elsewhere on the model (Crusader leg SRMs fire from the torso racks), or else the center of its location. Hits end at the center of the struck location on the target model. Misses pass beside and beyond that location. Both ends follow the animated models while the effect fades.
 - Each weapon discharge makes one hit roll and applies one damage packet, including missile launchers. Missile clustering and more detailed weapon-specific behavior are deferred.
 - Ready, enabled weapons with valid targets enter heat-budgeted volley selection. Weapons start ready, cooldown begins only when fired, and cooldown progresses only while unpaused, including during thermal shutdown.
 

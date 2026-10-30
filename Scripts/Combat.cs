@@ -201,6 +201,7 @@ public sealed record CombatShot(string AttackerId, string TargetId, Vector2 From
     public double Chance { get; init; }
     public double Roll { get; init; }
     public string Mount { get; init; } = "";
+    public string WeaponId { get; init; } = "";
     public IReadOnlyList<CombatDamage> DamageApplied { get; init; } = [];
     public IReadOnlyList<string> SystemsLost { get; init; } = [];
     public CombatStatus? TargetStatus { get; init; }
@@ -417,7 +418,7 @@ public sealed partial class CombatSimulation
                 var location = RollLocation();
                 shots.Add(new(unit.Id, target.Id, unit.Position, target.Position, weapon.Spec.Name, hit, location,
                     hit ? weapon.Damage : 0, weapon.Spec.Heat, hit ? CombatRules.FlamerHeat(weapon.Spec) : 0)
-                { Chance = chance, Roll = roll, Mount = DraftCatalog.Abbreviation(weapon.Spec.Location) + (weapon.Spec.Rear ? " rear" : "") });
+                { Chance = chance, Roll = roll, WeaponId = weapon.Spec.Id, Mount = DraftCatalog.Abbreviation(weapon.Spec.Location) + (weapon.Spec.Rear ? " rear" : "") });
                 weapon.Remaining = CombatRules.Cooldown(weapon.Spec); unit.ShotsFired++;
                 if (hit) { unit.Hits++; unit.DamageDealt += weapon.Damage; }
             }

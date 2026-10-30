@@ -12,6 +12,8 @@ public partial class MechModel : Node3D
     public float Height { get; private set; }
     private readonly Dictionary<MechLocation, Node3D> _locations = [];
     private readonly Dictionary<Color, StandardMaterial3D> _materials = [];
+    private readonly Dictionary<string, Node3D[]> _firingMarkers = [];
+    private readonly Dictionary<string, int> _firingCounts = [];
     private ShaderMaterial _outline = null!;
     private Color _teamColor;
     private float _outlineWidth = 1.15f;
@@ -57,6 +59,7 @@ public partial class MechModel : Node3D
             model.BuildLocomotionRig(prepared.Rig);
         }
         else model.BuildGeneric(side);
+        model.BindFiringMarkers(spec);
         model.RestBounds = model.MeasureBounds() ?? new Aabb(Vector3.Zero, Vector3.One);
         model.Height = model.RestBounds.End.Y * model.Scale.Y;
         return model;
@@ -93,6 +96,93 @@ public partial class MechModel : Node3D
     public void SetCondition(Func<MechLocation, bool> intact)
     {
         foreach (var (location, node) in _locations) node.Visible = intact(location);
+    }
+
+    /// <summary>The source firing marker for this weapon's next shot, cycling through launcher tubes.
+    /// Null when the model has no marker for it (generic geometry, or a source visual mounted elsewhere).</summary>
+    public Node3D? NextFiringMarker(string weaponId)
+    {
+        if (!_firingMarkers.TryGetValue(weaponId, out var markers)) return null;
+        _firingCounts.TryGetValue(weaponId, out var count); _firingCounts[weaponId] = count + 1;
+        return markers[count % markers.Length];
+    }
+
+    /// <summary>World-space center of a damage location's current pose, including hidden destroyed parts.</summary>
+    public Vector3 LocationCenter(MechLocation location)
+    {
+        Aabb? bounds = null;
+        foreach (var mesh in _locations[location].FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>())
+        {
+            var box = mesh.GlobalTransform * mesh.Mesh.GetAabb();
+            bounds = bounds is { } previous ? previous.Merge(box) : box;
+        }
+        return bounds?.GetCenter() ?? _locations[location].GlobalPosition;
+    }
+
+    private static bool IsFiringMarker(string name) => name.StartsWith("WeaponMuzzle_", StringComparison.Ordinal)
+        || name.StartsWith("MissileTube", StringComparison.Ordinal) || name.StartsWith("LrmTube", StringComparison.Ordinal)
+        || name == "CannonMuzzle";
+
+    private static string MarkerKind(string name) =>
+        name.StartsWith("MissileTube", StringComparison.Ordinal) ? "SRM"
+        : name.StartsWith("LrmTube", StringComparison.Ordinal) ? "LRM"
+        : name == "CannonMuzzle" ? "AC"
+        : name.Contains("Ppc", StringComparison.Ordinal) ? "PPC"
+        : name.Contains("MachineGun", StringComparison.Ordinal) ? "MG"
+        : name.Contains("Flamer", StringComparison.Ordinal) ? "Flamer"
+        : name.Contains("Laser", StringComparison.Ordinal) ? "Laser" : "";
+
+    private static string MarkerKind(WeaponKind kind) => kind switch
+    {
+        WeaponKind.SRM2 or WeaponKind.SRM4 or WeaponKind.SRM6 => "SRM",
+        WeaponKind.LRM5 or WeaponKind.LRM10 or WeaponKind.LRM15 or WeaponKind.LRM20 => "LRM",
+        WeaponKind.AC2 or WeaponKind.AC5 or WeaponKind.AC10 or WeaponKind.AC20 => "AC",
+        WeaponKind.PPC => "PPC", WeaponKind.MachineGun => "MG", WeaponKind.Flamer => "Flamer",
+        _ => "Laser"
+    };
+
+    // Indexed markers (`WeaponMuzzle_Weapon<i>_*`) name their catalog weapon directly. Otherwise each location's
+    // weapons share its markers of the matching kind in catalog order: one beam each, launcher tubes split evenly.
+    private void BindFiringMarkers(MechSpec spec)
+    {
+        static (string Stem, int Number) Order(Node3D node)
+        {
+            var name = node.Name.ToString(); var stem = name.TrimEnd("0123456789".ToCharArray());
+            return (stem, int.TryParse(name[stem.Length..], out var number) ? number : -1);
+        }
+        var all = _locations.Values.SelectMany(root => root.FindChildren("*", "Node3D", true, false).OfType<Node3D>()
+            .Where(node => node is not MeshInstance3D && IsFiringMarker(node.Name))
+            .OrderBy(node => Order(node).Stem, StringComparer.Ordinal).ThenBy(node => Order(node).Number)).ToList();
+        var claimed = new HashSet<Node3D>();
+        var pending = new List<WeaponSpec>();
+        for (var index = 0; index < spec.Weapons.Length; index++)
+        {
+            var own = all.Where(node => node.Name.ToString().StartsWith($"WeaponMuzzle_Weapon{index}_", StringComparison.Ordinal)).ToArray();
+            if (own.Length > 0) { _firingMarkers[spec.Weapons[index].Id] = own; claimed.UnionWith(own); }
+            else pending.Add(spec.Weapons[index]);
+        }
+        void Share(IReadOnlyList<WeaponSpec> weapons, IReadOnlyList<Node3D> markers)
+        {
+            if (weapons.Count == 0 || markers.Count == 0) return;
+            var each = Math.Max(1, markers.Count / weapons.Count);
+            for (var i = 0; i < weapons.Count; i++)
+                _firingMarkers[weapons[i].Id] = markers.Count >= weapons.Count
+                    ? markers.Skip(i * each).Take(i == weapons.Count - 1 ? markers.Count - i * each : each).ToArray()
+                    : [markers[i % markers.Count]];
+            claimed.UnionWith(markers);
+        }
+        foreach (var location in pending.GroupBy(weapon => weapon.Location))
+        {
+            var markers = all.Where(node => _locations[location.Key].IsAncestorOf(node)).ToArray();
+            foreach (var kind in location.GroupBy(weapon => MarkerKind(weapon.Kind)))
+                Share(kind.ToArray(), markers.Where(node => !claimed.Contains(node) && MarkerKind(node.Name) == kind.Key).ToArray());
+            var unmatched = location.Where(weapon => !_firingMarkers.ContainsKey(weapon.Id)).ToArray();
+            var spare = markers.Where(node => !claimed.Contains(node)).ToArray();
+            Share(unmatched, spare.Length > 0 ? spare : markers);
+        }
+        // A catalog mount with no source visual in its location (Crusader leg SRMs) uses unclaimed markers of its kind.
+        foreach (var kind in pending.Where(weapon => !_firingMarkers.ContainsKey(weapon.Id)).GroupBy(weapon => MarkerKind(weapon.Kind)))
+            Share(kind.ToArray(), all.Where(node => !claimed.Contains(node) && MarkerKind(node.Name) == kind.Key).ToArray());
     }
 
     private StandardMaterial3D Material(Color color)

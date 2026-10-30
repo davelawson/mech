@@ -22,7 +22,16 @@ public partial class CombatViewport : Control
     private Node3D? _terrainView;
     private readonly Dictionary<string, MechModel> _models = [];
     private readonly Dictionary<string, Aabb> _pickBounds = [];
-    private readonly List<(CombatShot Shot, float Life)> _effects = [];
+    private readonly List<ShotEffect> _effects = [];
+    private const float ShotLife = .45f;
+    // The muzzle is chosen when the weapon fires; both ends follow the animated models while the effect fades.
+    private sealed class ShotEffect(CombatShot shot, MechLocation mount, Node3D? muzzle)
+    {
+        public CombatShot Shot { get; } = shot;
+        public MechLocation Mount { get; } = mount;
+        public Node3D? Muzzle { get; } = muzzle;
+        public float Life { get; set; } = ShotLife;
+    }
     private Vector3 _focus = new(0, 0, CombatRules.DeploymentDepth - 20);
     private static readonly float DefaultPitch = Mathf.Atan2(80, 70);
     private static readonly float OrbitRadius = new Vector2(140, 160).Length();
@@ -86,8 +95,11 @@ public partial class CombatViewport : Control
     private void OnShot(CombatShot shot)
     {
         if (Simulation is null) return;
-        if (Simulation.Unit(shot.AttackerId).Side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, shot.AttackerId))
-            _effects.Add((shot, .45f));
+        var attacker = Simulation.Unit(shot.AttackerId);
+        if (attacker.Side != CombatSide.Friendly && !Simulation.Detected(CombatSide.Friendly, shot.AttackerId)) return;
+        var weapon = attacker.Spec.Weapons.FirstOrDefault(item => item.Id == shot.WeaponId);
+        _effects.Add(new(shot, weapon?.Location ?? MechLocation.CenterTorso,
+            weapon is null ? null : _models[shot.AttackerId].NextFiringMarker(weapon.Id)));
     }
     private void CreateMech(CombatUnit unit)
     {
@@ -241,7 +253,7 @@ public partial class CombatViewport : Control
             if (Input.IsPhysicalKeyPressed(Key.E)) { _yaw += (float)delta; UpdateCamera(); }
         }
         for (var i = _effects.Count - 1; i >= 0; i--)
-        { var effect = _effects[i]; _effects[i] = (effect.Shot, effect.Life - (float)delta); if (_effects[i].Life <= 0) _effects.RemoveAt(i); }
+        { _effects[i].Life -= (float)delta; if (_effects[i].Life <= 0) _effects.RemoveAt(i); }
         SyncModels(!Simulation.Paused && Simulation.Outcome == CombatOutcome.Ongoing ? (float)delta : 0);
         var hovering = CommandsEnabled && _windowFocused && !_selecting && !_panning && !_rotating && !_rightDragging
             && GetViewport().GuiGetHoveredControl() == this;
@@ -254,6 +266,20 @@ public partial class CombatViewport : Control
         _focus.X = Math.Clamp(_focus.X + rotated.X, -CombatRules.ArenaHalfSize, CombatRules.ArenaHalfSize);
         _focus.Z = Math.Clamp(_focus.Z + rotated.Y, -CombatRules.ArenaHalfSize, CombatRules.ArenaHalfSize); UpdateCamera();
     }
+    // Shots leave the weapon's source muzzle (or its location's center) and end at the rolled hit location.
+    // Misses pass beside and beyond that location.
+    private (Vector3 From, Vector3 To) ShotPath(ShotEffect effect)
+    {
+        var shot = effect.Shot;
+        var from = effect.Muzzle?.GlobalPosition ?? _models[shot.AttackerId].LocationCenter(effect.Mount);
+        var to = _models[shot.TargetId].LocationCenter(shot.Location);
+        if (shot.Hit) return (from, to);
+        var direction = new Vector3(to.X - from.X, 0, to.Z - from.Z).Normalized();
+        var side = new Vector3(-direction.Z, 0, direction.X) * ((int)(shot.Roll * 100) % 2 == 0 ? 1.2f : -1.2f);
+        return (from, to + side + direction * 1.5f);
+    }
+    internal IEnumerable<(CombatShot Shot, Vector3 From, Vector3 To)> ShotPaths()
+        => _effects.Select(effect => { var (from, to) = ShotPath(effect); return (effect.Shot, from, to); });
     // One camera ray drives hover, selection, inspection, attack, priority targeting and Follow.
     internal CombatUnit? PickMech(Vector2 at)
     {
@@ -475,12 +501,13 @@ public partial class CombatViewport : Control
             DrawStringOutline(font, label, text, HorizontalAlignment.Left, -1, 12, 5, new Color("101820"));
             DrawString(font, label, text, HorizontalAlignment.Left, -1, 12, color);
         }
-        foreach (var (shot, life) in _effects)
+        foreach (var effect in _effects)
         {
-            var color = shot.Hit ? Ui.Gold : Ui.Muted;
-            var to = shot.Hit ? shot.To : shot.To + new Vector2(1, 1);
-            DrawLine(ScreenPoint(shot.From, BattlefieldTerrain.EyeHeight), ScreenPoint(to, BattlefieldTerrain.EyeHeight), new Color(color, life / .45f), shot.Weapon.Contains("Laser") || shot.Weapon == "PPC" ? 3 : 1, true);
-            if (shot.Hit) DrawArc(ScreenPoint(to, 1), (1 - life / .45f) * 14 + 3, 0, Mathf.Tau, 16, new Color(color, life / .45f), 2, true);
+            var shot = effect.Shot; var fade = effect.Life / ShotLife;
+            var (from, to) = ShotPath(effect);
+            var color = new Color(shot.Hit ? Ui.Gold : Ui.Muted, fade);
+            DrawLine(Camera.UnprojectPosition(from), Camera.UnprojectPosition(to), color, shot.Weapon.Contains("Laser") || shot.Weapon == "PPC" ? 3 : 1, true);
+            if (shot.Hit) DrawArc(Camera.UnprojectPosition(to), (1 - fade) * 14 + 3, 0, Mathf.Tau, 16, color, 2, true);
         }
         if (_selecting && _dragStart.DistanceTo(_dragEnd) > 5)
         { var rect = new Rect2(_dragStart, _dragEnd - _dragStart).Abs(); DrawRect(rect, new Color(Ui.Gold, .12f)); DrawRect(rect, Ui.Gold, false); }
