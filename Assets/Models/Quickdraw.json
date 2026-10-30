@@ -130,5 +130,5 @@
   "missile_tubes": 0,
   "attachment_evidence": "QKD-4G MW5 stock loadout -> hardpoint tag mapping -> weapon blueprint SKM; source skeleton sockets and exterior cockpit.",
   "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
-  "tool": "scripts/prepare-additional-mech.py + scripts/mech_asset_tools.py; Python + Pillow"
+  "tool": "scripts/prepare-mech.py + scripts/mech_asset_tools.py; Python + Pillow"
 }

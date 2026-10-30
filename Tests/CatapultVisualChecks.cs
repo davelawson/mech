@@ -24,7 +24,7 @@ public partial class SmokeTests
             var launcher = arm.FindChild("Lrm15Housing", true, false) as MeshInstance3D;
             Check(launcher is not null && launcher.Mesh.GetSurfaceCount() >= 2,
                 $"Catapult {side} has the extracted launcher body and missile faces");
-            var sockets = arm.FindChildren("MissileTube*", "Node3D", true, false).OfType<Node3D>().ToArray();
+            var sockets = arm.FindChildren("LrmTube*", "Node3D", true, false).OfType<Node3D>().ToArray();
             Check(sockets.Length == 15 && sockets.All(socket => launcher!.Mesh.GetAabb().Grow(.02f)
                     .HasPoint(launcher.GlobalTransform.AffineInverse() * socket.GlobalPosition)),
                 $"Catapult {side} has fifteen source firing positions attached inside its launcher");

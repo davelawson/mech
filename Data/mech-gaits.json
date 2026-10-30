@@ -1,0 +1,21 @@
+{
+  "default": { "BodyDrop": 0.08, "RunDrop": 0.045, "LeftArmSwing": 0.04, "RightArmSwing": 0.04 },
+  "tuned": {
+    "firestarter": { "BodyDrop": 0.055, "RunDrop": 0.035, "LeftArmSwing": 0.035, "RightArmSwing": 0.035 },
+    "crusader": { "BodyDrop": 0.055, "RunDrop": 0.035, "LeftArmSwing": 0.035, "RightArmSwing": 0.035 },
+    "thunderbolt": { "BodyDrop": 0.055, "RunDrop": 0.035, "LeftArmSwing": 0.035, "RightArmSwing": 0.035 },
+    "victor": { "BodyDrop": 0.075, "RunDrop": 0.04, "LeftArmSwing": 0.025, "RightArmSwing": 0.025 },
+    "zeus": { "BodyDrop": 0.075, "RunDrop": 0.04, "LeftArmSwing": 0.025, "RightArmSwing": 0.025 },
+    "panther": { "BodyDrop": 0.055, "RunDrop": 0.025, "LeftArmSwing": 0.10, "RightArmSwing": 0.02 },
+    "shadow-hawk": { "BodyDrop": 0.045, "RunDrop": 0.02, "LeftArmSwing": 0.08, "RightArmSwing": 0.04 },
+    "griffin": { "BodyDrop": 0.055, "RunDrop": 0.025, "LeftArmSwing": 0.10, "RightArmSwing": 0.02 },
+    "atlas": { "BodyDrop": 0.05, "RunDrop": 0.025, "LeftArmSwing": 0.06, "RightArmSwing": 0.06 },
+    "awesome": {},
+    "jenner": { "WalkStride": 0.15, "RunStride": 0.19, "WalkLift": 0.065, "RunLift": 0.095, "BodyDrop": 0.030, "RunDrop": 0.015,
+      "Bob": 0.008, "Sway": 0.014, "Lean": 0.045, "Roll": 0.007, "LeftArmSwing": 0.015, "RightArmSwing": 0.015 },
+    "wolverine": { "WalkStride": 0.16, "RunStride": 0.21, "WalkLift": 0.085, "RunLift": 0.13, "BodyDrop": 0.045, "RunDrop": 0.025,
+      "Bob": 0.012, "Sway": 0.022, "Lean": 0.055, "Roll": 0.010, "LeftArmSwing": 0.14, "RightArmSwing": 0.018 },
+    "catapult": { "WalkStride": 0.14, "RunStride": 0.17, "WalkLift": 0.065, "RunLift": 0.095, "BodyDrop": 0.022, "RunDrop": 0.006,
+      "Bob": 0.005, "Sway": 0.009, "Lean": 0.015, "Roll": 0.004, "LeftArmSwing": 0.012, "RightArmSwing": 0.012 }
+  }
+}

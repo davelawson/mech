@@ -34,8 +34,10 @@ public partial class SmokeTests
                 var tubes = weapons.Where(weapon => weapon.DamageProfile.Kind == DamageKind.Missile)
                     .Sum(weapon => weapon.DamageProfile.ProjectileCount);
                 // Imported weapons retain non-rendering source Fire socket markers.
-                var displayedTubes = root.FindChildren("MissileTube*", "Node3D", true, false).Count;
-                if (spec.Id == "atlas") tubes -= weapons.Where(weapon => weapon.Kind == WeaponKind.LRM20).Sum(w => w.DamageProfile.ProjectileCount);
+                var displayedTubes = root.FindChildren("MissileTube*", "Node3D", true, false).Count
+                    + root.FindChildren("LrmTube*", "Node3D", true, false).Count;
+                // The Atlas LRM 20 reuses a ten-tube source launcher.
+                if (spec.Id == "atlas") tubes -= weapons.Where(weapon => weapon.Kind == WeaponKind.LRM20).Sum(w => w.DamageProfile.ProjectileCount) / 2;
                 var displayedCannons = root.FindChildren("CannonMuzzle", "Node3D", true, false).Count;
                 Check(displayedTubes == tubes && Count(root, "LaserEmitter") == weapons.Count(weapon => weapon.Kind == WeaponKind.MediumLaser)
                     && displayedCannons == weapons.Count(weapon => weapon.Kind is WeaponKind.AC5 or WeaponKind.AC20),

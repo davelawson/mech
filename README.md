@@ -140,7 +140,7 @@ The native acceptance loop is: launch without a separately installed .NET runtim
 
 ## Structure and design
 
-`Scenes/` contains the command shell, office, and map scenes. `Scripts/` contains their C# behavior, native menus/dialogs, shared Control styling, map geometry, the scene-independent campaign model with atomic manual saves, and the isolated combat model plus procedural battlefield/UI. `Assets/` holds only active runtime artwork, prepared models, their required textures and import settings. `generated/` retains only the Catapult preparation inputs and is excluded from Godot imports and exports; Awesome, Jenner and Wolverine preparation reads external MW5 source exports directly. `Tests/` contains the native acceptance scene and campaign/combat checks. There is no browser application or Node.js dependency.
+`Scenes/` contains the command shell, office, and map scenes. `Scripts/` contains their C# behavior, native menus/dialogs, shared Control styling, map geometry, the scene-independent campaign model with atomic manual saves, and the isolated combat model plus procedural battlefield/UI. `Assets/` holds only active runtime artwork, prepared models, their required textures and import settings. Model preparation reads external MW5 source exports directly; see [mech models](docs/mech-models.md). `Tests/` contains the native acceptance scene and campaign/combat checks. There is no browser application or Node.js dependency.
 
 - [Confirmed design](docs/design.md)
 - [Tactical combat design](docs/combat-design.md) and [implementation defaults](docs/combat-tuning.md)

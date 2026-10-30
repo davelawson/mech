@@ -43,6 +43,8 @@
     "RightTorso/PpcEmitter": 918,
     "RightTorso/TorsoShell": 1029
   },
+  "cross_region_faces": 0,
+  "weighted_faces": 0,
   "height": 2.8,
   "displayed_height": 3.64,
   "scale": 0.17355155496841596,
@@ -108,5 +110,5 @@
   "missile_tubes": 0,
   "attachment_evidence": "AWS-8Q_Loadout -> Awesome_HPS -> weapon blueprint SKM defaults; shared Mech_SKL sockets and component locals are identity. Awesome_MDL attaches exterior cockpit to Cockpit. Head small laser attaches via Torso_Pitch but belongs to Head damage location.",
   "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
-  "tool": "scripts/prepare-awesome.py + scripts/mech_asset_tools.py; Python + Pillow"
+  "tool": "scripts/prepare-mech.py + scripts/mech_asset_tools.py; Python + Pillow"
 }

@@ -5,25 +5,17 @@ namespace Mech;
 /// <summary>The prepared GLB shares geometry/textures across instances; outlines belong to each team.</summary>
 public partial class MechModel
 {
-    private static PackedScene? _awesomeScene;
-    private static readonly Dictionary<string, PackedScene> AdditionalScenes = [];
-    private void BuildAdditional(string chassis)
+    private static readonly Dictionary<string, PackedScene> PreparedScenes = [];
+
+    private void BuildPreparedModel(string chassis)
     {
-        if (!AdditionalScenes.TryGetValue(chassis, out var scene))
+        if (!PreparedScenes.TryGetValue(chassis, out var scene))
         {
             scene = ResourceLoader.Load<PackedScene>($"res://Assets/Models/{chassis}.glb")
                 ?? throw new InvalidOperationException($"The prepared {chassis} model could not be loaded.");
-            AdditionalScenes[chassis] = scene;
+            PreparedScenes[chassis] = scene;
         }
         BuildPreparedModel(scene, chassis);
-    }
-
-
-    private void BuildAwesome()
-    {
-        _awesomeScene ??= ResourceLoader.Load<PackedScene>("res://Assets/Models/Awesome.glb")
-            ?? throw new InvalidOperationException("The prepared Awesome model could not be loaded.");
-        BuildPreparedModel(_awesomeScene, "Awesome");
     }
 
     private void BuildPreparedModel(PackedScene scene, string chassis)

@@ -42,6 +42,8 @@
     "RightLeg/Thigh": 1240,
     "RightTorso/TorsoShell": 1111
   },
+  "cross_region_faces": 0,
+  "weighted_faces": 0,
   "height": 2.502127659574468,
   "displayed_height": 2.94,
   "scale": 0.15205774340484754,
@@ -100,5 +102,5 @@
   "missile_tubes": 6,
   "attachment_evidence": "WVR-6R_MDA/Loadout -> Wolverine_HPS visual mappings -> weapon blueprint SKM defaults. Mech_SKL sockets and component locals are identity. Wolverine_MDL attaches exterior cockpit to Cockpit. Head laser attaches via Torso_Pitch but belongs to Head damage location.",
   "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
-  "tool": "scripts/prepare-wolverine.py + scripts/mech_asset_tools.py; Python + Pillow"
+  "tool": "scripts/prepare-mech.py + scripts/mech_asset_tools.py; Python + Pillow"
 }

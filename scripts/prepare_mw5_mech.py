@@ -1,5 +1,4 @@
 """Shared rigid MW5 preparation for external body, exterior cockpit and stock weapons."""
-import argparse
 from collections import Counter, defaultdict
 import hashlib
 import json
@@ -28,15 +27,15 @@ def region(bone):
     raise ValueError("Unassigned source bone: " + bone)
 
 
-def prepare(chassis, prefix, displayed_height, model_scale, weapons, script_name, missile_tubes, evidence, glass_section=0, source_tree="Game"):
+def default_source(chassis, source_tree="Game"):
+    return Path.home() / f"Models/MW5Mercenaries/{source_tree}/Objects/Mechs/{chassis}/Model"
+
+
+def prepare(chassis, prefix, displayed_height, model_scale, weapons, missile_tubes, evidence, source, glass_section=0):
     """Validate rigid weights, assemble source attachments, bake paint and record provenance."""
-    default_source = Path.home() / f"Models/MW5Mercenaries/{source_tree}/Objects/Mechs/{chassis}/Model"
     output = ROOT / f"Assets/Models/{chassis}.glb"
     height = displayed_height / model_scale
-    parser = argparse.ArgumentParser(description=f"Prepare MW5 {chassis} from external UE Viewer exports (Python 3 + Pillow).")
-    parser.add_argument("--source", type=Path, default=default_source)
-    args = parser.parse_args()
-    source = args.source.expanduser().resolve()
+    source = Path(source).expanduser().resolve()
     if source.name == "Body":
         source = source.parent
     inputs = set()
@@ -166,7 +165,7 @@ def prepare(chassis, prefix, displayed_height, model_scale, weapons, script_name
         "missile_tubes": missile_tubes,
         "attachment_evidence": evidence,
         "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
-        "tool": f"scripts/{script_name} + scripts/mech_asset_tools.py; Python + Pillow",
+        "tool": "scripts/prepare-mech.py + scripts/mech_asset_tools.py; Python + Pillow",
     }
     output.with_suffix(".json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps({k: v for k, v in manifest.items() if k != "source_files"}, indent=2))

@@ -1,6 +1,6 @@
 # Artwork
 
-The retained runtime artwork is `Assets/dropship-office-missions.png`, `Assets/inner-sphere-3025-starscape.jpg`, and the mech illustrations, personnel portraits and hangar background in `Assets/Roster/`. The two active GLBs and their required companion textures live in `Assets/Models/`. Unused office/map iterations, Trellis experiments and the standalone Awesome reference were removed on October 26, 2026. Historical prompts below describe provenance; their intermediate images are no longer retained. Inputs needed to rebuild active models remain under `generated/`, excluded from Godot imports and exports.
+The retained runtime artwork is `Assets/dropship-office-missions.png`, `Assets/inner-sphere-3025-starscape.jpg`, and the mech illustrations, personnel portraits and hangar background in `Assets/Roster/`. The two active GLBs and their required companion textures live in `Assets/Models/`. Unused office/map iterations, Trellis experiments and the standalone Awesome reference were removed on October 26, 2026. Historical prompts below describe provenance; their intermediate images are no longer retained. Models are rebuilt from external MW5 exports; see [mech models](mech-models.md).
 
 ## DropShip office
 

@@ -1,5 +1,583 @@
 [
   {
+    "id": "firestarter",
+    "chassis": "Firestarter",
+    "variant": "FS9-H",
+    "prefix": "FS9",
+    "glass_section": 0,
+    "displayed_height": 2.48,
+    "model_scale": 1.075,
+    "missile_tubes": 0,
+    "source_tree": "Game",
+    "evidence": "FS9-H loadout -> Firestarter_HPS visual mappings -> source blueprint skeletal meshes. Torso and forearm sockets use Torso_Pitch and Forearm bones; cockpit attaches to Cockpit.",
+    "weapons": [
+      [
+        "LeftTorso",
+        "MachineGun1",
+        "Torso_Pitch",
+        "Weapon_Mech_FS9_Torso_Left_BH1_MG_SKM"
+      ],
+      [
+        "CenterTorso",
+        "Flamer1",
+        "Torso_Pitch",
+        "Weapon_Mech_FS9_Torso_Center_EH1_Flamer_SKM"
+      ],
+      [
+        "CenterTorso",
+        "Flamer2",
+        "Torso_Pitch",
+        "Weapon_Mech_FS9_Torso_Center_EH2_Flamer_SKM"
+      ],
+      [
+        "RightTorso",
+        "MachineGun1",
+        "Torso_Pitch",
+        "Weapon_Mech_FS9_Torso_Right_BH1_MG_SKM"
+      ],
+      [
+        "RightArm",
+        "LaserEmitter1",
+        "Forearm_Right",
+        "Weapon_Mech_FS9_Forearm_Right_EH1_Laser_SKM"
+      ],
+      [
+        "RightArm",
+        "Flamer2",
+        "Forearm_Right",
+        "Weapon_Mech_FS9_Forearm_Right_EH2_Flamer_SKM"
+      ],
+      [
+        "LeftArm",
+        "LaserEmitter1",
+        "Forearm_Left",
+        "Weapon_Mech_FS9_Forearm_Left_EH1_Laser_SKM"
+      ],
+      [
+        "LeftArm",
+        "Flamer2",
+        "Forearm_Left",
+        "Weapon_Mech_FS9_Forearm_Left_EH2_Flamer_SKM"
+      ]
+    ]
+  },
+  {
+    "id": "jenner",
+    "chassis": "Jenner",
+    "variant": "JR7-D",
+    "prefix": "JR7",
+    "glass_section": 0,
+    "displayed_height": 2.4,
+    "model_scale": 1.075,
+    "missile_tubes": 4,
+    "source_tree": "Game",
+    "evidence": "JR7-D_Loadout -> Jenner_HPS -> weapon blueprint SKM defaults; shared Mech_SKL sockets and component locals are identity. Torso_Center_MH3_srm4 uses MH3_Missile4. Jenner_MDL attaches exterior cockpit to Cockpit.",
+    "weapons": [
+      [
+        "CenterTorso",
+        "Srm4Housing",
+        "Torso_Pitch",
+        "Weapon_Mech_JR7_Torso_Center_MH3_Missile4_SKM"
+      ],
+      [
+        "LeftArm",
+        "LaserEmitter0",
+        "Forearm_Left",
+        "Weapon_Mech_JR7_Forearm_Left_EH1_Laser_SKM"
+      ],
+      [
+        "LeftArm",
+        "LaserEmitter1",
+        "Forearm_Left",
+        "Weapon_Mech_JR7_Forearm_Left_EH2_Laser_SKM"
+      ],
+      [
+        "RightArm",
+        "LaserEmitter0",
+        "Forearm_Right",
+        "Weapon_Mech_JR7_Forearm_Right_EH1_Laser_SKM"
+      ],
+      [
+        "RightArm",
+        "LaserEmitter1",
+        "Forearm_Right",
+        "Weapon_Mech_JR7_Forearm_Right_EH2_Laser_SKM"
+      ]
+    ]
+  },
+  {
+    "id": "panther",
+    "chassis": "Panther",
+    "variant": "PNT-9R",
+    "prefix": "PNT",
+    "glass_section": 1,
+    "displayed_height": 2.48,
+    "model_scale": 1.075,
+    "missile_tubes": 4,
+    "source_tree": "Game",
+    "evidence": "Stock MW5 loadout -> Panther_HPS visual mappings; torso and arm sockets attach to Torso_Pitch and Forearm bones. Panther_MDL attaches the exterior cockpit to Cockpit.",
+    "weapons": [
+      [
+        "CenterTorso",
+        "Srm4Housing",
+        "Torso_Pitch",
+        "Weapon_Mech_PNT_Torso_Center_MH1_Missile4_SKM"
+      ],
+      [
+        "RightArm",
+        "PpcEmitter",
+        "Forearm_Right",
+        "Weapon_Mech_PNT_Forearm_Right_EH1_PPC_SKM"
+      ]
+    ]
+  },
+  {
+    "id": "griffin",
+    "chassis": "Griffin",
+    "variant": "GRF-1N",
+    "prefix": "GRF",
+    "glass_section": 1,
+    "displayed_height": 3.0,
+    "model_scale": 1.175,
+    "missile_tubes": 0,
+    "source_tree": "Game",
+    "evidence": "Stock MW5 loadout -> Griffin_HPS visual mappings; torso and arm sockets attach to Torso_Pitch and Forearm bones. Griffin_MDL attaches the exterior cockpit to Cockpit.",
+    "weapons": [
+      [
+        "RightTorso",
+        "Lrm10Housing",
+        "Torso_Pitch",
+        "Weapon_Mech_GRF_Torso_Right_MH1_Missile10_SKM"
+      ],
+      [
+        "RightArm",
+        "PpcEmitter",
+        "Forearm_Right",
+        "Weapon_Mech_GRF_Forearm_Right_EH1_PPC_SKM"
+      ]
+    ]
+  },
+  {
+    "id": "shadow-hawk",
+    "chassis": "Shadowhawk",
+    "variant": "SHD-2H",
+    "prefix": "SHD",
+    "glass_section": 0,
+    "displayed_height": 3.0,
+    "model_scale": 1.175,
+    "missile_tubes": 2,
+    "source_tree": "Game",
+    "evidence": "Stock MW5 loadout -> Shadowhawk_HPS visual mappings; torso and arm sockets attach to Torso_Pitch and Forearm bones. Shadowhawk_MDL attaches the exterior cockpit to Cockpit.",
+    "weapons": [
+      [
+        "Head",
+        "Srm2Housing",
+        "Torso_Pitch",
+        "Weapon_Mech_SHD_Head_MH1_Missile2_SKM"
+      ],
+      [
+        "LeftTorso",
+        "CannonHousing",
+        "Torso_Pitch",
+        "Weapon_Mech_SHD_Torso_Left_BH1_AC5_SKM"
+      ],
+      [
+        "RightTorso",
+        "Lrm5Housing",
+        "Torso_Pitch",
+        "Weapon_Mech_SHD_Torso_Right_MH1_Missile5_SKM"
+      ],
+      [
+        "RightArm",
+        "LaserEmitter",
+        "Forearm_Right",
+        "Weapon_Mech_SHD_Arm_Right_EH1_Laser_SKM"
+      ]
+    ]
+  },
+  {
+    "id": "wolverine",
+    "chassis": "Wolverine",
+    "variant": "WVR-6R",
+    "prefix": "WVR",
+    "glass_section": 0,
+    "displayed_height": 2.94,
+    "model_scale": 1.175,
+    "missile_tubes": 6,
+    "source_tree": "Game",
+    "evidence": "WVR-6R_MDA/Loadout -> Wolverine_HPS visual mappings -> weapon blueprint SKM defaults. Mech_SKL sockets and component locals are identity. Wolverine_MDL attaches exterior cockpit to Cockpit. Head laser attaches via Torso_Pitch but belongs to Head damage location.",
+    "weapons": [
+      [
+        "RightArm",
+        "CannonHousing",
+        "Forearm_Right",
+        "Weapon_Mech_WVR_Forearm_Right_BH1_AC5_SKM"
+      ],
+      [
+        "LeftTorso",
+        "Srm6Housing",
+        "Torso_Pitch",
+        "Weapon_Mech_WVR_Torso_Left_MH1_Missile6_SKM"
+      ],
+      [
+        "Head",
+        "LaserEmitter",
+        "Torso_Pitch",
+        "Weapon_Mech_WVR_Head_EH1_Laser_SKM"
+      ]
+    ]
+  },
+  {
+    "id": "catapult",
+    "chassis": "Catapult",
+    "variant": "CPLT-C1",
+    "prefix": "CPLT",
+    "glass_section": 1,
+    "displayed_height": 3.16,
+    "model_scale": 1.225,
+    "missile_tubes": 0,
+    "source_tree": "Game",
+    "evidence": "CPLT-C1 loadout -> Catapult_HPS visual mappings -> source blueprint skeletal meshes. LRM15 launchers attach to Upperarm bones with fifteen source firing positions; lasers attach to Torso_Pitch. Catapult_MDL attaches exterior cockpit to Cockpit.",
+    "weapons": [
+      [
+        "LeftArm",
+        "Lrm15Housing",
+        "Upperarm_Left",
+        "Weapon_Mech_CPLT_Upperarm_Left_MH3_Missile15_SKM"
+      ],
+      [
+        "RightArm",
+        "Lrm15Housing",
+        "Upperarm_Right",
+        "Weapon_Mech_CPLT_Upperarm_Right_MH3_Missile15_SKM"
+      ],
+      [
+        "CenterTorso",
+        "LaserEmitterCenter_EH1",
+        "Torso_Pitch",
+        "Weapon_Mech_CPLT_Torso_Center_EH1_Laser_SKM"
+      ],
+      [
+        "CenterTorso",
+        "LaserEmitterCenter_EH2",
+        "Torso_Pitch",
+        "Weapon_Mech_CPLT_Torso_Center_EH2_Laser_SKM"
+      ],
+      [
+        "LeftTorso",
+        "LaserEmitterLeft_EH1",
+        "Torso_Pitch",
+        "Weapon_Mech_CPLT_Torso_Left_EH1_Laser_SKM"
+      ],
+      [
+        "RightTorso",
+        "LaserEmitterRight_EH1",
+        "Torso_Pitch",
+        "Weapon_Mech_CPLT_Torso_Right_EH1_Laser_SKM"
+      ]
+    ]
+  },
+  {
+    "id": "crusader",
+    "chassis": "Crusader",
+    "variant": "CRD-3R",
+    "prefix": "CRD",
+    "glass_section": 0,
+    "displayed_height": 3.16,
+    "model_scale": 1.225,
+    "missile_tubes": 6,
+    "source_tree": "Game/DLC4",
+    "evidence": "CRD-3R loadout -> Crusader_HPS visual mappings -> source blueprint skeletal meshes. Torso and forearm sockets use Torso_Pitch and Forearm bones; cockpit attaches to Cockpit.",
+    "weapons": [
+      [
+        "LeftTorso",
+        "Srm6Housing",
+        "Torso_Pitch",
+        "Weapon_Mech_CRD_Torso_Left_MH1_Missile6_SKM"
+      ],
+      [
+        "RightTorso",
+        "Srm6Housing",
+        "Torso_Pitch",
+        "Weapon_Mech_CRD_Torso_Right_MH1_Missile6_SKM"
+      ],
+      [
+        "RightArm",
+        "LaserEmitter1",
+        "Forearm_Right",
+        "Weapon_Mech_CRD_Forearm_Right_EH1_Laser_SKM"
+      ],
+      [
+        "RightArm",
+        "Lrm15Housing",
+        "Forearm_Right",
+        "Weapon_Mech_CRD_Forearm_Right_MH1_Missile15_SKM"
+      ],
+      [
+        "RightArm",
+        "MachineGun1",
+        "Forearm_Right",
+        "Weapon_Mech_CRD_Forearm_Right_BH1_MG_SKM"
+      ],
+      [
+        "LeftArm",
+        "LaserEmitter1",
+        "Forearm_Left",
+        "Weapon_Mech_CRD_Forearm_Left_EH1_Laser_SKM"
+      ],
+      [
+        "LeftArm",
+        "Lrm15Housing",
+        "Forearm_Left",
+        "Weapon_Mech_CRD_Forearm_Left_MH1_Missile15_SKM"
+      ],
+      [
+        "LeftArm",
+        "MachineGun1",
+        "Forearm_Left",
+        "Weapon_Mech_CRD_Forearm_Left_BH1_MG_SKM"
+      ]
+    ]
+  },
+  {
+    "id": "thunderbolt",
+    "chassis": "Thunderbolt",
+    "variant": "TDR-5S",
+    "prefix": "TDR",
+    "glass_section": 0,
+    "displayed_height": 3.16,
+    "model_scale": 1.225,
+    "missile_tubes": 2,
+    "source_tree": "Game",
+    "evidence": "TDR-5S loadout -> Thunderbolt_HPS visual mappings -> source blueprint skeletal meshes. Torso and forearm sockets use Torso_Pitch and Forearm bones; cockpit attaches to Cockpit.",
+    "weapons": [
+      [
+        "LeftTorso",
+        "LaserEmitter1",
+        "Torso_Pitch",
+        "Weapon_Mech_TDR_Torso_Left_EH1_Laser_SKM"
+      ],
+      [
+        "LeftTorso",
+        "LaserEmitter2",
+        "Torso_Pitch",
+        "Weapon_Mech_TDR_Torso_Left_EH2_Laser_SKM"
+      ],
+      [
+        "LeftTorso",
+        "LaserEmitter3",
+        "Torso_Pitch",
+        "Weapon_Mech_TDR_Torso_Left_EH3_Laser_SKM"
+      ],
+      [
+        "RightTorso",
+        "Lrm15Housing",
+        "Torso_Pitch",
+        "Weapon_Mech_TDR_Torso_Right_MH1_Missile15_SKM"
+      ],
+      [
+        "RightTorso",
+        "Srm2Housing",
+        "Torso_Pitch",
+        "Weapon_Mech_TDR_Torso_Right_MH2_Missile2_SKM"
+      ],
+      [
+        "RightArm",
+        "LaserEmitter1",
+        "Forearm_Right",
+        "Weapon_Mech_TDR_Forearm_Right_EH1_Laser_SKM"
+      ],
+      [
+        "LeftArm",
+        "MachineGun1",
+        "Forearm_Left",
+        "Weapon_Mech_TDR_Forearm_Left_BH1_MG_SKM"
+      ],
+      [
+        "LeftArm",
+        "MachineGun2",
+        "Forearm_Left",
+        "Weapon_Mech_TDR_Forearm_Left_BH2_MG_SKM"
+      ]
+    ]
+  },
+  {
+    "id": "awesome",
+    "chassis": "Awesome",
+    "variant": "AWS-8Q",
+    "prefix": "AWS",
+    "glass_section": 0,
+    "displayed_height": 3.64,
+    "model_scale": 1.3,
+    "missile_tubes": 0,
+    "source_tree": "Game",
+    "evidence": "AWS-8Q_Loadout -> Awesome_HPS -> weapon blueprint SKM defaults; shared Mech_SKL sockets and component locals are identity. Awesome_MDL attaches exterior cockpit to Cockpit. Head small laser attaches via Torso_Pitch but belongs to Head damage location.",
+    "weapons": [
+      [
+        "RightArm",
+        "PpcEmitter",
+        "Forearm_Right",
+        "Weapon_Mech_AWS_Forearm_Right_EH1_PPC_SKM"
+      ],
+      [
+        "LeftTorso",
+        "PpcEmitter",
+        "Torso_Pitch",
+        "Weapon_Mech_AWS_Torso_Left_EH1_PPC_SKM"
+      ],
+      [
+        "RightTorso",
+        "PpcEmitter",
+        "Torso_Pitch",
+        "Weapon_Mech_AWS_Torso_Right_EH1_PPC_SKM"
+      ],
+      [
+        "Head",
+        "LaserEmitter",
+        "Torso_Pitch",
+        "Weapon_Mech_AWS_Head_EH1_Laser_SKM"
+      ]
+    ]
+  },
+  {
+    "id": "victor",
+    "chassis": "Victor",
+    "variant": "VTR-9B",
+    "prefix": "VTR",
+    "glass_section": 1,
+    "displayed_height": 3.64,
+    "model_scale": 1.3,
+    "missile_tubes": 4,
+    "source_tree": "Game",
+    "evidence": "VTR-9B loadout -> Victor_HPS visual mappings -> source blueprint skeletal meshes. Torso and forearm sockets use Torso_Pitch and Forearm bones; cockpit attaches to Cockpit.",
+    "weapons": [
+      [
+        "LeftTorso",
+        "Srm4Housing",
+        "Torso_Pitch",
+        "Weapon_Mech_VTR_Torso_Left_MH1_Missile4_SKM"
+      ],
+      [
+        "RightArm",
+        "CannonHousing",
+        "Forearm_Right",
+        "Weapon_Mech_VTR_Forearm_Right_BH1_AC20_SKM"
+      ],
+      [
+        "LeftArm",
+        "LaserEmitter1",
+        "Forearm_Left",
+        "Weapon_Mech_VTR_Forearm_Left_EH1_Laser_SKM"
+      ],
+      [
+        "LeftArm",
+        "LaserEmitter2",
+        "Forearm_Left",
+        "Weapon_Mech_VTR_Forearm_Left_EH2_Laser_SKM"
+      ]
+    ]
+  },
+  {
+    "id": "zeus",
+    "chassis": "Zeus",
+    "variant": "ZEU-6S",
+    "prefix": "ZEU",
+    "glass_section": 0,
+    "displayed_height": 3.64,
+    "model_scale": 1.3,
+    "missile_tubes": 0,
+    "source_tree": "Game",
+    "evidence": "ZEU-6S loadout -> Zeus_HPS visual mappings -> source blueprint skeletal meshes. Torso and forearm sockets use Torso_Pitch and Forearm bones; cockpit attaches to Cockpit.",
+    "weapons": [
+      [
+        "LeftTorso",
+        "LaserEmitter1",
+        "Torso_Pitch",
+        "Weapon_Mech_ZEU_Torso_Left_EH1_Laser_SKM"
+      ],
+      [
+        "LeftTorso",
+        "LaserEmitter2",
+        "Torso_Pitch",
+        "Weapon_Mech_ZEU_Torso_Left_EH2_Laser_SKM"
+      ],
+      [
+        "CenterTorso",
+        "LaserEmitter1",
+        "Torso_Pitch",
+        "Weapon_Mech_ZEU_Torso_Center_EH1_Laser_SKM"
+      ],
+      [
+        "RightArm",
+        "Lrm15Housing",
+        "Forearm_Right",
+        "Weapon_Mech_ZEU_Forearm_Right_MH1_Missile15_SKM"
+      ],
+      [
+        "LeftArm",
+        "CannonHousing",
+        "Forearm_Left",
+        "Weapon_Mech_ZEU_Forearm_Left_BH1_AC5_SKM"
+      ]
+    ]
+  },
+  {
+    "id": "atlas",
+    "chassis": "Atlas",
+    "variant": "AS7-D",
+    "prefix": "AS7",
+    "glass_section": 1,
+    "displayed_height": 4.0,
+    "model_scale": 1.4,
+    "missile_tubes": 6,
+    "source_tree": "Game",
+    "evidence": "AS7-D_Loadout -> Atlas_HPS stock visuals; LRM20 uses MH1 Missile10 visual with ten source firing positions, SRM6 uses MH2. Torso and arm sockets attach to Torso_Pitch and Forearm bones. Atlas_MDL attaches exterior cockpit to Cockpit.",
+    "weapons": [
+      [
+        "LeftTorso",
+        "Lrm10Housing",
+        "Torso_Pitch",
+        "Weapon_Mech_AS7_Torso_Left_MH1_Missile10_SKM"
+      ],
+      [
+        "LeftTorso",
+        "Srm6Housing",
+        "Torso_Pitch",
+        "Weapon_Mech_AS7_Torso_Left_MH2_Missile6_SKM"
+      ],
+      [
+        "RightTorso",
+        "CannonHousing",
+        "Torso_Pitch",
+        "Weapon_Mech_AS7_Torso_Right_BH1_AC20_SKM"
+      ],
+      [
+        "LeftArm",
+        "LaserEmitter",
+        "Forearm_Left",
+        "Weapon_Mech_AS7_Forearm_Left_EH1_Laser_SKM"
+      ],
+      [
+        "RightArm",
+        "LaserEmitter",
+        "Forearm_Right",
+        "Weapon_Mech_AS7_Forearm_Right_EH1_Laser_SKM"
+      ],
+      [
+        "CenterTorso",
+        "LaserEmitter0",
+        "Torso_Pitch",
+        "Weapon_Mech_AS7_Torso_Center_EH1_Laser_SKM"
+      ],
+      [
+        "CenterTorso",
+        "LaserEmitter1",
+        "Torso_Pitch",
+        "Weapon_Mech_AS7_Torso_Center_EH2_Laser_SKM"
+      ]
+    ]
+  },
+  {
     "id": "annihilator",
     "chassis": "Annihilator",
     "variant": "ANH-1A",

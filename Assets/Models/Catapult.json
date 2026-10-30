@@ -1,5 +1,5 @@
 {
-  "source": "generated/mw5-catapult",
+  "source": "/home/dave/Models/MW5Mercenaries/Game/Objects/Mechs/Catapult/Model",
   "source_files": {
     "Body/CPLT_TP_Cockpit_DM0_STM.bin": "8874df2cf55e9cd9b8c37d0185011c118d3ef30c8b5b735ac343632c1cc545e9",
     "Body/CPLT_TP_Cockpit_DM0_STM.gltf": "588682975a16799a348e4d3c8896d0126ddd93b966ef2218bb6de3e9e62c6aaa",
@@ -22,8 +22,7 @@
     "Weapons/Weapon_Mech_CPLT_Upperarm_Left_MH3_Missile15_SKM.bin": "ac4a8e17815b95f6c7089d5bb6f1507b80dc5ddaac5d108ee77d5da76abe0dbf",
     "Weapons/Weapon_Mech_CPLT_Upperarm_Left_MH3_Missile15_SKM.gltf": "9892a99db987404d840d29d68333a158b32e9bdc75b6094bfb3aa35be1c62182",
     "Weapons/Weapon_Mech_CPLT_Upperarm_Right_MH3_Missile15_SKM.bin": "3c1c0dfd743e4fa7fd9a659774eb3983a6131c6b1aad87688ab59b360f96c054",
-    "Weapons/Weapon_Mech_CPLT_Upperarm_Right_MH3_Missile15_SKM.gltf": "eafd7859590713426fa3e8c4d952072697d11c142d464c964b86b1195528aa0c",
-    "attachments.json": "4c6d28d3eae6df70d5f49498ff1cbffbfbfac8d17b8f266f0d695f88047df38a"
+    "Weapons/Weapon_Mech_CPLT_Upperarm_Right_MH3_Missile15_SKM.gltf": "eafd7859590713426fa3e8c4d952072697d11c142d464c964b86b1195528aa0c"
   },
   "runtime_triangles": 37904,
   "render_meshes": 21,
@@ -33,16 +32,16 @@
     "CenterTorso/LaserEmitterCenter_EH2": 40,
     "Head/AmberCanopy": 109,
     "Head/CockpitFrame": 724,
-    "LeftArm/LauncherSupport": 1644,
     "LeftArm/Lrm15Housing": 3120,
+    "LeftArm/ShoulderAndUpperarm": 1644,
     "LeftLeg/Foot": 1952,
     "LeftLeg/Hip": 328,
     "LeftLeg/Shin": 2404,
     "LeftLeg/Thigh": 2321,
     "LeftTorso/LaserEmitterLeft_EH1": 358,
     "LeftTorso/TorsoShell": 1593,
-    "RightArm/LauncherSupport": 1644,
     "RightArm/Lrm15Housing": 3120,
+    "RightArm/ShoulderAndUpperarm": 1644,
     "RightLeg/Foot": 1952,
     "RightLeg/Hip": 328,
     "RightLeg/Shin": 2404,
@@ -50,7 +49,10 @@
     "RightTorso/LaserEmitterRight_EH1": 358,
     "RightTorso/TorsoShell": 1593
   },
+  "cross_region_faces": 0,
+  "weighted_faces": 0,
   "height": 2.5795918367346937,
+  "displayed_height": 3.16,
   "scale": 0.1710975549979524,
   "bottom": -0.006316604558378458,
   "rig": {
@@ -78,109 +80,55 @@
   },
   "weapons": [
     {
-      "name": "Lrm15Housing",
       "location": "LeftArm",
-      "mesh": "Weapon_Mech_CPLT_Upperarm_Left_MH3_Missile15_SKM",
-      "bone": "Upperarm_Left",
-      "rotation": [
-        0,
-        0,
-        0,
-        1
-      ],
-      "translation": [
-        0,
-        0,
-        0
-      ]
-    },
-    {
       "name": "Lrm15Housing",
+      "bone": "Upperarm_Left",
+      "mesh": "Weapon_Mech_CPLT_Upperarm_Left_MH3_Missile15_SKM",
+      "local_transform": "identity"
+    },
+    {
       "location": "RightArm",
-      "mesh": "Weapon_Mech_CPLT_Upperarm_Right_MH3_Missile15_SKM",
+      "name": "Lrm15Housing",
       "bone": "Upperarm_Right",
-      "rotation": [
-        0,
-        0,
-        0,
-        1
-      ],
-      "translation": [
-        0,
-        0,
-        0
-      ]
+      "mesh": "Weapon_Mech_CPLT_Upperarm_Right_MH3_Missile15_SKM",
+      "local_transform": "identity"
     },
     {
+      "location": "CenterTorso",
       "name": "LaserEmitterCenter_EH1",
-      "location": "CenterTorso",
+      "bone": "Torso_Pitch",
       "mesh": "Weapon_Mech_CPLT_Torso_Center_EH1_Laser_SKM",
-      "bone": "Torso_Pitch",
-      "rotation": [
-        0,
-        0,
-        0,
-        1
-      ],
-      "translation": [
-        0,
-        0,
-        0
-      ]
+      "local_transform": "identity"
     },
     {
-      "name": "LaserEmitterCenter_EH2",
       "location": "CenterTorso",
+      "name": "LaserEmitterCenter_EH2",
+      "bone": "Torso_Pitch",
       "mesh": "Weapon_Mech_CPLT_Torso_Center_EH2_Laser_SKM",
-      "bone": "Torso_Pitch",
-      "rotation": [
-        0,
-        0,
-        0,
-        1
-      ],
-      "translation": [
-        0,
-        0,
-        0
-      ]
+      "local_transform": "identity"
     },
     {
-      "name": "LaserEmitterLeft_EH1",
       "location": "LeftTorso",
-      "mesh": "Weapon_Mech_CPLT_Torso_Left_EH1_Laser_SKM",
+      "name": "LaserEmitterLeft_EH1",
       "bone": "Torso_Pitch",
-      "rotation": [
-        0,
-        0,
-        0,
-        1
-      ],
-      "translation": [
-        0,
-        0,
-        0
-      ]
+      "mesh": "Weapon_Mech_CPLT_Torso_Left_EH1_Laser_SKM",
+      "local_transform": "identity"
     },
     {
-      "name": "LaserEmitterRight_EH1",
       "location": "RightTorso",
-      "mesh": "Weapon_Mech_CPLT_Torso_Right_EH1_Laser_SKM",
+      "name": "LaserEmitterRight_EH1",
       "bone": "Torso_Pitch",
-      "rotation": [
-        0,
-        0,
-        0,
-        1
-      ],
-      "translation": [
-        0,
-        0,
-        0
-      ]
+      "mesh": "Weapon_Mech_CPLT_Torso_Right_EH1_Laser_SKM",
+      "local_transform": "identity"
     }
   ],
-  "missile_tubes": 30,
-  "materials": "Olive palette baked from MW5 default/wear masks; source UVs and normal detail preserved. Amber exterior canopy.",
-  "tool": "scripts/prepare-catapult.py; Python + Pillow"
+  "cockpit": {
+    "mesh": "CPLT_TP_Cockpit_DM0_STM",
+    "bone": "Cockpit",
+    "glass_section": 1
+  },
+  "missile_tubes": 0,
+  "attachment_evidence": "CPLT-C1 loadout -> Catapult_HPS visual mappings -> source blueprint skeletal meshes. LRM15 launchers attach to Upperarm bones with fifteen source firing positions; lasers attach to Torso_Pitch. Catapult_MDL attaches exterior cockpit to Cockpit.",
+  "materials": "Olive palette baked from default/wear masks; source UVs and normal detail retained; amber exterior canopy.",
+  "tool": "scripts/prepare-mech.py + scripts/mech_asset_tools.py; Python + Pillow"
 }

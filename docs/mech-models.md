@@ -4,7 +4,26 @@ Confirmed October 26, 2026. Awesome AWS-8Q, Jenner JR7-D, Wolverine WVR-6R and C
 
 ## Model contract
 
-`Scripts/MechModel.cs` provides the factory and shared rendering/condition contract used by both combat and the hangar. `Scripts/AwesomeModel.cs` provides the prepared-model loader; it, `Scripts/JennerModel.cs`, `Scripts/CatapultModel.cs` and `Scripts/WolverineModel.cs` load the corresponding GLBs in `Assets/Models/`, attach rigid sections to damage roots and give each instance independent team outlines. Add future chassis geometry through that factory; share the rendering/condition contract, while authoring each chassis's own proportions and shape. Chassis without an imported model use the generic geometry.
+`Scripts/MechModel.cs` provides the factory and shared rendering/condition contract used by both combat and the hangar. `Scripts/PreparedMechModels.cs` is the single table of prepared chassis: each catalog chassis whose manifest exists in `Assets/Models/` maps to its GLB name and locomotion rig. `Scripts/PreparedModelLoader.cs` loads those GLBs, attaches rigid sections to damage roots and gives each instance independent team outlines. Chassis without an imported model use the generic geometry.
+
+The table is generated; do not edit it by hand. `python3 scripts/generate-mech-rigs.py` reads rig pivots from each manifest and gait tuning from `Data/mech-gaits.json`, where `tuned` holds hand-tuned gaits by chassis ID and `default` applies to every other prepared chassis. Rerun it after preparing a model or changing a gait.
+
+## Preparing models
+
+Every imported chassis is rebuilt by one entry point with Python 3 and Pillow:
+
+```sh
+python3 scripts/prepare-mech.py <chassis>...          # e.g. jenner shadow-hawk
+python3 scripts/prepare-mech.py catapult --source /path/to/Catapult/Model
+python3 scripts/prepare-mech.py --all
+python3 scripts/generate-mech-rigs.py
+scripts/mech test
+scripts/mech capture
+```
+
+`Data/mech-models.json` holds each chassis's MW5 prefix, variant, displayed height, model scale, cockpit glass section, stock weapon attachments (damage location, part name, source bone, weapon mesh), and optionally its SRM tube count, source tree and attachment evidence. Preparation reads external UE Viewer exports from `~/Models/MW5Mercenaries/<source tree>/Objects/Mechs/<Chassis>/Model/` (source tree `Game` unless recorded otherwise; Crusader uses `Game/DLC4`); `--source` overrides it for a single chassis. Rigid assembly lives in `scripts/prepare_mw5_mech.py`, and the glTF reader, GLB writer and paint baking in `scripts/mech_asset_tools.py`. Raw exports and first-person cockpit interiors stay outside the project. Runtime builds require only prepared assets.
+
+Firing markers are named by weapon kind: `MissileTube` for SRMs, `LrmTube` for LRMs, `CannonMuzzle` for autocannons and `WeaponMuzzle_<part>` for other weapons.
 
 - There are eight `Node3D` location roots. Every mesh, including weapons, visor and joints, belongs beneath one root.
 - Shoulder slabs belong to arms; chest PPCs belong to side torsos. Hiding a destroyed location hides all its details. Combat's existing side-torso destruction also removes its attached arm.
@@ -25,15 +44,6 @@ Source bone weights define the rigid damage groups and thigh/shin/foot sections.
 
 The superseded generated source is archived outside the project at `/home/dave/Models/Archive/mech-generated-Awesome.glb`. Its runtime texture companions and Blender preparation code have been replaced. Only the current runtime GLB, four required Godot companion PNGs, manifest and preparation code remain in the project.
 
-Rebuild with Python 3 and Pillow:
-
-```sh
-python3 scripts/prepare-awesome.py
-# On another machine, supply the external Model or Body directory:
-python3 scripts/prepare-awesome.py --source /path/to/Awesome/Model
-scripts/mech test
-scripts/mech capture
-```
 
 ## Imported Jenner
 
@@ -43,34 +53,17 @@ Preparation reads external exports at `~/Models/MW5Mercenaries/Game/Objects/Mech
 
 Four non-rendering `MissileTube` markers and four beam muzzle markers preserve source firing positions. Source bone ownership groups the body without cutting or simplification; source hip, knee, ankle and shoulder pivots drive the existing quick gait and restrained weapon-pod motion. Paint, normal detail and independent team outlines use the shared MW5 pipeline.
 
-```sh
-python3 scripts/prepare-jenner.py
-python3 scripts/prepare-jenner.py --source /path/to/Jenner/Model
-scripts/mech test
-scripts/mech capture
-```
-
-Awesome, Jenner and Wolverine share rigid assembly code in `scripts/prepare_mw5_mech.py`; their small preparation entry points specify chassis scale, stock attachments and source evidence. The glTF reader, GLB writer and paint functions are shared with Catapult in `scripts/mech_asset_tools.py`. The refactor preserves the existing Wolverine and Catapult GLBs and manifests byte for byte. Each chassis manifest records every selected input hash, part counts, attachment choices and source-derived pivots. Raw exports and first-person cockpit interiors stay outside the project. Runtime builds require only prepared assets; rebuilding them requires the external exports.
-
 ## Imported Catapult
 
 `Assets/Models/Catapult.glb` replaces the procedural CPLT-C1 in both combat and the hangar. It contains **37,904 triangles in 21 rigid render meshes**, retaining the source silhouette at the existing **3.16 displayed height**. It faces negative Z, is grounded, and owns every mesh beneath one of the eight damage roots. The existing illustration is retained.
 
-Preparation inputs are the local UE Viewer exports in `generated/mw5-catapult/`, excluded from Godot imports and game exports by `generated/.gdignore`. The selection contains the body, exterior `CPLT_TP_Cockpit_DM0_STM` canopy, two launcher meshes, four torso laser meshes and six source texture maps used by the preparation script. Unused emissive maps and the first-person cockpit interior are excluded. `Assets/Models/Catapult.json` records every input hash, per-part counts, attachment choices and normalized joint coordinates.
+Preparation reads external exports at `~/Models/MW5Mercenaries/Game/Objects/Mechs/Catapult/Model/` through the shared pipeline. The selection contains the body, exterior `CPLT_TP_Cockpit_DM0_STM` canopy, two launcher meshes, four torso laser meshes and six source texture maps. Unused emissive maps and the first-person cockpit interior are excluded. `Assets/Models/Catapult.json` records every input hash, per-part counts, attachment choices and normalized joint coordinates.
 
-The stock loadout's logical `Upperarm_*_MH1_lrm15` slots map through `Catapult_HPS` to the **MH3 Missile15 visual meshes**. Source weapon blueprints and shared `Mech_SKL` sockets establish identity attachments onto `Upperarm_Left/Right`; the four lasers attach onto `Torso_Pitch`, and the exterior canopy attaches onto `Cockpit`. `attachments.json` records this chain. Each launcher retains fifteen source firing positions, represented by non-rendering `MissileTube` markers; the visible tube faces are the extracted mesh, not overlaid procedural geometry.
+The stock loadout's logical `Upperarm_*_MH1_lrm15` slots map through `Catapult_HPS` to the **MH3 Missile15 visual meshes**. Source weapon blueprints and shared `Mech_SKL` sockets establish identity attachments onto `Upperarm_Left/Right`; the four lasers attach onto `Torso_Pitch`, and the exterior canopy attaches onto `Cockpit`. `Data/mech-models.json` records these attachments. Each launcher retains fifteen source firing positions, represented by non-rendering `LrmTube` markers, and each laser has a `WeaponMuzzle` marker; the visible tube faces are the extracted mesh, not overlaid procedural geometry.
 
 The source body is rigidly weighted, and each triangle belongs wholly to one bone. Preparation groups these source faces into damage locations and thigh/shin/foot sections without cutting or simplifying the armor. Feet include the source toes and talons. Pivot coordinates come from the source skeleton. The shared leg solver chooses its bend direction from each rig's rest pose, preserving the Catapult's rearward knees alongside the existing chassis.
 
 Source UVs and 2048px normal maps are retained. Olive, light olive, steel and restrained wear are baked from the default and wear masks; normal-map green channels are converted from DirectX to glTF convention. The exterior glass is amber. These are authored game materials, not a reconstruction of MW5's full paint shader. Friendly and enemy instances share meshes and textures with independent outline passes.
-
-Rebuild from the retained local exports with Python 3 and Pillow:
-
-```sh
-python3 scripts/prepare-catapult.py
-scripts/mech test
-scripts/mech capture
-```
 
 ## Imported Wolverine
 
@@ -82,21 +75,11 @@ The WVR-6R source loadout, hardpoint mappings, visual blueprint defaults and sha
 
 Rigid source faces are grouped by their owning bones without geometric cutting or simplification. Pelvis flaps remain with the center torso; thigh flaps follow the corresponding thigh. The gait uses the source's forward-bending knees, preserves the free left-arm swing and braces the right cannon arm. Source UVs, 2048px mask/normal detail, the shared olive palette, amber canopy and independent team outlines follow the Catapult approach.
 
-The Python glTF reader, GLB writer and paint functions are shared in `scripts/mech_asset_tools.py`. Extracting these helpers preserves the existing Catapult GLB and manifest byte for byte. Rebuild Wolverine with Python 3 and Pillow:
-
-```sh
-python3 scripts/prepare-wolverine.py
-# On another machine, supply the external Model or Body directory:
-python3 scripts/prepare-wolverine.py --source /path/to/Wolverine/Model
-scripts/mech test
-scripts/mech capture
-```
-
-The project retains the prepared GLB, four required Godot companion textures, the manifest and preparation code. Rebuilding requires the external source exports; running the game does not.
+The project retains the prepared GLB, four required Godot companion textures and the manifest. Rebuilding requires the external source exports; running the game does not.
 
 ## Imported Atlas
 
-`Assets/Models/Atlas.glb` supplies the AS7-D model, at 4.00 displayed units with 50,045 triangles in 24 rigid render meshes. It uses the source skull cockpit, amber eyes, stock weapon meshes, olive paint and source normal detail. Its articulated rig uses the shared longer stride and movement speed. The preparation manifest records source files, hashes and joint pivots; regenerate with `python3 scripts/prepare-atlas.py` (Python 3 and Pillow; `--source` accepts an external Model or Body directory).
+`Assets/Models/Atlas.glb` supplies the AS7-D model, at 4.00 displayed units with 50,045 triangles in 24 rigid render meshes. It uses the source skull cockpit, amber eyes, stock weapon meshes, olive paint and source normal detail. Its articulated rig uses the shared longer stride and movement speed. The preparation manifest records source files, hashes and joint pivots.
 
 MW5's AS7-D source loadout and hardpoint mappings place the AC/20 on the right torso, LRM 20 and SRM 6 on the left torso, one laser on each arm and two on the center torso. The LRM 20 uses MW5's ten-position missile visual; the SRM retains six positions. The tabletop stock catalog records the two center-torso lasers as rear-facing. Existing combat rules do not yet enforce weapon firing arcs, so their rear-facing status is currently informational.
 
@@ -106,17 +89,17 @@ Atlas is eligible in the assault draft pool and uses its 3D model in draft previ
 
 The existing draft candidates PNT-9R, SHD-2H and GRF-1N use prepared MW5 source models in the hangar and combat, retaining their existing tabletop statistics and draft entries. Their displayed heights are 2.48, 3.00 and 3.00 units respectively. The models contain 40,503, 29,896 and 24,401 triangles, with source cockpit geometry, weapons, masks and normals. Source joints drive the same shared faster movement and longer strides as the other imports.
 
-The MW5 loadouts and hardpoint visual mappings select the stock weapons; Shadow Hawk's right-arm laser blueprint references `Arm_Right_EH1_Laser_SKM`. Its head SRM, left torso AC/5 and right torso LRM stay with their corresponding damage roots. Panther has four SRM firing markers and Griffin has ten LRM markers; Shadow Hawk has two SRM and five LRM markers. The Panther and Shadow Hawk source bodies have a few cross-bone torso seam faces; each intact triangle is assigned to its predominant torso region. Rebuild using `python3 scripts/prepare-panther.py`, `python3 scripts/prepare-shadowhawk.py` or `python3 scripts/prepare-griffin.py`; `--source` overrides the external model directory.
+The MW5 loadouts and hardpoint visual mappings select the stock weapons; Shadow Hawk's right-arm laser blueprint references `Arm_Right_EH1_Laser_SKM`. Its head SRM, left torso AC/5 and right torso LRM stay with their corresponding damage roots. Panther has four SRM firing markers and Griffin has ten LRM markers; Shadow Hawk has two SRM and five LRM markers. The Panther and Shadow Hawk source bodies have a few cross-bone torso seam faces; each intact triangle is assigned to its predominant torso region.
 
 ## Imported Firestarter, Crusader, Thunderbolt, Victor and Zeus
 
 The existing draft candidates FS9-H, CRD-3R, TDR-5S, VTR-9B and ZEU-6S use MW5 geometry, stock source weapons, exterior cockpits and source-derived joints in the hangar and combat. The existing draft choices and tabletop specifications are unchanged. Their displayed heights are 2.48, 3.16, 3.16, 3.64 and 3.64 units respectively. The corresponding prepared models contain 28,442, 43,232, 24,785, 25,913 and 29,849 triangles.
 
-The MW5 CRD-3R source locates both SRM 6 visuals on the torso; the tabletop catalog assigns the weapons to the legs. Source visuals remain with their torso damage groups while gameplay uses the existing leg-mounted equipment record. The Firestarter and Zeus also retain tabletop rear-facing equipment records; MW5 source visual mounts and the existing combat firing-arc rules remain unchanged. Crusader source exports are under the DLC4 tree. Each model can be rebuilt with `python3 scripts/prepare-<chassis>.py` and an optional `--source` override; each manifest records the input hashes and attachments.
+The MW5 CRD-3R source locates both SRM 6 visuals on the torso; the tabletop catalog assigns the weapons to the legs. Source visuals remain with their torso damage groups while gameplay uses the existing leg-mounted equipment record. The Firestarter and Zeus also retain tabletop rear-facing equipment records; MW5 source visual mounts and the existing combat firing-arc rules remain unchanged. Crusader source exports are under the DLC4 tree. Each manifest records the input hashes and attachments.
 
 ## Additional catalog imports
 
-The 36 remaining exported base-game chassis are eligible in the initial draft according to weight class; existing companies are unchanged. Their selected variants are listed below. `Data/additional-mechs.json` records the pinned stock-data paths, while `Data/additional-mech-models.json` records the installed game's source hardpoints and weapon blueprints. Each prepared GLB has a manifest with source hashes, rig pivots, geometry counts and the number of source seam or weighted faces assigned to their predominant damage region. Rebuild one with `python3 scripts/prepare-additional-mech.py <id> [--source /path/to/Model]`, then regenerate its runtime rig table with `python3 scripts/generate-additional-rigs.py`.
+The 36 remaining exported base-game chassis are eligible in the initial draft according to weight class; existing companies are unchanged. Their selected variants are listed below. `Data/additional-mechs.json` records the pinned stock-data paths, while their entries in `Data/mech-models.json` record the installed game's source hardpoints and weapon blueprints. Each prepared GLB has a manifest with source hashes, rig pivots, geometry counts and the number of source seam or weighted faces assigned to their predominant damage region.
 
 All additional rigs inherit the shared movement and stride scaling. The Mauler has an XL engine, double heat sinks and ER lasers; the catalog retains those facts and the UI displays double heat-sink dissipation. The current simplified combat rules do not model XL-engine vulnerability, heat accumulation or other advanced equipment effects. Its missing unweighted Cockpit export uses the equivalent source Torso_Head transform. The Rifleman's wear and default masks have different dimensions, so the default mask is resampled to preserve the larger wear texture during baking.
 
