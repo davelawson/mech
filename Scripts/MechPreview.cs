@@ -25,8 +25,8 @@ public partial class MechPreview : Control
     public override void _Ready()
     {
         MouseFilter = MouseFilterEnum.Ignore; ClipContents = true;
-        var surface = new SubViewportContainer { Stretch = true, MouseFilter = MouseFilterEnum.Ignore };
-        surface.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(surface);
+        var surface = new NativeViewportContainer { MouseFilter = MouseFilterEnum.Ignore };
+        AddChild(surface);
         var viewport = new SubViewport { OwnWorld3D = true, TransparentBg = true, GuiDisableInput = true,
             Msaa3D = Viewport.Msaa.Msaa4X, RenderTargetUpdateMode = SubViewport.UpdateMode.WhenVisible,
             HandleInputLocally = false };

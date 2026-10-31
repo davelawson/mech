@@ -28,10 +28,19 @@ public partial class CommandApp : Control
     private bool _untilEvent;
     private string? _savedSnapshot;
 
+    /// <summary>The stretch mode scales the 1440 × 900 base layout to fit the window; cancel any shrink so smaller windows keep full-size text and their compact layouts.</summary>
+    private void ScaleInterface()
+    {
+        var window = GetWindow(); var size = (Vector2)window.Size; var baseSize = (Vector2)window.ContentScaleSize;
+        var fit = Math.Min(size.X / baseSize.X, size.Y / baseSize.Y);
+        window.ContentScaleFactor = fit < 1 ? 1 / fit : 1;
+    }
+
     public override void _Ready()
     {
         Theme = Ui.CreateTheme();
         GetWindow().MinSize = new Vector2I(900, 500);
+        GetWindow().SizeChanged += ScaleInterface; ScaleInterface();
         GetTree().AutoAcceptQuit = false;
         GetWindow().CloseRequested += RequestQuit;
         GetWindow().FocusExited += CancelRightDrag;

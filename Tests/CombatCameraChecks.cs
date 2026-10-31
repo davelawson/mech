@@ -149,7 +149,7 @@ public partial class SmokeTests
     }
     private static void CameraMotion(Vector2 at, Vector2 delta) => Input.ParseInputEvent(new InputEventMouseMotion
     {
-        Position = at, GlobalPosition = at, Relative = delta, ScreenRelative = delta,
+        Position = ToWindow(at), GlobalPosition = ToWindow(at), Relative = ToWindowDelta(delta), ScreenRelative = ToWindowDelta(delta),
         ButtonMask = Input.IsMouseButtonPressed(Godot.MouseButton.Right) ? MouseButtonMask.Right : 0
     });
     private static void CameraStep(CombatViewport field, double delta, params Key[] keys)

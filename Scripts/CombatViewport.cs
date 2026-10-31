@@ -18,6 +18,7 @@ public partial class CombatViewport : Control
     }
     public Camera3D Camera { get; private set; } = null!;
     private SubViewport _viewport = null!;
+    private NativeViewportContainer _surface = null!;
     private Node3D _world = null!;
     private Node3D? _terrainView;
     private readonly Dictionary<string, MechModel> _models = [];
@@ -231,8 +232,8 @@ public partial class CombatViewport : Control
     public override void _Ready()
     {
         ClipContents = true; FocusMode = FocusModeEnum.All; MouseDefaultCursorShape = CursorShape.Cross;
-        var surface = new SubViewportContainer { Stretch = true, MouseFilter = MouseFilterEnum.Ignore, ShowBehindParent = true };
-        surface.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(surface);
+        var surface = _surface = new NativeViewportContainer { MouseFilter = MouseFilterEnum.Ignore, ShowBehindParent = true };
+        AddChild(surface);
         _viewport = new SubViewport { OwnWorld3D = true, GuiDisableInput = true,
             RenderTargetUpdateMode = SubViewport.UpdateMode.WhenVisible, HandleInputLocally = false };
         surface.AddChild(_viewport);
@@ -769,10 +770,12 @@ public partial class CombatViewport : Control
         }
     }
     public static Vector3 World(Vector2 point, float height = 0) => new(point.X, height, point.Y);
-    public Vector2 ScreenPoint(Vector2 point, float height = 0) => Camera.UnprojectPosition(World(point, (Simulation?.Terrain.HeightAt(point) ?? 0) + height));
+    public Vector2 ScreenPoint(Vector2 point, float height = 0) => Unproject(World(point, (Simulation?.Terrain.HeightAt(point) ?? 0) + height));
+    /// <summary>A world position in this control's local coordinates; the camera itself works in sub-viewport pixels.</summary>
+    public Vector2 Unproject(Vector3 world) => Camera.UnprojectPosition(world) / _surface.Density;
     public Vector2 GroundPoint(Vector2 screen)
     {
-        var from = Camera.ProjectRayOrigin(screen); var direction = Camera.ProjectRayNormal(screen);
+        var from = Camera.ProjectRayOrigin(screen * _surface.Density); var direction = Camera.ProjectRayNormal(screen * _surface.Density);
         if (Simulation?.Terrain.RayDistance(from, direction, Camera.Far) is { } distance)
         {
             var hit = from + direction * distance;
@@ -866,7 +869,7 @@ public partial class CombatViewport : Control
         _yaw = 0; _pitch = DefaultPitch; Camera.Size = 1500; UpdateCamera();
         // Fit the complete visible models, including hills and projecting weapons, in camera space.
         var extent = (Vector2)_viewport.Size / 2;
-        var available = (extent - Vector2.One * 24).Max(Vector2.One);
+        var available = (extent - Vector2.One * 24 * _surface.Density).Max(Vector2.One);
         var scale = 1f;
         foreach (var unit in group)
         {
@@ -963,7 +966,7 @@ public partial class CombatViewport : Control
     internal CombatUnit? PickMech(Vector2 at)
     {
         if (Simulation is null || !new Rect2(Vector2.Zero, Size).HasPoint(at)) return null;
-        var origin = Camera.ProjectRayOrigin(at); var direction = Camera.ProjectRayNormal(at);
+        var origin = Camera.ProjectRayOrigin(at * _surface.Density); var direction = Camera.ProjectRayNormal(at * _surface.Density);
         var nearest = Camera.Far;
         CombatUnit? picked = null;
         foreach (var unit in Simulation.Units)
@@ -1195,13 +1198,13 @@ public partial class CombatViewport : Control
             }
             if (effect.Shell is not null || effect.Salvo is not null || effect.Ppc || effect.Rounds is not null) continue;
             var color = new Color(shot.Hit ? Ui.Gold : Ui.Muted, 1 - age / ShotLife);
-            DrawLine(Camera.UnprojectPosition(from), Camera.UnprojectPosition(to), color, 1, true);
+            DrawLine(Unproject(from), Unproject(to), color, 1, true);
             if (shot.Hit) ImpactRing(to, age, Ui.Gold);
         }
         void ImpactRing(Vector3 at, float age, Color color)
         {
             var fade = 1 - age / ShotLife;
-            if (age >= 0 && fade > 0) DrawArc(Camera.UnprojectPosition(at), (1 - fade) * 14 + 3, 0, Mathf.Tau, 16, new Color(color, fade), 2, true);
+            if (age >= 0 && fade > 0) DrawArc(Unproject(at), (1 - fade) * 14 + 3, 0, Mathf.Tau, 16, new Color(color, fade), 2, true);
         }
         if (_selecting && _dragStart.DistanceTo(_dragEnd) > 5)
         { var rect = new Rect2(_dragStart, _dragEnd - _dragStart).Abs(); DrawRect(rect, new Color(Ui.Gold, .12f)); DrawRect(rect, Ui.Gold, false); }

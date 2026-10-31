@@ -48,7 +48,7 @@ public partial class SmokeTests
             Check(field.PickMech(field.ScreenPoint(second.Position, secondModel.Height * .8f)) == second,
                 "a larger chassis uses its own model-sized hit area");
             friendly.Facing = Vector2.Right; field._Process(0);
-            Check(field.PickMech(field.Camera.UnprojectPosition(model.GlobalTransform * model.PickBounds()!.Value.GetCenter())) == friendly,
+            Check(field.PickMech(field.Unproject(model.GlobalTransform * model.PickBounds()!.Value.GetCenter())) == friendly,
                 "picking follows mech facing");
             var intact = model.PickBounds()!.Value;
             foreach (var part in new[] { MechLocation.LeftArm, MechLocation.RightArm })

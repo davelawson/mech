@@ -14,7 +14,7 @@
 - Standalone Windows 11 x64, Linux x64, and macOS (Apple Silicon and Intel) applications are the initial targets, built with Godot and C#. Resizing keeps the complete office image and wall-map hotspot aligned.
 - The painted wall chart is the clickable wall map, with no persistent marker. Click it, or focus it with Tab and press Enter/Space. Hover or keyboard focus outlines the painted frame in gold, with the tooltip “Open star map”. Its miniature always shows the complete reference chart, independently of the opened map’s zoom and pan.
 - The wall map opens a separate screen displaying the official 3025 map of the entire Inner Sphere, with pan, zoom, and “Back to office”.
-- The default window is 1440 × 900, with a 900 × 500 minimum.
+- The default window is 1440 × 900, with a 900 × 500 minimum. The interface is laid out at a 1440 × 900 base and scales up uniformly with larger windows (by the smaller of the width and height ratios), with the longer direction gaining extra layout space rather than letterboxing. It never scales below full size, so smaller windows keep full-size text and use their compact layouts. 3D views render at the window’s pixel density, so they stay sharp.
 - Every named system on the full reference chart participates in travel; geography and clickable labels are extracted from its pinned vector source.
 - The office now includes a digital wall calendar and attached “Reminder...” post-it, a company safe, and a filing cabinet. Other campaign simulation follows in the first strategy milestone.
 - Acceptance includes office/map navigation, animated time controls, quarterly payment and bankruptcy flows, and manual save/load, including keyboard navigation and resized windows.

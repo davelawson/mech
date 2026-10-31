@@ -220,6 +220,8 @@ public partial class SmokeTests : Node
         {
             GetWindow().Size = size;
             await Frames();
+            Near(GetWindow().GetFinalTransform().X.X, Math.Max(1, Math.Min(size.X / 1440f, size.Y / 900f)),
+                $"interface scales up with the window but never below full size at {size}");
             var office = _app.Office;
             var art = office.ArtworkRect;
             var hotspot = office.Hotspot;
@@ -896,15 +898,19 @@ public partial class SmokeTests : Node
         await Frames();
     }
 
+    /// <summary>Parsed input arrives in window pixels; convert from the scaled interface's coordinates.</summary>
+    private static Vector2 ToWindow(Vector2 at) => ((SceneTree)Engine.GetMainLoop()).Root.GetFinalTransform() * at;
+    private static Vector2 ToWindowDelta(Vector2 delta) => ((SceneTree)Engine.GetMainLoop()).Root.GetFinalTransform().BasisXform(delta);
+
     private static void MouseMotion(Vector2 at, Vector2 delta) => Input.ParseInputEvent(new InputEventMouseMotion
     {
-        Position = at, GlobalPosition = at, Relative = delta,
+        Position = ToWindow(at), GlobalPosition = ToWindow(at), Relative = ToWindowDelta(delta),
         ButtonMask = Input.IsMouseButtonPressed(Godot.MouseButton.Left) ? MouseButtonMask.Left : 0
     });
 
     private static void MouseButton(Vector2 at, Godot.MouseButton button, bool pressed, float factor = 1) => Input.ParseInputEvent(new InputEventMouseButton
     {
-        Position = at, GlobalPosition = at, ButtonIndex = button, Pressed = pressed, Factor = factor
+        Position = ToWindow(at), GlobalPosition = ToWindow(at), ButtonIndex = button, Pressed = pressed, Factor = factor
     });
 
     private async Task Frames()
