@@ -57,11 +57,11 @@ public static partial class CombatRules
     public static bool IsSrm(WeaponKind kind) => kind is WeaponKind.SRM2 or WeaponKind.SRM4 or WeaponKind.SRM6;
     /// <summary>LRM and SRM racks fire salvos whose missiles roll separately.</summary>
     public static bool FiresSalvo(WeaponKind kind) => IsLrm(kind) || IsSrm(kind);
-    /// <summary>LRM salvos fly slower than shells so the swarm reads: 2.5 seconds at the 63-hex long range.</summary>
-    public const float MissileSpeed = 25;
+    /// <summary>LRM salvos fly slower than shells so the swarm reads: 3.6 seconds at the 63-hex long range.</summary>
+    public const float MissileSpeed = 17.5f;
     public static double MissileFlightSeconds(float distance) => distance / MissileSpeed;
     /// <summary>SRMs leave the rack at this speed and accelerate steadily.</summary>
-    public const double SrmLaunchSpeed = 8;
+    public const double SrmLaunchSpeed = 5.6;
     // Calibrated so an SRM still reaches its 27-hex long range in 27 / MissileSpeed seconds.
     private const double SrmCalibrationRange = 9 * WeaponRangeScale;
     private const double SrmCalibrationSeconds = SrmCalibrationRange / MissileSpeed;
@@ -486,7 +486,7 @@ public sealed partial class CombatSimulation
         RefreshDetection();
         if (EnemyAiEnabled) UpdateAi();
         StopInvalidFollows();
-        foreach (var unit in Units) { unit.Moving = false; unit.AngularVelocity = 0; }
+        foreach (var unit in Units) { unit.Moving = unit.TorsoTurning = false; unit.AngularVelocity = 0; }
         foreach (var unit in Units.Where(item => item.Active)) MoveUnit(unit, delta);
         foreach (var unit in Units.Where(item => !item.Defeated))
         {
@@ -544,7 +544,8 @@ public sealed partial class CombatSimulation
                 var location = salvo ? (missiles.FirstOrDefault(missile => missile.Hit) ?? missiles[0]).Location : RollLocation();
                 var laser = hit && CombatRules.IsLaser(weapon.Spec.Kind);
                 var shell = CombatRules.IsAutocannon(weapon.Spec.Kind);
-                var second = laser ? RollAdjacentLocation(location) : (MechLocation?)null;
+                // A burn only spreads to an adjacent location across a target in motion at the moment it is struck.
+                var second = !laser ? (MechLocation?)null : target.InMotion ? RollAdjacentLocation(location) : location;
                 var damage = !hit ? 0 : laser ? CombatRules.LaserFirstHalf(weapon.Damage)
                     : salvo ? missiles.Count(missile => missile.Hit) * weapon.Spec.DamageProfile.PerProjectile : weapon.Damage;
                 var distance = unit.Position.DistanceTo(target.Position);

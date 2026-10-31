@@ -101,7 +101,7 @@ public partial class SmokeTests
                 }
                 return null;
             }
-            var burning = Fresh(shot => shot.SecondLocation is not null);
+            var burning = Fresh(shot => shot.SecondLocation is { } second && second != shot.Location);
             Check(burning is not null, "the exchange produced a visible laser hit");
             var kind = sim.Unit(burning!.AttackerId).Spec.Weapons.Single(weapon => weapon.Id == burning.WeaponId).Kind;
             var (_, halo, core) = field.Beams().Single(beam => beam.Shot == burning);
@@ -121,10 +121,15 @@ public partial class SmokeTests
                 "a beam reaches half its length after half its growth time");
             sim.Advance(.6); field._Process(0);
             var swept = field.ShotPaths().Where(path => path.Shot.Sequence == burning.Sequence).ToArray();
+            var struckModel = ModelAt(sim.Unit(burning.TargetId));
             Check(swept.Length == 1 && swept[0].Location == burning.SecondLocation
-                    && swept[0].To.IsEqualApprox(ModelAt(sim.Unit(burning.TargetId)).LocationCenter(burning.SecondLocation!.Value))
+                    && swept[0].To.DistanceTo(struckModel.LocationCenter(burning.Location)
+                        .Lerp(struckModel.LocationCenter(burning.SecondLocation!.Value), .65f)) < 1e-3f
                     && Math.Abs(halo.GlobalTransform.Basis.Y.Length() - swept[0].From.DistanceTo(swept[0].To)) < 1e-3f,
-                "after half the burn the full-length beam holds on the adjacent location");
+                "a full-length beam sweeps linearly from the first location toward the adjacent one over the burn");
+            Check(CombatViewport.LaserRadius(WeaponKind.SmallLaser) == .02f && CombatViewport.LaserRadius(WeaponKind.MediumLaser) == .04f
+                    && CombatViewport.LaserRadius(WeaponKind.LargeLaser) == .06f && CombatViewport.LaserRadius(WeaponKind.ERLargeLaser) == .06f,
+                "beam widths are one, two and three thirds of the large laser's");
 
             var miss = Fresh(shot => !shot.Hit);
             Check(miss is not null, "the exchange produced a visible laser miss");
@@ -204,6 +209,16 @@ public partial class SmokeTests
                     && Math.Abs(CombatViewport.MissileProgress(.01f, CombatViewport.LrmLaunchShare) / .01f - .4f) < .01f
                     && Math.Abs((1 - CombatViewport.MissileProgress(.99f, CombatViewport.LrmLaunchShare)) / .01f - 1.6f) < .01f,
                 "LRMs climb at 40% of their average speed and dive in at 160%, reaching the apex after 64% of the flight");
+            var flameColors = (Color[])CombatViewport.FlameMesh.SurfaceGetArrays(0)[(int)Mesh.ArrayType.Color];
+            var flameVertices = (Vector3[])CombatViewport.FlameMesh.SurfaceGetArrays(0)[(int)Mesh.ArrayType.Vertex];
+            Check(CombatViewport.FlameColor(1).IsEqualApprox(Colors.White) && CombatViewport.FlameColor(.5f) is { R: 1, G: > .8f, B: < .3f, A: .5f }
+                    && CombatViewport.FlameColor(0) is { R: 1, G: < .5f, B: < .1f, A: 0 }
+                    && flameVertices.Zip(flameColors).All(pair =>
+                    {
+                        var expected = CombatViewport.FlameColor(pair.First.Y + .5f);
+                        return new Vector4(pair.Second.R - expected.R, pair.Second.G - expected.G, pair.Second.B - expected.B, pair.Second.A - expected.A).Length() < .01f;
+                    }),
+                "missile trails run from white at the missile through yellow to a fading orange tail");
             Check(CombatViewport.MissileTrailSeconds <= .04f && CombatViewport.MissileWobble == .75f, "missile trails are short and the skitter is gentle");
             Check(CombatViewport.WobbleEnvelope(0) == 0 && CombatViewport.WobbleEnvelope(1) == 0 && CombatViewport.WobbleEnvelope(.5f) == 1,
                 "the skitter builds after launch and vanishes on arrival");

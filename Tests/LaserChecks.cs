@@ -8,11 +8,13 @@ internal static partial class CombatChecks
         new(id, "Medium Laser", MechLocation.RightArm, false, 3, new(DamageKind.Direct, 5, 1, 0), 0, 20, 25, 30, null, WeaponKind.MediumLaser);
 
     // Friendly carries an enabled laser; the enemy holds fire unless a check arms its lethal cannon.
-    private static CombatSimulation LaserFixture(int seed = 41)
+    // By default the enemy is twisting its torso back to center, so laser burns spread across locations.
+    private static CombatSimulation LaserFixture(int seed = 41, bool twisting = true)
     {
         var sim = HeatFixture([TestLaser(), HeatGun("cannon", 0, 1000)], seed: seed);
         Friendly(sim).Weapons[1].Enabled = false;
         Enemy(sim).Weapons[0].Enabled = false; Enemy(sim).Firing = FiringMode.HoldFire;
+        if (twisting) Enemy(sim).TorsoTwist = .5f;
         sim.Paused = false;
         return sim;
     }
@@ -35,7 +37,7 @@ internal static partial class CombatChecks
         check(discharge.Hit && discharge.Damage == 3 && discharge.SecondDamage == 2 && discharge.SecondLocation is { } second
                 && CombatRules.AdjacentLocations(discharge.Location).Contains(second)
                 && enemy.ArmorLost + enemy.StructureLost - armor == 3 && friendly.DamageDealt == 3,
-            "a laser hit applies its first half at discharge and rolls an adjacent second location");
+            "a laser hit on a twisting target applies its first half at discharge and rolls an adjacent second location");
         check(sim.History[0].DebugText.Contains($"dmg 3, burn +2 {DraftCatalog.Abbreviation(discharge.SecondLocation!.Value)}"),
             "the discharge entry announces the pending burn");
         Steps(sim, 9);
@@ -50,6 +52,23 @@ internal static partial class CombatChecks
         check(burn.DebugText.Contains("burn continues") && !burn.DebugText.Contains("chance"),
             "burn entries inherit their discharge roll");
 
+        sim = LaserFixture(twisting: false); enemy = Enemy(sim); armor = enemy.ArmorLost + enemy.StructureLost;
+        check(!enemy.InMotion, "a target standing still with a centered torso is not in motion");
+        Steps(sim, 1);
+        discharge = sim.History.Single().Shot;
+        check(discharge.Hit && !enemy.InMotion && discharge.SecondLocation == discharge.Location
+                && sim.History[0].DebugText.Contains($"burn +2 {DraftCatalog.Abbreviation(discharge.Location)}"),
+            "a laser burn on a stationary target stays on the struck location");
+        Steps(sim, 10);
+        check(sim.History.Count == 2 && sim.History[^1].Shot is { Burn: true } stayed && stayed.Location == discharge.Location
+                && enemy.ArmorLost + enemy.StructureLost - armor == 5,
+            "the second half of a stationary target's burn lands on the same location");
+        sim = LaserFixture(twisting: false); enemy = Enemy(sim);
+        sim.Move([enemy.Id], enemy.Position + new Vector2(0, 20)); Steps(sim, 1);
+        discharge = sim.History.Single().Shot;
+        check(enemy.InMotion && !enemy.TorsoTurning && discharge.SecondLocation is { } spread
+                && CombatRules.AdjacentLocations(discharge.Location).Contains(spread),
+            "a laser burn spreads across a target that is walking or turning");
         sim = HeatFixture([TestLaser()], seed: 1, gunnery: 8); Enemy(sim).Firing = FiringMode.HoldFire;
         sim.Paused = false; Steps(sim, 20);
         check(sim.History.Count == 1 && !sim.History[0].Shot.Hit && sim.History[0].Shot.SecondLocation is null,

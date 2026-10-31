@@ -29,6 +29,10 @@ public sealed partial class CombatUnit
     /// <summary>Waist-joint angle in radians relative to leg Facing, not a world-space heading.</summary>
     public float TorsoTwist { get; internal set; }
     public Vector2 TorsoFacing => Facing.Rotated(TorsoTwist);
+    /// <summary>The waist turned during the current step.</summary>
+    public bool TorsoTurning { get; internal set; }
+    /// <summary>Moving, turning or twisting during the current step spreads a laser burn across locations.</summary>
+    public bool InMotion => Moving || AngularVelocity != 0 || TorsoTurning;
     public string? CurrentRearTarget { get; internal set; }
     public float TorsoTurnRate => CombatRules.TorsoTurnRate(Spec);
     // Rear 120 degrees, centered opposite torso facing; only torsos have separate rear armor.
@@ -56,7 +60,8 @@ public sealed partial class CombatSimulation
     {
         var desired = target is null ? 0 : Math.Clamp(unit.Facing.AngleTo(target.Position - unit.Position),
             -CombatRules.MaxTorsoTwist, CombatRules.MaxTorsoTwist);
-        unit.TorsoTwist = Mathf.MoveToward(unit.TorsoTwist, desired, unit.TorsoTurnRate * delta);
+        var twist = Mathf.MoveToward(unit.TorsoTwist, desired, unit.TorsoTurnRate * delta);
+        unit.TorsoTurning = twist != unit.TorsoTwist; unit.TorsoTwist = twist;
     }
     public CombatUnit? SelectRearTarget(CombatUnit unit)
     {

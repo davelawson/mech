@@ -37,10 +37,10 @@ internal static partial class CombatChecks
 
     private static void CheckLrms(Action<bool, string> check)
     {
-        check(Math.Abs(CombatRules.MissileFlightSeconds(25) - 1) < 1e-9, "LRMs fly 25 hexes per second");
-        check(Math.Abs(CombatRules.SrmFlightSeconds(27) - 1.08) < 1e-9 && Math.Abs(CombatRules.SrmFlightSeconds(9) - .5432) < 1e-3
+        check(Math.Abs(CombatRules.MissileFlightSeconds(35) - 2) < 1e-6, "LRMs fly 17.5 hexes per second");
+        check(Math.Abs(CombatRules.SrmFlightSeconds(27) - 27 / 17.5) < 1e-6 && Math.Abs(CombatRules.SrmFlightSeconds(9) - .776) < 1e-3
                 && CombatRules.SrmFlightSeconds(0) == 0,
-            "SRMs accelerate from launch and still reach their 27-hex long range in 1.08 seconds");
+            "SRMs accelerate from launch and still reach their 27-hex long range in about 1.54 seconds");
         var srmHalf = CombatRules.SrmFlightSeconds(27) / 2;
         check(CombatRules.SrmLaunchSpeed * srmHalf + CombatRules.SrmAcceleration * srmHalf * srmHalf / 2 < 27 / 2.0,
             "an SRM covers less than half its range in the first half of its flight");
@@ -59,15 +59,15 @@ internal static partial class CombatChecks
         check(discharge.Missiles.Where(missile => missile.Hit).Select(missile => missile.Location).Distinct().Count() > 1,
             "missiles roll their own locations, spreading a salvo's damage");
         check(shooter.Shots("bin-b") == 0 && shooter.Shots("bin-a") == 3, "a salvo spends one shot");
-        check(discharge.InFlight && Math.Abs(discharge.FlightSeconds - 1) < 1e-6 && target.ArmorLost + target.StructureLost == 0
+        check(discharge.InFlight && Math.Abs(discharge.FlightSeconds - 25 / 17.5) < 1e-6 && target.ArmorLost + target.StructureLost == 0
                 && shooter.DamageDealt == 0, "salvo damage waits for the missiles to land");
         var debug = sim.History[0].DebugText;
-        check(debug.Contains($"{hits}/15 HIT") && debug.Contains("rolls ") && debug.Contains("in flight 1.00s")
+        check(debug.Contains($"{hits}/15 HIT") && debug.Contains("rolls ") && debug.Contains("in flight 1.43s")
                 && debug.Contains("hits ") && debug.Contains($"dmg {hits} on impact"),
             "the discharge entry reports missile hits, rolls and locations");
         check(sim.History[0].CombatText is { } combat && combat.Contains($"{hits}/15 HIT") && !combat.Contains("rolls "),
             "per-missile rolls appear only in debug");
-        Steps(sim, 19);
+        Steps(sim, 28);
         check(sim.History.Count == 1, "the salvo has not landed before its flight time");
         Steps(sim, 1);
         var impact = sim.History[^1].Shot;
@@ -81,11 +81,11 @@ internal static partial class CombatChecks
 
         sim = LrmFixture(); Steps(sim, 1);
         Enemy(sim).ApplyDamage(MechLocation.CenterTorso, 10000); var lost = Enemy(sim).ArmorLost + Enemy(sim).StructureLost;
-        Steps(sim, 20);
+        Steps(sim, 29);
         check(sim.History.Count == 2 && sim.History[^1].Shot is { Wreck: true, Damage: 0 } && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == lost
                 && Friendly(sim).DamageDealt == 0, "missiles reaching a destroyed target burst on the wreck without damage");
         sim = LrmFixture(); Steps(sim, 1); hits = sim.History[0].Shot.Damage;
-        Friendly(sim).ApplyDamage(MechLocation.Head, 10000); Steps(sim, 20);
+        Friendly(sim).ApplyDamage(MechLocation.Head, 10000); Steps(sim, 29);
         check(sim.History.Count(entry => entry.Shot.Impact) == 1 && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == hits,
             "missiles land even after their shooter is destroyed");
 
@@ -132,7 +132,7 @@ internal static partial class CombatChecks
                 && discharge.InFlight && Math.Abs(discharge.FlightSeconds - CombatRules.SrmFlightSeconds(25)) < 1e-6 && discharge.Damage == 2 * hits && discharge.MissileDamage == 2
                 && Friendly(sim).Shots("bin-b") == 0 && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == 0,
             "an SRM salvo rolls each missile, spends one shot and lands after its accelerating flight");
-        Steps(sim, 22);
+        Steps(sim, 31);
         check(sim.History.Count == (hits > 0 ? 2 : 1) && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == 2 * hits,
             "SRM missiles each deal their stock damage on impact");
         sim = LrmFixture(terrain: rock, srm: true, spotters: [new Vector2(25, 12)]); shooter = Friendly(sim); target = Enemy(sim); sim.RefreshDetection();

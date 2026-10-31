@@ -24,7 +24,6 @@ public partial class CombatViewport : Control
     private readonly Dictionary<string, Aabb> _pickBounds = [];
     private readonly List<ShotEffect> _effects = [];
     private const float ShotLife = .45f;
-    private const float BeamSlide = .08f;
     private const float BeamReach = .1f;
     private const float BeamFade = .15f;
     private static readonly CylinderMesh BeamMesh = new() { TopRadius = 1, BottomRadius = 1, Height = 1, RadialSegments = 10, Rings = 1 };
@@ -42,7 +41,21 @@ public partial class CombatViewport : Control
     /// <summary>LRMs leave the rack at 40% of their average speed and dive in at 160%.</summary>
     internal const float LrmLaunchShare = 2f / 3;
     private static readonly Color MissileGlow = new(1, .85f, .55f);
-    private static readonly Color MissileSmoke = new(.62f, .62f, .6f, .45f);
+    private static readonly Color FlameYellow = new(1, .9f, .2f);
+    private static readonly Color FlameOrange = new(1, .45f, .05f);
+    /// <summary>Flame trail color from the tail (0) to the missile (1): orange, yellow, white, fading out toward the tail.</summary>
+    internal static Color FlameColor(float along) => new(along < .5f ? FlameOrange.Lerp(FlameYellow, along * 2)
+        : FlameYellow.Lerp(Colors.White, along * 2 - 1), along);
+    // The beam cylinder with one middle ring, recolored by height so the trail's +Y end is the missile.
+    internal static readonly ArrayMesh FlameMesh = BuildFlameMesh();
+    private static ArrayMesh BuildFlameMesh()
+    {
+        var arrays = new CylinderMesh { TopRadius = 1, BottomRadius = 1, Height = 1, RadialSegments = 8, Rings = 1 }.GetMeshArrays();
+        arrays[(int)Mesh.ArrayType.Color] = ((Vector3[])arrays[(int)Mesh.ArrayType.Vertex]).Select(vertex => FlameColor(vertex.Y + .5f)).ToArray();
+        var mesh = new ArrayMesh();
+        mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+        return mesh;
+    }
     // The muzzle is chosen when the weapon fires; both ends follow the animated models while the effect fades.
     // Effects age with simulation time, so pause freezes a laser burn in step with its delayed damage.
     private sealed class ShotEffect(CombatShot shot, MechLocation mount, Node3D? muzzle, double start, WeaponKind? laser, WeaponKind? shell = null)
@@ -111,7 +124,7 @@ public partial class CombatViewport : Control
     };
     internal static float LaserRadius(WeaponKind kind) => kind switch
     {
-        WeaponKind.SmallLaser => .1f / 3, WeaponKind.MediumLaser => .14f / 3, _ => .18f / 3
+        WeaponKind.SmallLaser => .02f, WeaponKind.MediumLaser => .04f, _ => .06f
     };
     private Vector3 _focus = new(0, 0, CombatRules.DeploymentDepth - 20);
     private static readonly float DefaultPitch = Mathf.Atan2(80, 70);
@@ -201,11 +214,11 @@ public partial class CombatViewport : Control
         _effects.Add(created);
     }
     // Unshaded additive cylinders read as a glowing beam from any camera angle without post-processing.
-    private MeshInstance3D Beam(Color color)
+    private MeshInstance3D Beam(Color color, Mesh? mesh = null)
     {
         var beam = new MeshInstance3D
         {
-            Mesh = BeamMesh, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            Mesh = mesh ?? BeamMesh, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
             MaterialOverride = new StandardMaterial3D
             {
                 ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, BlendMode = BaseMaterial3D.BlendModeEnum.Add,
@@ -320,8 +333,8 @@ public partial class CombatViewport : Control
             var window = created.Arrival - delay;
             created.LaunchShare = CombatRules.IsSrm(weapon.Kind) ? (float)(2 * CombatRules.SrmLaunchSpeed / (CombatRules.SrmAcceleration * window)) : LrmLaunchShare;
             created.Glow = Blob(MissileGlow); created.Flash = Blob(ShellColor.Lerp(Colors.White, .5f)); created.Blast = Blob(BlastColor);
-            created.Trail = Beam(MissileSmoke); created.Trail.Visible = false;
-            ((StandardMaterial3D)created.Trail.MaterialOverride).BlendMode = BaseMaterial3D.BlendModeEnum.Mix;
+            created.Trail = Beam(Colors.White, FlameMesh); created.Trail.Visible = false;
+            ((StandardMaterial3D)created.Trail.MaterialOverride).VertexColorUseAsAlbedo = true;
             salvo.Add(created);
         }
         effect.Salvo = salvo;
@@ -393,10 +406,10 @@ public partial class CombatViewport : Control
             var head = MissilePoint(effect, missile, age).Position;
             Set(missile.Glow, flying ? 1 : 0);
             if (flying) missile.Glow.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * .07f), head);
-            // A short smoke trail follows the skittering path back toward the launcher.
+            // A short flame trail follows the skittering path back toward the launcher.
             var tail = MissilePoint(effect, missile, Math.Max(missile.Delay, age - MissileTrailSeconds)).Position;
             var axis = head - tail;
-            Set(missile.Trail, flying && axis.LengthSquared() > 1e-6f ? 1 : 0, MissileSmoke.A);
+            Set(missile.Trail, flying && axis.LengthSquared() > 1e-6f ? 1 : 0);
             if (missile.Trail.Visible)
             {
                 var across = axis.Cross(Math.Abs(axis.Normalized().Y) > .9f ? Vector3.Right : Vector3.Up).Normalized();
@@ -588,15 +601,15 @@ public partial class CombatViewport : Control
         _focus.Z = Math.Clamp(_focus.Z + rotated.Y, -CombatRules.ArenaHalfSize, CombatRules.ArenaHalfSize); UpdateCamera();
     }
     // Shots leave the weapon's source muzzle (or its location's center) and end at the rolled hit location.
-    // Misses pass beside and beyond that location. A laser holds its first location for half the burn,
-    // slides briefly to the adjacent location and holds there; a miss holds beside its first location.
+    // Misses pass beside and beyond that location. A laser hit sweeps linearly from its first location to
+    // the adjacent one over the whole burn; a miss holds beside its first location.
     private (Vector3 From, Vector3 To, MechLocation Location) ShotPath(ShotEffect effect)
     {
         var shot = effect.Shot;
         var from = effect.Muzzle?.GlobalPosition ?? _models[shot.AttackerId].LocationCenter(effect.Mount);
         var to = _models[shot.TargetId].LocationCenter(shot.Location);
-        var sweep = effect.Laser is null ? 0 : Math.Clamp((Age(effect) - (float)CombatRules.LaserSecondHalfDelay) / BeamSlide, 0, 1);
-        var location = sweep >= 1 && shot.SecondLocation is { } second ? second : shot.Location;
+        var sweep = effect.Laser is null ? 0 : Math.Clamp(Age(effect) / (float)CombatRules.LaserBurnSeconds, 0, 1);
+        var location = sweep >= .5f && shot.SecondLocation is { } second ? second : shot.Location;
         var direction = new Vector3(to.X - from.X, 0, to.Z - from.Z).Normalized();
         var side = new Vector3(-direction.Z, 0, direction.X) * ((int)(shot.Roll * 100) % 2 == 0 ? 1 : -1);
         if (shot.Hit)
