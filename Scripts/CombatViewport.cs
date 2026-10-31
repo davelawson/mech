@@ -33,12 +33,14 @@ public partial class CombatViewport : Control
     private const float ShellFade = .1f;
     private static readonly Color ShellColor = new(1, .72f, .25f);
     private static readonly Color BlastColor = new(1, .5f, .12f);
-    // LRM salvos ripple out of the rack and skitter in flight, gathering only as they reach their impact points.
+    // Missile salvos ripple out of the rack and skitter in flight, gathering only as they reach their impact points.
     internal const float MissileRipple = .25f;
-    internal const float MissileWobble = 1.5f;
+    internal const float MissileWobble = .75f;
     internal const float MissileBlastRadius = .25f;
     internal const float MissileBlastSeconds = .3f;
-    private const float MissileTrailSeconds = .15f;
+    internal const float MissileTrailSeconds = .04f;
+    /// <summary>LRMs leave the rack at 40% of their average speed and dive in at 160%.</summary>
+    internal const float LrmLaunchShare = 2f / 3;
     private static readonly Color MissileGlow = new(1, .85f, .55f);
     private static readonly Color MissileSmoke = new(.62f, .62f, .6f, .45f);
     // The muzzle is chosen when the weapon fires; both ends follow the animated models while the effect fades.
@@ -71,6 +73,8 @@ public partial class CombatViewport : Control
     }
     private sealed class MissileFlight(CombatMissile missile, Node3D? tube, float delay, float arrival, float amplitude, float[] waves)
     {
+        /// <summary>Launch speed relative to the steady acceleration over the flight; see MissileProgress.</summary>
+        public float LaunchShare { get; set; }
         public CombatMissile Missile { get; } = missile;
         public Node3D? Tube { get; } = tube;
         public float Delay { get; } = delay;
@@ -97,11 +101,13 @@ public partial class CombatViewport : Control
     {
         WeaponKind.AC2 => .04f, WeaponKind.AC5 => .06f, WeaponKind.AC10 => .08f, _ => .11f
     };
+    // A mostly colored core keeps additive beams from washing out to white.
+    internal const float LaserCoreWhite = .3f;
     internal static Color LaserColor(WeaponKind kind) => kind switch
     {
-        WeaponKind.SmallLaser => new Color(1, .16f, .1f),
-        WeaponKind.MediumLaser => new Color(.2f, 1, .3f),
-        _ => new Color(.25f, .5f, 1)
+        WeaponKind.SmallLaser => new Color(1, 0, 0),
+        WeaponKind.MediumLaser => new Color(0, 1, 0),
+        _ => new Color(.1f, .2f, 1)
     };
     internal static float LaserRadius(WeaponKind kind) => kind switch
     {
@@ -188,7 +194,7 @@ public partial class CombatViewport : Control
         if (laser is { } kind)
         {
             var color = LaserColor(kind);
-            created.Halo = Beam(color); created.Core = Beam(color.Lerp(Colors.White, .75f));
+            created.Halo = Beam(color); created.Core = Beam(color.Lerp(Colors.White, LaserCoreWhite));
         }
         if (shell is not null) LaunchShell(created, weapon!);
         if (shot.Missiles.Count > 0) LaunchSalvo(created, weapon!);
@@ -283,7 +289,9 @@ public partial class CombatViewport : Control
         var from = effect.Muzzle?.GlobalPosition ?? attacker.LocationCenter(effect.Mount);
         var aim = target.LocationCenter(shot.Location);
         var reach = new Vector2(aim.X - from.X, aim.Z - from.Z).Length();
-        effect.Loft = shot.Indirect ? Math.Max(.35f * reach, Math.Min(reach, Clearance(from, aim))) : .15f * reach;
+        // SRMs fly flat; LRMs loft, and an indirect salvo arcs over whatever blocks the shooter's sight.
+        effect.Loft = CombatRules.IsSrm(weapon.Kind) ? 0
+            : shot.Indirect ? Math.Max(.35f * reach, Math.Min(reach, Clearance(from, aim))) : .15f * reach;
         var salvo = new List<MissileFlight>();
         for (var i = 0; i < shot.Missiles.Count; i++)
         {
@@ -303,9 +311,14 @@ public partial class CombatViewport : Control
                 var ground = struck + side * Between(1, 2.5f) + direction * Between(1, 3);
                 created.MissEnd = new Vector3(ground.X, Simulation!.Terrain.HeightAt(new Vector2(ground.X, ground.Z)), ground.Z);
                 var span = new Vector2(struck.X - created.Launch.X, struck.Z - created.Launch.Z).Length();
-                created.Arrival = span < 1e-3f ? flight : flight * new Vector2(created.MissEnd.X - created.Launch.X, created.MissEnd.Z - created.Launch.Z).Length() / span;
+                var missReach = new Vector2(created.MissEnd.X - created.Launch.X, created.MissEnd.Z - created.Launch.Z).Length();
+                // A miss keeps the rack's motion out to its ground point.
+                created.Arrival = CombatRules.IsSrm(weapon.Kind) ? flight + (float)(CombatRules.SrmFlightSeconds(missReach) - CombatRules.SrmFlightSeconds(span))
+                    : span < 1e-3f ? flight : flight * missReach / span;
                 created.Arrival = Math.Max(created.Arrival, delay + .05f);
             }
+            var window = created.Arrival - delay;
+            created.LaunchShare = CombatRules.IsSrm(weapon.Kind) ? (float)(2 * CombatRules.SrmLaunchSpeed / (CombatRules.SrmAcceleration * window)) : LrmLaunchShare;
             created.Glow = Blob(MissileGlow); created.Flash = Blob(ShellColor.Lerp(Colors.White, .5f)); created.Blast = Blob(BlastColor);
             created.Trail = Beam(MissileSmoke); created.Trail.Visible = false;
             ((StandardMaterial3D)created.Trail.MaterialOverride).BlendMode = BaseMaterial3D.BlendModeEnum.Mix;
@@ -330,8 +343,14 @@ public partial class CombatViewport : Control
     private static float Smooth(float x) { x = Math.Clamp(x, 0, 1); return x * x * (3 - 2 * x); }
     /// <summary>Skitter strength over a flight: building after launch, strongest mid-flight, gone over the last fifth.</summary>
     internal static float WobbleEnvelope(float progress) => Smooth(progress / .25f) * (1 - Smooth((progress - .8f) / .2f));
-    private static float Progress(MissileFlight missile, float age) =>
-        Math.Clamp((age - missile.Delay) / Math.Max(1e-3f, missile.Arrival - missile.Delay), 0, 1);
+    /// <summary>
+    /// Fraction of the path covered after a fraction of the flight under steady acceleration.
+    /// launchShare is twice the launch speed over the speed gained in flight; the missile always speeds up.
+    /// </summary>
+    internal static float MissileProgress(float time, float launchShare)
+    { time = Math.Clamp(time, 0, 1); return (launchShare * time + time * time) / (launchShare + 1); }
+    private static float Progress(MissileFlight missile, float age) => MissileProgress(
+        (age - missile.Delay) / Math.Max(1e-3f, missile.Arrival - missile.Delay), missile.LaunchShare);
     // The lofted course to the live struck location (or the miss point), and the skittering point on it.
     private (Vector3 Course, Vector3 Position) MissilePoint(ShotEffect effect, MissileFlight missile, float age)
     {
@@ -346,12 +365,12 @@ public partial class CombatViewport : Control
         var scale = missile.Amplitude * WobbleEnvelope(u) / Mathf.Sqrt2;
         return (course, course + (side * Wave(0, 1) + Vector3.Up * Wave(2, 3)) * scale);
     }
-    internal IEnumerable<(CombatShot Shot, CombatMissile Missile, Vector3 Position, Vector3 Course, Vector3 End, float Progress, bool Flying, bool Exploding)> Missiles() =>
+    internal IEnumerable<(CombatShot Shot, CombatMissile Missile, Vector3 Position, Vector3 Course, Vector3 End, float Progress, bool Flying, bool Exploding, float Loft)> Missiles() =>
         _effects.Where(effect => effect.Salvo is not null).SelectMany(effect => effect.Salvo!.Select(missile =>
         {
             var age = Age(effect); var (course, position) = MissilePoint(effect, missile, age);
             var end = missile.Missile.Hit ? _models[effect.Shot.TargetId].LocationCenter(missile.Missile.Location) : missile.MissEnd;
-            return (effect.Shot, missile.Missile, position, course, end, Progress(missile, age), missile.Glow.Visible, missile.Blast.Visible);
+            return (effect.Shot, missile.Missile, position, course, end, Progress(missile, age), missile.Glow.Visible, missile.Blast.Visible, effect.Loft);
         }));
     private void UpdateSalvo(ShotEffect effect)
     {

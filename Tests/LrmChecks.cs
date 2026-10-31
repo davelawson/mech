@@ -4,14 +4,16 @@ namespace Mech.Tests;
 
 internal static partial class CombatChecks
 {
-    // An LRM-15 shooter 25 hexes from its target, with optional friendly spotters whose own weapons are switched off.
-    private static CombatSimulation LrmFixture(int seed = 41, int gunnery = 2, BattlefieldTerrain? terrain = null, params Vector2[] spotters)
+    // An LRM-15 (or SRM-6) shooter 25 hexes from its target, with optional friendly spotters whose own weapons are switched off.
+    private static CombatSimulation LrmFixture(int seed = 41, int gunnery = 2, BattlefieldTerrain? terrain = null, bool srm = false, params Vector2[] spotters)
     {
+        var ammo = srm ? AmmoKind.SRM6 : AmmoKind.LRM15;
+        WeaponSpec rack = srm ? new("rack", "Test SRM", MechLocation.RightTorso, false, 0, new(DamageKind.Missile, 2, 6, 0), 0, 7, 14, 21, ammo, WeaponKind.SRM6)
+            : new("rack", "Test LRM", MechLocation.RightTorso, false, 0, new(DamageKind.Missile, 1, 15, 0), 6, 7, 14, 21, ammo, WeaponKind.LRM15);
         var spec = DraftCatalog.Mech("awesome") with
         {
-            Weapons = [new("rack", "Test LRM", MechLocation.RightTorso, false, 0, new(DamageKind.Missile, 1, 15, 0), 6, 7, 14, 21, AmmoKind.LRM15, WeaponKind.LRM15)],
-            Components = [], HeatSinks = 0,
-            Ammo = [new("bin-a", "Ammo A", MechLocation.LeftTorso, AmmoKind.LRM15, 3), new("bin-b", "Ammo B", MechLocation.LeftLeg, AmmoKind.LRM15, 1)]
+            Weapons = [rack], Components = [], HeatSinks = 0,
+            Ammo = [new("bin-a", "Ammo A", MechLocation.LeftTorso, ammo, 3), new("bin-b", "Ammo B", MechLocation.LeftLeg, ammo, 1)]
         };
         CombatUnit Create(string id, CombatSide side, Vector2 position, Vector2 facing)
         {
@@ -35,8 +37,15 @@ internal static partial class CombatChecks
 
     private static void CheckLrms(Action<bool, string> check)
     {
-        check(Math.Abs(CombatRules.MissileFlightSeconds(25) - 1) < 1e-9, "missiles fly 25 hexes per second");
-        check(CombatRules.IsLrm(WeaponKind.LRM20) && !CombatRules.IsLrm(WeaponKind.SRM6), "only LRM racks fire missile swarms");
+        check(Math.Abs(CombatRules.MissileFlightSeconds(25) - 1) < 1e-9, "LRMs fly 25 hexes per second");
+        check(Math.Abs(CombatRules.SrmFlightSeconds(27) - 1.08) < 1e-9 && Math.Abs(CombatRules.SrmFlightSeconds(9) - .5432) < 1e-3
+                && CombatRules.SrmFlightSeconds(0) == 0,
+            "SRMs accelerate from launch and still reach their 27-hex long range in 1.08 seconds");
+        var srmHalf = CombatRules.SrmFlightSeconds(27) / 2;
+        check(CombatRules.SrmLaunchSpeed * srmHalf + CombatRules.SrmAcceleration * srmHalf * srmHalf / 2 < 27 / 2.0,
+            "an SRM covers less than half its range in the first half of its flight");
+        check(CombatRules.FiresSalvo(WeaponKind.LRM20) && CombatRules.FiresSalvo(WeaponKind.SRM2) && !CombatRules.FiresSalvo(WeaponKind.AC20),
+            "LRM and SRM racks fire missile salvos");
 
         var sim = LrmFixture(); var shooter = Friendly(sim); var target = Enemy(sim);
         Steps(sim, 1);
@@ -116,6 +125,21 @@ internal static partial class CombatChecks
         sim.Units[1].ApplyDamage(MechLocation.Head, 10000); sim.RefreshDetection();
         check(sim.IndirectSpotter(shooter, target, shooter.Weapons[0]) is null && !sim.CanFire(shooter, target, shooter.Weapons[0]),
             "indirect fire needs an active spotter with its own clear sight");
+
+        sim = LrmFixture(srm: true); Steps(sim, 1);
+        discharge = sim.History.Single().Shot; hits = discharge.Missiles.Count(missile => missile.Hit);
+        check(discharge.Missiles.Count == 6 && discharge.Missiles.All(missile => missile.Hit == missile.Roll < discharge.Chance)
+                && discharge.InFlight && Math.Abs(discharge.FlightSeconds - CombatRules.SrmFlightSeconds(25)) < 1e-6 && discharge.Damage == 2 * hits && discharge.MissileDamage == 2
+                && Friendly(sim).Shots("bin-b") == 0 && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == 0,
+            "an SRM salvo rolls each missile, spends one shot and lands after its accelerating flight");
+        Steps(sim, 22);
+        check(sim.History.Count == (hits > 0 ? 2 : 1) && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == 2 * hits,
+            "SRM missiles each deal their stock damage on impact");
+        sim = LrmFixture(terrain: rock, srm: true, spotters: [new Vector2(25, 12)]); shooter = Friendly(sim); target = Enemy(sim); sim.RefreshDetection();
+        shooter.Firing = FiringMode.HoldFire; sim.Attack([shooter.Id], target.Id); sim.SetPriority([shooter.Id], target.Id);
+        check(sim.IndirectSpotter(shooter, target, shooter.Weapons[0]) is null && !sim.CanFire(shooter, target, shooter.Weapons[0])
+                && sim.TerrainHitChance(shooter, target, shooter.Weapons[0]) == 0,
+            "SRMs never fire indirectly, even at an Attack or priority target");
 
         // The nearer spotter looks through vegetation; the farther one is clear and wins.
         var screened = new BattlefieldTerrain(2, [new(TerrainKind.Rock, new Vector2(12, 0), 2, 4),

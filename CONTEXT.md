@@ -67,7 +67,7 @@ A preferred target for a MechWarrior to select when an opportunity presents, wit
 _Avoid_: Attack order
 
 **Salvo**:
-The missiles an LRM rack fires in one discharge, each rolling its own hit and location.
+The missiles an LRM or SRM rack fires in one discharge, each rolling its own hit and location.
 
 **Indirect fire**:
 An LRM salvo at a priority or Attack target the shooter cannot see, guided by a spotter.

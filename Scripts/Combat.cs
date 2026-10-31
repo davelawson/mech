@@ -54,9 +54,21 @@ public static partial class CombatRules
     public const float ShellSpeed = 60;
     public static double ShellFlightSeconds(float distance) => distance / ShellSpeed;
     public static bool IsLrm(WeaponKind kind) => kind is WeaponKind.LRM5 or WeaponKind.LRM10 or WeaponKind.LRM15 or WeaponKind.LRM20;
+    public static bool IsSrm(WeaponKind kind) => kind is WeaponKind.SRM2 or WeaponKind.SRM4 or WeaponKind.SRM6;
+    /// <summary>LRM and SRM racks fire salvos whose missiles roll separately.</summary>
+    public static bool FiresSalvo(WeaponKind kind) => IsLrm(kind) || IsSrm(kind);
     /// <summary>LRM salvos fly slower than shells so the swarm reads: 2.5 seconds at the 63-hex long range.</summary>
     public const float MissileSpeed = 25;
     public static double MissileFlightSeconds(float distance) => distance / MissileSpeed;
+    /// <summary>SRMs leave the rack at this speed and accelerate steadily.</summary>
+    public const double SrmLaunchSpeed = 8;
+    // Calibrated so an SRM still reaches its 27-hex long range in 27 / MissileSpeed seconds.
+    private const double SrmCalibrationRange = 9 * WeaponRangeScale;
+    private const double SrmCalibrationSeconds = SrmCalibrationRange / MissileSpeed;
+    public const double SrmAcceleration = 2 * (SrmCalibrationRange - SrmLaunchSpeed * SrmCalibrationSeconds)
+        / (SrmCalibrationSeconds * SrmCalibrationSeconds);
+    public static double SrmFlightSeconds(float distance) =>
+        (-SrmLaunchSpeed + Math.Sqrt(SrmLaunchSpeed * SrmLaunchSpeed + 2 * SrmAcceleration * distance)) / SrmAcceleration;
     /// <summary>Target-number penalty for an LRM salvo guided by a spotter's sight.</summary>
     public const int IndirectFireModifier = 1;
     /// <summary>The first half of a laser burn rounds up.</summary>
@@ -523,26 +535,27 @@ public sealed partial class CombatSimulation
                 if (weapon.Spec.AmmoKind is { } ammo && !unit.ConsumeAmmo(ammo)) continue;
                 var chance = TerrainHitChance(unit, target, weapon);
                 var spotter = IndirectSpotter(unit, target, weapon);
-                var lrm = CombatRules.IsLrm(weapon.Spec.Kind);
-                // Each LRM missile rolls its own hit and location at the salvo's chance.
-                CombatMissile[] missiles = lrm ? Enumerable.Range(0, weapon.Spec.DamageProfile.ProjectileCount)
+                var salvo = CombatRules.FiresSalvo(weapon.Spec.Kind);
+                // Each missile rolls its own hit and location at the salvo's chance.
+                CombatMissile[] missiles = salvo ? Enumerable.Range(0, weapon.Spec.DamageProfile.ProjectileCount)
                     .Select(_ => { var draw = _random.NextDouble(); return new CombatMissile(draw < chance, draw, RollLocation()); }).ToArray() : [];
-                var roll = lrm ? missiles.Min(missile => missile.Roll) : _random.NextDouble();
+                var roll = salvo ? missiles.Min(missile => missile.Roll) : _random.NextDouble();
                 var hit = roll < chance;
-                var location = lrm ? (missiles.FirstOrDefault(missile => missile.Hit) ?? missiles[0]).Location : RollLocation();
+                var location = salvo ? (missiles.FirstOrDefault(missile => missile.Hit) ?? missiles[0]).Location : RollLocation();
                 var laser = hit && CombatRules.IsLaser(weapon.Spec.Kind);
                 var shell = CombatRules.IsAutocannon(weapon.Spec.Kind);
                 var second = laser ? RollAdjacentLocation(location) : (MechLocation?)null;
                 var damage = !hit ? 0 : laser ? CombatRules.LaserFirstHalf(weapon.Damage)
-                    : lrm ? missiles.Count(missile => missile.Hit) * weapon.Spec.DamageProfile.PerProjectile : weapon.Damage;
+                    : salvo ? missiles.Count(missile => missile.Hit) * weapon.Spec.DamageProfile.PerProjectile : weapon.Damage;
                 var distance = unit.Position.DistanceTo(target.Position);
                 var shot = new CombatShot(unit.Id, target.Id, unit.Position, target.Position, weapon.Spec.Name, hit, location,
                     damage, weapon.Spec.Heat, hit ? CombatRules.FlamerHeat(weapon.Spec) : 0)
                 {
                     Chance = chance, Roll = roll, WeaponId = weapon.Spec.Id, Mount = DraftCatalog.Abbreviation(weapon.Spec.Location) + (weapon.Spec.Rear ? " rear" : ""),
                     Sequence = ++_sequence, SecondLocation = second, SecondDamage = laser ? weapon.Damage - damage : 0,
-                    FlightSeconds = shell ? CombatRules.ShellFlightSeconds(distance) : lrm ? CombatRules.MissileFlightSeconds(distance) : 0,
-                    Missiles = missiles, MissileDamage = lrm ? weapon.Spec.DamageProfile.PerProjectile : 0,
+                    FlightSeconds = shell ? CombatRules.ShellFlightSeconds(distance) : CombatRules.IsSrm(weapon.Spec.Kind) ? CombatRules.SrmFlightSeconds(distance)
+                        : salvo ? CombatRules.MissileFlightSeconds(distance) : 0,
+                    Missiles = missiles, MissileDamage = salvo ? weapon.Spec.DamageProfile.PerProjectile : 0,
                     Indirect = spotter is not null, SpotterId = spotter?.Id
                 };
                 shots.Add(shot);

@@ -43,20 +43,31 @@ public partial class SmokeTests
         AddChild(field); await Frames();
         try
         {
-            var sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(unit => unit.Id), BattlefieldTerrain.Flat);
-            var friendly = sim.Units.First(unit => unit.Side == CombatSide.Friendly);
-            friendly.Position = Vector2.Zero; friendly.Facing = Vector2.Up;
-            var spread = 0;
-            foreach (var other in sim.Units.Where(unit => unit != friendly)) other.Position = new Vector2(-60 + 15 * spread++, 60);
-            var target = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
-            target.Position = new Vector2(0, -12); target.Facing = Vector2.Down;
-            field.Display(sim); sim.RefreshDetection(); sim.Paused = false;
-            var shots = new List<CombatShot>(); sim.ShotFired += shots.Add;
+            CombatSimulation sim = null!; var shots = new List<CombatShot>(); MechModel[] models = [];
+            // Later weapon checks start from a fresh deployment rather than wherever an earlier fight left off.
+            void Deploy(bool atlasFires = false)
+            {
+                sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(unit => unit.Id), BattlefieldTerrain.Flat);
+                var friendly = sim.Units.First(unit => unit.Side == CombatSide.Friendly);
+                friendly.Position = Vector2.Zero; friendly.Facing = Vector2.Up;
+                var spread = 0;
+                foreach (var other in sim.Units.Where(unit => unit != friendly)) other.Position = new Vector2(-60 + 15 * spread++, 60);
+                var target = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
+                target.Position = new Vector2(0, -12); target.Facing = Vector2.Down;
+                if (atlasFires)
+                {
+                    var gunner = sim.Units.Single(unit => unit.Side == CombatSide.Friendly && unit.Spec.Id == "atlas");
+                    gunner.Position = new Vector2(8, 0); gunner.Facing = Vector2.Up;
+                }
+                field.Display(sim); sim.RefreshDetection(); sim.Paused = false;
+                shots.Clear(); sim.ShotFired += shots.Add;
+                models = field.FindChildren("*", "Node3D", true, false).OfType<MechModel>().ToArray();
+            }
+            Deploy();
             for (var step = 0; step < 200 && (!shots.Any(shot => shot.Hit) || !shots.Any(shot => !shot.Hit)); step++)
             { sim.Advance(CombatRules.StepSeconds); field._Process(0); }
             var paths = field.ShotPaths().ToArray();
             Check(paths.Any(path => path.Shot.Hit) && paths.Any(path => !path.Shot.Hit), "the exchange produced visible hits and misses");
-            var models = field.FindChildren("*", "Node3D", true, false).OfType<MechModel>().ToArray();
             MechModel ModelAt(CombatUnit unit) => models.Single(model => model.Position.X == unit.Position.X && model.Position.Z == unit.Position.Y);
             var markers = models.SelectMany(model => model.FindChildren("*", "Node3D", true, false).OfType<Node3D>())
                 .Where(node => node is not MeshInstance3D && node.Name.ToString() is var name
@@ -93,11 +104,14 @@ public partial class SmokeTests
             var burning = Fresh(shot => shot.SecondLocation is not null);
             Check(burning is not null, "the exchange produced a visible laser hit");
             var kind = sim.Unit(burning!.AttackerId).Spec.Weapons.Single(weapon => weapon.Id == burning.WeaponId).Kind;
-            var halo = field.Beams().Single(beam => beam.Shot == burning).Halo;
-            Check(new Color(((StandardMaterial3D)halo.MaterialOverride).AlbedoColor, 1).IsEqualApprox(CombatViewport.LaserColor(kind)),
-                "laser hits draw a 3D beam in their class color");
-            Check(CombatViewport.LaserColor(WeaponKind.SmallLaser).R > .9f && CombatViewport.LaserColor(WeaponKind.MediumLaser).G > .9f
-                    && CombatViewport.LaserColor(WeaponKind.LargeLaser).B > .9f
+            var (_, halo, core) = field.Beams().Single(beam => beam.Shot == burning);
+            Check(new Color(((StandardMaterial3D)halo.MaterialOverride).AlbedoColor, 1).IsEqualApprox(CombatViewport.LaserColor(kind))
+                    && new Color(((StandardMaterial3D)core.MaterialOverride).AlbedoColor, 1)
+                        .IsEqualApprox(CombatViewport.LaserColor(kind).Lerp(Colors.White, .3f)),
+                "laser hits draw a 3D beam in their class color with a mostly colored core");
+            Check(CombatViewport.LaserColor(WeaponKind.SmallLaser) is { R: 1, G: <= .2f, B: <= .2f }
+                    && CombatViewport.LaserColor(WeaponKind.MediumLaser) is { G: 1, R: <= .2f, B: <= .2f }
+                    && CombatViewport.LaserColor(WeaponKind.LargeLaser) is { B: 1, R: <= .2f, G: <= .2f }
                     && CombatViewport.LaserColor(WeaponKind.ERLargeLaser) == CombatViewport.LaserColor(WeaponKind.LargeLaser),
                 "small lasers are red, medium green, large and ER large blue");
             Check(!halo.Visible, "a beam has no length at the instant it fires");
@@ -130,8 +144,7 @@ public partial class SmokeTests
                     .Select(CombatViewport.ExplosionRadius).Zip(new[] { .3f, .5f, .8f, 1.2f }).All(pair => pair.First == pair.Second),
                 "autocannon explosions scale with caliber");
             CombatShot? shell = null;
-            var gunner = sim.Units.Single(unit => unit.Side == CombatSide.Friendly && unit.Spec.Id == "atlas");
-            gunner.Position = new Vector2(8, 0); gunner.Facing = Vector2.Up;
+            Deploy(atlasFires: true);
             for (var step = 0; step < 4000 && shell is null; step++)
             {
                 var before = shots.Count; sim.Advance(CombatRules.StepSeconds); field._Process(0);
@@ -149,35 +162,49 @@ public partial class SmokeTests
             Check(!Shell().Flying && Shell().Exploding && Shell().Position.IsEqualApprox(struck),
                 "the shell explodes at the struck location when it lands");
 
-            CombatShot? salvo = null;
-            for (var step = 0; step < 4000 && salvo is null; step++)
+            foreach (var lrm in new[] { true, false })
             {
-                var before = shots.Count; sim.Advance(CombatRules.StepSeconds); field._Process(0);
-                salvo = shots.Skip(before).FirstOrDefault(shot => shot.Hit && shot.Missiles.Count > 0 && field.Missiles().Any(item => item.Shot == shot));
+                var rack = lrm ? "LRM" : "SRM";
+                CombatShot? salvo = null;
+                Deploy(atlasFires: true);
+                for (var step = 0; step < 4000 && salvo is null; step++)
+                {
+                    var before = shots.Count; sim.Advance(CombatRules.StepSeconds); field._Process(0);
+                    salvo = shots.Skip(before).FirstOrDefault(shot => shot.Hit && shot.Missiles.Count > 0 && field.Missiles().Any(item => item.Shot == shot)
+                        && CombatRules.IsLrm(sim.Unit(shot.AttackerId).Spec.Weapons.Single(weapon => weapon.Id == shot.WeaponId).Kind) == lrm);
+                }
+                Check(salvo is not null, $"the exchange produced a visible {rack} salvo");
+                (CombatShot Shot, CombatMissile Missile, Vector3 Position, Vector3 Course, Vector3 End, float Progress, bool Flying, bool Exploding, float Loft)[] Swarm() =>
+                    field.Missiles().Where(item => item.Shot == salvo).ToArray();
+                Check(Swarm().Length == salvo!.Missiles.Count && Swarm().All(item => item.Progress < .05f),
+                    "each missile of a salvo has its own visual flight, starting at the rack");
+                sim.Advance(salvo.FlightSeconds / 2); field._Process(0);
+                var swarm = Swarm();
+                Check(swarm.All(item => item.Flying && !item.Exploding && item.Position.DistanceTo(item.Course)
+                        <= CombatViewport.MissileWobble * CombatViewport.WobbleEnvelope(item.Progress) + 1e-3f),
+                    "missiles skitter within their wobble envelope mid-flight");
+                Check(swarm.Count(item => item.Position.DistanceTo(item.Course) > .1f) > swarm.Length / 2
+                        && swarm.Select(item => item.Position - item.Course).Distinct().Count() == swarm.Length,
+                    "each missile skitters along its own randomized path");
+                Check(swarm.Where(item => item.Missile.Hit).All(item => item.Progress < .5f),
+                    $"{rack} missiles are still accelerating: less than half the path is covered at half the flight");
+                Check(swarm.Where(item => item.Missile.Hit).All(item => item.Position.DistanceTo(item.End) > 1)
+                        && swarm.All(item => lrm ? item.Loft > 0 : item.Loft == 0),
+                    lrm ? "the LRM swarm is lofted and still short of its impact points" : "the SRM swarm flies flat and is still short of its impact points");
+                sim.Advance(salvo.FlightSeconds / 2 + .05); field._Process(0);
+                swarm = Swarm();
+                Check(swarm.Where(item => item.Missile.Hit).All(item => !item.Flying && item.Exploding && item.Position.IsEqualApprox(item.End)
+                        && item.End.IsEqualApprox(ModelAt(sim.Unit(salvo.TargetId)).LocationCenter(item.Missile.Location))),
+                    "hit missiles gather onto their struck locations and burst");
+                Check(swarm.Where(item => !item.Missile.Hit).All(item => Math.Abs(item.End.Y - sim.Terrain.HeightAt(new Vector2(item.End.X, item.End.Z))) < 1e-3f),
+                    "missed missiles come down on the ground");
             }
-            Check(salvo is not null, "the exchange produced a visible LRM salvo");
-            (CombatShot Shot, CombatMissile Missile, Vector3 Position, Vector3 Course, Vector3 End, float Progress, bool Flying, bool Exploding)[] Swarm() =>
-                field.Missiles().Where(item => item.Shot == salvo).ToArray();
-            Check(Swarm().Length == salvo!.Missiles.Count && Swarm().All(item => item.Progress < .05f),
-                "each missile of a salvo has its own visual flight, starting at the rack");
-            sim.Advance(salvo.FlightSeconds / 2); field._Process(0);
-            var swarm = Swarm();
-            Check(swarm.All(item => item.Flying && !item.Exploding && item.Position.DistanceTo(item.Course)
-                    <= CombatViewport.MissileWobble * CombatViewport.WobbleEnvelope(item.Progress) + 1e-3f),
-                "missiles skitter within their wobble envelope mid-flight");
-            Check(swarm.Count(item => item.Position.DistanceTo(item.Course) > .1f) > swarm.Length / 2
-                    && swarm.Select(item => item.Position - item.Course).Distinct().Count() == swarm.Length,
-                "each missile skitters along its own randomized path");
-            Check(swarm.Where(item => item.Missile.Hit).All(item => item.Position.DistanceTo(item.End) > 1)
-                    && swarm.All(item => item.Course.Y > Math.Min(item.End.Y, item.Position.Y) - 1e-3f),
-                "the swarm is still lofted short of its impact points");
-            sim.Advance(salvo.FlightSeconds / 2 + .05); field._Process(0);
-            swarm = Swarm();
-            Check(swarm.Where(item => item.Missile.Hit).All(item => !item.Flying && item.Exploding && item.Position.IsEqualApprox(item.End)
-                    && item.End.IsEqualApprox(ModelAt(sim.Unit(salvo.TargetId)).LocationCenter(item.Missile.Location))),
-                "hit missiles gather onto their struck locations and burst");
-            Check(swarm.Where(item => !item.Missile.Hit).All(item => Math.Abs(item.End.Y - sim.Terrain.HeightAt(new Vector2(item.End.X, item.End.Z))) < 1e-3f),
-                "missed missiles come down on the ground");
+            Check(CombatViewport.MissileProgress(0, CombatViewport.LrmLaunchShare) == 0 && CombatViewport.MissileProgress(1, CombatViewport.LrmLaunchShare) == 1
+                    && Math.Abs(CombatViewport.MissileProgress(.638f, CombatViewport.LrmLaunchShare) - .5f) < .01f
+                    && Math.Abs(CombatViewport.MissileProgress(.01f, CombatViewport.LrmLaunchShare) / .01f - .4f) < .01f
+                    && Math.Abs((1 - CombatViewport.MissileProgress(.99f, CombatViewport.LrmLaunchShare)) / .01f - 1.6f) < .01f,
+                "LRMs climb at 40% of their average speed and dive in at 160%, reaching the apex after 64% of the flight");
+            Check(CombatViewport.MissileTrailSeconds <= .04f && CombatViewport.MissileWobble == .75f, "missile trails are short and the skitter is gentle");
             Check(CombatViewport.WobbleEnvelope(0) == 0 && CombatViewport.WobbleEnvelope(1) == 0 && CombatViewport.WobbleEnvelope(.5f) == 1,
                 "the skitter builds after launch and vanishes on arrival");
         }

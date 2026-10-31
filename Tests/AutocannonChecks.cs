@@ -112,9 +112,5 @@ internal static partial class CombatChecks
         check(sim.History.Count == 1 && !sim.History[0].Shot.Hit && Friendly(sim).Shots("bin-b") == 0,
             "a missed shell spends ammunition and has no impact entry");
 
-        sim = AutocannonFixture(kind: WeaponKind.SRM4, ammo: AmmoKind.SRM4, damage: 8); Steps(sim, 1);
-        check(Friendly(sim).AmmoRemaining(AmmoKind.SRM4) == 3 && sim.History.Single().Shot is { InFlight: false, Damage: 8 }
-                && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == 8,
-            "missile racks spend ammunition but keep resolving at discharge");
     }
 }
