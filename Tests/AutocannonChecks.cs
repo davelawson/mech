@@ -5,8 +5,8 @@ namespace Mech.Tests;
 
 internal static partial class CombatChecks
 {
-    // An AC/20 with lengthened brackets so a 30-hex shot stays in range; the leg bin holds fewer shots.
-    private static CombatSimulation AutocannonFixture(int seed = 41, int gunnery = -10, float distance = 30, WeaponKind kind = WeaponKind.AC20,
+    // An AC/20 with lengthened brackets so a 900 m shot stays in range; the leg bin holds fewer shots.
+    private static CombatSimulation AutocannonFixture(int seed = 41, int gunnery = -10, float distance = 900, WeaponKind kind = WeaponKind.AC20,
         AmmoKind ammo = AmmoKind.AC20, int damage = 200)
     {
         var spec = DraftCatalog.Mech("awesome") with
@@ -31,7 +31,7 @@ internal static partial class CombatChecks
 
     private static void CheckAutocannons(Action<bool, string> check)
     {
-        check(Math.Abs(CombatRules.ShellFlightSeconds(60) - 1) < 1e-9, "a shell takes one second to fly 60 hexes");
+        check(Math.Abs(CombatRules.ShellFlightSeconds(1800) - 1) < 1e-9, "a shell takes one second to fly 1800 metres");
 
         var sim = AutocannonFixture(); var friendly = Friendly(sim); var enemy = Enemy(sim);
         Steps(sim, 1);

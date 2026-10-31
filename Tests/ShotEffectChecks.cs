@@ -51,13 +51,13 @@ public partial class SmokeTests
                 var friendly = sim.Units.First(unit => unit.Side == CombatSide.Friendly);
                 friendly.Position = Vector2.Zero; friendly.Facing = Vector2.Up;
                 var spread = 0;
-                foreach (var other in sim.Units.Where(unit => unit != friendly)) other.Position = new Vector2(-60 + 15 * spread++, 60);
+                foreach (var other in sim.Units.Where(unit => unit != friendly)) other.Position = new Vector2(-1800 + 450 * spread++, 1800);
                 var target = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
-                target.Position = new Vector2(0, -12); target.Facing = Vector2.Down;
+                target.Position = new Vector2(0, -360); target.Facing = Vector2.Down;
                 if (atlasFires)
                 {
                     var gunner = sim.Units.Single(unit => unit.Side == CombatSide.Friendly && unit.Spec.Id == "atlas");
-                    gunner.Position = new Vector2(8, 0); gunner.Facing = Vector2.Up;
+                    gunner.Position = new Vector2(240, 0); gunner.Facing = Vector2.Up;
                 }
                 field.Display(sim); sim.RefreshDetection(); sim.Paused = false;
                 shots.Clear(); sim.ShotFired += shots.Add;
@@ -83,11 +83,11 @@ public partial class SmokeTests
                 if (path.Shot.SecondLocation is not { } second) return path.To.IsEqualApprox(first);
                 var span = model.LocationCenter(second) - first;
                 var t = span.LengthSquared() < 1e-8f ? 0 : Math.Clamp((path.To - first).Dot(span) / span.LengthSquared(), 0, 1);
-                return path.To.DistanceTo(first + span * t) < 1e-3f;
+                return path.To.DistanceTo(first + span * t) < 1e-2f;
             }
             Check(paths.Where(path => path.Shot.Hit).All(OnStruck), "hits end at the struck location on the target model");
             Check(paths.Where(path => !path.Shot.Hit).All(path =>
-                    path.To.DistanceTo(ModelAt(sim.Unit(path.Shot.TargetId)).LocationCenter(path.Shot.Location)) > 1),
+                    path.To.DistanceTo(ModelAt(sim.Unit(path.Shot.TargetId)).LocationCenter(path.Shot.Location)) > 15),
                 "misses pass beside the rolled location");
 
             // Follow a laser discharge from the step it fires.
@@ -117,18 +117,18 @@ public partial class SmokeTests
             Check(!halo.Visible, "a beam has no length at the instant it fires");
             sim.Advance(.05); field._Process(0);
             var growing = field.ShotPaths().Single(path => path.Shot == burning);
-            Check(halo.Visible && Math.Abs(halo.GlobalTransform.Basis.Y.Length() - growing.From.DistanceTo(growing.To) / 2) < 1e-3f,
+            Check(halo.Visible && Math.Abs(halo.GlobalTransform.Basis.Y.Length() - growing.From.DistanceTo(growing.To) / 2) < 1e-2f,
                 "a beam reaches half its length after half its growth time");
             sim.Advance(.6); field._Process(0);
             var swept = field.ShotPaths().Where(path => path.Shot.Sequence == burning.Sequence).ToArray();
             var struckModel = ModelAt(sim.Unit(burning.TargetId));
             Check(swept.Length == 1 && swept[0].Location == burning.SecondLocation
                     && swept[0].To.DistanceTo(struckModel.LocationCenter(burning.Location)
-                        .Lerp(struckModel.LocationCenter(burning.SecondLocation!.Value), .65f)) < 1e-3f
-                    && Math.Abs(halo.GlobalTransform.Basis.Y.Length() - swept[0].From.DistanceTo(swept[0].To)) < 1e-3f,
+                        .Lerp(struckModel.LocationCenter(burning.SecondLocation!.Value), .65f)) < 1e-2f
+                    && Math.Abs(halo.GlobalTransform.Basis.Y.Length() - swept[0].From.DistanceTo(swept[0].To)) < 1e-2f,
                 "a full-length beam sweeps linearly from the first location toward the adjacent one over the burn");
-            Check(CombatViewport.LaserRadius(WeaponKind.SmallLaser) == .02f && CombatViewport.LaserRadius(WeaponKind.MediumLaser) == .04f
-                    && CombatViewport.LaserRadius(WeaponKind.LargeLaser) == .06f && CombatViewport.LaserRadius(WeaponKind.ERLargeLaser) == .06f,
+            Check(CombatViewport.LaserRadius(WeaponKind.SmallLaser) == .3f && CombatViewport.LaserRadius(WeaponKind.MediumLaser) == .6f
+                    && CombatViewport.LaserRadius(WeaponKind.LargeLaser) == .9f && CombatViewport.LaserRadius(WeaponKind.ERLargeLaser) == .9f,
                 "beam widths are one, two and three thirds of the large laser's");
 
             var miss = Fresh(shot => !shot.Hit);
@@ -137,7 +137,7 @@ public partial class SmokeTests
                 - ModelAt(sim.Unit(miss!.TargetId)).LocationCenter(miss.Location);
             var early = MissOffset(); sim.Advance(.7); field._Process(0);
             // Both models may move; the miss stays the same distance beside its location rather than sweeping.
-            Check(Math.Abs(MissOffset().Length() - early.Length()) < 1e-3f, "a laser miss keeps its aim for the whole burn");
+            Check(Math.Abs(MissOffset().Length() - early.Length()) < 1e-2f, "a laser miss keeps its aim for the whole burn");
 
             burning = Fresh(shot => shot.Hit);
             var beams = field.Beams().Count();
@@ -146,10 +146,10 @@ public partial class SmokeTests
                 "a destroyed shooter's beam vanishes immediately");
 
             Check(new[] { WeaponKind.AC2, WeaponKind.AC5, WeaponKind.AC10, WeaponKind.AC20 }
-                    .Select(CombatViewport.ExplosionRadius).Zip(new[] { .3f, .5f, .8f, 1.2f }).All(pair => pair.First == pair.Second),
+                    .Select(CombatViewport.ExplosionRadius).Zip(new[] { 4.5f, 7.5f, 12f, 18f }).All(pair => pair.First == pair.Second),
                 "autocannon explosions scale with caliber");
             Check(new[] { WeaponKind.AC2, WeaponKind.AC5, WeaponKind.AC10, WeaponKind.AC20 }
-                    .Select(CombatViewport.ShellRadius).Zip(new[] { .06f, .08f, .1f, .13f }).All(pair => pair.First == pair.Second),
+                    .Select(CombatViewport.ShellRadius).Zip(new[] { .9f, 1.2f, 1.5f, 1.95f }).All(pair => pair.First == pair.Second),
                 "autocannon bullets scale with caliber");
             CombatShot? shell = null;
             Deploy(atlasFires: true);
@@ -163,16 +163,16 @@ public partial class SmokeTests
             var launched = Shell().Position;
             sim.Advance(shell!.FlightSeconds / 2); field._Process(0);
             var struck = ModelAt(sim.Unit(shell.TargetId)).LocationCenter(shell.Location);
-            Check(Shell().Flying && !Shell().Exploding && Shell().Position.DistanceTo(launched) > 1
-                    && Shell().Position.DistanceTo(struck) > 1, "an autocannon shell travels toward its target");
+            Check(Shell().Flying && !Shell().Exploding && Shell().Position.DistanceTo(launched) > 15
+                    && Shell().Position.DistanceTo(struck) > 15, "an autocannon shell travels toward its target");
             var bullet = field.Bullets().Single(item => item.Shot == shell).Transform;
             var caliber = CombatViewport.ShellRadius(sim.Unit(shell.AttackerId).Spec.Weapons.Single(weapon => weapon.Id == shell.WeaponId).Kind);
-            Check(bullet.Origin.IsEqualApprox(Shell().Position) && Math.Abs(bullet.Basis.Y.Length() - CombatViewport.BulletLength * caliber) < 1e-4f
-                    && Math.Abs(bullet.Basis.X.Length() - 2 * caliber) < 1e-4f && bullet.Basis.Y.Normalized().Dot((struck - launched).Normalized()) > .99f,
+            Check(bullet.Origin.IsEqualApprox(Shell().Position) && Math.Abs(bullet.Basis.Y.Length() - CombatViewport.BulletLength * caliber) < 1.5e-3f
+                    && Math.Abs(bullet.Basis.X.Length() - 2 * caliber) < 1.5e-3f && bullet.Basis.Y.Normalized().Dot((struck - launched).Normalized()) > .99f,
                 "the shell is a caliber-sized bullet with no trail, centered on the shell and pointing along its flight");
             sim.Advance(shell.FlightSeconds / 2 + .05); field._Process(0);
             struck = ModelAt(sim.Unit(shell.TargetId)).LocationCenter(shell.Location);
-            Check(!Shell().Flying && Shell().Exploding && Shell().Position.IsEqualApprox(struck),
+            Check(!Shell().Flying && Shell().Exploding && Shell().Position.DistanceTo(struck) < 1e-2f,
                 "the shell explodes at the struck location when it lands");
 
             CombatShot? bolt = null;
@@ -185,12 +185,12 @@ public partial class SmokeTests
             Check(bolt is not null, "the exchange produced a visible PPC hit");
             (CombatShot Shot, Vector3 Bolt, bool BeamVisible, bool Flying, bool Bursting, int Arcs) Ppc() => field.Ppcs().Single(item => item.Shot == bolt);
             Check(Ppc().BeamVisible && Ppc().Flying && !Ppc().Bursting && Ppc().Arcs == 0
-                    && Ppc().Bolt.DistanceTo(ModelAt(sim.Unit(bolt!.TargetId)).LocationCenter(bolt.Location)) > 1,
+                    && Ppc().Bolt.DistanceTo(ModelAt(sim.Unit(bolt!.TargetId)).LocationCenter(bolt.Location)) > 15,
                 "a PPC flashes its beam at once and launches a bolt from the muzzle");
             sim.Advance(bolt!.FlightSeconds + .03); field._Process(0);
             var splashes = bolt.Splashes.Select(splash => splash.Location).Distinct().Count();
             Check(!Ppc().Flying && Ppc().Bursting && Ppc().BeamVisible && Ppc().Arcs == CombatViewport.PpcRadialArcs + splashes
-                    && Ppc().Bolt.IsEqualApprox(ModelAt(sim.Unit(bolt.TargetId)).LocationCenter(bolt.Location)),
+                    && Ppc().Bolt.DistanceTo(ModelAt(sim.Unit(bolt.TargetId)).LocationCenter(bolt.Location)) < 1e-2f,
                 "the bolt bursts at the struck location with radial arcs and one arc per location its splash reached, while the beam still shows");
             sim.Paused = true; var frozen = Ppc(); sim.Advance(1); field._Process(0);
             Check(Ppc() == frozen, "pausing freezes the PPC burst");
@@ -219,25 +219,25 @@ public partial class SmokeTests
                 sim.Advance(salvo.FlightSeconds / 2); field._Process(0);
                 var swarm = Swarm();
                 Check(swarm.All(item => item.Flying && !item.Exploding && item.Position.DistanceTo(item.Course)
-                        <= CombatViewport.MissileWobble * CombatViewport.WobbleEnvelope(item.Progress) + 1e-3f),
+                        <= CombatViewport.MissileWobble * CombatViewport.WobbleEnvelope(item.Progress) + 1e-2f),
                     "missiles skitter within their wobble envelope mid-flight");
-                Check(swarm.Count(item => item.Position.DistanceTo(item.Course) > .1f) > swarm.Length / 2
+                Check(swarm.Count(item => item.Position.DistanceTo(item.Course) > 1.5f) > swarm.Length / 2
                         && swarm.Select(item => item.Position - item.Course).Distinct().Count() == swarm.Length,
                     "each missile skitters along its own randomized path");
                 Check(swarm.Where(item => item.Missile.Hit).All(item => item.Progress < .5f),
                     $"{rack} missiles are still accelerating: less than half the path is covered at half the flight");
-                Check(swarm.Where(item => item.Missile.Hit).All(item => item.Position.DistanceTo(item.End) > 1)
+                Check(swarm.Where(item => item.Missile.Hit).All(item => item.Position.DistanceTo(item.End) > 15)
                         && swarm.All(item => lrm ? item.Loft > 0 : item.Loft == 0),
                     lrm ? "the LRM swarm is lofted and still short of its impact points" : "the SRM swarm flies flat and is still short of its impact points");
                 sim.Advance(salvo.FlightSeconds / 2 + .05); field._Process(0);
                 swarm = Swarm();
-                Check(swarm.Where(item => item.Missile.Hit).All(item => !item.Flying && item.Exploding && item.Position.IsEqualApprox(item.End)
+                Check(swarm.Where(item => item.Missile.Hit).All(item => !item.Flying && item.Exploding && item.Position.DistanceTo(item.End) < 1e-2f
                         && item.End.IsEqualApprox(ModelAt(sim.Unit(salvo.TargetId)).LocationCenter(item.Missile.Location))),
                     "hit missiles gather onto their struck locations and burst");
-                Check(swarm.Where(item => !item.Missile.Hit).All(item => Math.Abs(item.End.Y - sim.Terrain.HeightAt(new Vector2(item.End.X, item.End.Z))) < 1e-3f),
+                Check(swarm.Where(item => !item.Missile.Hit).All(item => Math.Abs(item.End.Y - sim.Terrain.HeightAt(new Vector2(item.End.X, item.End.Z))) < 1e-2f),
                     "missed missiles come down on the ground");
             }
-            Check(CombatViewport.TracerRadius * 3 <= CombatViewport.ShellRadius(WeaponKind.AC2) && CombatViewport.TracerRounds == 15,
+            Check(CombatViewport.TracerRadius * 3 <= CombatViewport.ShellRadius(WeaponKind.AC2) + 1e-6f && CombatViewport.TracerRounds == 15,
                 "machine gun tracers are a third of an AC/2 shell's radius, fifteen to a burst");
             var gunners = ForceRoster.Create("Tracer checks", [DraftCatalog.Mech("firestarter")], DraftCatalog.Warriors.Take(1));
             gunners.Assign(gunners.Mechs[0].Id, gunners.Warriors[0].Id);
@@ -245,7 +245,7 @@ public partial class SmokeTests
             {
                 sim = CombatSimulation.DeployOnTerrain(gunners, [gunners.Mechs[0].Id], BattlefieldTerrain.Flat);
                 var gunner = sim.Units.Single(unit => unit.Side == CombatSide.Friendly); var mark = sim.Units.Single(unit => unit.Side == CombatSide.Enemy);
-                gunner.Position = Vector2.Zero; gunner.Facing = Vector2.Up; mark.Position = new Vector2(0, -5); mark.Facing = Vector2.Down;
+                gunner.Position = Vector2.Zero; gunner.Facing = Vector2.Up; mark.Position = new Vector2(0, -150); mark.Facing = Vector2.Down;
                 foreach (var weapon in gunner.Weapons) weapon.Enabled = weapon.Spec.Kind == WeaponKind.MachineGun;
                 mark.Firing = FiringMode.HoldFire; sim.EnemyAiEnabled = false;
                 field.Display(sim); sim.RefreshDetection(); sim.Paused = false;
@@ -277,11 +277,11 @@ public partial class SmokeTests
             var gunModel = ModelAt(sim.Unit(burst!.TargetId));
             struck = gunModel.LocationCenter(burst.Location);
             Check(rounds.Count(round => round.Launched) is >= 7 and <= 9
-                    && rounds.Where(round => round.Launched).All(round => round.End.DistanceTo(struck) <= CombatViewport.TracerScatter * Mathf.Sqrt(3) + 1e-4f),
+                    && rounds.Where(round => round.Launched).All(round => round.End.DistanceTo(struck) <= CombatViewport.TracerScatter * Mathf.Sqrt(3) + 1.5e-3f),
                 "the burst keeps firing for its second, every hit round aimed within its scatter of the struck location");
             var streaks = rounds.Where(round => round.Streak.Visible).ToArray();
-            Check(streaks.All(round => Math.Abs(round.Streak.GlobalTransform.Basis.X.Length() - CombatViewport.TracerRadius) < 1e-4f
-                    && round.Streak.GlobalTransform.Basis.Y.Length() <= CombatViewport.TracerLength + 1e-4f),
+            Check(streaks.All(round => Math.Abs(round.Streak.GlobalTransform.Basis.X.Length() - CombatViewport.TracerRadius) < 1.5e-3f
+                    && round.Streak.GlobalTransform.Basis.Y.Length() <= CombatViewport.TracerLength + 1.5e-3f),
                 "each tracer is a thin glowing streak no longer than its set length");
             Check(rounds.Any(round => round.Sparking), "hit rounds spark where they strike");
             sim.Advance(.7); field._Process(0);
@@ -304,7 +304,7 @@ public partial class SmokeTests
             {
                 var aim = ModelAt(sim.Unit(spray!.TargetId)).LocationCenter(spray.Location);
                 sparked |= Rounds(spray).Any(round => round.Sparking);
-                wide &= Rounds(spray).Where(round => round.Launched).All(round => round.End.DistanceTo(aim) > 1);
+                wide &= Rounds(spray).Where(round => round.Launched).All(round => round.End.DistanceTo(aim) > 15);
                 sim.Advance(CombatRules.StepSeconds); field._Process(0);
             }
             Check(!sparked && wide && Rounds(spray!).Length == 0, "missed rounds spray beside and past the rolled location and vanish without sparks");
@@ -344,7 +344,7 @@ public partial class SmokeTests
                         return new Vector4(pair.Second.R - expected.R, pair.Second.G - expected.G, pair.Second.B - expected.B, pair.Second.A - expected.A).Length() < .01f;
                     }),
                 "missile trails run from white at the missile through yellow to a fading orange tail");
-            Check(CombatViewport.MissileTrailSeconds <= .04f && CombatViewport.MissileWobble == .75f, "missile trails are short and the skitter is gentle");
+            Check(CombatViewport.MissileTrailSeconds <= .04f && CombatViewport.MissileWobble == 11.25f, "missile trails are short and the skitter is gentle");
             Check(CombatViewport.WobbleEnvelope(0) == 0 && CombatViewport.WobbleEnvelope(1) == 0 && CombatViewport.WobbleEnvelope(.5f) == 1,
                 "the skitter builds after launch and vanishes on arrival");
         }

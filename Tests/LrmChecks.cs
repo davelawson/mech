@@ -4,7 +4,7 @@ namespace Mech.Tests;
 
 internal static partial class CombatChecks
 {
-    // An LRM-15 (or SRM-6) shooter 25 hexes from its target, with optional friendly spotters whose own weapons are switched off.
+    // An LRM-15 (or SRM-6) shooter 750 metres from its target, with optional friendly spotters whose own weapons are switched off.
     private static CombatSimulation LrmFixture(int seed = 41, int gunnery = 2, BattlefieldTerrain? terrain = null, bool srm = false, params Vector2[] spotters)
     {
         var ammo = srm ? AmmoKind.SRM6 : AmmoKind.LRM15;
@@ -30,19 +30,19 @@ internal static partial class CombatChecks
             var spotter = Create($"spotter-{i + 1}", CombatSide.Friendly, spotters[i], Vector2.Down);
             spotter.Weapons[0].Enabled = false; units.Add(spotter);
         }
-        units.Add(Create("target", CombatSide.Enemy, new Vector2(25, 0), Vector2.Left));
+        units.Add(Create("target", CombatSide.Enemy, new Vector2(750, 0), Vector2.Left));
         units[^1].Firing = FiringMode.HoldFire;
         return new(units, seed, terrain ?? BattlefieldTerrain.Flat) { EnemyAiEnabled = false, Paused = false };
     }
 
     private static void CheckLrms(Action<bool, string> check)
     {
-        check(Math.Abs(CombatRules.MissileFlightSeconds(35) - 2) < 1e-6, "LRMs fly 17.5 hexes per second");
-        check(Math.Abs(CombatRules.SrmFlightSeconds(27) - 27 / 17.5) < 1e-6 && Math.Abs(CombatRules.SrmFlightSeconds(9) - .776) < 1e-3
+        check(Math.Abs(CombatRules.MissileFlightSeconds(1050) - 2) < 1e-6, "LRMs fly 525 metres per second");
+        check(Math.Abs(CombatRules.SrmFlightSeconds(810) - 810 / 525.0) < 1e-6 && Math.Abs(CombatRules.SrmFlightSeconds(270) - .776) < 1e-3
                 && CombatRules.SrmFlightSeconds(0) == 0,
-            "SRMs accelerate from launch and still reach their 27-hex long range in about 1.54 seconds");
-        var srmHalf = CombatRules.SrmFlightSeconds(27) / 2;
-        check(CombatRules.SrmLaunchSpeed * srmHalf + CombatRules.SrmAcceleration * srmHalf * srmHalf / 2 < 27 / 2.0,
+            "SRMs accelerate from launch and still reach their 810 m long range in about 1.54 seconds");
+        var srmHalf = CombatRules.SrmFlightSeconds(810) / 2;
+        check(CombatRules.SrmLaunchSpeed * srmHalf + CombatRules.SrmAcceleration * srmHalf * srmHalf / 2 < 810 / 2.0,
             "an SRM covers less than half its range in the first half of its flight");
         check(CombatRules.FiresSalvo(WeaponKind.LRM20) && CombatRules.FiresSalvo(WeaponKind.SRM2) && !CombatRules.FiresSalvo(WeaponKind.AC20),
             "LRM and SRM racks fire missile salvos");
@@ -59,7 +59,7 @@ internal static partial class CombatChecks
         check(discharge.Missiles.Where(missile => missile.Hit).Select(missile => missile.Location).Distinct().Count() > 1,
             "missiles roll their own locations, spreading a salvo's damage");
         check(shooter.Shots("bin-b") == 0 && shooter.Shots("bin-a") == 3, "a salvo spends one shot");
-        check(discharge.InFlight && Math.Abs(discharge.FlightSeconds - 25 / 17.5) < 1e-6 && target.ArmorLost + target.StructureLost == 0
+        check(discharge.InFlight && Math.Abs(discharge.FlightSeconds - 750 / 525.0) < 1e-6 && target.ArmorLost + target.StructureLost == 0
                 && shooter.DamageDealt == 0, "salvo damage waits for the missiles to land");
         var debug = sim.History[0].DebugText;
         check(debug.Contains($"{hits}/15 HIT") && debug.Contains("rolls ") && debug.Contains("in flight 1.43s")
@@ -99,8 +99,8 @@ internal static partial class CombatChecks
                 && sim.History[0].DebugText.Contains("0/15 MISS"), "a salvo whose missiles all miss spends its shot and has no impact entry");
 
         // A rock hides the target from the shooter; spotters stand clear of it.
-        var rock = new BattlefieldTerrain(1, [new(TerrainKind.Rock, new Vector2(12, 0), 2, 4)], []);
-        sim = LrmFixture(terrain: rock, spotters: [new Vector2(25, 12)]); shooter = Friendly(sim); target = Enemy(sim); sim.RefreshDetection();
+        var rock = new BattlefieldTerrain(1, [new(TerrainKind.Rock, new Vector2(360, 0), 60, 120)], []);
+        sim = LrmFixture(terrain: rock, spotters: [new Vector2(750, 360)]); shooter = Friendly(sim); target = Enemy(sim); sim.RefreshDetection();
         var rack = shooter.Weapons[0];
         check(sim.Detected(CombatSide.Friendly, target.Id) && !sim.Terrain.ClearSight(shooter.Position, target.Position),
             "the spotter detects a target the shooter cannot see");
@@ -118,7 +118,7 @@ internal static partial class CombatChecks
         check(sim.History.Single().Shot is { Indirect: true, Missiles.Count: 15 } indirect && indirect.SpotterId == spotter.Id
                 && sim.History[0].CombatText!.Contains("indirect, spotted by F2"), "the salvo fires indirectly and the log names its spotter");
 
-        sim = LrmFixture(terrain: rock, spotters: [new Vector2(25, 12)]); shooter = Friendly(sim); target = Enemy(sim); sim.RefreshDetection();
+        sim = LrmFixture(terrain: rock, spotters: [new Vector2(750, 360)]); shooter = Friendly(sim); target = Enemy(sim); sim.RefreshDetection();
         shooter.Firing = FiringMode.HoldFire; sim.Attack([shooter.Id], target.Id);
         check(sim.IndirectSpotter(shooter, target, shooter.Weapons[0]) is not null && sim.CanFire(shooter, target, shooter.Weapons[0]),
             "an explicit Attack order permits indirect fire, even under Hold fire");
@@ -129,22 +129,22 @@ internal static partial class CombatChecks
         sim = LrmFixture(srm: true); Steps(sim, 1);
         discharge = sim.History.Single().Shot; hits = discharge.Missiles.Count(missile => missile.Hit);
         check(discharge.Missiles.Count == 6 && discharge.Missiles.All(missile => missile.Hit == missile.Roll < discharge.Chance)
-                && discharge.InFlight && Math.Abs(discharge.FlightSeconds - CombatRules.SrmFlightSeconds(25)) < 1e-6 && discharge.Damage == 20 * hits && discharge.MissileDamage == 20
+                && discharge.InFlight && Math.Abs(discharge.FlightSeconds - CombatRules.SrmFlightSeconds(750)) < 1e-6 && discharge.Damage == 20 * hits && discharge.MissileDamage == 20
                 && Friendly(sim).Shots("bin-b") == 0 && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == 0,
             "an SRM salvo rolls each missile, spends one shot and lands after its accelerating flight");
         Steps(sim, 31);
         check(sim.History.Count == (hits > 0 ? 2 : 1) && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == 20 * hits,
             "SRM missiles each deal their stock damage on impact");
-        sim = LrmFixture(terrain: rock, srm: true, spotters: [new Vector2(25, 12)]); shooter = Friendly(sim); target = Enemy(sim); sim.RefreshDetection();
+        sim = LrmFixture(terrain: rock, srm: true, spotters: [new Vector2(750, 360)]); shooter = Friendly(sim); target = Enemy(sim); sim.RefreshDetection();
         shooter.Firing = FiringMode.HoldFire; sim.Attack([shooter.Id], target.Id); sim.SetPriority([shooter.Id], target.Id);
         check(sim.IndirectSpotter(shooter, target, shooter.Weapons[0]) is null && !sim.CanFire(shooter, target, shooter.Weapons[0])
                 && sim.TerrainHitChance(shooter, target, shooter.Weapons[0]) == 0,
             "SRMs never fire indirectly, even at an Attack or priority target");
 
         // The nearer spotter looks through vegetation; the farther one is clear and wins.
-        var screened = new BattlefieldTerrain(2, [new(TerrainKind.Rock, new Vector2(12, 0), 2, 4),
-            new(TerrainKind.Vegetation, new Vector2(25, 4), 1.5f)], []);
-        sim = LrmFixture(terrain: screened, spotters: [new Vector2(25, 8), new Vector2(25, -16)]); shooter = Friendly(sim); target = Enemy(sim);
+        var screened = new BattlefieldTerrain(2, [new(TerrainKind.Rock, new Vector2(360, 0), 60, 120),
+            new(TerrainKind.Vegetation, new Vector2(750, 120), 45)], []);
+        sim = LrmFixture(terrain: screened, spotters: [new Vector2(750, 240), new Vector2(750, -480)]); shooter = Friendly(sim); target = Enemy(sim);
         sim.RefreshDetection(); sim.SetPriority([shooter.Id], target.Id); rack = shooter.Weapons[0];
         check(sim.IndirectSpotter(shooter, target, rack) == sim.Units[2], "the spotter with the least vegetation is chosen before the nearest");
         sim.Units[2].ApplyDamage(MechLocation.Head, 100000);

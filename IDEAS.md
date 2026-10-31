@@ -8,7 +8,9 @@
 - While in the briefing, give access to view the battlefield in the actual 3d view, so the player can explore it and come up with ideas and strategies.  Some missions might prohibit this, and sometimes the map could be wrong.
 
 ### Hangar Interface
-- We need to be able to modify/customise mechs.  That means leading different weapons and such.
+- We need to be able to modify/customise mechs.  That means loading different weapons and such.
+  - Refit from storage: drag weapons, ammunition, heat sinks and jump jets between storage and the blueprint's critical slots, checking mass, slots and heat.
+  - Repair and replace: armor and damaged systems repaired for C-bills; destroyed systems replaced (see the hangar section of docs/design.md).
 
 ### Roster Interface
 - Add technical staff
@@ -26,7 +28,6 @@
 - add paper dolls to the quick selection buttons along the bottom of the screen
 - mech animations for jumping
 - Improve terrain features
-- Convert all distances to meters rather than hexes.  Outlaw hexes.  1 hex = 30 meters.
 - Make shooting cooler:
   - Sounds
   - Distinct graphics

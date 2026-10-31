@@ -56,7 +56,8 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | **Find DropShip**, or the gold arrow | Center the DropShip |
 | **Hangar** | |
 | Click a mech along the bottom | Select it |
-| Idle / Walk / Run | Preview gaits (articulated chassis only; see [mech models](docs/mech-models.md)) |
+| Right-drag the mech | Spin it; it springs back to front-on on release |
+| Hover a critical slot | Item mass, slots and condition |
 | **Simulate Deployment** | Choose Randomized enemy or Mirror match, then 1–4 mechs and a terrain seed |
 | **Combat** | |
 | Click / drag | Select friendly mechs |

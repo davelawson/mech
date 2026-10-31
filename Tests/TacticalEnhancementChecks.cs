@@ -34,21 +34,21 @@ public partial class SmokeTests
             Check(screen.Selected.SequenceEqual([friends[0].Id]), "shift-number adds and removes slots even with shifted key symbols");
             KeyPress(Key.Key1, true);
             Check(screen.Selected.Count == 0, "shift-number can toggle the last selected mech off");
-            field.Camera.Size = 220; KeyPress(Key.Quoteleft);
-            Check(Math.Abs(field.Camera.Size - 50) < .01 && field.GroundPoint(field.Size / 2).DistanceTo(new Vector2(0, 64)) < .02,
+            field.Camera.Size = 6600; KeyPress(Key.Quoteleft);
+            Check(Math.Abs(field.Camera.Size - 1500) < .3 && field.GroundPoint(field.Size / 2).DistanceTo(new Vector2(0, 1920)) < .6,
                 "backtick with no selection restores tactical zoom and centers all friendly slots");
 
-            friends[0].Position = new(-90, -80); friends[1].Position = new(90, 80);
+            friends[0].Position = new(-2700, -2400); friends[1].Position = new(2700, 2400);
             screen.SelectUnits([friends[0].Id, friends[1].Id], false);
             field._GuiInput(new InputEventKey { Keycode = Key.Home, Pressed = true });
             KeyPress(Key.Quoteleft);
-            Check(field.Camera.Size > 50 && field.GroundPoint(field.Size / 2).Length() < .02,
+            Check(field.Camera.Size > 1500 && field.GroundPoint(field.Size / 2).Length() < .6,
                 "backtick centers the group and widens reset zoom to fit spread-out mechs");
             Check(Math.Abs(field.Camera.Rotation.Y) < .001
                 && Math.Abs(-field.Camera.Rotation.X - Mathf.Atan2(80, 70)) < .001,
                 "selection framing resets yaw and pitch");
             Check(friends.Take(2).All(unit => new Rect2(Vector2.One * 16, field.Size - Vector2.One * 32)
-                .HasPoint(field.ScreenPoint(unit.Position, 1))), "selection framing keeps both widely spaced mechs within the view");
+                .HasPoint(field.ScreenPoint(unit.Position, 15))), "selection framing keeps both widely spaced mechs within the view");
 
             var width = field.Size.X; var camera = field.Camera.Transform;
             KeyPress(Key.Asciitilde, true, Key.Quoteleft); await Frames();
@@ -62,7 +62,7 @@ public partial class SmokeTests
                     $"log docking preserves a usable unobscured battlefield at {size}");
                 KeyPress(Key.Quoteleft);
                 Check(friends.Take(2).All(unit => new Rect2(Vector2.One * 16, field.Size - Vector2.One * 32)
-                    .HasPoint(field.ScreenPoint(unit.Position, 1))), $"group framing accounts for docked viewport aspect at {size}");
+                    .HasPoint(field.ScreenPoint(unit.Position, 15))), $"group framing accounts for docked viewport aspect at {size}");
             }
             var input = screen.FindChildren("*", "SpinBox", true, false).OfType<SpinBox>().Single().GetLineEdit();
             input.GrabFocus();
@@ -79,7 +79,7 @@ public partial class SmokeTests
                 Weapons = [new("log-laser", "Log Laser", MechLocation.RightArm, false, 0, new(DamageKind.Direct, 1, 1, 0), 0, 20, 25, 30, null, WeaponKind.Flamer)] };
             CombatUnit Unit(CombatSide side) => new(side.ToString(), spec, DraftCatalog.Warriors[0] with { Gunnery = -10 }, side,
                 spec.Locations.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)),
-                [new EquipmentCondition("log-laser", ComponentCondition.Operational)], [], side == CombatSide.Friendly ? Vector2.Zero : new Vector2(2, 0));
+                [new EquipmentCondition("log-laser", ComponentCondition.Operational)], [], side == CombatSide.Friendly ? Vector2.Zero : new Vector2(60, 0));
             var source = Unit(CombatSide.Friendly); var target = Unit(CombatSide.Enemy);
             source.Facing = Vector2.Right; target.Facing = Vector2.Left; target.Firing = FiringMode.HoldFire;
             var logSim = new CombatSimulation([source, target], 41) { Paused = false, EnemyAiEnabled = false };

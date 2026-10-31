@@ -66,6 +66,7 @@ public partial class SmokeTests : Node
                 TravelChecks.Run(Check);
                 CatalogChecks.Run(Check);
                 RosterChecks.Run(Check);
+                HangarChecks.Run(Check);
                 MissionChecks.Run(Check);
                 CombatChecks.Run(Check);
                 TerrainChecks.Run(Check);
@@ -360,17 +361,15 @@ public partial class SmokeTests : Node
         _app.ShowWarriors(); await Frames(); await RightClick(_app.Rolodex.CardName.GetGlobalRect().GetCenter());
         Check(!_app.Rolodex.Visible && _app.Office.RolodexButton.HasFocus(), "office personnel right-click restores the rolodex hotspot");
         _app.ShowHangar(); await Frames(); _app.Hangar.Select(1);
-        var tabs = _app.Hangar.FindChildren("*", "TabContainer", true, false).OfType<TabContainer>().Single();
-        tabs.CurrentTab = 2;
         var selected = _app.Hangar.SelectedMech;
         await Click(_app.Hangar.WarriorsButton);
         Check(_app.Rolodex.Visible && _app.Hangar.Visible && _app.Rolodex.BackButton.Text == "Back to hangar", "hangar personnel remembers its parent");
         await RightClick(_app.Rolodex.CardName.GetGlobalRect().GetCenter());
         Check(!_app.Rolodex.Visible && _app.Hangar.Visible && !_app.Office.Visible
-            && _app.Hangar.SelectedMech == selected && tabs.CurrentTab == 2 && _app.Hangar.WarriorsButton.HasFocus(),
-            "one right-click returns to unchanged hangar selection and tab");
+            && _app.Hangar.SelectedMech == selected && _app.Hangar.WarriorsButton.HasFocus(),
+            "one right-click returns to unchanged hangar selection");
         await Click(_app.Hangar.WarriorsButton); await PressKey(Key.Escape);
-        Check(!_app.Rolodex.Visible && _app.Hangar.Visible && tabs.CurrentTab == 2, "nested personnel Escape also returns one level");
+        Check(!_app.Rolodex.Visible && _app.Hangar.Visible, "nested personnel Escape also returns one level");
         await Click(_app.Hangar.WarriorsButton); await Click(_app.Rolodex.BackButton);
         Check(!_app.Rolodex.Visible && _app.Hangar.Visible, "nested personnel Back button uses the same parent");
         await Click(_app.Hangar.PilotPicker);
@@ -805,13 +804,7 @@ public partial class SmokeTests : Node
             await PressKey(Key.Escape); await Click(_app.Office.HangarButton);
         }
         GetWindow().Size = new Vector2I(1440, 900); await Frames();
-        var tabs = _app.Hangar.FindChildren("*", "TabContainer", true, false).OfType<TabContainer>().Single();
-        foreach (var (tab, name) in new[] { (1, "armor"), (2, "weapons"), (3, "systems") })
-        {
-            var bar = tabs.GetTabBar(); var at = bar.GlobalPosition + bar.GetTabRect(tab).GetCenter();
-            MouseButton(at, Godot.MouseButton.Left, true); MouseButton(at, Godot.MouseButton.Left, false); await Frames();
-            Check(tabs.CurrentTab == tab, $"hangar {name} tab accepts mouse input"); await Capture($"hangar-{name}");
-        }
+        await TestHangarScreen();
         await PressKey(Key.Escape); await PressKey(Key.Escape);
         Check(_app.MainMenu.Visible && _app.MainMenu.ResumeButton.Visible && _app.MainMenu.ResumeButton.Text == "Resume", "office Escape opens menu with Resume");
         await Click(_app.MainMenu.ResumeButton);
@@ -926,7 +919,8 @@ public partial class SmokeTests : Node
         _checks++;
     }
 
-    private void Near(float actual, float expected, string message) => Check(Math.Abs(actual - expected) < .01f, $"{message}: expected {expected}, got {actual}");
+    // Metre-scale values carry proportionally larger float error than angles and ratios.
+    private void Near(float actual, float expected, string message) => Check(Math.Abs(actual - expected) < Math.Max(.01f, Math.Abs(expected) * 1e-5f), $"{message}: expected {expected}, got {actual}");
 
     private async Task Capture(string name)
     {

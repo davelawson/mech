@@ -18,11 +18,11 @@ internal static partial class CombatChecks
         CheckCircleUnions(check);
         foreach (var (sensors, tonnage, expected) in new[]
         {
-            (6, 20, 25f), (6, 60, 37.5f), (6, 100, 50f),
-            (4, 20, 37.5f), (4, 60, 56.25f), (4, 100, 75f),
-            (2, 20, 50f), (2, 60, 75f), (2, 100, 100f)
+            (6, 20, 750f), (6, 60, 1125f), (6, 100, 1500f),
+            (4, 20, 1125f), (4, 60, 1687.5f), (4, 100, 2250f),
+            (2, 20, 1500f), (2, 60, 2250f), (2, 100, 3000f)
         })
-            check(CombatRules.DetectionRadius(sensors, tonnage) == expected, $"Sensors {sensors}, {tonnage}t gives {expected} hexes");
+            check(CombatRules.DetectionRadius(sensors, tonnage) == expected, $"Sensors {sensors}, {tonnage}t gives {expected} m");
         foreach (var sensors in Enumerable.Range(2, 5))
         foreach (var definition in new[] { "locust", "dragon", "atlas" })
         {
@@ -33,28 +33,28 @@ internal static partial class CombatChecks
             target.Position = Vector2.Right * radius; sim.RefreshDetection();
             check(sim.Detected(observer.Side, target.Id) && !sim.DetailsVisible(observer.Side, target.Id),
                 $"{sensors}/{definition}: full-radius boundary identifies model only");
-            target.Position = Vector2.Right * (radius + .01f); sim.RefreshDetection();
+            target.Position = Vector2.Right * (radius + .3f); sim.RefreshDetection();
             check(!sim.Detected(observer.Side, target.Id), $"{sensors}/{definition}: beyond full radius is hidden");
             target.Position = Vector2.Right * (radius * .5f); sim.RefreshDetection();
             check(sim.DetailsVisible(observer.Side, target.Id), $"{sensors}/{definition}: half-radius boundary reveals details");
-            target.Position += Vector2.Right * .01f; sim.RefreshDetection();
+            target.Position += Vector2.Right * .3f; sim.RefreshDetection();
             check(sim.Detected(observer.Side, target.Id) && !sim.DetailsVisible(observer.Side, target.Id),
                 $"{sensors}/{definition}: leaving half radius immediately hides live details");
         }
         var novice = SensorUnit("novice", "atlas", 6, CombatSide.Friendly, Vector2.Zero);
-        var scout = SensorUnit("scout", "locust", 2, CombatSide.Friendly, new Vector2(30, 0));
-        var enemy = SensorUnit("enemy", "locust", 6, CombatSide.Enemy, new Vector2(40, 0));
+        var scout = SensorUnit("scout", "locust", 2, CombatSide.Friendly, new Vector2(900, 0));
+        var enemy = SensorUnit("enemy", "locust", 6, CombatSide.Enemy, new Vector2(1200, 0));
         var shared = new CombatSimulation([novice, scout, enemy], 41);
         check(shared.Detected(CombatSide.Enemy, scout.Id) && shared.Detected(CombatSide.Enemy, novice.Id)
             && shared.DetailsVisible(CombatSide.Friendly, enemy.Id), "both sides calculate target mass and share their best current observation");
-        scout.Position = new Vector2(0, 20); shared.RefreshDetection();
+        scout.Position = new Vector2(0, 600); shared.RefreshDetection();
         check(shared.Detected(novice.Side, enemy.Id) && !shared.DetailsVisible(novice.Side, enemy.Id),
             "shared detailed contact downgrades when the scout leaves detailed range");
         var lastKnown = shared.Contacts(novice.Side)[enemy.Id].LastKnownPosition;
         scout.ApplyDamage(MechLocation.CenterTorso, 10000); shared.RefreshDetection();
         check(!shared.Detected(novice.Side, enemy.Id) && !shared.DetailsVisible(novice.Side, enemy.Id)
             && shared.Contacts(novice.Side)[enemy.Id].LastKnownPosition == lastKnown, "inactive observers lose both information tiers while retaining last-known position");
-        enemy.Position = new Vector2(5, 0); enemy.ApplyDamage(MechLocation.CenterTorso, 10000); shared.RefreshDetection();
+        enemy.Position = new Vector2(150, 0); enemy.ApplyDamage(MechLocation.CenterTorso, 10000); shared.RefreshDetection();
         check(shared.DetailsVisible(novice.Side, enemy.Id), "destroyed targets remain observable within detailed range");
         var damaged = SensorUnit("damaged", "awesome", 4, CombatSide.Enemy, Vector2.Zero);
         var weapon = damaged.Weapons.First(w => w.Spec.Location is MechLocation.LeftArm or MechLocation.RightArm);

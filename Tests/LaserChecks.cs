@@ -64,7 +64,7 @@ internal static partial class CombatChecks
                 && enemy.ArmorLost + enemy.StructureLost - armor == 50,
             "the second half of a stationary target's burn lands on the same location");
         sim = LaserFixture(twisting: false); enemy = Enemy(sim);
-        sim.Move([enemy.Id], enemy.Position + new Vector2(0, 20)); Steps(sim, 1);
+        sim.Move([enemy.Id], enemy.Position + new Vector2(0, 600)); Steps(sim, 1);
         discharge = sim.History.Single().Shot;
         check(enemy.InMotion && !enemy.TorsoTurning && discharge.SecondLocation is { } spread
                 && CombatRules.AdjacentLocations(discharge.Location).Contains(spread),

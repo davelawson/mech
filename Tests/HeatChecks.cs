@@ -20,7 +20,7 @@ internal static partial class CombatChecks
                 spec.Locations.Select(location => new LocationCondition(location.Location, location.Armor, location.RearArmor, location.Structure)),
                 spec.Weapons.Select(weapon => new EquipmentCondition(weapon.Id, ComponentCondition.Operational))
                     .Concat(spec.Components.Select(component => new EquipmentCondition(component.Id, sinkCondition))),
-                [], side == CombatSide.Friendly ? Vector2.Zero : new Vector2(2, 0));
+                [], side == CombatSide.Friendly ? Vector2.Zero : new Vector2(60, 0));
             unit.Facing = side == CombatSide.Friendly ? Vector2.Right : Vector2.Left;
             return unit;
         });
@@ -122,7 +122,7 @@ internal static partial class CombatChecks
         check(sim.SelectHeatVolley(f, e, null).Single().Weapon.Spec.Id == "last", "guaranteed-hit higher damage wins when both weapons fit individually");
         sim = HeatFixture([HeatGun("accurate", 12, 5), HeatGun("inaccurate", 12, 10) with { Short = 1, Medium = 1 }], gunnery: 4);
         f = Friendly(sim); e = Enemy(sim);
-        e.Position = new(6, 0);
+        e.Position = new(180, 0);
         check(sim.SelectHeatVolley(f, e, null).Single().Weapon.Spec.Id == "accurate", "optimizer accounts for range-dependent hit chance rather than raw damage");
 
         sim = HeatFixture([HeatGun("free-a", 0, 1), HeatGun("free-b", 0, 1), HeatGun("hot", 12, 1)]); f = Friendly(sim); e = Enemy(sim); f.AddHeat(19.5);
@@ -168,7 +168,7 @@ internal static partial class CombatChecks
         var f = Friendly(sim); var e = Enemy(sim);
         var rear = new CombatUnit("rear", e.Spec, e.Warrior, e.Side,
             e.Spec.Locations.Select(part => new LocationCondition(part.Location, part.Armor, part.RearArmor, part.Structure)),
-            e.Equipment.Select(part => new EquipmentCondition(part.Key, part.Value)), [], new(-2, 0));
+            e.Equipment.Select(part => new EquipmentCondition(part.Key, part.Value)), [], new(-60, 0));
         sim = new CombatSimulation([f, e, rear], 41) { EnemyAiEnabled = false };
         void Equivalent(string scenario)
         {
@@ -188,14 +188,14 @@ internal static partial class CombatChecks
         f.AddHeat(9); Equivalent("fractional remaining heat budget");
         f.Weapons[0].Enabled = false; f.Weapons[1].Remaining = 2; Equivalent("toggles and cooldowns");
         f.Weapons[0].Enabled = true; f.Weapons[1].Remaining = 0;
-        rear.Position = new(200, 0); Equivalent("rear mount falls back to the main preview");
-        rear.Position = new(-2, 0);
+        rear.Position = new(6000, 0); Equivalent("rear mount falls back to the main preview");
+        rear.Position = new(-60, 0);
         f.Firing = FiringMode.HoldFire; Equivalent("hold fire previews without a main aim target");
         sim.Attack([f.Id], e.Id); Equivalent("explicit Attack overrides hold fire");
         f.Firing = FiringMode.FireAtWill; sim.Hold([f.Id]);
-        e.Position = new(2, 20); Equivalent("front aim rotates outside firing arc");
-        e.Position = new(200, 0); rear.Position = new(-200, 0); Equivalent("no detected target");
-        e.Position = new(2, 0); rear.Position = new(-2, 0);
+        e.Position = new(60, 600); Equivalent("front aim rotates outside firing arc");
+        e.Position = new(6000, 0); rear.Position = new(-6000, 0); Equivalent("no detected target");
+        e.Position = new(60, 0); rear.Position = new(-60, 0);
         f.AddHeat(30); Equivalent("thermal shutdown");
         f.AddHeat(-f.Heat); sim.RefreshDetection();
         f.ApplyDamage(MechLocation.RightArm, 10000); Equivalent("lost weapon mount");
@@ -225,15 +225,15 @@ internal static partial class CombatChecks
     {
         var sim = HeatFixture([HeatGun("free", 0, 1)], 10); var f = Friendly(sim); var e = Enemy(sim);
         foreach (var unit in sim.Units) unit.Firing = FiringMode.HoldFire;
-        f.Facing = Vector2.Left; f.CurrentSpeed = 1; f.Moving = true; f.AddHeat(35); sim.RefreshDetection();
+        f.Facing = Vector2.Left; f.CurrentSpeed = 30; f.Moving = true; f.AddHeat(35); sim.RefreshDetection();
         check(f.Shutdown && f.Status == CombatStatus.Shutdown && !f.Active && !f.Defeated
             && f.CurrentSpeed == 0 && !f.Moving && f.WalkingSpeed == 0, "shutdown stops travel and is distinct from physical defeat");
         check(!sim.Detected(f.Side, e.Id) && sim.Detected(e.Side, f.Id), "shutdown removes sensor contribution but remains detectable and targetable");
         e.Firing = FiringMode.FireAtWill;
         check(sim.SelectTarget(e) == f && sim.CanFire(e, f, e.Weapons[0]), "active enemies can target and fire on a thermal shutdown");
         e.Firing = FiringMode.HoldFire;
-        sim.Move([f.Id], new Vector2(-10, 0));
-        check(f.Order == CombatOrder.Move && f.Destination == new Vector2(-10, 0), "shutdown accepts queued movement orders");
+        sim.Move([f.Id], new Vector2(-300, 0));
+        check(f.Order == CombatOrder.Move && f.Destination == new Vector2(-300, 0), "shutdown accepts queued movement orders");
         sim.Paused = false; sim.Advance(24.9);
         check(f.Shutdown && f.Position == Vector2.Zero && f.Heat > 10 && sim.Outcome == CombatOutcome.Ongoing, "shutdown persists above restart threshold without counting as defeat");
         sim.Advance(.2);

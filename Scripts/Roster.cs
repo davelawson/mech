@@ -146,7 +146,7 @@ public sealed record AmmoCondition(string Id, int Shots);
 public sealed record MechSnapshot(string Id, string DefinitionId, string? WarriorId, LocationCondition[] Locations,
     EquipmentCondition[] Equipment, AmmoCondition[] Ammo);
 public sealed record WarriorSnapshot(string DefinitionId, WarriorHealth Health, DateOnly? RecoveryDate);
-public sealed record RosterSnapshot(string ForceName, MechSnapshot[] Mechs, WarriorSnapshot[] Warriors);
+public sealed record RosterSnapshot(string ForceName, MechSnapshot[] Mechs, WarriorSnapshot[] Warriors, StorageEntry[]? Storage = null);
 
 public sealed class OwnedMech
 {
@@ -197,9 +197,14 @@ public sealed class ForceRoster
     public string ForceName { get; }
     public IReadOnlyList<OwnedMech> Mechs { get; }
     public IReadOnlyList<RosterWarrior> Warriors { get; }
+    /// <summary>Spare equipment, stocked once when the company forms (or when an older save first loads).</summary>
+    public IReadOnlyList<StorageEntry> Storage { get; }
     public int ReadyWarriors => Warriors.Count(item => item.Ready);
-    private ForceRoster(string name, IEnumerable<OwnedMech> mechs, IEnumerable<RosterWarrior> warriors)
-    { ForceName = name; Mechs = new ReadOnlyCollection<OwnedMech>(mechs.ToArray()); Warriors = new ReadOnlyCollection<RosterWarrior>(warriors.ToArray()); }
+    private ForceRoster(string name, IEnumerable<OwnedMech> mechs, IEnumerable<RosterWarrior> warriors, IEnumerable<StorageEntry>? storage = null)
+    {
+        ForceName = name; Mechs = new ReadOnlyCollection<OwnedMech>(mechs.ToArray()); Warriors = new ReadOnlyCollection<RosterWarrior>(warriors.ToArray());
+        Storage = new ReadOnlyCollection<StorageEntry>((storage ?? StorageCatalog.Stock(Mechs.Select(item => item.Spec))).ToArray());
+    }
     internal static ForceRoster Create(string name, IEnumerable<MechSpec> mechs, IEnumerable<WarriorSpec> warriors)
     {
         var units = mechs.Select((spec, i) => new OwnedMech(new($"mech-{i + 1}", spec.Id, null,
@@ -237,7 +242,7 @@ public sealed class ForceRoster
         foreach (var warrior in Warriors.Where(item => item.Health == WarriorHealth.Injured && item.RecoveryDate <= today))
         { warrior.Health = WarriorHealth.Healthy; warrior.RecoveryDate = null; }
     }
-    public RosterSnapshot Snapshot() => new(ForceName, Mechs.Select(item => item.Snapshot()).ToArray(), Warriors.Select(item => item.Snapshot()).ToArray());
+    public RosterSnapshot Snapshot() => new(ForceName, Mechs.Select(item => item.Snapshot()).ToArray(), Warriors.Select(item => item.Snapshot()).ToArray(), Storage.ToArray());
     /// <summary>Multiplies saved armor and structure, leaving malformed entries for Restore to reject.</summary>
     internal static RosterSnapshot Rescale(RosterSnapshot save, int factor)
     {
@@ -289,6 +294,9 @@ public sealed class ForceRoster
             foreach (var bin in mech.Ammo)
                 if (bin.Shots < 0 || bin.Shots > spec.Ammo.Single(item => item.Id == bin.Id).Shots) throw new ArgumentException("Invalid ammunition quantity.");
         }
-        return new(save.ForceName, save.Mechs.Select(item => new OwnedMech(item)), save.Warriors.Select(item => new RosterWarrior(item)));
+        if (save.Storage is { } storage && (storage.Any(item => item is null || item.Count <= 0 || item.Id is null || StorageCatalog.Describe(item.Id) is null)
+            || storage.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != storage.Length))
+            throw new ArgumentException("Invalid equipment storage.");
+        return new(save.ForceName, save.Mechs.Select(item => new OwnedMech(item)), save.Warriors.Select(item => new RosterWarrior(item)), save.Storage);
     }
 }

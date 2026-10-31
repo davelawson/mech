@@ -101,9 +101,9 @@ public partial class CombatScreen : Control
         NormalHeatButton.Pressed += () => ChangeUnits(unit => unit.HeatPolicy = HeatPolicy.Normal);
         AggressiveHeatButton.Pressed += () => ChangeUnits(unit => unit.HeatPolicy = HeatPolicy.Aggressive);
         Ui.Button(_settings, "Stop movement / clear order").Pressed += () => { Simulation?.Hold(_selected); RefreshDetails(); };
-        RosterUi.Text(_settings, "Preferred engagement distance (hexes)", 12, Ui.Muted);
+        RosterUi.Text(_settings, "Preferred engagement distance (m)", 12, Ui.Muted);
         _distance = new SpinBox { MinValue = CombatRules.MinimumPreferredDistance, MaxValue = CombatRules.MaximumPreferredDistance,
-            Step = .5, AllowGreater = false, AllowLesser = false };
+            Step = 15, AllowGreater = false, AllowLesser = false };
         _settings.AddChild(_distance);
         _distance.ValueChanged += value => { if (!_refreshing) ChangeUnits(unit => unit.PreferredDistance = (float)value); };
         _priority = Ui.Button(_settings, "Set priority target…");
@@ -420,7 +420,7 @@ public partial class CombatScreen : Control
             _groupInfo.Visible = active.Length > 1;
             _groupInfo.Text = $"{active.Length} units · edits apply to group\n"
                 + $"Movement: {(active.Select(item => item.Movement).Distinct().Count() > 1 ? "Mixed" : active[0].Movement)} · Fire: {(active.Select(item => item.Firing).Distinct().Count() > 1 ? "Mixed" : active[0].Firing == FiringMode.FireAtWill ? "At will" : "Hold")}\n"
-                + $"Distance: {(active.Select(item => item.PreferredDistance).Distinct().Count() > 1 ? "Mixed" : $"{active[0].PreferredDistance:0.0} hexes")}\n"
+                + $"Distance: {(active.Select(item => item.PreferredDistance).Distinct().Count() > 1 ? "Mixed" : $"{active[0].PreferredDistance:0} m")}\n"
                 + $"Heat policy: {(active.Select(item => item.HeatPolicy).Distinct().Count() > 1 ? "Mixed" : active[0].HeatPolicy.ToString())}";
             _walk.Text = active.All(item => item.Movement == MovementMode.Walk) ? "● Walk" : "Walk";
             _run.Text = active.All(item => item.Movement == MovementMode.Run) ? "● Run" : "Run";
@@ -439,7 +439,7 @@ public partial class CombatScreen : Control
         var target = firingTarget ?? Simulation.Units.Where(item => item.Side != unit.Side && !item.Defeated && Simulation.Detected(unit.Side, item.Id))
             .OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
         _targetInfo.Text = $"Priority: {(unit.PriorityTarget is { } priority ? Simulation.Unit(priority).Spec.Chassis : "none")}\n"
-            + (target is null ? "No contact · move toward arena center" : $"{(firingTarget is null ? "Aim preview" : "Target")}: {target.Spec.Chassis} · {unit.Position.DistanceTo(target.Position):0.0} hexes");
+            + (target is null ? "No contact · move toward arena center" : $"{(firingTarget is null ? "Aim preview" : "Target")}: {target.Spec.Chassis} · {unit.Position.DistanceTo(target.Position):0} m");
         if (target is not null)
         {
             var clear = Simulation.Terrain.ClearSight(unit.Position, target.Position);

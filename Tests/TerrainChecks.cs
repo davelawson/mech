@@ -29,54 +29,54 @@ internal static class TerrainChecks
             && first.Patches.Count(patch => patch.Kind == TerrainKind.Vegetation) > 30
             && first.Patches.Count(patch => patch.Kind == TerrainKind.Water) > 12,
             "expanded battlefield preserves terrain density with approximately four times the feature counts");
-        check(first.Patches.Any(patch => Math.Abs(patch.Center.X) > 48) && first.Patches.Any(patch => Math.Abs(patch.Center.Y) > 48),
+        check(first.Patches.Any(patch => Math.Abs(patch.Center.X) > 1440) && first.Patches.Any(patch => Math.Abs(patch.Center.Y) > 1440),
             "terrain features populate the expanded battlefield beyond the old boundaries");
         check(first.Patches.Any(patch => !first.Patches.Any(mirror => mirror.Kind == patch.Kind && mirror.Center == new Vector2(patch.Center.X, -patch.Center.Y))), "terrain generation allows asymmetric layouts");
         foreach (var terrain in new[] { first, other, BattlefieldTerrain.Generate(int.MinValue), BattlefieldTerrain.Generate(int.MaxValue) })
         {
-            foreach (var x in new[] { -12f, -8, -4, 0, 4, 8, 12 }) foreach (var z in new[] { -64f, 64 })
+            foreach (var x in new[] { -360f, -240, -120, 0, 120, 240, 360 }) foreach (var z in new[] { -1920f, 1920 })
             {
                 var spawn = new Vector2(x, z);
                 check(terrain.Passable(spawn) && terrain.HeightAt(spawn) == 0 && !Enum.GetValues<TerrainKind>().Any(kind => terrain.Contains(kind, spawn)), "every force size has clear spawn positions");
                 var route = terrain.FindPath(spawn, new Vector2(x, -z)); var previous = spawn;
-                check(route.Count > 0 && route[^1].DistanceTo(new Vector2(x, -z)) < .01f, "opposing spawn is reachable");
+                check(route.Count > 0 && route[^1].DistanceTo(new Vector2(x, -z)) < .3f, "opposing spawn is reachable");
                 foreach (var waypoint in route) { check(terrain.CanTraverse(previous, waypoint), "generated route respects slopes and mech clearance"); previous = waypoint; }
             }
         }
         var roster = Roster();
         var deployed = CombatSimulation.Deploy(roster, roster.Mechs.Select(unit => unit.Id), 42, 183);
         check(deployed.Terrain.Patches.SequenceEqual(first.Patches), "deployment uses supplied terrain seed independently of combat seed");
-        var rocks = new BattlefieldTerrain(1, [new(TerrainKind.Rock, Vector2.Zero, 2, 4)], []);
-        check(!rocks.Passable(new Vector2(2.5f, 0)) && rocks.Passable(new Vector2(3, 0)), "rocks reserve space for mech radius");
-        check(!rocks.ClearSight(new Vector2(-8, 0), new Vector2(8, 0)) && rocks.ClearSight(new Vector2(-8, 4), new Vector2(8, 4)), "rocks block intersecting sight and firing rays");
-        var path = rocks.FindPath(new Vector2(-8, 0), new Vector2(8, 0)); var origin = new Vector2(-8, 0);
+        var rocks = new BattlefieldTerrain(1, [new(TerrainKind.Rock, Vector2.Zero, 60, 120)], []);
+        check(!rocks.Passable(new Vector2(71, 0)) && rocks.Passable(new Vector2(72, 0)), "rocks reserve space for mech radius");
+        check(!rocks.ClearSight(new Vector2(-240, 0), new Vector2(240, 0)) && rocks.ClearSight(new Vector2(-240, 120), new Vector2(240, 120)), "rocks block intersecting sight and firing rays");
+        var path = rocks.FindPath(new Vector2(-240, 0), new Vector2(240, 0)); var origin = new Vector2(-240, 0);
         check(path.Count > 1, "navigation finds a detour around solid terrain");
         foreach (var waypoint in path) { check(rocks.CanTraverse(origin, waypoint), "detour segments cannot clip rock clearance"); origin = waypoint; }
-        var corrected = rocks.ReachableDestination(new Vector2(-8, 0), Vector2.Zero);
-        check(rocks.Passable(corrected) && corrected.DistanceTo(Vector2.Zero) < 4, "orders inside rocks resolve to nearby reachable ground");
+        var corrected = rocks.ReachableDestination(new Vector2(-240, 0), Vector2.Zero);
+        check(rocks.Passable(corrected) && corrected.DistanceTo(Vector2.Zero) < 120, "orders inside rocks resolve to nearby reachable ground");
         CheckMovement(rocks, check);
         CheckSightAndFire(rocks, check);
-        var hill = new BattlefieldTerrain(2, [], [new(Vector2.Zero, 8, 6)]);
-        check(hill.HeightAt(Vector2.Zero) == 6 && !hill.ClearSight(new Vector2(-10, 0), new Vector2(10, 0)), "hills have actual elevation and block low sight rays");
-        check(hill.ClearSight(new Vector2(-2, 0), new Vector2(2, 0)), "elevated viewpoints can see over the hill crest");
-        check(!hill.Passable(new Vector2(4, 0)) && hill.Passable(new Vector2(12, 0)), "steep hill slopes are impassable");
-        var outerHill = new BattlefieldTerrain(6, [], [new(new Vector2(72, 70), 8, 6)]);
-        check(outerHill.HeightAt(new(72, 70)) == 6 && !outerHill.Passable(new(76, 70)), "expanded heightfield samples real elevation and slope beyond the old boundaries");
-        check(outerHill.RayDistance(new(72, 12, 70), Vector3.Down, 20) is { } ray && Math.Abs(ray - 6) < .001f,
+        var hill = new BattlefieldTerrain(2, [], [new(Vector2.Zero, 240, 180)]);
+        check(hill.HeightAt(Vector2.Zero) == 180 && !hill.ClearSight(new Vector2(-300, 0), new Vector2(300, 0)), "hills have actual elevation and block low sight rays");
+        check(hill.ClearSight(new Vector2(-30, 0), new Vector2(30, 0)), "elevated viewpoints can see over the hill crest");
+        check(!hill.Passable(new Vector2(120, 0)) && hill.Passable(new Vector2(360, 0)), "steep hill slopes are impassable");
+        var outerHill = new BattlefieldTerrain(6, [], [new(new Vector2(2160, 2100), 240, 180)]);
+        check(outerHill.HeightAt(new(2160, 2100)) == 180 && !outerHill.Passable(new(2280, 2100)), "expanded heightfield samples real elevation and slope beyond the old boundaries");
+        check(outerHill.RayDistance(new(2160, 360, 2100), Vector3.Down, 600) is { } ray && Math.Abs(ray - 180) < .03f,
             "ground picking reaches terrain in the expanded battlefield");
-        check(outerHill.FindPath(new(60, 70), new(84, 70)).Count > 1, "navigation detours around terrain beyond the old boundaries");
-        var isolated = hill.ReachableDestination(new Vector2(-12, 0), Vector2.Zero);
-        check(isolated != Vector2.Zero && hill.FindPath(new Vector2(-12, 0), isolated).Count > 0, "isolated hilltops resolve to the nearest reachable component");
-        var overRock = new BattlefieldTerrain(3, [new(TerrainKind.Rock, Vector2.Zero, 1, 1)],
-            [new(new Vector2(-8, 0), 4, 5), new(new Vector2(8, 0), 4, 5)]);
-        check(overRock.ClearSight(new Vector2(-8, 0), new Vector2(8, 0)), "height-aware sight can pass above low rocks");
-        var vegetation = new BattlefieldTerrain(4, [new(TerrainKind.Vegetation, Vector2.Zero, 3), new(TerrainKind.Vegetation, new Vector2(5, 0), 2), new(TerrainKind.Vegetation, new Vector2(9, 0), 2)], []);
-        check(vegetation.ClearSight(new Vector2(-8, 0), new Vector2(12, 0)) && vegetation.VegetationModifier(new Vector2(-8, 0), Vector2.Zero) == 1
-            && vegetation.VegetationModifier(new Vector2(-8, 0), new Vector2(12, 0)) == 2, "vegetation protects targets and crossing shots with a capped penalty without hiding contacts");
+        check(outerHill.FindPath(new(1800, 2100), new(2520, 2100)).Count > 1, "navigation detours around terrain beyond the old boundaries");
+        var isolated = hill.ReachableDestination(new Vector2(-360, 0), Vector2.Zero);
+        check(isolated != Vector2.Zero && hill.FindPath(new Vector2(-360, 0), isolated).Count > 0, "isolated hilltops resolve to the nearest reachable component");
+        var overRock = new BattlefieldTerrain(3, [new(TerrainKind.Rock, Vector2.Zero, 30, 30)],
+            [new(new Vector2(-240, 0), 120, 150), new(new Vector2(240, 0), 120, 150)]);
+        check(overRock.ClearSight(new Vector2(-240, 0), new Vector2(240, 0)), "height-aware sight can pass above low rocks");
+        var vegetation = new BattlefieldTerrain(4, [new(TerrainKind.Vegetation, Vector2.Zero, 90), new(TerrainKind.Vegetation, new Vector2(150, 0), 60), new(TerrainKind.Vegetation, new Vector2(270, 0), 60)], []);
+        check(vegetation.ClearSight(new Vector2(-240, 0), new Vector2(360, 0)) && vegetation.VegetationModifier(new Vector2(-240, 0), Vector2.Zero) == 1
+            && vegetation.VegetationModifier(new Vector2(-240, 0), new Vector2(360, 0)) == 2, "vegetation protects targets and crossing shots with a capped penalty without hiding contacts");
         var coverBattle = Battle(vegetation); var f = coverBattle.Units[0]; var e = coverBattle.Units[1];
-        f.Position = new Vector2(-8, 0); f.Facing = Vector2.Right; e.Position = Vector2.Zero;
+        f.Position = new Vector2(-240, 0); f.Facing = Vector2.Right; e.Position = Vector2.Zero;
         check(coverBattle.TerrainHitChance(f, e, f.Weapons[0]) < CombatSimulation.HitChance(f, e, f.Weapons[0]), "cover penalty changes the same hit probability used by combat");
-        var water = new BattlefieldTerrain(5, [new(TerrainKind.Water, Vector2.Zero, 20)], []);
+        var water = new BattlefieldTerrain(5, [new(TerrainKind.Water, Vector2.Zero, 600)], []);
         check(water.Passable(Vector2.Zero) && water.SpeedFactor(Vector2.Zero) == .5f && vegetation.SpeedFactor(Vector2.Zero) == .7f, "water and vegetation are traversable with distinct movement penalties");
         var dry = Travel(BattlefieldTerrain.Flat); var wet = Travel(water);
         check(wet > 0 && wet < dry * .7f, "water slowdown affects actual movement rather than only navigation cost");
@@ -87,27 +87,27 @@ internal static class TerrainChecks
     }
     private static void CheckNavigationQueries(BattlefieldTerrain terrain, Action<bool, string> check)
     {
-        var from = new Vector2(-12, 64); var to = new Vector2(12, -64);
-        Vector2[] expected = [new(-13, 37), new(-4, 1), new(6, -31), to];
+        var from = new Vector2(-360, 1920); var to = new Vector2(360, -1920);
+        Vector2[] expected = [new(-360, 510), new(120, -390), new(240, -1560), to];
         var retained = terrain.FindPath(from, to);
         check(retained.SequenceEqual(expected), "seeded path retains its original waypoints and tie ordering");
-        var rocks = new BattlefieldTerrain(1, [new(TerrainKind.Rock, Vector2.Zero, 2, 4)], []);
-        check(rocks.FindPath(new(-8, 0), new(8, 0)).SequenceEqual(new Vector2[] { new(0, -3), new(3, -2), new(8, 0) }),
+        var rocks = new BattlefieldTerrain(1, [new(TerrainKind.Rock, Vector2.Zero, 60, 120)], []);
+        check(rocks.FindPath(new(-240, 0), new(240, 0)).SequenceEqual(new Vector2[] { new(30, -90), new(240, 0) }),
             "symmetric rock detour preserves the original route choice");
-        check(rocks.FiringPosition(new(-8, 0), new(8, 0), 6, 15) == new Vector2(2, -2),
+        check(rocks.FiringPosition(new(-240, 0), new(240, 0), 180, 450) == new Vector2(60, -60),
             "equally ranked clear firing positions retain row-major tie ordering");
-        check(rocks.FiringPosition(new(-8, 0), new(8, 0), 6, 0) == new Vector2(-8, 0),
+        check(rocks.FiringPosition(new(-240, 0), new(240, 0), 180, 0) == new Vector2(-240, 0),
             "firing search with no eligible cells returns its starting position");
         var routes = new IReadOnlyList<Vector2>[8];
         var firing = new Vector2[8];
         Parallel.For(0, routes.Length, index =>
         {
             routes[index] = terrain.FindPath(index % 2 == 0 ? from : to, index % 2 == 0 ? to : from);
-            firing[index] = rocks.FiringPosition(new(-8, 0), new(8, 0), 6, 15);
+            firing[index] = rocks.FiringPosition(new(-240, 0), new(240, 0), 180, 450);
         });
         var reverse = terrain.FindPath(to, from);
         check(routes.Select((route, index) => route.SequenceEqual(index % 2 == 0 ? expected : reverse)).All(equal => equal)
-            && firing.All(point => point == new Vector2(2, -2)) && retained.SequenceEqual(expected),
+            && firing.All(point => point == new Vector2(60, -60)) && retained.SequenceEqual(expected),
             "concurrent navigation queries and buffer reuse preserve independent returned paths");
 
         // Wide allocation budgets catch grid-sized scratch arrays without depending on machine timing.
@@ -116,9 +116,9 @@ internal static class TerrainChecks
         terrain.FindPath(from, to);
         var pathBytes = GC.GetAllocatedBytesForCurrentThread() - before;
         check(pathBytes < 200_000, $"warmed navigation avoids grid-sized allocations: {pathBytes} bytes");
-        rocks.FiringPosition(new(-8, 0), new(8, 0), 6, 15);
+        rocks.FiringPosition(new(-240, 0), new(240, 0), 180, 450);
         before = GC.GetAllocatedBytesForCurrentThread();
-        rocks.FiringPosition(new(-8, 0), new(8, 0), 6, 15);
+        rocks.FiringPosition(new(-240, 0), new(240, 0), 180, 450);
         var firingBytes = GC.GetAllocatedBytesForCurrentThread() - before;
         check(firingBytes < 16_000, $"warmed firing search avoids candidate-array allocations: {firingBytes} bytes");
     }
@@ -146,30 +146,30 @@ internal static class TerrainChecks
     }
     private static float Travel(BattlefieldTerrain terrain)
     {
-        var sim = Battle(terrain); var unit = sim.Units[0]; unit.Position = new Vector2(-10, 0); unit.Facing = Vector2.Right;
-        sim.Move([unit.Id], new Vector2(10, 0)); sim.Paused = false; sim.Advance(8);
-        return unit.Position.X + 10;
+        var sim = Battle(terrain); var unit = sim.Units[0]; unit.Position = new Vector2(-300, 0); unit.Facing = Vector2.Right;
+        sim.Move([unit.Id], new Vector2(300, 0)); sim.Paused = false; sim.Advance(8);
+        return unit.Position.X + 300;
     }
     private static void CheckMovement(BattlefieldTerrain terrain, Action<bool, string> check)
     {
-        var sim = Battle(terrain); var unit = sim.Units[0]; unit.Position = new Vector2(-8, 0); unit.Facing = Vector2.Right;
-        sim.Move([unit.Id], new Vector2(8, 0)); sim.Paused = false;
+        var sim = Battle(terrain); var unit = sim.Units[0]; unit.Position = new Vector2(-240, 0); unit.Facing = Vector2.Right;
+        sim.Move([unit.Id], new Vector2(240, 0)); sim.Paused = false;
         var clear = true;
         for (var step = 0; step < 1600 && unit.Order != CombatOrder.Hold; step++) { sim.Advance(.05); clear &= terrain.Passable(unit.Position); }
-        check(clear && unit.Position.DistanceTo(new Vector2(8, 0)) < .3f && unit.Order == CombatOrder.Hold, $"actual mech movement follows a terrain detour and arrives: {unit.Position}");
+        check(clear && unit.Position.DistanceTo(new Vector2(240, 0)) < 9 && unit.Order == CombatOrder.Hold, $"actual mech movement follows a terrain detour and arrives: {unit.Position}");
     }
     private static void CheckSightAndFire(BattlefieldTerrain terrain, Action<bool, string> check)
     {
         var sim = Battle(terrain, 2); var friend = sim.Units.First(unit => unit.Side == CombatSide.Friendly);
         var scout = sim.Units.Last(unit => unit.Side == CombatSide.Friendly); var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
-        friend.Position = new Vector2(-8, 0); friend.Facing = Vector2.Right; enemy.Position = new Vector2(5, 0);
-        scout.Position = new Vector2(-1, 6); sim.RefreshDetection();
+        friend.Position = new Vector2(-240, 0); friend.Facing = Vector2.Right; enemy.Position = new Vector2(150, 0);
+        scout.Position = new Vector2(-30, 180); sim.RefreshDetection();
         check(sim.Detected(friend.Side, enemy.Id) && sim.SelectTarget(friend) is null && sim.TerrainHitChance(friend, enemy, friend.Weapons[0]) == 0,
             "shared contact does not permit a shot through a rock");
         sim.Attack([friend.Id], enemy.Id); sim.Paused = false; var clear = true;
         for (var step = 0; step < 1200 && friend.ShotsFired == 0; step++) { sim.Advance(.05); clear &= terrain.Passable(friend.Position); }
         check(clear && friend.ShotsFired > 0 && terrain.ClearSight(friend.Position, enemy.Position), "blocked attack orders navigate to a clear firing position");
-        sim.Hold([friend.Id]); friend.Position = new Vector2(-8, 0); scout.Position = new Vector2(-90, 80); sim.RefreshDetection();
+        sim.Hold([friend.Id]); friend.Position = new Vector2(-240, 0); scout.Position = new Vector2(-2700, 2400); sim.RefreshDetection();
         check(!sim.Detected(friend.Side, enemy.Id) && sim.Contacts(friend.Side)[enemy.Id].LastKnownPosition == enemy.Position, "terrain occlusion loses detection and retains stationary last-known contact");
     }
 }

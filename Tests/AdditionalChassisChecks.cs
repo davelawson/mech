@@ -39,10 +39,10 @@ public partial class SmokeTests
                     && root.FindChildren("LaserEmitter", "MeshInstance3D", true, false).Count == weapons.Count(weapon => weapon.Kind == WeaponKind.MediumLaser),
                     $"{spec.Chassis} {location} keeps stock weapon visuals and source firing positions");
             }
-            Check(hangar.GaitPicker.Visible, $"{spec.Chassis} supports hangar gait previews");
+            Check(model.HasLocomotion, $"{spec.Chassis} supports hangar gait previews");
             foreach (var gait in new[] { PreviewGait.Walk, PreviewGait.Run })
             {
-                hangar.GaitPicker.Select((int)gait); hangar.GaitPicker.EmitSignal(OptionButton.SignalName.ItemSelected, (long)gait);
+                hangar.Preview.Gait = gait;
                 for (var frame = 0; frame < 180; frame++) hangar.Preview._Process(1d / 60);
                 TestLongStride(model, gait, gait == PreviewGait.Walk ? .33f : .45f);
                 model.Rotation = new(0, .32f, 0);
@@ -78,19 +78,19 @@ public partial class SmokeTests
                 var camera = hangar.Preview.FindChildren("*", "Camera3D", true, false).OfType<Camera3D>().Single();
                 var bounds = new Rect2(Vector2.One, camera.GetViewport().GetVisibleRect().Size - Vector2.One * 2);
                 var fits = true;
-                for (var angle = 0; angle < 12; angle++)
+                // The hangar blueprint frames its front view and turns only while dragged.
                 {
-                    model.Rotation = new(0, angle * Mathf.Tau / 12, 0);
+                    model.Rotation = Vector3.Zero;
                     foreach (var mesh in meshes) for (var corner = 0; corner < 8; corner++)
                     {
                         var point = mesh.GlobalTransform * mesh.Mesh.GetAabb().GetEndpoint(corner);
                         fits &= !camera.IsPositionBehind(point) && bounds.HasPoint(camera.UnprojectPosition(point));
                     }
                 }
-                Check(fits, $"{spec.Chassis} fits the complete turntable at {size}");
+                Check(fits, $"{spec.Chassis} front blueprint fits at {size}");
             }
             GetWindow().Size = new(1440, 900); await Frames();
-            hangar.GaitPicker.Select(0); hangar.GaitPicker.EmitSignal(OptionButton.SignalName.ItemSelected, 0L);
+            hangar.Preview.Gait = PreviewGait.Idle;
             model.Rotation = new(0, .32f, 0); await Capture($"{spec.Id}-hangar-imported");
             foreach (var (location, root) in model.Locations)
             {

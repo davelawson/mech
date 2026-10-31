@@ -12,7 +12,9 @@ public enum CommandScreen { MainMenu, Office, Map, Hangar, Draft, Tactical, Rolo
 public sealed class CommandNavigator(Control host, Control header, Action pause)
 {
     private sealed record Surface(Control View, string? Title, bool Overlay, bool Header,
-        Func<Control?> Focus, Action? Back);
+        Func<Control?> Focus, Action? Back, Action<float>? RightDrag, Action? RightDragEnded);
+    /// <summary>A right press that moves farther than this before release drags instead of going back.</summary>
+    public const float RightDragThreshold = 5;
     private sealed record Entry(CommandScreen Screen, Control? ReturnFocus);
     private sealed record SuspendedRoute(Entry[] Entries, Control? Focus);
     private readonly Dictionary<CommandScreen, Surface> _surfaces = [];
@@ -20,6 +22,8 @@ public sealed class CommandNavigator(Control host, Control header, Action pause)
     private readonly List<(PopupMenu Popup, Control? Focus)> _popups = [];
     private SuspendedRoute? _suspended;
     private bool _swallowRightRelease;
+    private Vector2? _rightPress;
+    private bool _rightDragging;
     private bool _transitioning;
     private int _revision;
 
@@ -28,8 +32,8 @@ public sealed class CommandNavigator(Control host, Control header, Action pause)
     public bool Contains(CommandScreen screen) => _route.Any(entry => entry.Screen == screen);
 
     public void Register(CommandScreen screen, Control view, string? title, bool overlay,
-        bool showHeader, Func<Control?> focus, Action? back = null) =>
-        _surfaces.Add(screen, new(view, title, overlay, showHeader, focus, back));
+        bool showHeader, Func<Control?> focus, Action? back = null, Action<float>? rightDrag = null, Action? rightDragEnded = null) =>
+        _surfaces.Add(screen, new(view, title, overlay, showHeader, focus, back, rightDrag, rightDragEnded));
 
     public void RegisterPopup(PopupMenu popup)
     {
@@ -136,7 +140,30 @@ public sealed class CommandNavigator(Control host, Control header, Action pause)
             _swallowRightRelease = false;
             return true;
         }
+        if (_rightPress is { } origin)
+        {
+            if (input is InputEventMouseMotion motion)
+            {
+                if (!_rightDragging && motion.Position.DistanceTo(origin) <= RightDragThreshold) return false;
+                _rightDragging = true;
+                _surfaces[CurrentScreen].RightDrag?.Invoke(motion.Relative.X);
+                return true;
+            }
+            if (input is InputEventMouseButton { Pressed: false, ButtonIndex: MouseButton.Right })
+            {
+                var dragged = _rightDragging; EndRightDrag();
+                if (!dragged) Back();
+                return true;
+            }
+        }
         if (Contains(CommandScreen.Tactical) && CurrentScreen != CommandScreen.UnsavedDialog) return false;
+        // Dragging screens go back on a right click only when the mouse stays put until release.
+        if (input is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } press && _popups.Count == 0
+            && _surfaces[CurrentScreen].RightDrag is not null)
+        {
+            _rightPress = press.Position; _rightDragging = false;
+            return true;
+        }
         if (input is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }
             or InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right })
         {
@@ -162,8 +189,24 @@ public sealed class CommandNavigator(Control host, Control header, Action pause)
         && !control!.IsQueuedForDeletion() && control.IsVisibleInTree()
         && control.FocusMode != Control.FocusModeEnum.None && control is not BaseButton { Disabled: true };
 
+    private void EndRightDrag()
+    {
+        var dragged = _rightDragging;
+        var surface = _surfaces[CurrentScreen];
+        _rightPress = null; _rightDragging = false;
+        if (dragged) surface.RightDragEnded?.Invoke();
+    }
+
+    /// <summary>Releases a pending right drag without going back, e.g. when the window loses focus.</summary>
+    public void CancelRightDrag()
+    {
+        if (_rightPress is null) return;
+        EndRightDrag(); _swallowRightRelease = true;
+    }
+
     private void PrepareTransition()
     {
+        CancelRightDrag();
         pause();
         _revision++;
         _transitioning = true;

@@ -92,7 +92,7 @@ public partial class MechDetails : VBoxContainer
         RosterUi.Text(overview, $"PROTECTION\nArmor {unit?.Locations.Sum(item => item.Armor + item.RearArmor) ?? spec.ArmorTotal}/{spec.ArmorTotal}  ·  Structure {unit?.Locations.Sum(item => item.Structure) ?? spec.StructureTotal}/{spec.StructureTotal}");
         RosterUi.Text(overview, $"HEAT\n{spec.HeatSinks} {DefinitionText.HeatSinks(spec.HeatSinkType)} heat sinks · {spec.HeatSinks * spec.CoolingPerSink} heat dissipation\nAll weapons: {spec.Weapons.Sum(item => item.Heat)} heat before movement");
         RosterUi.Text(overview, $"ENGINE\n{spec.Engine}\nIntroduced {spec.Introduced}");
-        RosterUi.Text(overview, "Stock 3025 specifications · ranges in hexes.\nWeapon heat is per shot; actual firing choices determine total heat.", 12, Ui.Muted);
+        RosterUi.Text(overview, "Stock 3025 specifications · ranges in metres.\nWeapon heat is per shot; actual firing choices determine total heat.", 12, Ui.Muted);
         var armor = RosterUi.Scroll(tabs); armor.GetParent<Control>().Name = "Armor";
         var diagram = new ArmorDiagram(); armor.AddChild(diagram); diagram.SetUnit(spec, unit);
         RosterUi.Text(armor, "Front view · numbers show front armor / stock armor", 11, Ui.Muted);
@@ -112,7 +112,7 @@ public partial class MechDetails : VBoxContainer
         {
             var status = unit is null ? "Operational" : unit.WeaponUsable(weapon) ? unit.Condition(weapon.Id).ToString() : "Unavailable";
             RosterUi.Text(weapons, $"{weapon.Name} · {DraftCatalog.Abbreviation(weapon.Location)}{(weapon.Rear ? " · rear" : "")}  /  {status}", 14, Ui.Gold);
-            RosterUi.Text(weapons, $"Heat {weapon.Heat} · Damage {DefinitionText.Damage(weapon.DamageProfile)}\nRange {weapon.Short * CombatRules.WeaponRangeScale} / {weapon.Medium * CombatRules.WeaponRangeScale} / {weapon.Long * CombatRules.WeaponRangeScale}{(weapon.Minimum > 0 ? $" · minimum {weapon.Minimum * CombatRules.WeaponRangeScale}" : "")}", 12);
+            RosterUi.Text(weapons, $"Heat {weapon.Heat} · Damage {DefinitionText.Damage(weapon.DamageProfile)}\nRange {weapon.Short * CombatRules.WeaponRangeScale} / {weapon.Medium * CombatRules.WeaponRangeScale} / {weapon.Long * CombatRules.WeaponRangeScale} m{(weapon.Minimum > 0 ? $" · minimum {weapon.Minimum * CombatRules.WeaponRangeScale} m" : "")}", 12);
         }
         RosterUi.Text(weapons, "AMMUNITION", 13, Ui.Gold);
         if (spec.Ammo.Length == 0) RosterUi.Text(weapons, "Energy weapons · no ammunition required", 12, Ui.Muted);

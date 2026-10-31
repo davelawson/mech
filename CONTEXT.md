@@ -22,6 +22,12 @@ The mercenary force’s personnel, including healthy warriors, injured warriors,
 **Pilot assignment**:
 The persistent pairing of one living MechWarrior with one owned BattleMech, independent of deployment.
 
+**Storage**:
+Spare weapons, ammunition, heat sinks and jump jets held by the mercenary force and not installed on any BattleMech. Armor and fixed systems are never stored.
+
+**Critical slot**:
+One of the fixed equipment spaces in a BattleMech location: six in the head and each leg, twelve in each torso and arm.
+
 **Ready MechWarrior**:
 A healthy MechWarrior available for immediate deployment, whether currently assigned to a BattleMech or unassigned.
 

@@ -17,7 +17,7 @@ public partial class SmokeTests
             var model = hangar.Preview.Model!; var spec = roster.Mechs[0].Spec;
             model.Rotation = Vector3.Zero;
             var meshes = model.FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>().ToArray();
-            Check(model.HasLocomotion && model.Locations.Count == 8 && meshes.Length >= 20 && hangar.GaitPicker.Visible,
+            Check(model.HasLocomotion && model.Locations.Count == 8 && meshes.Length >= 20,
                 $"{spec.Chassis} uses its articulated source model and preview");
             Check(meshes.All(mesh => model.Locations.Values.Count(root => root.IsAncestorOf(mesh)) == 1),
                 $"{spec.Chassis} source geometry has unique damage ownership");
@@ -40,7 +40,7 @@ public partial class SmokeTests
                 $"{spec.Chassis} retains its complete MW5 stock weapon visuals and firing sockets");
             foreach (var gait in new[] { PreviewGait.Walk, PreviewGait.Run })
             {
-                hangar.GaitPicker.Select((int)gait); hangar.GaitPicker.EmitSignal(OptionButton.SignalName.ItemSelected, (long)gait);
+                hangar.Preview.Gait = gait;
                 for (var frame = 0; frame < 180; frame++) hangar.Preview._Process(1d / 60);
                 TestLongStride(model, gait, gait == PreviewGait.Walk ? .33f : .45f);
                 model.Rotation = new(0, .32f, 0); await Capture($"{id}-{gait.ToString().ToLowerInvariant()}-imported"); model.Rotation = Vector3.Zero;
@@ -67,16 +67,16 @@ public partial class SmokeTests
                 GetWindow().Size = size; await Frames();
                 var camera = hangar.Preview.FindChildren("*", "Camera3D", true, false).OfType<Camera3D>().Single();
                 var bounds = new Rect2(Vector2.One, camera.GetViewport().GetVisibleRect().Size - Vector2.One * 2); var fits = true;
-                for (var angle = 0; angle < 12; angle++)
+                // The hangar blueprint frames its front view and turns only while dragged.
                 {
-                    model.Rotation = new(0, angle * Mathf.Tau / 12, 0);
+                    model.Rotation = Vector3.Zero;
                     foreach (var mesh in meshes) for (var corner = 0; corner < 8; corner++)
                     { var point = mesh.GlobalTransform * mesh.Mesh.GetAabb().GetEndpoint(corner); fits &= !camera.IsPositionBehind(point) && bounds.HasPoint(camera.UnprojectPosition(point)); }
                 }
-                Check(fits, $"{spec.Chassis} fits its rotating preview at {size}");
+                Check(fits, $"{spec.Chassis} front blueprint fits at {size}");
             }
             GetWindow().Size = new(1440, 900); await Frames();
-            hangar.GaitPicker.Select(0); hangar.GaitPicker.EmitSignal(OptionButton.SignalName.ItemSelected, 0L);
+            hangar.Preview.Gait = PreviewGait.Idle;
             model.Rotation = new(0, .32f, 0); await Capture($"{id}-hangar-imported");
             foreach (var (location, root) in model.Locations)
             {

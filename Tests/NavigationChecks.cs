@@ -39,8 +39,6 @@ public partial class SmokeTests
 
             _app.ShowHangar(); await Frames(); _app.Hangar.Select(2);
             var selected = _app.Hangar.SelectedMech;
-            var tabs = _app.Hangar.FindChildren("*", "TabContainer", true, false).OfType<TabContainer>().Single();
-            tabs.CurrentTab = 2;
             _app.ShowWarriors(); await Frames();
             CheckRoute(CommandScreen.Rolodex, CommandScreen.Hangar, CommandScreen.Rolodex);
             await Click(_app.Rolodex.Section);
@@ -57,8 +55,8 @@ public partial class SmokeTests
             CheckRoute(CommandScreen.Rolodex, CommandScreen.Hangar, CommandScreen.Rolodex);
             await NavigationBack(rightClick, _app.Rolodex.BackButton);
             CheckRoute(CommandScreen.Hangar, CommandScreen.Hangar);
-            Check(_app.Hangar.SelectedMech == selected && tabs.CurrentTab == 2 && _app.Hangar.WarriorsButton.HasFocus(),
-                "repeated menu entry preserves the nested route, hangar selection, tab and return focus");
+            Check(_app.Hangar.SelectedMech == selected && _app.Hangar.WarriorsButton.HasFocus(),
+                "repeated menu entry preserves the nested route, hangar selection and return focus");
             await NavigationBack(rightClick, _app.Hangar.BackButton);
             CheckRoute(CommandScreen.Office, CommandScreen.Office);
             Check(_app.Office.HangarButton.HasFocus(), "nested route ultimately returns to the office hangar hotspot");

@@ -12,8 +12,6 @@ public partial class SmokeTests
         if (_screenshots) { GetWindow().GrabFocus(); await Frames(); }
         await Click(_app.Office.HangarButton);
         await Click(_app.Hangar.RosterButtons[1]);
-        var tabs = _app.Hangar.FindChildren("*", "TabContainer", true, false).OfType<TabContainer>().Single();
-        tabs.CurrentTab = 2;
         await Click(_app.Hangar.DeploymentButton);
         var tactical = _app.Tactical;
         Check(tactical.Visible && !_app.Hangar.Visible && tactical.Modal == CombatModal.OpponentSelection && tactical.Simulation is null,
@@ -34,17 +32,14 @@ public partial class SmokeTests
         var roster = _app.State.Roster!;
         foreach (var mech in roster.Mechs) roster.Assign(mech.Id, null);
         _app.Hangar.Refresh();
-        tabs = _app.Hangar.FindChildren("*", "TabContainer", true, false).OfType<TabContainer>().Single(); tabs.CurrentTab = 2;
         await Frames(); await Click(_app.Hangar.DeploymentButton);
         await Click(tactical.MirrorMatchButton);
         Check(tactical.LaunchButton.Disabled && tactical.ForceChoices.All(item => item.Disabled), "unassigned roster cannot launch simulation");
         await Capture("deployment-unavailable");
         await PressKey(Key.Escape);
-        Check(_app.Hangar.Visible && _app.Hangar.SelectedMech == _app.State.Roster!.Mechs[1] && tabs.CurrentTab == 2, "cancelling deployment preserves hangar mech and tab");
+        Check(_app.Hangar.Visible && _app.Hangar.SelectedMech == _app.State.Roster!.Mechs[1], "cancelling deployment preserves hangar mech");
         for (var i = 0; i < 4; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         _app.Hangar.Refresh();
-        // Refresh recreates the detail panel, so capture its new tab container.
-        tabs = _app.Hangar.FindChildren("*", "TabContainer", true, false).OfType<TabContainer>().Single(); tabs.CurrentTab = 2;
         await Frames();
         var before = JsonSerializer.Serialize(_app.State.Snapshot());
         await Click(_app.Hangar.DeploymentButton);
@@ -88,24 +83,24 @@ public partial class SmokeTests
         _app.StartAdvancing(true); Check(!_app.IsAdvancing, "campaign calendar cannot run during combat");
         var friendly = sim.Units.First(item => item.Side == CombatSide.Friendly);
         var distanceControl = tactical.FindChildren("*", "SpinBox", true, false).OfType<SpinBox>().Single();
-        Check(distanceControl.MinValue == 4.5 && distanceControl.MaxValue == 63, "preferred-distance control supports the expanded engagement distances");
+        Check(distanceControl.MinValue == 135 && distanceControl.MaxValue == 1890, "preferred-distance control supports the expanded engagement distances");
         Check(sim.Terrain.Seed == 183, "deployment honors the entered terrain seed");
         var hilltop = sim.Terrain.Hills.OrderByDescending(hill => sim.Terrain.HeightAt(hill.Center)).First().Center;
-        Check(field.GroundPoint(field.ScreenPoint(hilltop)).DistanceTo(hilltop) < .02f, "height-aware picking matches rendered hill elevation");
+        Check(field.GroundPoint(field.ScreenPoint(hilltop)).DistanceTo(hilltop) < .6f, "height-aware picking matches rendered hill elevation");
         var rock = sim.Terrain.Patches.First(patch => patch.Kind == TerrainKind.Rock);
         await PressKey(Key.Home);
-        Check(field.GroundPoint(field.ScreenPoint(rock.Center, rock.Height)).DistanceTo(rock.Center) < .02f, "clicking a rock top picks its footprint rather than ground behind it");
+        Check(field.GroundPoint(field.ScreenPoint(rock.Center, rock.Height)).DistanceTo(rock.Center) < .6f, "clicking a rock top picks its footprint rather than ground behind it");
         await RightClick(field.GlobalPosition + field.ScreenPoint(rock.Center, rock.Height));
         Check(friendly.Order == CombatOrder.Move && sim.Terrain.Passable(friendly.Destination)
-            && friendly.Destination.DistanceTo(rock.Center) < rock.Radius + 3,
+            && friendly.Destination.DistanceTo(rock.Center) < rock.Radius + 90,
             $"actual ground click inside rock shows a nearby reachable destination: order={friendly.Order}, destination={friendly.Destination}, rock={rock.Center}, focus={GetWindow().HasFocus()}/{field.HasFocus()}");
         await Capture("terrain-overview");
-        var destination = field.GlobalPosition + field.ScreenPoint(new Vector2(0, 16));
+        var destination = field.GlobalPosition + field.ScreenPoint(new Vector2(0, 480));
         await RightClick(destination);
         Check(tactical.Visible && !_app.Office.Visible && friendly.Order == CombatOrder.Move && sim.Elapsed == 0, "actual right-click queues Move while paused without campaign back navigation");
         await Capture("combat-paused");
         // Actual drag selects both friendly stand-ins.
-        var points = sim.Units.Where(item => item.Side == CombatSide.Friendly).Select(item => field.GlobalPosition + field.ScreenPoint(item.Position, 1)).ToArray();
+        var points = sim.Units.Where(item => item.Side == CombatSide.Friendly).Select(item => field.GlobalPosition + field.ScreenPoint(item.Position, 15)).ToArray();
         var from = new Vector2(points.Min(point => point.X) - 24, points.Min(point => point.Y) - 24);
         var to = new Vector2(points.Max(point => point.X) + 24, points.Max(point => point.Y) + 24);
         MouseMotion(from, Vector2.Zero); MouseButton(from, Godot.MouseButton.Left, true);
@@ -115,7 +110,7 @@ public partial class SmokeTests
         Check(sim.Units.Where(item => item.Side == CombatSide.Friendly).Select(item => item.Destination).Distinct().Count() == 2, "UI group Move assigns distinct destinations");
         var leader = sim.Units.Last(item => item.Side == CombatSide.Friendly);
         var leaderDestination = leader.Destination;
-        await RightClick(field.GlobalPosition + field.ScreenPoint(leader.Position, 1));
+        await RightClick(field.GlobalPosition + field.ScreenPoint(leader.Position, 15));
         Check(friendly.Order == CombatOrder.Follow && friendly.FollowTarget == leader.Id
             && leader.Order == CombatOrder.Move && leader.Destination == leaderDestination && tactical.Selected.Count == 2,
             "right-click friendly queues Follow for the group without changing the selected leader's order");
@@ -147,8 +142,8 @@ public partial class SmokeTests
 
         // Bring a contact into view to exercise attack/priority and enemy inspection through mouse input.
         var enemy = sim.Units.First(item => item.Side == CombatSide.Enemy);
-        enemy.Position = friendly.Position + new Vector2(-5, -2); sim.RefreshDetection(); await Frames();
-        var enemyAt = field.GlobalPosition + field.ScreenPoint(enemy.Position, 1);
+        enemy.Position = friendly.Position + new Vector2(-150, -60); sim.RefreshDetection(); await Frames();
+        var enemyAt = field.GlobalPosition + field.ScreenPoint(enemy.Position, 15);
         await RightClick(enemyAt);
         Check(tactical.Selected.Select(sim.Unit).All(item => item.Order == CombatOrder.Attack && item.AttackTarget == enemy.Id), "right-click detected enemy issues group Attack");
         var priorityButton = tactical.FindChildren("*", "Button", true, false).OfType<Button>().Single(button => button.Text == "Set priority target…");
@@ -156,7 +151,7 @@ public partial class SmokeTests
         var scroll = priorityButton.GetParent().GetParent().GetParent<ScrollContainer>();
         scroll.EnsureControlVisible(priorityButton); await Frames();
         await Click(priorityButton); Check(tactical.SettingPriority, "separate priority control arms target selection");
-        await RightClick(field.GlobalPosition + field.ScreenPoint(friendly.Position, 1));
+        await RightClick(field.GlobalPosition + field.ScreenPoint(friendly.Position, 15));
         Check(tactical.SettingPriority && tactical.Selected.Select(sim.Unit).All(item => item.Order == CombatOrder.Attack
             && item.FollowTarget is null && item.PriorityTarget is null), "friendly click while choosing priority leaves the mode armed and does not issue Follow");
         MouseButton(enemyAt, Godot.MouseButton.Right, true);
@@ -179,7 +174,7 @@ public partial class SmokeTests
         var closePosition = enemy.Position;
         var otherFriends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly && unit != friendly).ToArray();
         var previousPositions = otherFriends.Select(unit => unit.Position).ToArray();
-        foreach (var unit in otherFriends) unit.Position = new Vector2(-45, -45);
+        foreach (var unit in otherFriends) unit.Position = new Vector2(-1350, -1350);
         enemy.Position = Enumerable.Range(0, 32).Select(index => friendly.Position + Vector2.FromAngle(index * Mathf.Tau / 32) * radius * .75f)
             .First(point => point == CombatRules.Clamp(point) && sim.Terrain.Passable(point) && sim.Terrain.ClearSight(friendly.Position, point));
         sim.RefreshDetection(); await Delay(.15);
@@ -189,9 +184,9 @@ public partial class SmokeTests
             && !displayed.Any(text => text.Contains("ARMOR / STOCK") || text.Contains("SYSTEMS · CONDITION") || text.Contains(enemy.Spec.Variant)),
             "model-only inspection hides variant, armor, internals, systems and stale detailed readouts");
         await Capture("combat-model-contact");
-        await RightClick(field.GlobalPosition + field.ScreenPoint(enemy.Position, 1));
+        await RightClick(field.GlobalPosition + field.ScreenPoint(enemy.Position, 15));
         Check(friendly.Order == CombatOrder.Attack && friendly.AttackTarget == enemy.Id, "model-only contact accepts an actual mouse Attack order");
-        enemy.Position = new Vector2(-45, -10); sim.RefreshDetection(); await Delay(.15);
+        enemy.Position = new Vector2(-1350, -300); sim.RefreshDetection(); await Delay(.15);
         Check(field.InspectedEnemy is null && tactical.Paperdoll.Unit == friendly,
             "losing inspection contact clears live enemy details and restores friendly information");
         for (var i = 0; i < otherFriends.Length; i++) otherFriends[i].Position = previousPositions[i];
@@ -218,7 +213,7 @@ public partial class SmokeTests
         Check(tactical.Modal == CombatModal.Results && sim.Outcome == CombatOutcome.Ended, "End Simulation shows damage summary");
         await Capture("combat-results");
         await Click(tactical.ReturnButton);
-        Check(_app.Hangar.Visible && !tactical.Visible && _app.Hangar.SelectedMech == roster.Mechs[1] && tabs.CurrentTab == 2, "summary returns to preserved hangar selection and tab");
+        Check(_app.Hangar.Visible && !tactical.Visible && _app.Hangar.SelectedMech == roster.Mechs[1], "summary returns to preserved hangar selection");
         Check(JsonSerializer.Serialize(_app.State.Snapshot()) == before, "UI simulation preserves campaign date, finances, roster, equipment, assignments and warriors");
         Check(_app.Hangar.DeploymentButton.HasFocus(), "return restores focus to simulation launcher");
         // Relaunch and exercise automatic completion through the UI.
@@ -253,28 +248,28 @@ public partial class SmokeTests
         foreach (var unit in sim.Units) { sim.Hold([unit.Id]); unit.Firing = FiringMode.HoldFire; }
         static IEnumerable<Vector2> Around(Vector2 center, float radius) => Enumerable.Range(0, 24).Select(index => center + Vector2.FromAngle(index * Mathf.Tau / 24) * radius);
         var rock = terrain.Patches.First(patch => patch.Kind == TerrainKind.Rock && terrain.HeightAt(patch.Center) < .01f
-            && Around(patch.Center, patch.Radius + 3).All(terrain.Passable));
-        friends[0].Position = rock.Center + Vector2.Left * (rock.Radius + 3);
-        target.Position = rock.Center + Vector2.Right * (rock.Radius + 3);
-        friends[1].Position = Around(target.Position, 6).First(point => terrain.Passable(point)
-            && terrain.ClearSight(point, target.Position) && point.DistanceTo(friends[0].Position) > 3);
+            && Around(patch.Center, patch.Radius + 90).All(terrain.Passable));
+        friends[0].Position = rock.Center + Vector2.Left * (rock.Radius + 90);
+        target.Position = rock.Center + Vector2.Right * (rock.Radius + 90);
+        friends[1].Position = Around(target.Position, 180).First(point => terrain.Passable(point)
+            && terrain.ClearSight(point, target.Position) && point.DistanceTo(friends[0].Position) > 90);
         sim.RefreshDetection(); tactical.SelectUnits([friends[0].Id], false); await Frames();
         sim.Attack([friends[0].Id], target.Id); await Delay(.15);
         Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Line of fire blocked by terrain")),
             "combat information explains why a shared contact cannot be fired at through rock");
         await PressKey(Key.Home); await Capture("terrain-blocked-fire");
         var vegetation = terrain.Patches.First(patch => patch.Kind == TerrainKind.Vegetation && terrain.Passable(patch.Center)
-            && Around(patch.Center, patch.Radius + 2).Any(point => terrain.Passable(point) && terrain.ClearSight(point, patch.Center)));
+            && Around(patch.Center, patch.Radius + 60).Any(point => terrain.Passable(point) && terrain.ClearSight(point, patch.Center)));
         target.Position = vegetation.Center;
-        friends[0].Position = Around(target.Position, vegetation.Radius + 2).First(point => terrain.Passable(point) && terrain.ClearSight(point, target.Position));
+        friends[0].Position = Around(target.Position, vegetation.Radius + 60).First(point => terrain.Passable(point) && terrain.ClearSight(point, target.Position));
         sim.RefreshDetection(); tactical.SelectUnits([friends[0].Id], false); await Delay(.15);
         Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Vegetation: +")),
             "combat information shows the vegetation hit penalty");
         var hill = terrain.Hills.OrderByDescending(hill => terrain.HeightAt(hill.Center)).First();
         friends[0].Position = hill.Center; await Frames();
         Check(tactical.Battlefield.FindChildren("*", "Node3D", true, false).OfType<MechModel>().Any(model =>
-            Math.Abs(model.Position.X - hill.Center.X) < .01f && Math.Abs(model.Position.Z - hill.Center.Y) < .01f
-            && Math.Abs(model.Position.Y - terrain.HeightAt(hill.Center)) < .01f), "rendered mechs stand at the simulation hill elevation");
+            Math.Abs(model.Position.X - hill.Center.X) < .3f && Math.Abs(model.Position.Z - hill.Center.Y) < .3f
+            && Math.Abs(model.Position.Y - terrain.HeightAt(hill.Center)) < .3f), "rendered mechs stand at the simulation hill elevation");
         await Capture("terrain-elevation");
     }
 

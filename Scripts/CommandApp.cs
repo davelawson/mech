@@ -34,6 +34,7 @@ public partial class CommandApp : Control
         GetWindow().MinSize = new Vector2I(900, 500);
         GetTree().AutoAcceptQuit = false;
         GetWindow().CloseRequested += RequestQuit;
+        GetWindow().FocusExited += CancelRightDrag;
         Office = GetNode<OfficeScreen>("Office");
         StarMap = GetNode<MapScreen>("StarMap");
         StarMap.TextureChanged += Office.SetWallMap;
@@ -123,7 +124,8 @@ public partial class CommandApp : Control
             () => MainMenu.ResumeButton.Visible ? MainMenu.ResumeButton : MainMenu.NewButton);
         Navigation.Register(CommandScreen.Office, Office, "Mech · Command", false, true, () => Office.Hotspot, ShowMainMenu);
         Navigation.Register(CommandScreen.Map, StarMap, "Mech · Inner Sphere", false, true, () => StarMap.Viewport, ShowOffice);
-        Navigation.Register(CommandScreen.Hangar, Hangar, "Mech · Mech Hangar", false, true, () => Hangar.BackButton, ShowOffice);
+        Navigation.Register(CommandScreen.Hangar, Hangar, "Mech · Mech Hangar", false, true, () => Hangar.BackButton, ShowOffice,
+            Hangar.Preview.Spin, Hangar.Preview.ReleaseSpin);
         Navigation.Register(CommandScreen.Draft, Drafting, "Mech · Establish Company", false, false, () => Drafting.NameInput, Drafting.HandleEscape);
         Navigation.Register(CommandScreen.Tactical, Tactical, "Mech · Simulated Deployment", false, false, () => Tactical.Battlefield);
         Navigation.Register(CommandScreen.Rolodex, Rolodex, null, true, true, () => Rolodex.Section, CloseWarriors);
@@ -362,7 +364,8 @@ public partial class CommandApp : Control
             new DialogAction("Cancel", Cancel), new DialogAction(actionText, () => { Navigation.Close(CommandScreen.UnsavedDialog); accept(); }));
     }
 
-    public override void _ExitTree() => GetWindow().CloseRequested -= RequestQuit;
+    public override void _ExitTree() { GetWindow().CloseRequested -= RequestQuit; GetWindow().FocusExited -= CancelRightDrag; }
+    private void CancelRightDrag() => Navigation?.CancelRightDrag();
 
     private static bool IsStorageError(Exception error) => error is System.IO.IOException or UnauthorizedAccessException
         or System.Text.Json.JsonException or ArgumentException or NotSupportedException;

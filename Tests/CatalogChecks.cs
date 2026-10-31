@@ -227,8 +227,10 @@ internal static class CatalogChecks
             foreach (var location in expected["Roster"]!["Mechs"]!.AsArray().SelectMany(m => m!["Locations"]!.AsArray()))
                 foreach (var field in new[] { "Armor", "RearArmor", "Structure" })
                     location![field] = location[field]!.GetValue<int>() * CombatRules.DamageScale;
+            // Older saves gain the company's spare equipment, stocked once from its mechs.
+            expected["Roster"]!["Storage"] = System.Text.Json.JsonSerializer.SerializeToNode(StorageCatalog.Stock(campaign.Roster.Mechs.Select(m => m.Spec)).ToArray());
             check(JsonNode.DeepEquals(expected, JsonNode.Parse(File.ReadAllText(path))),
-                "a version-four save keeps its shape and values when resaved, with protection rescaled");
+                "a version-four save keeps its shape and values when resaved, with protection rescaled and storage stocked");
             campaign.AdvanceOneDay(); campaign.AdvanceOneDay();
             check(warrior.Health == WarriorHealth.Healthy && warrior.RecoveryDate is null, "old saved recovery date still resolves normally");
         }

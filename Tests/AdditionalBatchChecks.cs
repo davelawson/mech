@@ -22,7 +22,7 @@ public partial class SmokeTests
             roster.Assign(roster.Mechs[0].Id, roster.Warriors[0].Id);
             hangar.Open(roster); await Frames(); var model = hangar.Preview.Model!; model.Rotation = Vector3.Zero;
             var meshes = model.FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>().ToArray();
-            if (!model.HasLocomotion || !hangar.GaitPicker.Visible || model.Locations.Count != 8 || meshes.Length < 12
+            if (!model.HasLocomotion || model.Locations.Count != 8 || meshes.Length < 12
                 || meshes.Any(mesh => model.Locations.Values.Count(root => root.IsAncestorOf(mesh)) != 1)) failures.Add($"{spec.Id}: model ownership/rig");
             if (model.Locations[MechLocation.Head].FindChild("AmberCanopy", true, false) is null) failures.Add($"{spec.Id}: cockpit");
             for (var weapon = 0; weapon < spec.Weapons.Length; weapon++)
@@ -77,9 +77,9 @@ public partial class SmokeTests
                 GetWindow().Size = size; await Frames();
                 var camera = hangar.Preview.FindChildren("*", "Camera3D", true, false).OfType<Camera3D>().Single();
                 var bounds = new Rect2(Vector2.One, camera.GetViewport().GetVisibleRect().Size - Vector2.One * 2); var fits = true;
-                for (var angle = 0; angle < 12; angle++)
+                // The hangar blueprint frames its front view and turns only while dragged.
                 {
-                    model.Rotation = new(0, angle * Mathf.Tau / 12, 0);
+                    model.Rotation = Vector3.Zero;
                     foreach (var mesh in meshes) for (var corner = 0; corner < 8; corner++)
                     {
                         var point = mesh.GlobalTransform * mesh.Mesh.GetAabb().GetEndpoint(corner);

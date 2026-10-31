@@ -36,7 +36,7 @@ public sealed record CombatLogEntry(double Time, CombatShot Shot, CombatLogUnit 
         if (Shot.Indirect && !Shot.Impact)
             fields.Add(Spotter is { } spotter && spotter.Detailed(debug) ? $"indirect, spotted by {spotter.Label(debug)}" : "indirect");
         if (debug || Attacker.Visibility != ContactLevel.Lost)
-            fields.Add(FormattableString.Invariant($"{Shot.From.DistanceTo(Shot.To):0.0} hex"));
+            fields.Add(FormattableString.Invariant($"{Shot.From.DistanceTo(Shot.To):0} m"));
         // Lower random draws hit. Increase precision when rounding would make a hit look like a tie.
         if (Shot.Burn || Shot.Impact) { } // Continuations and impacts inherit their discharge's roll.
         else if (Shot.Missiles.Count > 0)

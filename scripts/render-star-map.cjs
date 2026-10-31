@@ -43,14 +43,14 @@ function replaceOnce(text, original, replacement) {
 
 const contentIds = [9, 10, 11, 12, 13, 14, 22, 23];
 let content = contentIds.map(stream).join('');
-// These two forms contain only the hex outlines and their coordinate numbers.
+// These two forms contain only the grid cell outlines and their coordinate numbers.
 for (const name of ['Fm132', 'Fm133']) content = replaceOnce(content, `/${name} Do`, '');
 content = replaceOnce(content,
   '1.595 -1.455 Td\n[(         INTERSTELLAR HEX = 30 )0.5 (LIGHT )43.4 (Y)5 (EARS)]TJ\n', '');
-// The final sample coordinate and hex outline belong only to the legend.
-const legendHex = content.indexOf('/TT1 1 Tf\n0 Tc 3 0 0 3 1625.156 1512.1324 Tm');
-assert(legendHex > 0 && content.slice(legendHex).includes('(0101)Tj'));
-content = content.slice(0, legendHex) + 'ET\n';
+// The final sample coordinate and grid cell outline belong only to the legend.
+const legendCell = content.indexOf('/TT1 1 Tf\n0 Tc 3 0 0 3 1625.156 1512.1324 Tm');
+assert(legendCell > 0 && content.slice(legendCell).includes('(0101)Tj'));
+content = content.slice(0, legendCell) + 'ET\n';
 
 const palette = new Map([
   ['0 0 0 0.25 k', '050b15'], // empty space

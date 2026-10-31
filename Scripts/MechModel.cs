@@ -23,10 +23,13 @@ public partial class MechModel : Node3D
 
     public static Color TeamColor(CombatSide side) => new(side == CombatSide.Friendly ? "85d0df" : "ee9c85");
 
+    /// <summary>World metres per authored model unit; prepared models stand roughly 36–55 metres tall.</summary>
+    public const float MetresPerModelUnit = 15;
+
     public static MechModel Create(MechSpec spec, CombatSide side)
     {
         var model = new MechModel { Name = "MechModel", ChassisId = spec.Id };
-        model.Scale = Vector3.One * (.9f + spec.Tonnage / 200f);
+        model.Scale = Vector3.One * (.9f + spec.Tonnage / 200f) * MetresPerModelUnit;
         // A pixel-sized inverted hull remains legible at combat zoom without tinting the armor.
         model._outline = new ShaderMaterial { Shader = new Shader { Code = """
             shader_type spatial;

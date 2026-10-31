@@ -44,14 +44,12 @@ public partial class SmokeTests
         _app.ShowHangar(); await Frames();
         _app.Hangar.Select(2);
         var selected = _app.Hangar.SelectedMech;
-        var tabs = _app.Hangar.FindChildren("*", "TabContainer", true, false).OfType<TabContainer>().Single();
-        tabs.CurrentTab = 2;
         var menuButton = _app.FindChildren("*", "Button", true, false).OfType<Button>().Single(button => button.Text == "Main menu");
         await Click(menuButton);
         Check(_app.MainMenu.Visible && !_app.Dialog.Visible, "header Main menu opens immediately");
         await Click(_app.MainMenu.ResumeButton);
-        Check(_app.Hangar.Visible && !_app.Office.Visible && _app.Hangar.SelectedMech == selected && tabs.CurrentTab == 2,
-            "Resume restores hangar mech and tab without rebuilding controls");
+        Check(_app.Hangar.Visible && !_app.Office.Visible && _app.Hangar.SelectedMech == selected,
+            "Resume restores hangar mech without rebuilding controls");
         _app.ShowWarriors(); await Frames();
         Check(_app.Rolodex.Visible && _app.Hangar.Visible, "personnel opens over hangar before resuming");
         await Click(_app.Rolodex.NextButton);

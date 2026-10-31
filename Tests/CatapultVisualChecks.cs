@@ -10,7 +10,7 @@ public partial class SmokeTests
         var triangles = meshes.Sum(mesh => mesh.Mesh.GetFaces().Length / 3);
         Check(triangles is >= 30000 and <= 45000 && meshes.Length < 40,
             "Catapult retains source detail with a bounded number of rigid render meshes");
-        Check(Math.Abs(model.Height - 3.16f) < .02f, "imported Catapult preserves its agreed battlefield height");
+        Check(Math.Abs(model.Height - 47.4f) < .3f, "imported Catapult preserves its agreed battlefield height");
         var canopy = model.Locations[MechLocation.Head].FindChild("AmberCanopy", true, false) as MeshInstance3D;
         Check(canopy is not null && canopy.Mesh.GetFaces().Length > 30,
             "Catapult includes the extracted exterior canopy beneath its head damage location");

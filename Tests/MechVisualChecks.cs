@@ -49,8 +49,8 @@ public partial class SmokeTests
             "MW5 Awesome retains source detail within its geometry budget");
         Check(meshes.Length < 32, "Awesome keeps imported geometry within rigid damage groups to bound render instances");
         TestImportedAwesome(model);
-        var yaw = model.Rotation.Y; hangar.Preview._Process(.5);
-        Check(model.Rotation.Y != yaw, "hangar preview rotates automatically");
+        model.Rotation = Vector3.Zero; hangar.Preview._Process(.5);
+        Check(model.Rotation.Y == 0, "hangar blueprint stays front-on until dragged");
         hangar.Refresh();
         Check(ReferenceEquals(model, hangar.Preview.Model), "assignment refresh preserves model instance and rotation");
         hangar.Preview.SetProcess(false); model.Rotation = Vector3.Zero;
@@ -59,13 +59,11 @@ public partial class SmokeTests
             GetWindow().Size = size; await Frames();
             Check(hangar.GetGlobalRect().Encloses(hangar.Preview.GetGlobalRect()) && hangar.Preview.Size.X > 200,
                 $"AWESOME preview remains inside hangar at {size}");
-            Check(hangar.GetGlobalRect().Encloses(hangar.GaitPicker.GetGlobalRect()) && hangar.GaitPicker.Size.X >= 100,
-                $"gait preview controls fit the hangar at {size}");
             var camera = hangar.Preview.FindChildren("*", "Camera3D", true, false).OfType<Camera3D>().Single();
             var fits = true;
-            for (var angle = 0; angle < 12; angle++)
+            // The hangar blueprint frames its front view and turns only while dragged.
             {
-                model.Rotation = new(0, angle * Mathf.Tau / 12, 0);
+                model.Rotation = Vector3.Zero;
                 foreach (var mesh in meshes) for (var corner = 0; corner < 8; corner++)
                 {
                     var point = mesh.GlobalTransform * mesh.Mesh.GetAabb().GetEndpoint(corner);
@@ -74,14 +72,14 @@ public partial class SmokeTests
                         camera.GetViewport().GetVisibleRect().Size - Vector2.One * 2).HasPoint(screen);
                 }
             }
-            Check(fits, $"Awesome shoulders, PPCs and feet fit the complete turntable at {size}");
+            Check(fits, $"Awesome shoulders, PPCs and feet fit the front blueprint at {size}");
             model.Rotation = new(0, .32f, 0);
             await Capture($"awesome-hangar-{size.X}x{size.Y}");
         }
         GetWindow().Size = new(1440, 900); await Frames();
         model.Rotation = new(0, Mathf.Pi + .32f, 0); await Capture("awesome-hangar-rear");
         model.Rotation = new(0, .32f, 0);
-        Check(hangar.GaitPicker.Visible && hangar.GaitPicker.ItemCount == 3, "Awesome exposes Idle/Walk/Run preview choices");
+        Check(model.HasLocomotion, "Awesome exposes Idle/Walk/Run previews");
         var legs = new[] { model.Locations[MechLocation.LeftLeg], model.Locations[MechLocation.RightLeg] };
         var ankles = legs.Select(leg => (Node3D)leg.FindChild("AnklePivot", true, false)).ToArray();
         var feet = legs.Select(leg => (MeshInstance3D)leg.FindChild("Foot", true, false)).ToArray();
@@ -92,15 +90,15 @@ public partial class SmokeTests
         }
         foreach (var gait in new[] { 1, 2 })
         {
-            hangar.GaitPicker.Select(gait); hangar.GaitPicker.EmitSignal(OptionButton.SignalName.ItemSelected, (long)gait);
+            hangar.Preview.Gait = (PreviewGait)gait;
             Check(hangar.Preview.Gait == (PreviewGait)gait, "preview selector drives the shared locomotion controller");
             var articulated = false; var grounded = true;
             for (var frame = 0; frame < 120; frame++)
             {
                 hangar.Preview._Process(1d / 60);
                 articulated |= Math.Abs(ankles[0].Position.Y - ankles[1].Position.Y) > .001f
-                    || Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .02f;
-                grounded &= feet.All(foot => Bottom(foot) >= -.002f) && feet.Any(foot => Bottom(foot) < .02f);
+                    || Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .3f;
+                grounded &= feet.All(foot => Bottom(foot) >= -.03f) && feet.Any(foot => Bottom(foot) < .3f);
                 if (frame is 15 or 35 or 55) await Capture($"awesome-{(gait == 1 ? "walk" : "run")}-{frame}");
             }
             Check(articulated && grounded, $"Awesome gait {gait} articulates legs with ground clearance and a planted support foot");
@@ -115,7 +113,7 @@ public partial class SmokeTests
         for (var i = 0; i < 90; i++)
         {
             model.AnimateLocomotion(1f / 60, 0, walk, run, Mathf.DegToRad(45));
-            pivotStepping |= Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .02f;
+            pivotStepping |= Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .3f;
         }
         Check(pivotStepping, "stationary turning produces alternating pivot steps");
         await Capture("awesome-pivot");
@@ -133,7 +131,7 @@ public partial class SmokeTests
         model.AnimateLocomotion(.1f, run, walk, run);
         Check(Math.Abs(body.Rotation.Y + Mathf.Pi / 2) < .0001f, "gait animation preserves simulated torso yaw");
         model.SetTorsoTwist(0);
-        hangar.Select(1); Check(hangar.Preview.Model!.HasLocomotion && hangar.GaitPicker.Visible, "Victor exposes its imported locomotion preview");
+        hangar.Select(1); Check(hangar.Preview.Model!.HasLocomotion, "Victor exposes its imported locomotion preview");
         var generic = MechModel.Create(DraftCatalog.Mech("victor") with { Id = "future-generic" }, CombatSide.Friendly);
         Check(!generic.HasLocomotion, "unimported chassis retain generic geometry without unsupported gait previews"); generic.Free();
         // Owned condition is reflected before any battle starts.
@@ -160,9 +158,9 @@ public partial class SmokeTests
         var sim = combat.Simulation!; var friendly = sim.Units.First(unit => unit.Side == CombatSide.Friendly);
         var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
         // Model review uses the guaranteed clear spawn band, independently of random scenery.
-        friendly.Position = new(-2.3f, 32); enemy.Position = new(2.3f, 32); friendly.Facing = enemy.Facing = Vector2.Down;
-        sim.RefreshDetection(); combat.Battlefield.Camera.Position += new Vector3(0, 0, 20);
-        combat.Battlefield.Camera.Size = 12; await Frames();
+        friendly.Position = new(-69, CombatRules.DeploymentDepth); enemy.Position = new(69, CombatRules.DeploymentDepth); friendly.Facing = enemy.Facing = Vector2.Down;
+        sim.RefreshDetection(); combat.Battlefield.Camera.Position += new Vector3(0, 0, 600);
+        combat.Battlefield.Camera.Size = 180; await Frames();
         Check(combat.Paperdoll.Unit == friendly && friendly.Locations[MechLocation.RightTorso].Armor == friendly.Locations[MechLocation.RightTorso].InitialArmor
             && CombatPaperdoll.ConditionColor(friendly.Locations[MechLocation.RightTorso].Armor, friendly.Spec.Locations.Single(loc => loc.Location == MechLocation.RightTorso).Armor) == CombatPaperdoll.Full
             && friendly.Intact(MechLocation.LeftArm), "mirror battle restores the friendly model and paperdoll to pristine condition");
@@ -175,7 +173,7 @@ public partial class SmokeTests
         Check(combatModels.Length == 2 && combatModels.All(item => item.IsAwesome), "combat and hangar share the AWESOME model builder");
         await Capture("awesome-combat-friendly");
         foreach (var unit in sim.Units) foreach (var weapon in unit.Weapons) weapon.Enabled = false;
-        sim.Move([friendly.Id], friendly.Position + Vector2.Down * 5); sim.Paused = false; sim.Advance(.5);
+        sim.Move([friendly.Id], friendly.Position + Vector2.Down * 150); sim.Paused = false; sim.Advance(.5);
         combat.Battlefield._Process(.5);
         var friendlyModel = combatModels.Single(item => item.Position.X < 0);
         var combatAnkle = (Node3D)friendlyModel.Locations[MechLocation.LeftLeg].FindChild("AnklePivot", true, false);

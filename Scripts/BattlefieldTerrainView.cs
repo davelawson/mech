@@ -20,7 +20,7 @@ public static class BattlefieldTerrainView
             return terrain.Contains(TerrainKind.Water, at) ? new Color("356e86")
                 : terrain.Contains(TerrainKind.Vegetation, at) ? new Color("467343")
                 : terrain.SlopeAt(at) > BattlefieldTerrain.MaxSlope ? new Color("887e65")
-                : new Color("586348").Lerp(new Color("8c8d68"), Math.Clamp(point.Y / 9, 0, 1));
+                : new Color("586348").Lerp(new Color("8c8d68"), Math.Clamp(point.Y / 270, 0, 1));
         }
         void Triangle(Vector3 a, Vector3 b, Vector3 c)
         {
@@ -28,20 +28,24 @@ public static class BattlefieldTerrainView
             foreach (var point in new[] { a, b, c })
             { mesh.SurfaceSetNormal(normal); mesh.SurfaceSetColor(ColorAt(point)); mesh.SurfaceAddVertex(point); }
         }
-        var halfSize = (int)CombatRules.ArenaHalfSize;
-        for (var z = -halfSize; z < halfSize; z++) for (var x = -halfSize; x < halfSize; x++)
+        // One quad per heightfield cell, so the mesh matches the simulation's triangulation.
+        const float cell = BattlefieldTerrain.CellSize;
+        var halfCells = (BattlefieldTerrain.GridSize - 1) / 2;
+        for (var iz = -halfCells; iz < halfCells; iz++) for (var ix = -halfCells; ix < halfCells; ix++)
         {
-            var a = Ground(x, z); var b = Ground(x + 1, z); var c = Ground(x, z + 1); var d = Ground(x + 1, z + 1);
+            float x = ix * cell, z = iz * cell;
+            var a = Ground(x, z); var b = Ground(x + cell, z); var c = Ground(x, z + cell); var d = Ground(x + cell, z + cell);
             Triangle(a, c, b); Triangle(d, b, c);
         }
         mesh.SurfaceEnd(); root.AddChild(new MeshInstance3D { Mesh = mesh });
         var grid = new ImmediateMesh();
         grid.SurfaceBegin(Mesh.PrimitiveType.Lines, new StandardMaterial3D
         { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, AlbedoColor = new Color("727e65") });
-        for (var n = -halfSize; n <= halfSize; n += 8) for (var step = -halfSize; step < halfSize; step++)
+        for (var n = -halfCells; n <= halfCells; n += 8) for (var step = -halfCells; step < halfCells; step++)
         {
-            foreach (var point in new[] { Ground(n, step), Ground(n, step + 1), Ground(step, n), Ground(step + 1, n) })
-                grid.SurfaceAddVertex(point + Vector3.Up * .025f);
+            float line = n * cell, from = step * cell, to = from + cell;
+            foreach (var point in new[] { Ground(line, from), Ground(line, to), Ground(from, line), Ground(to, line) })
+                grid.SurfaceAddVertex(point + Vector3.Up * .75f);
         }
         grid.SurfaceEnd(); root.AddChild(new MeshInstance3D { Mesh = grid });
         foreach (var patch in terrain.Patches)
@@ -51,8 +55,8 @@ public static class BattlefieldTerrainView
                 var top = terrain.HeightAt(patch.Center) + patch.Height;
                 root.AddChild(new MeshInstance3D
                 {
-                    Position = new Vector3(patch.Center.X, (top - .5f) / 2, patch.Center.Y),
-                    Mesh = new CylinderMesh { TopRadius = patch.Radius, BottomRadius = patch.Radius, Height = top + .5f, RadialSegments = 24 },
+                    Position = new Vector3(patch.Center.X, (top - 15) / 2, patch.Center.Y),
+                    Mesh = new CylinderMesh { TopRadius = patch.Radius, BottomRadius = patch.Radius, Height = top + 15, RadialSegments = 24 },
                     MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color("92918a"), Roughness = 1 }
                 });
             }
@@ -64,8 +68,8 @@ public static class BattlefieldTerrainView
                     var at = patch.Center + Vector2.FromAngle(i * 2.4f) * (patch.Radius * MathF.Sqrt(i / 10f) * .8f);
                     root.AddChild(new MeshInstance3D
                     {
-                        Position = new Vector3(at.X, terrain.HeightAt(at) + .3f, at.Y),
-                        Mesh = new SphereMesh { Radius = .55f, Height = .6f, RadialSegments = 8, Rings = 4 },
+                        Position = new Vector3(at.X, terrain.HeightAt(at) + 4.5f, at.Y),
+                        Mesh = new SphereMesh { Radius = 8.25f, Height = 9, RadialSegments = 8, Rings = 4 },
                         MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color("305d32"), Roughness = 1 }
                     });
                 }

@@ -10,10 +10,12 @@ public sealed record TerrainHill(Vector2 Center, float Radius, float Height);
 /// <summary>Immutable terrain shared by simulation, navigation, rendering and picking. X/Y are ground X/Z.</summary>
 public sealed class BattlefieldTerrain
 {
-    private const int HalfSize = (int)CombatRules.ArenaHalfSize;
-    public const int GridSize = HalfSize * 2 + 1;
+    /// <summary>Metres between heightfield and navigation grid points.</summary>
+    public const float CellSize = 30;
+    private const int HalfCells = (int)(CombatRules.ArenaHalfSize / CellSize);
+    public const int GridSize = HalfCells * 2 + 1;
     public const float MaxSlope = .65f;
-    public const float EyeHeight = 1.5f;
+    public const float EyeHeight = 22.5f;
     public const float WaterSpeed = .5f;
     public const float VegetationSpeed = .7f;
     public const int MaxVegetationModifier = 2;
@@ -44,12 +46,12 @@ public sealed class BattlefieldTerrain
         _rocks = Patches.Where(patch => patch.Kind == TerrainKind.Rock).ToArray();
         for (var z = 0; z < GridSize; z++) for (var x = 0; x < GridSize; x++)
         {
-            var point = new Vector2(x - HalfSize, z - HalfSize);
+            var point = new Vector2(x - HalfCells, z - HalfCells) * CellSize;
             var height = Hills.Sum(hill => point.DistanceTo(hill.Center) >= hill.Radius ? 0
                 : hill.Height * (1 + MathF.Cos(MathF.PI * point.DistanceTo(hill.Center) / hill.Radius)) * .5f);
             // Water is shallow, with a flat surface and gently blended banks.
             foreach (var water in Patches.Where(patch => patch.Kind == TerrainKind.Water))
-                height *= Mathf.SmoothStep(0, 1, Math.Clamp((point.DistanceTo(water.Center) - water.Radius - 1) / 3, 0, 1));
+                height *= Mathf.SmoothStep(0, 1, Math.Clamp((point.DistanceTo(water.Center) - water.Radius - 30) / 90, 0, 1));
             _heights[Index(x, z)] = height;
         }
         _neighbors = Enumerable.Range(0, _heights.Length).Select(_ => new List<NavigationEdge>(8)).ToArray();
@@ -88,14 +90,14 @@ public sealed class BattlefieldTerrain
         var random = new Random(seed);
         // Spawn bands and a central rendezvous remain clear for every force size.
         bool Clear(Vector2 point, float radius) => new[] { new Vector2(0, CombatRules.DeploymentDepth), new Vector2(0, -CombatRules.DeploymentDepth) }
-            .All(spawn => Math.Abs(point.X - spawn.X) > radius + CombatRules.DeploymentSpacing * 1.5f + 3
-                || Math.Abs(point.Y - spawn.Y) > radius + 5)
-            && point.Length() > radius + 2;
+            .All(spawn => Math.Abs(point.X - spawn.X) > radius + CombatRules.DeploymentSpacing * 1.5f + 90
+                || Math.Abs(point.Y - spawn.Y) > radius + 150)
+            && point.Length() > radius + 60;
         Vector2 Place(float radius)
         {
             for (var attempt = 0; attempt < 500; attempt++)
             {
-                var placementLimit = CombatRules.ArenaHalfSize - 10;
+                var placementLimit = CombatRules.ArenaHalfSize - 300;
                 var point = new Vector2((random.NextSingle() * 2 - 1) * placementLimit, (random.NextSingle() * 2 - 1) * placementLimit);
                 if (Clear(point, radius)) return point;
             }
@@ -106,8 +108,8 @@ public sealed class BattlefieldTerrain
         {
             var hills = Enumerable.Range(0, 28).Select(_ =>
             {
-                var radius = 6 + random.NextSingle() * 5;
-                return new TerrainHill(Place(radius + 3), radius, 3 + random.NextSingle() * 4);
+                var radius = 180 + random.NextSingle() * 150;
+                return new TerrainHill(Place(radius + 90), radius, 90 + random.NextSingle() * 120);
             }).ToArray();
             var patches = new List<TerrainPatch>();
             foreach (var kind in Enum.GetValues<TerrainKind>())
@@ -115,13 +117,13 @@ public sealed class BattlefieldTerrain
                 var count = kind == TerrainKind.Rock ? 64 : kind == TerrainKind.Vegetation ? 40 : 16;
                 for (var i = 0; i < count; i++)
                 {
-                    var radius = kind == TerrainKind.Rock ? 1.3f + random.NextSingle() * 1.7f : 3 + random.NextSingle() * 3;
+                    var radius = kind == TerrainKind.Rock ? 39 + random.NextSingle() * 51 : 90 + random.NextSingle() * 90;
                     Vector2 point;
                     var tries = 0;
-                    do { point = Place(radius + 2); tries++; }
-                    while (tries < 500 && patches.Any(patch => patch.Center.DistanceTo(point) < patch.Radius + radius + 1));
-                    if (patches.Any(patch => patch.Center.DistanceTo(point) < patch.Radius + radius + 1)) continue;
-                    patches.Add(new(kind, point, radius, kind == TerrainKind.Rock ? 3 + random.NextSingle() * 3 : 0));
+                    do { point = Place(radius + 60); tries++; }
+                    while (tries < 500 && patches.Any(patch => patch.Center.DistanceTo(point) < patch.Radius + radius + 30));
+                    if (patches.Any(patch => patch.Center.DistanceTo(point) < patch.Radius + radius + 30)) continue;
+                    patches.Add(new(kind, point, radius, kind == TerrainKind.Rock ? 90 + random.NextSingle() * 90 : 0));
                 }
             }
             var terrain = new BattlefieldTerrain(seed, patches, hills);
@@ -136,12 +138,12 @@ public sealed class BattlefieldTerrain
     }
 
     private static int Index(int x, int z) => z * GridSize + x;
-    private static Vector2 Point(int index) => new(index % GridSize - HalfSize, index / GridSize - HalfSize);
-    private static int Node(Vector2 point) => Index(Math.Clamp((int)MathF.Round(point.X + HalfSize), 1, GridSize - 2), Math.Clamp((int)MathF.Round(point.Y + HalfSize), 1, GridSize - 2));
+    private static Vector2 Point(int index) => new Vector2(index % GridSize - HalfCells, index / GridSize - HalfCells) * CellSize;
+    private static int Node(Vector2 point) => Index(Math.Clamp((int)MathF.Round(point.X / CellSize + HalfCells), 1, GridSize - 2), Math.Clamp((int)MathF.Round(point.Y / CellSize + HalfCells), 1, GridSize - 2));
     public float HeightAt(Vector2 point)
     {
         if (_flat) return 0;
-        var x = Math.Clamp(point.X + HalfSize, 0, GridSize - 1); var z = Math.Clamp(point.Y + HalfSize, 0, GridSize - 1);
+        var x = Math.Clamp(point.X / CellSize + HalfCells, 0, GridSize - 1); var z = Math.Clamp(point.Y / CellSize + HalfCells, 0, GridSize - 1);
         var ix = Math.Min((int)x, GridSize - 2); var iz = Math.Min((int)z, GridSize - 2); var u = x - ix; var v = z - iz;
         var a = _heights[Index(ix, iz)]; var b = _heights[Index(ix + 1, iz)];
         var c = _heights[Index(ix, iz + 1)]; var d = _heights[Index(ix + 1, iz + 1)];
@@ -149,16 +151,16 @@ public sealed class BattlefieldTerrain
     }
     public float SlopeAt(Vector2 point)
     {
-        var dx = HeightAt(point + new Vector2(.25f, 0)) - HeightAt(point - new Vector2(.25f, 0));
-        var dz = HeightAt(point + new Vector2(0, .25f)) - HeightAt(point - new Vector2(0, .25f));
-        return new Vector2(dx, dz).Length() * 2;
+        var dx = HeightAt(point + new Vector2(7.5f, 0)) - HeightAt(point - new Vector2(7.5f, 0));
+        var dz = HeightAt(point + new Vector2(0, 7.5f)) - HeightAt(point - new Vector2(0, 7.5f));
+        return new Vector2(dx, dz).Length() / 15;
     }
     public bool Contains(TerrainKind kind, Vector2 point) => Patches.Any(patch => patch.Kind == kind && point.DistanceSquaredTo(patch.Center) <= patch.Radius * patch.Radius);
     public bool Passable(Vector2 point)
     {
         if (CombatRules.Clamp(point).DistanceSquaredTo(point) > 1e-8f) return false;
         foreach (var rock in _rocks)
-            if (point.DistanceTo(rock.Center) < rock.Radius + CombatRules.UnitRadius + .1f) return false;
+            if (point.DistanceTo(rock.Center) < rock.Radius + CombatRules.UnitRadius + 1.5f) return false;
         return SlopeAt(point) <= MaxSlope
             && SlopeAt(point + Vector2.Up * CombatRules.UnitRadius) <= MaxSlope
             && SlopeAt(point + Vector2.Down * CombatRules.UnitRadius) <= MaxSlope
@@ -168,7 +170,7 @@ public sealed class BattlefieldTerrain
     public bool CanTraverse(Vector2 from, Vector2 to)
     {
         if (_flat) return Passable(to);
-        var steps = Math.Max(1, (int)MathF.Ceiling(from.DistanceTo(to) / .25f));
+        var steps = Math.Max(1, (int)MathF.Ceiling(from.DistanceTo(to) / 7.5f));
         for (var i = 0; i <= steps; i++) if (!Passable(from.Lerp(to, i / (float)steps))) return false;
         return true;
     }
@@ -194,9 +196,9 @@ public sealed class BattlefieldTerrain
             if (!SegmentCircle(from, to, rock.Center, rock.Radius, out var enter, out var exit)) continue;
             var low = Mathf.Lerp(startHeight, endHeight, enter); var high = Mathf.Lerp(startHeight, endHeight, exit);
             var ground = HeightAt(rock.Center);
-            if (Math.Min(low, high) <= ground + rock.Height && Math.Max(low, high) >= -.5f) return false;
+            if (Math.Min(low, high) <= ground + rock.Height && Math.Max(low, high) >= -15) return false;
         }
-        var steps = Math.Max(1, (int)MathF.Ceiling(from.DistanceTo(to) / .2f));
+        var steps = Math.Max(1, (int)MathF.Ceiling(from.DistanceTo(to) / 6));
         for (var i = 1; i < steps; i++)
         {
             var t = i / (float)steps;
@@ -211,7 +213,7 @@ public sealed class BattlefieldTerrain
         foreach (var rock in _rocks)
         {
             if (!SegmentCircle(from, to, rock.Center, rock.Radius, out var enter, out var exit)) continue;
-            var low = -.5f; var high = HeightAt(rock.Center) + rock.Height;
+            var low = -15f; var high = HeightAt(rock.Center) + rock.Height;
             if (Math.Abs(direction.Y) < 1e-8f)
             { if (origin.Y < low || origin.Y > high) continue; }
             else
@@ -229,12 +231,12 @@ public sealed class BattlefieldTerrain
         var rock = RockRayDistance(origin, direction, maximum);
         var limit = rock ?? maximum;
         var previous = 0f;
-        for (var distance = .2f; distance <= limit + .2f; distance += .2f)
+        for (var distance = 6f; distance <= limit + 6; distance += 6)
         {
             var sampleDistance = Math.Min(distance, limit);
             var sample = origin + direction * sampleDistance;
             var at = new Vector2(sample.X, sample.Z);
-            if (Math.Abs(at.X) <= HalfSize && Math.Abs(at.Y) <= HalfSize && sample.Y <= HeightAt(at))
+            if (Math.Abs(at.X) <= CombatRules.ArenaHalfSize && Math.Abs(at.Y) <= CombatRules.ArenaHalfSize && sample.Y <= HeightAt(at))
             {
                 var low = previous; var high = sampleDistance;
                 for (var iteration = 0; iteration < 16; iteration++)
@@ -318,10 +320,10 @@ public sealed class BattlefieldTerrain
     {
         var component = Component(from);
         // Only cells inside the weapon's range can be candidates. Preserve row-major tie order.
-        var minX = Math.Clamp((int)MathF.Ceiling(target.X - maximumRange + HalfSize), 0, GridSize - 1);
-        var maxX = Math.Clamp((int)MathF.Floor(target.X + maximumRange + HalfSize), 0, GridSize - 1);
-        var minZ = Math.Clamp((int)MathF.Ceiling(target.Y - maximumRange + HalfSize), 0, GridSize - 1);
-        var maxZ = Math.Clamp((int)MathF.Floor(target.Y + maximumRange + HalfSize), 0, GridSize - 1);
+        var minX = Math.Clamp((int)MathF.Ceiling((target.X - maximumRange) / CellSize + HalfCells), 0, GridSize - 1);
+        var maxX = Math.Clamp((int)MathF.Floor((target.X + maximumRange) / CellSize + HalfCells), 0, GridSize - 1);
+        var minZ = Math.Clamp((int)MathF.Ceiling((target.Y - maximumRange) / CellSize + HalfCells), 0, GridSize - 1);
+        var maxZ = Math.Clamp((int)MathF.Floor((target.Y + maximumRange) / CellSize + HalfCells), 0, GridSize - 1);
         var candidates = ArrayPool<FiringCandidate>.Shared.Rent(_walkable.Length);
         try
         {

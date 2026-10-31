@@ -16,7 +16,7 @@ public partial class SmokeTests
 
     private void TestImportedAwesome(MechModel model)
     {
-        Check(Math.Abs(model.Height - 3.64f) < .02f, "MW5 Awesome preserves its battlefield height");
+        Check(Math.Abs(model.Height - 54.6f) < .3f, "MW5 Awesome preserves its battlefield height");
         var head = model.Locations[MechLocation.Head];
         Check(head.FindChild("AmberCanopy", true, false) is MeshInstance3D canopy && canopy.Mesh.GetFaces().Length >= 42
             && head.FindChild("LaserEmitter", true, false) is MeshInstance3D,
@@ -37,7 +37,7 @@ public partial class SmokeTests
         var triangles = meshes.Sum(mesh => mesh.Mesh.GetFaces().Length / 3);
         Check(triangles is >= 20000 and <= 30000 && meshes.Length < 35,
             "MW5 Jenner retains source body and exterior cockpit detail within its geometry budget");
-        Check(Math.Abs(model.Height - 2.40f) < .02f, "MW5 Jenner preserves its battlefield height");
+        Check(Math.Abs(model.Height - 36f) < .3f, "MW5 Jenner preserves its battlefield height");
         var head = model.Locations[MechLocation.Head];
         Check(head.FindChild("AmberCanopy", true, false) is MeshInstance3D canopy && canopy.Mesh.GetFaces().Length >= 138
             && head.FindChild("CockpitFrame", true, false) is MeshInstance3D frame && frame.Mesh.GetFaces().Length > 15000,

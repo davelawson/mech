@@ -32,7 +32,7 @@ public partial class SmokeTests
                 "jitter and exactly five pixels of displacement leave rotation pending");
             var releaseGround = field.GroundPoint(release - field.GlobalPosition);
             MouseButton(release, Godot.MouseButton.Right, false); await Frames();
-            Check(commands == 1 && lastGround.DistanceTo(releaseGround) < .01f,
+            Check(commands == 1 && lastGround.DistanceTo(releaseGround) < .3f,
                 $"small right-click movement issues exactly one order at release position: commands={commands}, ground={lastGround}, expected={releaseGround}, mouse={GetViewport().GetMousePosition()}, mode={Input.MouseMode}");
 
             var pivot = field.GroundPoint(field.Size / 2);
@@ -46,8 +46,8 @@ public partial class SmokeTests
             Near(Mathf.RadToDeg(Mathf.Atan2(orbitOffset.X, orbitOffset.Z)), -10, "rightward drag orbits clockwise at quarter degree per pixel");
             Near(Mathf.RadToDeg(Mathf.Asin(orbitOffset.Y / radius)), Mathf.RadToDeg(Mathf.Atan2(80, 70)) + 5,
                 "upward drag raises camera at quarter degree per pixel");
-            Check(field.GroundPoint(field.Size / 2).DistanceTo(pivot) < .01f
-                && Math.Abs(orbitOffset.Length() - radius) < .01f, "orbit preserves center-view ground pivot and radius");
+            Check(field.GroundPoint(field.Size / 2).DistanceTo(pivot) < .3f
+                && Math.Abs(orbitOffset.Length() - radius) < .3f, "orbit preserves center-view ground pivot and radius");
             // Release back at the press point: a drag can never become a click again.
             MouseButton(at, Godot.MouseButton.Right, false); await Frames();
             Check(commands == 1 && Input.MouseMode == previousMode, "orbit release restores cursor mode and never orders at its start point");
@@ -57,17 +57,17 @@ public partial class SmokeTests
             await BeginCameraOrbit(at);
             CameraMotion(at, new Vector2(0, 1000)); await Frames();
             Near(-Mathf.RadToDeg(field.Camera.Rotation.X), 15, "orbit clamps shallow elevation to fifteen degrees");
-            Check(field.GroundPoint(field.Size / 2).DistanceTo(pivot) < .01f, "shallow view retains ground intersection");
+            Check(field.GroundPoint(field.Size / 2).DistanceTo(pivot) < .3f, "shallow view retains ground intersection");
             CameraMotion(at, new Vector2(0, -1000)); await Frames();
             Near(-Mathf.RadToDeg(field.Camera.Rotation.X), 85, "orbit clamps steep elevation to eighty-five degrees");
-            Check(field.GroundPoint(field.Size / 2).DistanceTo(pivot) < .01f, "near-overhead view retains ground intersection");
+            Check(field.GroundPoint(field.Size / 2).DistanceTo(pivot) < .3f, "near-overhead view retains ground intersection");
             var beforePan = field.Camera.Position;
             var viewForward = -field.Camera.Basis.Z;
             var expectedForward = new Vector2(viewForward.X, viewForward.Z).Normalized();
             CameraStep(field, .1, Key.W);
             var actualPan = field.Camera.Position - beforePan;
             Check(new Vector2(actualPan.X, actualPan.Z).Normalized().DistanceTo(expectedForward) < .01f
-                && Math.Abs(actualPan.Y - (tactical.Simulation!.Terrain.HeightAt(field.GroundPoint(field.Size / 2)) - tactical.Simulation.Terrain.HeightAt(pivot))) < .02f, $"W translates orbit pivot on ground relative to camera facing during rotation: actual {actualPan}, expected direction {expectedForward}, focus {field.HasFocus()}");
+                && Math.Abs(actualPan.Y - (tactical.Simulation!.Terrain.HeightAt(field.GroundPoint(field.Size / 2)) - tactical.Simulation.Terrain.HeightAt(pivot))) < .6f, $"W translates orbit pivot on ground relative to camera facing during rotation: actual {actualPan}, expected direction {expectedForward}, focus {field.HasFocus()}");
             MouseButton(new Vector2(-20, -20), Godot.MouseButton.Right, false); await Frames();
             Check(commands == 1 && Input.MouseMode == previousMode, "release outside battlefield ends orbit without an order");
             original = field.Camera.Transform;
@@ -75,9 +75,9 @@ public partial class SmokeTests
             Check(field.Camera.Transform.IsEqualApprox(original), "mouse movement after release cannot continue orbit");
 
             await PressKey(Key.Home);
-            Near(field.Camera.Size, 220, "Home restores expanded overview zoom");
+            Near(field.Camera.Size, 6600, "Home restores expanded overview zoom");
             Near(-Mathf.RadToDeg(field.Camera.Rotation.X), Mathf.RadToDeg(Mathf.Atan2(80, 70)), "Home restores default elevation");
-            Check(field.GroundPoint(field.Size / 2).Length() < .01f, "Home restores arena center");
+            Check(field.GroundPoint(field.Size / 2).Length() < .3f, "Home restores arena center");
             var start = field.Camera.Position;
             CameraStep(field, .1, Key.W);
             var cardinalDelta = field.Camera.Position - start;
@@ -96,7 +96,7 @@ public partial class SmokeTests
             Near(new Vector2(field.Camera.Position.X - start.X, field.Camera.Position.Z - start.Z).Length(), field.Camera.Size * .05f, "arrow movement retains zoom-scaled speed");
             CameraStep(field, 100, Key.W, Key.D);
             var groundFocus = field.GroundPoint(field.Size / 2);
-            Check(groundFocus.DistanceTo(new Vector2(95.35f, -95.35f)) < .01f, "camera pivot clamps to expanded battlefield edges");
+            Check(groundFocus.DistanceTo(new Vector2(2870.25f, -2870.25f)) < .3f, "camera pivot clamps to expanded battlefield edges");
             await PressKey(Key.Home);
 
             await BeginCameraOrbit(at);

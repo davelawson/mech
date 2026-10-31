@@ -42,40 +42,40 @@ public partial class CombatViewport : Control
     internal const float BurstShare = .45f;
     internal const float BurstPortion = .4f;
     // An attack that destroys a location sets off a large explosion there.
-    internal const float DestructionRadius = 2.5f;
+    internal const float DestructionRadius = 37.5f;
     internal const float DestructionSeconds = 1.1f;
     private const int DestructionDebris = 5;
     // A PPC flashes a brief beam, then a glowing bolt races down it and bursts in crackling arcs.
     private static readonly Color PpcColor = new(.6f, .4f, 1);
     private static readonly Color PpcWhite = Colors.White.Lerp(PpcColor, .3f);
-    internal const float PpcBeamRadius = .02f;
+    internal const float PpcBeamRadius = .3f;
     /// <summary>The beam holds until the bolt lands, then fades out over the rest of its half second.</summary>
     internal const float PpcBeamHold = (float)CombatRules.PpcFlightSeconds;
     internal const float PpcBeamSeconds = .5f;
-    internal const float PpcBoltRadius = .18f;
-    internal const float PpcBurstRadius = .9f;
+    internal const float PpcBoltRadius = 2.7f;
+    internal const float PpcBurstRadius = 13.5f;
     internal const float PpcBurstSeconds = .8f;
     internal const int PpcRadialArcs = 6;
     private const int PpcArcSegments = 3;
-    private const float PpcArcRadius = .025f;
+    private const float PpcArcRadius = .375f;
     /// <summary>Arcs jump to new random paths this often, in effect age.</summary>
     private const float PpcArcFlicker = .06f;
     // A machine gun's burst streams tiny yellow and orange tracers; hits spark on the target, misses vanish.
     internal const int TracerRounds = 15;
-    internal const float TracerRadius = .02f;
-    internal const float TracerLength = .4f;
-    internal const float TracerScatter = .15f;
-    internal const float SparkRadius = .05f;
+    internal const float TracerRadius = .3f;
+    internal const float TracerLength = 6;
+    internal const float TracerScatter = 2.25f;
+    internal const float SparkRadius = .75f;
     internal const float SparkSeconds = .08f;
     internal const float TracerFlashSeconds = .04f;
-    private const float TracerFlashRadius = .08f;
+    private const float TracerFlashRadius = 1.2f;
     internal static readonly Color TracerYellow = new(1, .9f, .3f);
     internal static readonly Color TracerOrange = new(1, .55f, .1f);
     private static readonly Color SparkColor = new(1, 1, .75f);
     // Missile salvos ripple out of the rack and skitter in flight, gathering only as they reach their impact points.
     internal const float MissileRipple = .25f;
-    internal const float MissileWobble = .75f;
-    internal const float MissileBlastRadius = .25f;
+    internal const float MissileWobble = 11.25f;
+    internal const float MissileBlastRadius = 3.75f;
     internal const float MissileBlastSeconds = .3f;
     internal const float MissileTrailSeconds = .04f;
     /// <summary>LRMs leave the rack at 40% of their average speed and dive in at 160%.</summary>
@@ -186,7 +186,7 @@ public partial class CombatViewport : Control
     private readonly List<Destruction> _destructions = [];
     internal static float ExplosionRadius(WeaponKind kind) => kind switch
     {
-        WeaponKind.AC2 => .3f, WeaponKind.AC5 => .5f, WeaponKind.AC10 => .8f, _ => 1.2f
+        WeaponKind.AC2 => 4.5f, WeaponKind.AC5 => 7.5f, WeaponKind.AC10 => 12, _ => 18
     };
     internal static float ExplosionSeconds(WeaponKind kind) => kind switch
     {
@@ -194,7 +194,7 @@ public partial class CombatViewport : Control
     };
     internal static float ShellRadius(WeaponKind kind) => kind switch
     {
-        WeaponKind.AC2 => .06f, WeaponKind.AC5 => .08f, WeaponKind.AC10 => .1f, _ => .13f
+        WeaponKind.AC2 => .9f, WeaponKind.AC5 => 1.2f, WeaponKind.AC10 => 1.5f, _ => 1.95f
     };
     // A mostly colored core keeps additive beams from washing out to white.
     internal const float LaserCoreWhite = .3f;
@@ -206,11 +206,11 @@ public partial class CombatViewport : Control
     };
     internal static float LaserRadius(WeaponKind kind) => kind switch
     {
-        WeaponKind.SmallLaser => .02f, WeaponKind.MediumLaser => .04f, _ => .06f
+        WeaponKind.SmallLaser => .3f, WeaponKind.MediumLaser => .6f, _ => .9f
     };
-    private Vector3 _focus = new(0, 0, CombatRules.DeploymentDepth - 20);
+    private Vector3 _focus = new(0, 0, CombatRules.DeploymentDepth - 600);
     private static readonly float DefaultPitch = Mathf.Atan2(80, 70);
-    private static readonly float OrbitRadius = new Vector2(140, 160).Length();
+    private static readonly float OrbitRadius = new Vector2(4200, 4800).Length();
     private const float RightDragThreshold = 5;
     private static readonly float OrbitSensitivity = Mathf.DegToRad(.25f);
     private float _yaw;
@@ -237,7 +237,7 @@ public partial class CombatViewport : Control
             RenderTargetUpdateMode = SubViewport.UpdateMode.WhenVisible, HandleInputLocally = false };
         surface.AddChild(_viewport);
         _world = new Node3D(); _viewport.AddChild(_world);
-        Camera = new Camera3D { Projection = Camera3D.ProjectionType.Orthogonal, Size = 50, Far = 800, Current = true };
+        Camera = new Camera3D { Projection = Camera3D.ProjectionType.Orthogonal, Size = 1500, Far = 24000, Current = true };
         _world.AddChild(Camera);
         var light = new DirectionalLight3D { RotationDegrees = new Vector3(-60, -30, 0), LightEnergy = 1.1f };
         _world.AddChild(light);
@@ -266,7 +266,7 @@ public partial class CombatViewport : Control
         Simulation = simulation; Simulation.ShotFired += OnShot; InspectedEnemy = null; Selection = Array.Empty<string>();
         if (_terrainView is not null) { _world.RemoveChild(_terrainView); _terrainView.QueueFree(); }
         _terrainView = BattlefieldTerrainView.Create(simulation.Terrain); _world.AddChild(_terrainView);
-        _focus = new Vector3(0, 0, CombatRules.DeploymentDepth - 20); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 50; UpdateCamera();
+        _focus = new Vector3(0, 0, CombatRules.DeploymentDepth - 600); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 1500; UpdateCamera();
         foreach (var unit in simulation.Units) CreateMech(unit);
         CancelDrag(); SyncModels(); QueueRedraw();
     }
@@ -316,7 +316,7 @@ public partial class CombatViewport : Control
         _world.AddChild(beam);
         return beam;
     }
-    // A straight projectile leaves from where it was fired. A miss flies on to the ground or fades beyond long range plus 10 hexes.
+    // A straight projectile leaves from where it was fired. A miss flies on to the ground or fades 300 metres beyond long range.
     private void AimProjectile(ShotEffect effect, WeaponSpec weapon, float speed)
     {
         var (from, to, _) = ShotPath(effect);
@@ -325,7 +325,7 @@ public partial class CombatViewport : Control
         else
         {
             var direction = (to - from).Normalized();
-            var reach = weapon.Long * CombatRules.WeaponRangeScale + 10;
+            var reach = weapon.Long * CombatRules.WeaponRangeScale + 300;
             var beyond = Math.Max(0, reach - from.DistanceTo(to));
             var ground = Simulation!.Terrain.RayDistance(to, direction, beyond);
             effect.Grounded = ground is not null;
@@ -553,7 +553,7 @@ public partial class CombatViewport : Control
                 var struck = target.LocationCenter(missile.Location);
                 var direction = new Vector3(struck.X - created.Launch.X, 0, struck.Z - created.Launch.Z).Normalized();
                 var side = new Vector3(-direction.Z, 0, direction.X) * (random.Next(2) == 0 ? 1 : -1);
-                var ground = struck + side * Between(1, 2.5f) + direction * Between(1, 3);
+                var ground = struck + side * Between(15, 37.5f) + direction * Between(15, 45);
                 created.MissEnd = new Vector3(ground.X, Simulation!.Terrain.HeightAt(new Vector2(ground.X, ground.Z)), ground.Z);
                 var span = new Vector2(struck.X - created.Launch.X, struck.Z - created.Launch.Z).Length();
                 var missReach = new Vector2(created.MissEnd.X - created.Launch.X, created.MissEnd.Z - created.Launch.Z).Length();
@@ -581,7 +581,7 @@ public partial class CombatViewport : Control
             var height = terrain.HeightAt(ground);
             foreach (var rock in terrain.Patches.Where(patch => patch.Kind == TerrainKind.Rock && ground.DistanceTo(patch.Center) <= patch.Radius))
                 height = Math.Max(height, terrain.HeightAt(rock.Center) + rock.Height);
-            peak = Math.Max(peak, (height + 3 - point.Y) / (4 * t * (1 - t)));
+            peak = Math.Max(peak, (height + 90 - point.Y) / (4 * t * (1 - t)));
         }
         return peak;
     }
@@ -634,10 +634,10 @@ public partial class CombatViewport : Control
             var launched = age >= missile.Delay; var flying = launched && age < missile.Arrival;
             var flash = launched ? Math.Clamp(1 - (age - missile.Delay) / MuzzleFlash, 0, 1) : 0;
             Set(missile.Flash, flash);
-            if (flash > 0) missile.Flash.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * .15f), missile.Launch);
+            if (flash > 0) missile.Flash.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * 2.25f), missile.Launch);
             var head = MissilePoint(effect, missile, age).Position;
             Set(missile.Glow, flying ? 1 : 0);
-            if (flying) missile.Glow.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * .07f), head);
+            if (flying) missile.Glow.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * 1.05f), head);
             // A short flame trail follows the skittering path back toward the launcher.
             var tail = MissilePoint(effect, missile, Math.Max(missile.Delay, age - MissileTrailSeconds)).Position;
             var axis = head - tail;
@@ -645,7 +645,7 @@ public partial class CombatViewport : Control
             if (missile.Trail.Visible)
             {
                 var across = axis.Cross(Math.Abs(axis.Normalized().Y) > .9f ? Vector3.Right : Vector3.Up).Normalized();
-                missile.Trail.GlobalTransform = new Transform3D(new Basis(across * .05f, axis, axis.Cross(across).Normalized() * .05f), (head + tail) / 2);
+                missile.Trail.GlobalTransform = new Transform3D(new Basis(across * .75f, axis, axis.Cross(across).Normalized() * .75f), (head + tail) / 2);
             }
             var blast = flying || !launched ? -1 : (age - missile.Arrival) / MissileBlastSeconds;
             Set(missile.Blast, blast is >= 0 and < 1 ? 1 - blast * blast : 0);
@@ -668,7 +668,7 @@ public partial class CombatViewport : Control
         effect.Flash = Blob(TracerYellow.Lerp(Colors.White, .5f));
     }
     // Each round leaves the muzzle where it is when fired. A hit flies to the live struck location with the discharge's flight time;
-    // a miss sprays past its miss point to the ground, or fades beyond long range plus 10 hexes.
+    // a miss sprays past its miss point to the ground, or fades 300 metres beyond long range.
     private void LaunchRound(ShotEffect effect, TracerRound round)
     {
         var (from, to, _) = ShotPath(effect);
@@ -676,7 +676,7 @@ public partial class CombatViewport : Control
         if (effect.Shot.Hit) { round.Flight = (float)effect.Shot.FlightSeconds; return; }
         to += round.Scatter * 3;
         var direction = (to - from).Normalized();
-        var reach = effect.Weapon!.Long * CombatRules.WeaponRangeScale + 10;
+        var reach = effect.Weapon!.Long * CombatRules.WeaponRangeScale + 300;
         var ground = Simulation!.Terrain.RayDistance(to, direction, Math.Max(0, reach - from.DistanceTo(to)));
         round.Grounded = ground is not null;
         round.MissEnd = ground is { } distance ? to + direction * distance : from + direction * reach;
@@ -863,7 +863,7 @@ public partial class CombatViewport : Control
         if (group.Length == 0) return;
         _focus = World(new Vector2((group.Min(unit => unit.Position.X) + group.Max(unit => unit.Position.X)) / 2,
             (group.Min(unit => unit.Position.Y) + group.Max(unit => unit.Position.Y)) / 2));
-        _yaw = 0; _pitch = DefaultPitch; Camera.Size = 50; UpdateCamera();
+        _yaw = 0; _pitch = DefaultPitch; Camera.Size = 1500; UpdateCamera();
         // Fit the complete visible models, including hills and projecting weapons, in camera space.
         var extent = (Vector2)_viewport.Size / 2;
         var available = (extent - Vector2.One * 24).Max(Vector2.One);
@@ -880,7 +880,7 @@ public partial class CombatViewport : Control
                 scale = Math.Max(scale, Math.Max(offset.X / available.X, offset.Y / available.Y));
             }
         }
-        Camera.Size = 50 * scale; QueueRedraw();
+        Camera.Size = 1500 * scale; QueueRedraw();
     }
     public override void _Process(double delta)
     {
@@ -932,7 +932,7 @@ public partial class CombatViewport : Control
         var side = new Vector3(-direction.Z, 0, direction.X) * ((int)(shot.Roll * 100) % 2 == 0 ? 1 : -1);
         if (shot.Hit)
             return (from, shot.SecondLocation is { } next ? to.Lerp(_models[shot.TargetId].LocationCenter(next), sweep) : to, location);
-        return (from, to + side * 1.2f + direction * 1.5f, location);
+        return (from, to + side * 18 + direction * 22.5f, location);
     }
     internal IEnumerable<(CombatShot Shot, Vector3 From, Vector3 To, MechLocation Location)> ShotPaths()
         => _effects.Select(effect => { var (from, to, location) = ShotPath(effect); return (effect.Shot, from, to, location); });
@@ -1013,7 +1013,7 @@ public partial class CombatViewport : Control
         {
             GrabFocus();
             if (mouse.ButtonIndex is MouseButton.WheelUp or MouseButton.WheelDown && mouse.Pressed)
-            { Camera.Size = Math.Clamp(Camera.Size * (mouse.ButtonIndex == MouseButton.WheelUp ? .85f : 1.18f), 12, 280); AcceptEvent(); }
+            { Camera.Size = Math.Clamp(Camera.Size * (mouse.ButtonIndex == MouseButton.WheelUp ? .85f : 1.18f), 180, 8400); AcceptEvent(); }
             if (mouse.ButtonIndex == MouseButton.Middle)
             { _panning = mouse.Pressed && !mouse.ShiftPressed; _rotating = mouse.Pressed && mouse.ShiftPressed; SetHovered(null); AcceptEvent(); }
             if (mouse.ButtonIndex == MouseButton.Left)
@@ -1036,7 +1036,7 @@ public partial class CombatViewport : Control
                         InspectedEnemy = null;
                         var rect = new Rect2(_dragStart, mouse.Position - _dragStart).Abs();
                         SelectionRequested?.Invoke(Simulation.Units.Where(unit => unit.Side == CombatSide.Friendly
-                            && rect.HasPoint(ScreenPoint(unit.Position, 1))).Select(unit => unit.Id).ToArray(), mouse.ShiftPressed);
+                            && rect.HasPoint(ScreenPoint(unit.Position, 15))).Select(unit => unit.Id).ToArray(), mouse.ShiftPressed);
                     }
                 }
                 AcceptEvent();
@@ -1058,7 +1058,7 @@ public partial class CombatViewport : Control
         // Arrow navigation belongs to the camera, not Control's directional focus traversal.
         if (input is InputEventKey { Pressed: true, Keycode: Key.Up or Key.Down or Key.Left or Key.Right }) AcceptEvent();
         if (input is InputEventKey { Pressed: true, Keycode: Key.Home })
-        { CancelDrag(); _focus = Vector3.Zero; _yaw = 0; _pitch = DefaultPitch; Camera.Size = 220; UpdateCamera(); AcceptEvent(); }
+        { CancelDrag(); _focus = Vector3.Zero; _yaw = 0; _pitch = DefaultPitch; Camera.Size = 6600; UpdateCamera(); AcceptEvent(); }
     }
     private CombatUnit? RangeTarget => Simulation is not null && InspectedEnemy is { } id && Simulation.Detected(CombatSide.Friendly, id) ? Simulation.Unit(id) : null;
     public IReadOnlyList<(CombatUnit Observer, float Identification, float? Detail)> DetectionRanges
@@ -1082,13 +1082,13 @@ public partial class CombatViewport : Control
         {
             var (observer, identification, detail) = ranges[0];
             return RangeTarget is { } target
-                ? $"{observer.Warrior.Callsign} · {target.Spec.Chassis}: identify {identification:0.##} hexes (blue) · status {detail:0.##} (gold)"
-                : $"{observer.Warrior.Callsign} · 20–100t: identify {CombatRules.DetectionRadius(observer.Warrior.Sensors, 20):0.##}–{identification:0.##} hexes · circle: 100t";
+                ? $"{observer.Warrior.Callsign} · {target.Spec.Chassis}: identify {identification:0} m (blue) · status {detail:0} m (gold)"
+                : $"{observer.Warrior.Callsign} · 20–100t: identify {CombatRules.DetectionRadius(observer.Warrior.Sensors, 20):0}–{identification:0} m · circle: 100t";
         }
-        var identificationSpan = $"{ranges.Min(range => range.Identification):0.##}–{ranges.Max(range => range.Identification):0.##}";
+        var identificationSpan = $"{ranges.Min(range => range.Identification):0}–{ranges.Max(range => range.Identification):0}";
         return RangeTarget is { } inspected
-            ? $"Selected mechs · {inspected.Spec.Chassis}: identify {identificationSpan} hexes (blue) · status {ranges.Min(range => range.Detail):0.##}–{ranges.Max(range => range.Detail):0.##} (gold)"
-            : $"Selected mechs · 100t: identify {identificationSpan} hexes (blue) · 20–100t: {ranges.Min(range => CombatRules.DetectionRadius(range.Observer.Warrior.Sensors, 20)):0.##}–{ranges.Max(range => range.Identification):0.##} hexes";
+            ? $"Selected mechs · {inspected.Spec.Chassis}: identify {identificationSpan} m (blue) · status {ranges.Min(range => range.Detail):0}–{ranges.Max(range => range.Detail):0} m (gold)"
+            : $"Selected mechs · 100t: identify {identificationSpan} m (blue) · 20–100t: {ranges.Min(range => CombatRules.DetectionRadius(range.Observer.Warrior.Sensors, 20)):0}–{ranges.Max(range => range.Identification):0} m";
     }
     private void DrawRangeUnion(IReadOnlyList<CircleUnion.Circle> circles, Color color)
     {
@@ -1126,25 +1126,25 @@ public partial class CombatViewport : Control
             var color = MechModel.TeamColor(unit.Side);
             var baseRadius = _models[unit.Id].Scale.X * .95f;
             DrawPolyline(Enumerable.Range(0, 49).Select(segment => ScreenPoint(unit.Position
-                + Vector2.FromAngle(segment * Mathf.Tau / 48) * baseRadius, .015f)).ToArray(), new Color(color, .7f), 1, true);
+                + Vector2.FromAngle(segment * Mathf.Tau / 48) * baseRadius, .45f)).ToArray(), new Color(color, .7f), 1, true);
             if (!unit.Active) color = Ui.Muted;
             if (Selection.Contains(unit.Id))
             {
-                DrawArc(at, Math.Max(10, 1.15f * Size.Y / Camera.Size), 0, Mathf.Tau, 32, Ui.Gold, 2, true);
+                DrawArc(at, Math.Max(10, 17.25f * Size.Y / Camera.Size), 0, Mathf.Tau, 32, Ui.Gold, 2, true);
                 DrawCircle(at, 3, Ui.Gold);
                 var to = unit.Order == CombatOrder.Move ? unit.Destination : unit.Order == CombatOrder.Follow && unit.FollowTarget is { } leader
                     ? Simulation.Unit(leader).Position : unit.AttackTarget is { } id
                     && Simulation.Contacts(unit.Side).TryGetValue(id, out var contact) ? contact.LastKnownPosition : unit.Position;
-                if (to.DistanceTo(unit.Position) > .4f) { var end = ScreenPoint(to); DrawLine(at, end, new Color(Ui.Gold, .65f), 1, true); DrawArc(end, 5, 0, Mathf.Tau, 16, Ui.Gold); }
+                if (to.DistanceTo(unit.Position) > 12) { var end = ScreenPoint(to); DrawLine(at, end, new Color(Ui.Gold, .65f), 1, true); DrawArc(end, 5, 0, Mathf.Tau, 16, Ui.Gold); }
                 if (unit.PriorityTarget is { } priority && Simulation.Contacts(unit.Side).TryGetValue(priority, out var preferred))
                     DrawArc(ScreenPoint(preferred.LastKnownPosition), 16, 0, Mathf.Tau, 24, Ui.Gold, 1, true);
             }
-            var forward = ScreenPoint(unit.Position + unit.Facing * 1.5f);
+            var forward = ScreenPoint(unit.Position + unit.Facing * 22.5f);
             DrawLine(at, forward, color, 2, true);
-            var torso = ScreenPoint(unit.Position + unit.TorsoFacing * 2.1f);
+            var torso = ScreenPoint(unit.Position + unit.TorsoFacing * 31.5f);
             DrawLine(at, torso, Ui.Gold, 2, true);
             DrawCircle(torso, 2.5f, Ui.Gold);
-            var label = ScreenPoint(unit.Position, _models[unit.Id].Height + .3f);
+            var label = ScreenPoint(unit.Position, _models[unit.Id].Height + 4.5f);
             var text = friendly ? Selection.Count == 1 && Selection.Contains(unit.Id) ? $"{friendlyIndex} · {unit.Warrior.Callsign}" : friendlyIndex.ToString()
                 : InspectedEnemy == unit.Id && Simulation.DetailsVisible(CombatSide.Friendly, unit.Id) ? unit.Spec.DisplayName : unit.Spec.Chassis;
             var labelOffset = new Vector2(-font.GetStringSize(text, fontSize: 12).X / 2, -4);
@@ -1176,7 +1176,7 @@ public partial class CombatViewport : Control
             var color = new Color("9cdae3");
             DrawDashedLine(from, to, new Color(color, .9f), 2, 7, true);
             var label = (from + to) / 2 + new Vector2(6, -6 - rangeIndex++ * 16);
-            var text = FormattableString.Invariant($"{distance:0.0} hex");
+            var text = FormattableString.Invariant($"{distance:0} m");
             DrawStringOutline(font, label, text, HorizontalAlignment.Left, -1, 12, 5, new Color("101820"));
             DrawString(font, label, text, HorizontalAlignment.Left, -1, 12, color);
         }

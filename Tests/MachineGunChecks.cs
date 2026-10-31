@@ -5,7 +5,7 @@ namespace Mech.Tests;
 internal static partial class CombatChecks
 {
     // The stock machine gun at short range; the enemy holds fire.
-    private static CombatSimulation MachineGunFixture(int seed = 41, int gunnery = -10, float distance = 3)
+    private static CombatSimulation MachineGunFixture(int seed = 41, int gunnery = -10, float distance = 90)
     {
         var gun = DraftCatalog.Mech("firestarter").Weapons.First(weapon => weapon.Kind == WeaponKind.MachineGun) with { Id = "gun", Location = MechLocation.RightArm, Rear = false };
         var spec = DraftCatalog.Mech("awesome") with
@@ -32,13 +32,13 @@ internal static partial class CombatChecks
         var stock = DraftCatalog.Mech("firestarter").Weapons.First(weapon => weapon.Kind == WeaponKind.MachineGun);
         check(CombatRules.Damage(stock) == 5 && CombatRules.Cooldown(stock) == 2 && stock.Heat == 0,
             "a machine gun burst deals 5 (half a stock point) every two seconds without heat");
-        check(Math.Abs(CombatRules.BulletFlightSeconds(120) - 1) < 1e-9 && CombatRules.MachineGunBurstSeconds == 1,
-            "tracers fly 120 hexes per second in a one-second burst");
+        check(Math.Abs(CombatRules.BulletFlightSeconds(3600) - 1) < 1e-9 && CombatRules.MachineGunBurstSeconds == 1,
+            "tracers fly 3600 metres per second in a one-second burst");
 
         var sim = MachineGunFixture(); var friendly = Friendly(sim); var enemy = Enemy(sim);
         Steps(sim, 1);
         var discharge = sim.History.Single().Shot;
-        check(discharge.Hit && discharge.InFlight && Math.Abs(discharge.FlightSeconds - 3 / 120.0) < 1e-6
+        check(discharge.Hit && discharge.InFlight && Math.Abs(discharge.FlightSeconds - 90 / 3600.0) < 1e-6
                 && enemy.ArmorLost + enemy.StructureLost == 0 && friendly.Shots("bin-a") == 199,
             "a burst makes one hit roll and spends one shot, and its damage waits for the first round to arrive");
         check(sim.History[0].DebugText.Contains("dmg 5 on impact"), "the discharge entry reports the burst's damage");

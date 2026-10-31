@@ -4,8 +4,8 @@ namespace Mech.Tests;
 
 internal static partial class CombatChecks
 {
-    // A long-bracket PPC so a 30-hex shot stays in short range; the enemy holds fire with a weaker gunner.
-    private static CombatSimulation PpcFixture(int seed = 41, int gunnery = -10, float distance = 30)
+    // A long-bracket PPC so a 900 m shot stays in short range; the enemy holds fire with a weaker gunner.
+    private static CombatSimulation PpcFixture(int seed = 41, int gunnery = -10, float distance = 900)
     {
         var spec = DraftCatalog.Mech("awesome") with
         {

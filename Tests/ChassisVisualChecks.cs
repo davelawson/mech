@@ -45,7 +45,7 @@ public partial class SmokeTests
             }
             if (spec.Id == "atlas")
             {
-                Check(Math.Abs(model.Height - 4f) < .02f && meshes.Length == 24, "Atlas retains its complete articulated source silhouette");
+                Check(Math.Abs(model.Height - 60f) < .3f && meshes.Length == 24, "Atlas retains its complete articulated source silhouette");
                 Check(model.Locations[MechLocation.Head].FindChild("AmberCanopy", true, false) is not null
                     && model.Locations[MechLocation.Head].FindChild("CockpitFrame", true, false) is not null, "Atlas keeps its skull and separate glowing eyes");
                 Check(model.Locations[MechLocation.LeftTorso].FindChildren("LrmTube*", "Node3D", true, false).Count == 10,
@@ -54,7 +54,7 @@ public partial class SmokeTests
             if (spec.Id == "jenner") TestImportedJenner(model);
             if (spec.Id == "catapult") TestImportedCatapult(model);
             if (spec.Id == "wolverine") TestImportedWolverine(model);
-            Check(hangar.GaitPicker.Visible, $"{spec.Chassis} exposes its gait preview selector");
+            Check(model.HasLocomotion, $"{spec.Chassis} exposes its gait preview");
             var legs = new[] { model.Locations[MechLocation.LeftLeg], model.Locations[MechLocation.RightLeg] };
             var ankles = legs.Select(root => (Node3D)root.FindChild("AnklePivot", true, false)).ToArray();
             var feet = legs.SelectMany(Meshes).Where(mesh => mesh.Name == "Foot" || mesh.Name.ToString().StartsWith("ToeCap", StringComparison.Ordinal)).ToArray();
@@ -63,13 +63,13 @@ public partial class SmokeTests
             var maximumArmSwing = new float[2];
             foreach (var gait in new[] { PreviewGait.Walk, PreviewGait.Run })
             {
-                hangar.GaitPicker.Select((int)gait); hangar.GaitPicker.EmitSignal(OptionButton.SignalName.ItemSelected, (long)gait);
+                hangar.Preview.Gait = gait;
                 var grounded = true; var articulated = false;
                 for (var frame = 0; frame < 180; frame++)
                 {
                     hangar.Preview._Process(1d / 60);
-                    grounded &= feet.All(foot => Bottom(foot) >= -.002f) && feet.Any(foot => Bottom(foot) < .02f);
-                    articulated |= Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .025f;
+                    grounded &= feet.All(foot => Bottom(foot) >= -.03f) && feet.Any(foot => Bottom(foot) < .3f);
+                    articulated |= Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .375f;
                     for (var arm = 0; arm < 2; arm++) maximumArmSwing[arm] = Math.Max(maximumArmSwing[arm], Math.Abs(shoulders[arm].Rotation.X));
                     if (frame is 15 or 40 or 70)
                     {
@@ -100,7 +100,7 @@ public partial class SmokeTests
             {
                 model.AnimateLocomotion(1f / 60, -CombatRules.MovementSpeed(spec, MovementMode.Walk),
                     CombatRules.MovementSpeed(spec, MovementMode.Walk), CombatRules.MovementSpeed(spec, MovementMode.Run));
-                reverseGrounded &= feet.All(foot => Bottom(foot) >= -.002f) && feet.Any(foot => Bottom(foot) < .02f);
+                reverseGrounded &= feet.All(foot => Bottom(foot) >= -.03f) && feet.Any(foot => Bottom(foot) < .3f);
             }
             Check(reverseGrounded && model.RunBlend < .01f, $"{spec.Chassis} reverse travel uses grounded backward walking");
             foreach (var turn in new[] { -1, 1 })
@@ -110,7 +110,7 @@ public partial class SmokeTests
                 {
                     model.AnimateLocomotion(1f / 60, 0, CombatRules.MovementSpeed(spec, MovementMode.Walk),
                         CombatRules.MovementSpeed(spec, MovementMode.Run), turn * Mathf.DegToRad(45));
-                    steps |= Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .025f;
+                    steps |= Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .375f;
                 }
                 Check(steps, $"{spec.Chassis} steps during a pivot in direction {turn}");
             }
@@ -126,9 +126,9 @@ public partial class SmokeTests
                 GetWindow().Size = size; await Frames();
                 var camera = hangar.Preview.FindChildren("*", "Camera3D", true, false).OfType<Camera3D>().Single();
                 var viewport = camera.GetViewport(); var fits = true;
-                for (var angle = 0; angle < 12; angle++)
+                // The hangar blueprint frames its front view and turns only while dragged.
                 {
-                    model.Rotation = new(0, angle * Mathf.Tau / 12, 0);
+                    model.Rotation = Vector3.Zero;
                     foreach (var mesh in meshes) for (var corner = 0; corner < 8; corner++)
                     {
                         var point = mesh.GlobalTransform * mesh.Mesh.GetAabb().GetEndpoint(corner);
@@ -136,10 +136,9 @@ public partial class SmokeTests
                         fits &= !camera.IsPositionBehind(point) && new Rect2(Vector2.One, viewport.GetVisibleRect().Size - Vector2.One * 2).HasPoint(screen);
                     }
                 }
-                Check(fits, $"{spec.Chassis} complete rotating silhouette fits its preview at {size}");
-                Check(hangar.GetGlobalRect().Encloses(hangar.GaitPicker.GetGlobalRect()), $"{spec.Chassis} gait controls fit at {size}");
+                Check(fits, $"{spec.Chassis} front blueprint fits its preview at {size}");
                 model.Rotation = new(0, .32f, 0);
-                hangar.GaitPicker.Select(0); hangar.GaitPicker.EmitSignal(OptionButton.SignalName.ItemSelected, 0L);
+                hangar.Preview.Gait = PreviewGait.Idle;
                 await Capture($"{spec.Id}-hangar-{size.X}x{size.Y}");
             }
             foreach (var location in Enum.GetValues<MechLocation>())
@@ -152,8 +151,8 @@ public partial class SmokeTests
             Check(ReferenceEquals(model, hangar.Preview.Model), $"{spec.Chassis} assignment refresh preserves its model");
         }
         Check(heights["jenner"] < heights["wolverine"] && heights["wolverine"] < heights["catapult"]
-            && heights["catapult"] > 3 && heights["catapult"] < 3.276f, "new chassis have agreed relative heights beneath the Awesome");
-        Check(widths["catapult"] > heights["catapult"] * .65f && widths["jenner"] is > 1.4f and < 1.5f,
+            && heights["catapult"] > 45 && heights["catapult"] < 49.14f, "new chassis have agreed relative heights beneath the Awesome");
+        Check(widths["catapult"] > heights["catapult"] * .65f && widths["jenner"] is > 21f and < 22.5f,
             "MW5 Catapult keeps its broad launcher silhouette and Jenner retains its source width");
 
         GetWindow().Size = new(1440, 900); hangar.Hide();
@@ -163,19 +162,19 @@ public partial class SmokeTests
         var enemies = sim.Units.Where(unit => unit.Side == CombatSide.Enemy).ToArray();
         for (var i = 0; i < friends.Length; i++)
         {
-            friends[i].Position = new((i - 1) * 4.5f, 13); enemies[i].Position = new((i - 1) * 4.5f, 7);
+            friends[i].Position = new((i - 1) * 67.5f, 195); enemies[i].Position = new((i - 1) * 67.5f, 105);
             friends[i].Facing = enemies[i].Facing = Vector2.Down;
         }
         foreach (var unit in sim.Units) foreach (var weapon in unit.Weapons) weapon.Enabled = false;
-        sim.RefreshDetection(); field.Display(sim); field.Camera.Size = 13; field.SetProcess(false); await Frames();
+        sim.RefreshDetection(); field.Display(sim); field.Camera.Size = 195; field.SetProcess(false); await Frames();
         var combatModels = field.FindChildren("*", "Node3D", true, false).OfType<MechModel>().ToArray();
         Check(combatModels.Length == definitions.Length * 2 && definitions.All(id => combatModels.Count(model => model.ChassisId == id && model.HasLocomotion) == 2),
             "both combat sides use the same custom chassis and animation rigs as the hangar");
         await Capture("chassis-combat-idle");
-        foreach (var unit in friends) { unit.Movement = MovementMode.Run; sim.Move([unit.Id], unit.Position + Vector2.Down * 7); }
+        foreach (var unit in friends) { unit.Movement = MovementMode.Run; sim.Move([unit.Id], unit.Position + Vector2.Down * 210); }
         sim.Paused = false;
         for (var frame = 0; frame < 180; frame++) { sim.Advance(1d / 60); field._Process(1d / 60); }
-        var movingModels = combatModels.Where(model => model.Position.Z > 13).ToArray();
+        var movingModels = combatModels.Where(model => model.Position.Z > 195).ToArray();
         Check(movingModels.Length == definitions.Length && movingModels.All(model => model.RunBlend > .9f),
             "combat supplies actual speed to all chassis gait controllers");
         await Capture("chassis-combat-running");
@@ -189,7 +188,7 @@ public partial class SmokeTests
             var torso = enemy.Locations[MechLocation.LeftTorso]; enemy.ApplyDamage(MechLocation.LeftTorso, torso.Armor + torso.Structure);
         }
         field._Process(0);
-        Check(combatModels.Where(model => model.Position.Z < 10).All(model => !model.Locations[MechLocation.LeftTorso].Visible && !model.Locations[MechLocation.LeftArm].Visible),
+        Check(combatModels.Where(model => model.Position.Z < 150).All(model => !model.Locations[MechLocation.LeftTorso].Visible && !model.Locations[MechLocation.LeftArm].Visible),
             "combat side-torso loss removes attached new-chassis weapons and arms");
         await Capture("chassis-combat-damaged");
         stage.QueueFree(); await Frames();
@@ -210,7 +209,7 @@ public partial class SmokeTests
         {
             model.AnimateLocomotion(1f / 600, gait == PreviewGait.Walk ? walk : run, walk, run);
             supportContact &= feet.Any(foot => Math.Abs(Enumerable.Range(0, 8)
-                .Min(i => (foot.GlobalTransform * foot.Mesh.GetAabb().GetEndpoint(i)).Y)) < .002f);
+                .Min(i => (foot.GlobalTransform * foot.Mesh.GetAabb().GetEndpoint(i)).Y)) < .03f);
             for (var leg = 0; leg < 2; leg++)
             {
                 var z = (model.GlobalTransform.AffineInverse() * ankles[leg].GlobalPosition).Z;

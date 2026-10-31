@@ -11,24 +11,26 @@ public enum CombatOutcome { Ongoing, Victory, Defeat, Draw, Ended }
 public enum CombatStatus { Active, Shutdown, Disabled, Destroyed }
 public enum ContactLevel { Lost, Identified, Detailed }
 
-/// <summary>Authored tactical values. Distances are hexes, time is seconds.</summary>
+/// <summary>Authored tactical values. Distances are metres, time is seconds.</summary>
 public static partial class CombatRules
 {
-    public const float ArenaHalfSize = 96;
+    public const float ArenaHalfSize = 2880;
     public const float DeploymentDepth = ArenaHalfSize * 2 / 3;
-    public const float DeploymentSpacing = 8;
-    public const float WeaponRangeScale = 3;
+    public const float DeploymentSpacing = 240;
+    /// <summary>Metres per stock catalog range point.</summary>
+    public const float WeaponRangeScale = 90;
     public const float MinimumPreferredDistance = 1.5f * WeaponRangeScale;
     public const float MaximumPreferredDistance = 21 * WeaponRangeScale;
-    public const float NoviceDetectionRadius = 50;
+    public const float NoviceDetectionRadius = 1500;
     public static float DetectionRadius(int sensors, int targetTonnage) => NoviceDetectionRadius
         * (1 + (WarriorSkills.Novice - Math.Clamp(sensors, WarriorSkills.Expert, WarriorSkills.Novice))
             / (float)(WarriorSkills.Novice - WarriorSkills.Expert))
         * (.5f + (Math.Clamp(targetTonnage, 20, 100) - 20) / 160f);
     public static float DetectionRadius(CombatUnit observer, CombatUnit target) => DetectionRadius(observer.Warrior.Sensors, target.Spec.Tonnage);
-    public const float UnitRadius = .65f;
-    public const float FollowDistance = 3;
-    public const float MovementScale = .18f;
+    public const float UnitRadius = 9.75f;
+    public const float FollowDistance = 90;
+    /// <summary>Metres per second per stock movement point.</summary>
+    public const float MovementScale = 5.4f;
     public const int AimModifier = 3;
     public const double StepSeconds = .05;
     // Shared by combat, hangar previews and future chassis; catalog MP remain stock.
@@ -53,24 +55,24 @@ public static partial class CombatRules
     public static bool IsLaser(WeaponKind kind) => kind is WeaponKind.SmallLaser or WeaponKind.MediumLaser
         or WeaponKind.LargeLaser or WeaponKind.ERLargeLaser;
     public static bool IsAutocannon(WeaponKind kind) => kind is WeaponKind.AC2 or WeaponKind.AC5 or WeaponKind.AC10 or WeaponKind.AC20;
-    /// <summary>Autocannon shells fly straight at one speed for every caliber: one second at 60 hexes.</summary>
-    public const float ShellSpeed = 60;
+    /// <summary>Autocannon shells fly straight at one speed for every caliber: one second at 1800 metres.</summary>
+    public const float ShellSpeed = 1800;
     public static double ShellFlightSeconds(float distance) => distance / ShellSpeed;
     public static bool IsMachineGun(WeaponKind kind) => kind is WeaponKind.MachineGun;
     /// <summary>A machine gun's discharge is a one-second burst of tracers; its damage lands with the first round.</summary>
     public const double MachineGunBurstSeconds = 1;
-    public const float BulletSpeed = 120;
+    public const float BulletSpeed = 3600;
     public static double BulletFlightSeconds(float distance) => distance / BulletSpeed;
     public static bool IsLrm(WeaponKind kind) => kind is WeaponKind.LRM5 or WeaponKind.LRM10 or WeaponKind.LRM15 or WeaponKind.LRM20;
     public static bool IsSrm(WeaponKind kind) => kind is WeaponKind.SRM2 or WeaponKind.SRM4 or WeaponKind.SRM6;
     /// <summary>LRM and SRM racks fire salvos whose missiles roll separately.</summary>
     public static bool FiresSalvo(WeaponKind kind) => IsLrm(kind) || IsSrm(kind);
-    /// <summary>LRM salvos fly slower than shells so the swarm reads: 3.6 seconds at the 63-hex long range.</summary>
-    public const float MissileSpeed = 17.5f;
+    /// <summary>LRM salvos fly slower than shells so the swarm reads: 3.6 seconds at the 1890 m long range.</summary>
+    public const float MissileSpeed = 525;
     public static double MissileFlightSeconds(float distance) => distance / MissileSpeed;
     /// <summary>SRMs leave the rack at this speed and accelerate steadily.</summary>
-    public const double SrmLaunchSpeed = 5.6;
-    // Calibrated so an SRM still reaches its 27-hex long range in 27 / MissileSpeed seconds.
+    public const double SrmLaunchSpeed = 168;
+    // Calibrated so an SRM still reaches its 810 m long range in 810 / MissileSpeed seconds.
     private const double SrmCalibrationRange = 9 * WeaponRangeScale;
     private const double SrmCalibrationSeconds = SrmCalibrationRange / MissileSpeed;
     public const double SrmAcceleration = 2 * (SrmCalibrationRange - SrmLaunchSpeed * SrmCalibrationSeconds)
@@ -463,10 +465,10 @@ public sealed partial class CombatSimulation
         for (var i = 0; i < group.Length; i++)
         {
             // Reserve separate destinations even when the clicked point is against a boundary.
-            var offset = new Vector2((i % 2 - (group.Length > 1 ? .5f : 0)) * 2.4f, i / 2 * 2.4f);
+            var offset = new Vector2((i % 2 - (group.Length > 1 ? .5f : 0)) * 36, i / 2 * 36);
             var goal = Terrain.ReachableDestination(group[i].Position, destination + offset);
             for (var attempt = 0; assigned.Any(point => point.DistanceTo(goal) < CombatRules.UnitRadius * 2.1f) && attempt < 100; attempt++)
-                goal = Terrain.ReachableDestination(group[i].Position, destination + Vector2.FromAngle(attempt * 2.4f) * (2 + attempt * .15f));
+                goal = Terrain.ReachableDestination(group[i].Position, destination + Vector2.FromAngle(attempt * 2.4f) * (30 + attempt * 2.25f));
             group[i].Route = Array.Empty<Vector2>(); assigned.Add(goal); group[i].Destination = goal; group[i].Order = CombatOrder.Move;
             group[i].AttackTarget = group[i].FollowTarget = null;
         }
@@ -680,10 +682,10 @@ public sealed partial class CombatSimulation
         {
             var leader = Unit(leaderId);
             var away = unit.Position - leader.Position;
-            var yielding = away.Length() < CombatRules.FollowDistance - .4f;
-            if (away.LengthSquared() < .001f) away = -leader.Facing;
+            var yielding = away.Length() < CombatRules.FollowDistance - 12;
+            if (away.LengthSquared() < .9f) away = -leader.Facing;
             // Leave room when the leader turns back through the group, rather than pinning it between followers.
-            if (yielding || away.Length() > CombatRules.FollowDistance + .2f)
+            if (yielding || away.Length() > CombatRules.FollowDistance + 6)
                 foreach (var angle in new[] { 0f, .52f, -.52f, 1.05f, -1.05f, 1.57f, -1.57f, Mathf.Pi })
                 {
                     var followGoal = Terrain.ReachableDestination(unit.Position,
@@ -704,7 +706,7 @@ public sealed partial class CombatSimulation
                 else
                 {
                     var away = unit.Position - target.Position;
-                    if (away.Length() < .01f) away = unit.Side == CombatSide.Friendly ? Vector2.Down : Vector2.Up;
+                    if (away.Length() < .3f) away = unit.Side == CombatSide.Friendly ? Vector2.Down : Vector2.Up;
                     if (!Terrain.ClearSight(unit.Position, target.Position))
                     {
                         if (Elapsed >= unit.NextFiringSearch)
@@ -716,7 +718,7 @@ public sealed partial class CombatSimulation
                         }
                         goal = unit.FiringPosition;
                     }
-                    else if (Math.Abs(away.Length() - unit.PreferredDistance) > .4f)
+                    else if (Math.Abs(away.Length() - unit.PreferredDistance) > 12)
                     {
                         goal = Terrain.ReachableDestination(unit.Position, target.Position + away.Normalized() * unit.PreferredDistance);
                         reverse = away.Length() < unit.PreferredDistance;
@@ -727,19 +729,21 @@ public sealed partial class CombatSimulation
             else { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
         }
         // End the order at its resolved destination, not at an intermediate waypoint.
-        if (goal is { } desired && unit.Position.DistanceTo(desired) >= .2f)
+        if (goal is { } desired && unit.Position.DistanceTo(desired) >= 6)
         {
-            if (unit.Route.Count == 0 || !float.IsFinite(unit.RouteGoal.X) || unit.RouteGoal.DistanceTo(desired) > .75f)
+            // A slightly stale route is kept while travelling, but its end is refreshed so a moving goal cannot strand the unit short of it.
+            var finishing = unit.Route.Count > 0 && unit.Position.DistanceTo(unit.Route[^1]) < 16.5f && unit.RouteGoal != desired;
+            if (unit.Route.Count == 0 || !float.IsFinite(unit.RouteGoal.X) || unit.RouteGoal.DistanceTo(desired) > 22.5f || finishing)
             {
                 unit.Route = Terrain.FindPath(unit.Position, desired); unit.RouteIndex = 0; unit.RouteGoal = desired;
             }
-            while (unit.RouteIndex < unit.Route.Count - 1 && unit.Position.DistanceTo(unit.Route[unit.RouteIndex]) < .55f)
+            while (unit.RouteIndex < unit.Route.Count - 1 && unit.Position.DistanceTo(unit.Route[unit.RouteIndex]) < 16.5f)
                 unit.RouteIndex++;
             if (unit.RouteIndex < unit.Route.Count) goal = unit.Route[unit.RouteIndex];
             else goal = null;
         }
         var remaining = goal is { } point ? point - unit.Position : Vector2.Zero;
-        if (goal is not null && remaining.Length() < .2f)
+        if (goal is not null && remaining.Length() < 6)
         {
             if (unit.Order == CombatOrder.Move || (unit.AttackTarget is { } lost && !Detected(unit.Side, lost)))
             { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
@@ -757,11 +761,11 @@ public sealed partial class CombatSimulation
             if (error < Mathf.DegToRad(60))
             {
                 var limit = (reverse ? unit.WalkingSpeed : unit.Speed) * Terrain.SpeedFactor(unit.Position);
-                var arrivalSpeed = Mathf.Sqrt(2 * unit.Braking * Math.Max(0, remaining.Length() - .18f));
+                var arrivalSpeed = Mathf.Sqrt(2 * unit.Braking * Math.Max(0, remaining.Length() - 5.4f));
                 desiredSpeed = Math.Min(limit * Mathf.Cos(error), arrivalSpeed) * (reverse ? -1 : 1);
             }
         }
-        else if (Math.Abs(unit.CurrentSpeed) < .001f && SelectAimTarget(unit) is { } target)
+        else if (Math.Abs(unit.CurrentSpeed) < .03f && SelectAimTarget(unit) is { } target)
             Turn(unit, (target.Position - unit.Position).Normalized(), delta);
 
         // A reversal must first spend its momentum; it cannot cross zero in the same step.
@@ -790,7 +794,7 @@ public sealed partial class CombatSimulation
     private Vector2 Steer(CombatUnit unit, Vector2 direction)
     {
         var stopping = unit.Braking > 0 ? unit.CurrentSpeed * unit.CurrentSpeed / (2 * unit.Braking) : 0;
-        var lookAhead = Math.Clamp(stopping + .25f, .35f, 1.5f);
+        var lookAhead = Math.Clamp(stopping + 7.5f, 10.5f, 45);
         foreach (var angle in new[] { 0f, .52f, -.52f, 1.05f, -1.05f, 1.57f, -1.57f })
         {
             var steered = direction.Rotated(angle);

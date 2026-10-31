@@ -21,7 +21,7 @@ internal static partial class CombatChecks
         var first = sim.History[0];
         check(first.Shot.Roll == new Random(41).NextDouble() && first.Shot.Hit == (first.Shot.Roll < first.Shot.Chance),
             "log records the original percentage draw without consuming extra random values");
-        check(first.DebugText.IndexOf("heat", StringComparison.Ordinal) < first.DebugText.IndexOf("hex", StringComparison.Ordinal)
+        check(first.DebugText.IndexOf("heat", StringComparison.Ordinal) < first.DebugText.IndexOf("60 m", StringComparison.Ordinal)
             && first.DebugText.Contains("chance 100.0%") && first.DebugText.Contains("roll "),
             "terse entries place heat before range and show percentage chance and draw");
         var snapshot = first.DebugText; enemy.ApplyDamage(MechLocation.CenterTorso, 100000); enemy.AddHeat(29);
@@ -51,7 +51,7 @@ internal static partial class CombatChecks
             && lethal.Shot.TargetStatus == CombatStatus.Destroyed,
             "log attributes transfer, detached limbs, mounted equipment and mech destruction to the causing shot");
 
-        sim = HeatFixture([HeatGun("secret-weapon", 3, 1)]); enemy = Enemy(sim); enemy.Position = new Vector2(40, 0);
+        sim = HeatFixture([HeatGun("secret-weapon", 3, 1)]); enemy = Enemy(sim); enemy.Position = new Vector2(1200, 0);
         sim.RefreshDetection(); sim.Paused = false; sim.Advance(.05);
         var outgoing = sim.History.Single(entry => entry.Attacker.Side == CombatSide.Friendly);
         var incoming = sim.History.Single(entry => entry.Attacker.Side == CombatSide.Enemy);
@@ -62,12 +62,12 @@ internal static partial class CombatChecks
             && !incoming.CombatText.Contains("heat +3") && incoming.CombatText.Contains("armour"),
             "identified attackers hide weapon, roll and shooter heat while friendly damage remains visible");
         var originalText = outgoing.CombatText;
-        enemy.Position = new Vector2(2, 0); sim.RefreshDetection();
+        enemy.Position = new Vector2(60, 0); sim.RefreshDetection();
         check(sim.DetailsVisible(CombatSide.Friendly, enemy.Id) && outgoing.CombatText == originalText,
             "later detailed contact cannot reveal historical hidden information");
         var lostAttacker = incoming.Attacker with { Visibility = ContactLevel.Lost };
         var unknown = incoming with { Attacker = lostAttacker };
-        check(unknown.CombatText!.Contains("Unknown attacker") && !unknown.CombatText.Contains("hex")
+        check(unknown.CombatText!.Contains("Unknown attacker") && !System.Text.RegularExpressions.Regex.IsMatch(unknown.CombatText, @"\d m\b")
             && !unknown.CombatText.Contains("E1") && unknown.DebugText.Contains("E1"),
             "unknown incoming hits expose neither enemy identity nor range but remain complete in Debug");
         check((unknown with { Shot = unknown.Shot with { Hit = false } }).CombatText is null,

@@ -78,9 +78,9 @@ pdftoppm -singlefile -jpeg -jpegopt quality=94 -scale-to 7000 docs/sources/inner
 
 ### Starscape edit (October 25, 2026)
 
-The active shared chart is `Assets/inner-sphere-3025-starscape.jpg` (7000 × 6000). It removes the hex outlines, 2,256 coordinate numbers (including the legend example), the legend hex symbol, and its interstellar-hex explanation. A static near-black navy background carries 1,100 faint decorative stars, smaller and dimmer than named systems. Muted faction fills, lighter borders, labels and compass details retain the original map geometry and lettering. The office wall and opened chart share the new texture, with lossless Godot import and mipmaps.
+The active shared chart is `Assets/inner-sphere-3025-starscape.jpg` (7000 × 6000). It removes the printed grid cell outlines, 2,256 coordinate numbers (including the legend example), the legend's grid cell symbol, and its interstellar grid scale explanation. A static near-black navy background carries 1,100 faint decorative stars, smaller and dimmer than named systems. Muted faction fills, lighter borders, labels and compass details retain the original map geometry and lettering. The office wall and opened chart share the new texture, with lossless Godot import and mipmaps.
 
-The final artwork is rendered from the original vector PDF, pinned in `docs/sources/inner-sphere-3025.pdf` with SHA-256 `40966bc3a317e7c7cc071b4c34ed6638a78eac8a659b237ef110393deaedb238`. This allows clean removal of the grid and coordinate forms without reconstructing any systems or labels. The source's capital symbols, title, compass, distance scale, remaining legend, logo and attribution are retained. Poppler text-and-position comparison confirmed that all 2,528 remaining words have exactly their original text and coordinates; the only omitted words are the hex coordinates and six words in the removed explanation.
+The final artwork is rendered from the original vector PDF, pinned in `docs/sources/inner-sphere-3025.pdf` with SHA-256 `40966bc3a317e7c7cc071b4c34ed6638a78eac8a659b237ef110393deaedb238`. This allows clean removal of the grid and coordinate forms without reconstructing any systems or labels. The source's capital symbols, title, compass, distance scale, remaining legend, logo and attribution are retained. Poppler text-and-position comparison confirmed that all 2,528 remaining words have exactly their original text and coordinates; the only omitted words are the grid coordinates and six words in the removed explanation.
 
 Regenerate offline from the pinned source with Node.js and Poppler installed:
 
@@ -90,15 +90,7 @@ node scripts/render-star-map.cjs
 
 The script checks the source hash, removes the original grid forms, adjusts vector colors, and adds fixed-seed background stars before rendering the JPEG at its original resolution. Its intermediate PDF is saved under ignored `TestResults/star-map-work/`.
 
-A built-in `image_gen.imagegen` edit was tried first. The full-resolution input was rejected; a smaller reference generated an edit that altered names and positions, so that generated output is **not used by the game**. The final asset uses the original vector drawing commands instead. The attempted built-in prompt was:
-
-```text
-Use case: precise-object-edit.
-Asset type: production map texture for a Godot game, shared by a zoomable star chart and a framed office wall map.
-Input image 1 is the edit target: a full-composition reference of the complete Inner Sphere map.
-Primary request: remove the entire baked-in hex grid, every hex coordinate number, and the hex symbol and "INTERSTELLAR HEX = 30 LIGHT YEARS" entry in the legend. Replace the gray backdrop with a near-black navy sparse starscape. Carry this dark treatment through all faction territories: use subdued, translucent-looking versions of their existing blue, red, purple, green, yellow, tan, and teal fills over the dark background. Keep faction borders clearly visible. Add only a few tiny, very dim white background stars, less prominent than the actual named systems. Static artwork; no nebulae, glow clouds, gradients, lens flares or bright decorative stars.
-CRITICAL PRESERVATION: This is an edit of the existing map, not a redesign or an approximation. Retain the exact full 7:6 image composition with no crop or stretch. Preserve every actual system dot, its original location and correct readable name, every capital symbol, every faction boundary and island, and all existing map geography. Preserve the title "INNER SPHERE AT WAR: 3025", remaining legend, compass, distance scale, maximum-jump text, credits, BattleTech logo and bottom copyright/attribution. Adapt text, symbols, and borders to clear light colors as necessary for readability against the dark ground. Make the legend dark and visually integrated, with readable light lettering. Use the highest practical resolution and tiny cartographic lettering as faithfully as possible, suitable for close zoom. Do not invent, move, omit, blur, or replace systems or system names. No hexagons, hex numbering, coordinate mesh or grid lines anywhere.
-```
+A built-in `image_gen.imagegen` edit was tried first. The full-resolution input was rejected; a smaller reference generated an edit that altered names and positions, so that generated output is **not used by the game**. The final asset uses the original vector drawing commands instead. The attempted prompt asked for the printed grid, its coordinate numbers and its legend entry to be removed, a near-black navy starscape with subdued faction fills, and exact preservation of every system, name, border, legend and attribution, with no grid lines anywhere.
 
 ## Roster artwork
 

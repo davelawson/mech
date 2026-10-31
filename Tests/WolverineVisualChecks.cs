@@ -10,7 +10,7 @@ public partial class SmokeTests
         var triangles = meshes.Sum(mesh => mesh.Mesh.GetFaces().Length / 3);
         Check(triangles is >= 20000 and <= 35000 && meshes.Length < 40,
             "Wolverine retains source detail within a bounded number of rigid render meshes");
-        Check(Math.Abs(model.Height - 2.94f) < .02f, "imported Wolverine preserves its agreed battlefield height");
+        Check(Math.Abs(model.Height - 44.1f) < .3f, "imported Wolverine preserves its agreed battlefield height");
         var head = model.Locations[MechLocation.Head];
         Check(head.FindChild("AmberCanopy", true, false) is MeshInstance3D canopy && canopy.Mesh.GetFaces().Length >= 48
             && head.FindChild("LaserEmitter", true, false) is MeshInstance3D,
