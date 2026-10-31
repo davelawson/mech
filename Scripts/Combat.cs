@@ -69,6 +69,16 @@ public static partial class CombatRules
         / (SrmCalibrationSeconds * SrmCalibrationSeconds);
     public static double SrmFlightSeconds(float distance) =>
         (-SrmLaunchSpeed + Math.Sqrt(SrmLaunchSpeed * SrmLaunchSpeed + 2 * SrmAcceleration * distance)) / SrmAcceleration;
+    public static bool IsPpc(WeaponKind kind) => kind is WeaponKind.PPC;
+    /// <summary>A PPC bolt reaches its target in the same time at every range, inside its beam's half second.</summary>
+    public const double PpcFlightSeconds = .4;
+    /// <summary>A PPC hit also deals half its damage, rounded down, shared point by point at random among the adjacent locations except the head.</summary>
+    public static int PpcSplash(int damage) => damage / 2;
+    public static IEnumerable<MechLocation> PpcSplashLocations(MechLocation location) =>
+        AdjacentLocations(location).Where(item => item != MechLocation.Head);
+    /// <summary>A PPC hit's electro-interference adds this to the target's own attacks; a new hit restarts the timer.</summary>
+    public const int InterferenceModifier = 2;
+    public const double InterferenceSeconds = 5;
     /// <summary>Target-number penalty for an LRM salvo guided by a spotter's sight.</summary>
     public const int IndirectFireModifier = 1;
     /// <summary>The first half of a laser burn rounds up.</summary>
@@ -158,6 +168,9 @@ public sealed partial class CombatUnit
     public int ShotsFired { get; internal set; }
     public int Hits { get; internal set; }
     public int DamageDealt { get; internal set; }
+    /// <summary>Seconds of electro-interference left from the last PPC hit.</summary>
+    public double InterferenceRemaining { get; internal set; }
+    public int InterferenceAimModifier => InterferenceRemaining > 0 ? CombatRules.InterferenceModifier : 0;
     internal CombatUnit(string id, MechSpec spec, WarriorSpec warrior, CombatSide side,
         IEnumerable<LocationCondition> locations, IEnumerable<EquipmentCondition> equipment,
         IEnumerable<AmmoCondition> ammo, Vector2 position)
@@ -292,6 +305,10 @@ public sealed record CombatShot(string AttackerId, string TargetId, Vector2 From
     /// <summary>An LRM salvo fired without the shooter's own sight, guided by SpotterId.</summary>
     public bool Indirect { get; init; }
     public string? SpotterId { get; init; }
+    /// <summary>A PPC hit's splash damage, one entry per point in the adjacent location it was rolled to, applied with the primary damage.</summary>
+    public IReadOnlyList<MechLocation> SplashPoints { get; init; } = [];
+    public int Splash => SplashPoints.Count;
+    public int TotalDamage => Damage + Splash;
 }
 
 /// <summary>Deterministic fixed-step combat with shared detection and simultaneous weapon resolution.</summary>
@@ -492,6 +509,7 @@ public sealed partial class CombatSimulation
         {
             unit.AdvanceHeat(CombatRules.StepSeconds);
             foreach (var weapon in unit.Weapons) weapon.Remaining = Math.Max(0, weapon.Remaining - delta);
+            unit.InterferenceRemaining = Math.Max(0, Math.Round(unit.InterferenceRemaining - CombatRules.StepSeconds, 9));
         }
         RefreshDetection();
         // Update every waist before selecting rear targets or taking a firing/damage snapshot.
@@ -521,9 +539,9 @@ public sealed partial class CombatSimulation
             if (due > Elapsed + 1e-6) continue;
             _projectiles.RemoveAt(i--);
             var wreck = Unit(discharge.TargetId).Status == CombatStatus.Destroyed;
-            shots.Add(discharge with { To = Unit(discharge.TargetId).Position, Damage = wreck ? 0 : discharge.Damage, GeneratedHeat = 0,
+            shots.Add(discharge with { To = Unit(discharge.TargetId).Position, Damage = wreck ? 0 : discharge.Damage, SplashPoints = wreck ? [] : discharge.SplashPoints, GeneratedHeat = 0,
                 Impact = true, Wreck = wreck, DamageApplied = [], SystemsLost = [], TargetStatus = null });
-            if (!wreck) Unit(discharge.AttackerId).DamageDealt += discharge.Damage;
+            if (!wreck) Unit(discharge.AttackerId).DamageDealt += discharge.TotalDamage;
         }
         foreach (var unit in Units.Where(item => item.Active && !WindingDown))
         {
@@ -544,6 +562,7 @@ public sealed partial class CombatSimulation
                 var location = salvo ? (missiles.FirstOrDefault(missile => missile.Hit) ?? missiles[0]).Location : RollLocation();
                 var laser = hit && CombatRules.IsLaser(weapon.Spec.Kind);
                 var shell = CombatRules.IsAutocannon(weapon.Spec.Kind);
+                var ppc = CombatRules.IsPpc(weapon.Spec.Kind);
                 // A burn only spreads to an adjacent location across a target in motion at the moment it is struck.
                 var second = !laser ? (MechLocation?)null : target.InMotion ? RollAdjacentLocation(location) : location;
                 var damage = !hit ? 0 : laser ? CombatRules.LaserFirstHalf(weapon.Damage)
@@ -554,10 +573,10 @@ public sealed partial class CombatSimulation
                 {
                     Chance = chance, Roll = roll, WeaponId = weapon.Spec.Id, Mount = DraftCatalog.Abbreviation(weapon.Spec.Location) + (weapon.Spec.Rear ? " rear" : ""),
                     Sequence = ++_sequence, SecondLocation = second, SecondDamage = laser ? weapon.Damage - damage : 0,
-                    FlightSeconds = shell ? CombatRules.ShellFlightSeconds(distance) : CombatRules.IsSrm(weapon.Spec.Kind) ? CombatRules.SrmFlightSeconds(distance)
+                    FlightSeconds = shell ? CombatRules.ShellFlightSeconds(distance) : ppc ? CombatRules.PpcFlightSeconds : CombatRules.IsSrm(weapon.Spec.Kind) ? CombatRules.SrmFlightSeconds(distance)
                         : salvo ? CombatRules.MissileFlightSeconds(distance) : 0,
                     Missiles = missiles, MissileDamage = salvo ? weapon.Spec.DamageProfile.PerProjectile : 0,
-                    Indirect = spotter is not null, SpotterId = spotter?.Id
+                    Indirect = spotter is not null, SpotterId = spotter?.Id, SplashPoints = ppc && hit ? RollSplash(location, CombatRules.PpcSplash(weapon.Damage)) : []
                 };
                 shots.Add(shot);
                 if (laser) _burns.Add((shot, Elapsed + CombatRules.LaserSecondHalfDelay));
@@ -577,6 +596,11 @@ public sealed partial class CombatSimulation
             var status = target.Status;
             if (shot.Missiles.Count == 0) target.ApplyDamage(shot.Location, shot.Damage, shot.From);
             else foreach (var missile in shot.Missiles.Where(item => item.Hit)) target.ApplyDamage(missile.Location, shot.MissileDamage, shot.From);
+            if (shot.Splash > 0)
+            {
+                foreach (var splash in shot.SplashPoints.GroupBy(item => item)) target.ApplyDamage(splash.Key, splash.Count(), shot.From);
+                target.InterferenceRemaining = CombatRules.InterferenceSeconds;
+            }
             var damage = target.Locations.Values.Select(part => new CombatDamage(part.Location,
                 before[part.Location].Armor - part.Armor, before[part.Location].RearArmor - part.RearArmor,
                 before[part.Location].Structure - part.Structure, before[part.Location].Structure > 0 && part.Structure == 0))
@@ -809,6 +833,7 @@ public sealed partial class CombatSimulation
         var minimum = distance < weapon.MinimumRange
             ? (int)Math.Ceiling((weapon.MinimumRange - distance) / CombatRules.WeaponRangeScale) : 0;
         var threshold = attacker.Warrior.Gunnery + CombatRules.AimModifier + range + minimum + terrainModifier + attacker.HeatAimModifier
+            + attacker.InterferenceAimModifier
             + (attacker.Moving ? attacker.Movement == MovementMode.Run ? 2 : 1 : 0)
             + (target.Moving ? target.Movement == MovementMode.Run ? 2 : 1 : 0);
         var successes = 0;
@@ -822,6 +847,12 @@ public sealed partial class CombatSimulation
         foreach (var candidate in adjacent)
             if ((roll -= CombatRules.LocationWeight(candidate)) < 0) return candidate;
         throw new InvalidOperationException();
+    }
+    // Each splash point lands on an equally likely adjacent non-head location.
+    private MechLocation[] RollSplash(MechLocation location, int points)
+    {
+        var adjacent = CombatRules.PpcSplashLocations(location).ToArray();
+        return Enumerable.Range(0, points).Select(_ => adjacent[_random.Next(adjacent.Length)]).ToArray();
     }
     private MechLocation RollLocation() => (_random.Next(1, 7) + _random.Next(1, 7)) switch
     {

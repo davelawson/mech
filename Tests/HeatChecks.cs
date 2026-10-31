@@ -6,7 +6,7 @@ namespace Mech.Tests;
 internal static partial class CombatChecks
 {
     private static WeaponSpec HeatGun(string id, int heat, int damage) =>
-        new(id, id, MechLocation.RightArm, false, heat, new(DamageKind.Direct, damage, 1, 0), 0, 20, 25, 30, null, WeaponKind.PPC);
+        new(id, id, MechLocation.RightArm, false, heat, new(DamageKind.Direct, damage, 1, 0), 0, 20, 25, 30, null, WeaponKind.Flamer);
 
     private static CombatSimulation HeatFixture(WeaponSpec[] weapons, int sinks = 0, HeatSinkKind sinkType = HeatSinkKind.Single,
         ComponentSpec[]? components = null, ComponentCondition sinkCondition = ComponentCondition.Operational,

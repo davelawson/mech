@@ -82,20 +82,24 @@ Autocannon shells fly at 60 hexes per second, so flight time is planar distance 
 
 | Caliber | Shell radius | Explosion radius | Explosion duration |
 | --- | --- | --- | --- |
-| AC/2 | 0.04 hex | 0.3 hex | 0.3 s |
-| AC/5 | 0.06 hex | 0.5 hex | 0.4 s |
-| AC/10 | 0.08 hex | 0.8 hex | 0.5 s |
-| AC/20 | 0.11 hex | 1.2 hex | 0.6 s |
+| AC/2 | 0.06 hex | 0.3 hex | 0.3 s |
+| AC/5 | 0.08 hex | 0.5 hex | 0.4 s |
+| AC/10 | 0.1 hex | 0.8 hex | 0.5 s |
+| AC/20 | 0.13 hex | 1.2 hex | 0.6 s |
+
+PPC bolts reach their target 0.4 seconds after discharge at every range; a miss flies at the speed a hit would have had. Splash is half the damage rounded down, 5 points for the stock PPC, each point rolled uniformly among the adjacent locations except the head, so every hit deals 10 + 5 in total. Electro-interference adds +2 to the target's own target numbers for 5 seconds, restarting on each further hit. Every part uses bluish violet (0.6, 0.4, 1). The beam has a 0.02-hex halo with a core at 40% blended halfway to white; it holds until the bolt lands at 0.4 seconds and fades out by 0.5 seconds. The bolt is a 0.18-hex violet glow around a core of half that, white tinted 30% violet. The burst lasts 0.8 seconds: a violet glow swells from 0.36 to 0.9 hexes at 80% opacity, fading linearly; a violet-tinted white flash reaches 0.45 hexes over its first 30%. Six radial arcs reach 1–1.5 hexes, plus one arc per location the splash reached; each is three jagged segments, blended 60% toward white, re-randomized every 0.06 seconds.
 
 LRM flight time is planar distance / 17.5 hexes per second: about 1.03 seconds at the 18-hex minimum range and 3.6 seconds at the 63-hex long range. SRMs launch at 5.6 hexes per second and accelerate steadily at about 15.4 hexes/s², calibrated so the 27-hex long range takes as long as an LRM over that distance, about 1.54 seconds; flight time is `(−5.6 + √(5.6² + 2 · acceleration · distance)) / acceleration`, about 0.78 seconds at 9 hexes. Indirect fire adds +1 to the target number. A salvo ripples out over 0.25 seconds (or 40% of the flight, if shorter), and each missile's flight is shortened to land on the impact step. Each missile accelerates steadily over its own launch-to-arrival window: an LRM leaves at 40% of its average speed and dives in at 160%, reaching its apex after about 64% of the flight; an SRM follows its launch speed and acceleration, including misses out to their ground point. SRMs fly flat. A direct LRM arc peaks at 15% of the planar range; an indirect arc peaks at 35% or high enough to pass blocking terrain by 3 hexes, up to the full range. Each missile's skitter is two lateral and two vertical sine waves of 1.5–4 cycles per flight, with amplitude 0.375–0.75 hexes; it builds over the first quarter of the path and fades to zero over the last fifth. The flame trail spans the last 0.04 seconds of flight, so it lengthens as a missile speeds up. It is additive and runs from white at the missile through yellow (1, 0.9, 0.2) at its middle to orange (1, 0.45, 0.05) at the tail, its opacity fading linearly to zero at the tail. Each impact bursts to 0.25 hex over 0.3 seconds. Missed missiles land 1–2.5 hexes beside and 1–3 hexes beyond their rolled location.
 
-The muzzle flash lasts 0.1 seconds. A tracer streak trails the slug by 0.8 hex plus six shell radii. Misses fly on up to long range plus 10 hexes from the muzzle before fading over 0.1 seconds.
+The muzzle flash lasts 0.1 seconds. The bullet is a capsule of brass yellow (1, 0.85, 0.3), one shell diameter wide and five shell radii long, with no trail. Each fireball's white core swells to 45% of the explosion radius over the first 40% of its duration while fading out.
+
+A destroyed location's explosion lasts 1.1 seconds. Its white flash reaches 1.25 hexes over the first quarter; the orange fireball swells from 0.75 to 2.5 hexes, fading as 1 − t²; the dark-red bloom swells from 1.25 to 3 hexes at 60% opacity, fading linearly. Five yellow debris blobs fly 3–4.5 hexes outward and upward on directions seeded from the shot, shrinking from 0.3 to 0.15 hex. Misses fly on up to long range plus 10 hexes from the muzzle before fading over 0.1 seconds.
 
 The extra location roll is drawn only for laser hits on a target in motion. Beam halo radii are 0.02 (small), 0.04 (medium) and 0.06 (large and ER large) hexes, with a core at 40% of the halo. Halos are pure red (small), pure green (medium) and deep blue (large and ER large); the core blends that color 30% toward white so additive beams keep their color. The beam reaches full length 0.1 seconds after discharge, sweeps linearly from the first location to the second over the 1-second burn (holding still when they are the same) and fades over 0.15 seconds after the burn. A side's defeat starts a 3-second wind-down before the outcome.
 
 Hit chance is the exact probability of 2d6 meeting this threshold:
 
-`Gunnery + 3 (real-time aim modifier) + range + minimum-range penalty + attacker movement + target movement + vegetation + attacker heat (+ 1 indirect)`
+`Gunnery + 3 (real-time aim modifier) + range + minimum-range penalty + attacker movement + target movement + vegetation + attacker heat (+ 1 indirect) (+ 2 electro-interference)`
 
 - Range: +0 short, +2 medium, +4 long; no shots beyond long range.
 - Minimum range: `ceil((scaled minimum − distance) / 3)` when inside minimum, preserving penalty severity at equivalent relative distances.

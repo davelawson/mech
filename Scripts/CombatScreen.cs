@@ -413,6 +413,8 @@ public partial class CombatScreen : Control
         var orderTarget = unit.FollowTarget ?? unit.AttackTarget;
         _unitInfo.Text = $"{unit.Spec.DisplayName} · {unit.Status}\n{RosterUi.SkillText(unit.Warrior)}\nOrder: {unit.Order}{(orderTarget is { } targetId ? $" → {Simulation.Unit(targetId).Warrior.Callsign} · {Simulation.Unit(targetId).Spec.Chassis}" : "")}";
         _unitInfo.Text += $"\n{HeatReadout(unit)}";
+        if (unit.InterferenceRemaining > 0)
+            _unitInfo.Text += FormattableString.Invariant($"\nElectro-interference: +{CombatRules.InterferenceModifier} hit difficulty ({Math.Ceiling(unit.InterferenceRemaining):0}s)");
         if (active.Length > 0)
         {
             _groupInfo.Visible = active.Length > 1;

@@ -119,6 +119,7 @@ internal static partial class CombatChecks
         CheckLasers(check);
         CheckAutocannons(check);
         CheckLrms(check);
+        CheckPpcs(check);
 
         sim = Deploy(roster, roster.Mechs.Select(item => item.Id), 12);
         foreach (var unit in sim.Units.Where(item => item.Side == CombatSide.Friendly)) unit.ApplyDamage(MechLocation.CenterTorso, 500);
@@ -359,9 +360,9 @@ internal static partial class CombatChecks
             foreach (var weapon in unit.Weapons) weapon.Enabled = false;
             unit.Weapons[0].Enabled = true;
         }
-        // Damage packet 10 transfers through any nonfatal part into the one-point center torso.
+        // Damage packet 10 transfers through any nonfatal part into the one-point center torso. The PPC bolts land after their flight.
         var simultaneous = new CombatSimulation(lethal, 5) { EnemyAiEnabled = false, Paused = false };
-        simultaneous.Advance(.05 + CombatRules.WindDownSeconds);
+        simultaneous.Advance(CombatRules.StepSeconds + CombatRules.PpcFlightSeconds + CombatRules.WindDownSeconds);
         check(simultaneous.Outcome == CombatOutcome.Draw && lethal.All(item => item.ShotsFired == 1), "same-instant lethal return shots resolve before outcome");
         var ended = Battle(); ended.End(); ended.Advance(2);
         check(ended.Outcome == CombatOutcome.Ended && ended.Elapsed == 0, "End Simulation works before any combat and freezes state");

@@ -148,6 +148,9 @@ public partial class SmokeTests
             Check(new[] { WeaponKind.AC2, WeaponKind.AC5, WeaponKind.AC10, WeaponKind.AC20 }
                     .Select(CombatViewport.ExplosionRadius).Zip(new[] { .3f, .5f, .8f, 1.2f }).All(pair => pair.First == pair.Second),
                 "autocannon explosions scale with caliber");
+            Check(new[] { WeaponKind.AC2, WeaponKind.AC5, WeaponKind.AC10, WeaponKind.AC20 }
+                    .Select(CombatViewport.ShellRadius).Zip(new[] { .06f, .08f, .1f, .13f }).All(pair => pair.First == pair.Second),
+                "autocannon bullets scale with caliber");
             CombatShot? shell = null;
             Deploy(atlasFires: true);
             for (var step = 0; step < 4000 && shell is null; step++)
@@ -162,10 +165,40 @@ public partial class SmokeTests
             var struck = ModelAt(sim.Unit(shell.TargetId)).LocationCenter(shell.Location);
             Check(Shell().Flying && !Shell().Exploding && Shell().Position.DistanceTo(launched) > 1
                     && Shell().Position.DistanceTo(struck) > 1, "an autocannon shell travels toward its target");
+            var bullet = field.Bullets().Single(item => item.Shot == shell).Transform;
+            var caliber = CombatViewport.ShellRadius(sim.Unit(shell.AttackerId).Spec.Weapons.Single(weapon => weapon.Id == shell.WeaponId).Kind);
+            Check(bullet.Origin.IsEqualApprox(Shell().Position) && Math.Abs(bullet.Basis.Y.Length() - CombatViewport.BulletLength * caliber) < 1e-4f
+                    && Math.Abs(bullet.Basis.X.Length() - 2 * caliber) < 1e-4f && bullet.Basis.Y.Normalized().Dot((struck - launched).Normalized()) > .99f,
+                "the shell is a caliber-sized bullet with no trail, centered on the shell and pointing along its flight");
             sim.Advance(shell.FlightSeconds / 2 + .05); field._Process(0);
             struck = ModelAt(sim.Unit(shell.TargetId)).LocationCenter(shell.Location);
             Check(!Shell().Flying && Shell().Exploding && Shell().Position.IsEqualApprox(struck),
                 "the shell explodes at the struck location when it lands");
+
+            CombatShot? bolt = null;
+            Deploy();
+            for (var step = 0; step < 4000 && bolt is null; step++)
+            {
+                var before = shots.Count; sim.Advance(CombatRules.StepSeconds); field._Process(0);
+                bolt = shots.Skip(before).FirstOrDefault(shot => shot.Hit && shot.InFlight && field.Ppcs().Any(item => item.Shot == shot));
+            }
+            Check(bolt is not null, "the exchange produced a visible PPC hit");
+            (CombatShot Shot, Vector3 Bolt, bool BeamVisible, bool Flying, bool Bursting, int Arcs) Ppc() => field.Ppcs().Single(item => item.Shot == bolt);
+            Check(Ppc().BeamVisible && Ppc().Flying && !Ppc().Bursting && Ppc().Arcs == 0
+                    && Ppc().Bolt.DistanceTo(ModelAt(sim.Unit(bolt!.TargetId)).LocationCenter(bolt.Location)) > 1,
+                "a PPC flashes its beam at once and launches a bolt from the muzzle");
+            sim.Advance(bolt!.FlightSeconds + .03); field._Process(0);
+            var splashes = bolt.SplashPoints.Distinct().Count();
+            Check(!Ppc().Flying && Ppc().Bursting && Ppc().BeamVisible && Ppc().Arcs == CombatViewport.PpcRadialArcs + splashes
+                    && Ppc().Bolt.IsEqualApprox(ModelAt(sim.Unit(bolt.TargetId)).LocationCenter(bolt.Location)),
+                "the bolt bursts at the struck location with radial arcs and one arc per location its splash reached, while the beam still shows");
+            sim.Paused = true; var frozen = Ppc(); sim.Advance(1); field._Process(0);
+            Check(Ppc() == frozen, "pausing freezes the PPC burst");
+            sim.Paused = false;
+            sim.Advance(CombatViewport.PpcBeamSeconds); field._Process(0);
+            Check(!Ppc().BeamVisible && Ppc().Bursting, "the PPC beam ends after half a second while the burst still crackles");
+            sim.Advance(CombatViewport.PpcBurstSeconds); field._Process(0);
+            Check(!field.Ppcs().Any(item => item.Shot == bolt), "the PPC effect ends after its burst");
 
             foreach (var lrm in new[] { true, false })
             {
@@ -204,6 +237,26 @@ public partial class SmokeTests
                 Check(swarm.Where(item => !item.Missile.Hit).All(item => Math.Abs(item.End.Y - sim.Terrain.HeightAt(new Vector2(item.End.X, item.End.Z))) < 1e-3f),
                     "missed missiles come down on the ground");
             }
+            // Make every enemy location fragile so the next hit destroys one.
+            Deploy(atlasFires: true);
+            foreach (var part in sim.Units.Where(unit => unit.Side == CombatSide.Enemy).SelectMany(unit => unit.Locations.Values))
+            { part.Armor = 0; part.RearArmor = 0; part.Structure = Math.Min(part.Structure, 1); }
+            CombatShot? wrecking = null;
+            for (var step = 0; step < 400 && wrecking is null; step++)
+            {
+                var before = shots.Count; sim.Advance(CombatRules.StepSeconds); field._Process(0);
+                wrecking = shots.Skip(before).FirstOrDefault(shot => shot.DamageApplied.Any(part => part.Destroyed));
+            }
+            Check(wrecking is not null, "an attack destroyed a location");
+            var lost = wrecking!.DamageApplied.Where(part => part.Destroyed).Select(part => part.Location).ToArray();
+            var blasts = field.Destructions().Where(item => item.TargetId == wrecking.TargetId && lost.Contains(item.Location)).ToArray();
+            Check(blasts.Length == lost.Length && blasts.All(item => item.Visible
+                    && item.Position.IsEqualApprox(ModelAt(sim.Unit(wrecking.TargetId)).LocationCenter(item.Location))),
+                "each destroyed location explodes at its center on the target model");
+            sim.Advance(CombatViewport.DestructionSeconds + .05); field._Process(0);
+            Check(!field.Destructions().Any(item => item.TargetId == wrecking.TargetId && lost.Contains(item.Location)),
+                "a location's destruction explosion ends after its duration");
+
             Check(CombatViewport.MissileProgress(0, CombatViewport.LrmLaunchShare) == 0 && CombatViewport.MissileProgress(1, CombatViewport.LrmLaunchShare) == 1
                     && Math.Abs(CombatViewport.MissileProgress(.638f, CombatViewport.LrmLaunchShare) - .5f) < .01f
                     && Math.Abs(CombatViewport.MissileProgress(.01f, CombatViewport.LrmLaunchShare) / .01f - .4f) < .01f

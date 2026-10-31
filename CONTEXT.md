@@ -75,6 +75,9 @@ An LRM salvo at a priority or Attack target the shooter cannot see, guided by a 
 **Spotter**:
 An active friendly BattleMech with its own clear sight to the target of an indirect salvo.
 
+**Electro-interference**:
+The temporary accuracy penalty a PPC hit imposes on every attack its target makes.
+
 **Preferred engagement distance**:
 The player-adjustable distance a MechWarrior attempts to establish and maintain from the target of an attack order.
 

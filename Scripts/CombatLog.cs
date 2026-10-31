@@ -63,11 +63,16 @@ public sealed record CombatLogEntry(double Time, CombatShot Shot, CombatLogUnit 
             else if (Shot.Missiles.Count > 0)
                 fields.Add("hits " + string.Join(", ", Shot.Missiles.Where(missile => missile.Hit).GroupBy(missile => missile.Location)
                     .OrderBy(group => group.Key).Select(group => $"{DraftCatalog.Abbreviation(group.Key)}×{group.Count()}")));
-            if (Shot.Hit && Target.Detailed(debug)) fields.Add($"dmg {Shot.Damage} on impact");
+            if (Shot.Hit && Target.Detailed(debug))
+            {
+                fields.Add($"dmg {Shot.Damage}" + (Shot.Splash > 0 ? $" + {Shot.Splash} splash" : "") + " on impact");
+                if (Shot.Splash > 0) fields.Add("splash " + string.Join(", ", Shot.SplashPoints.GroupBy(location => location)
+                    .OrderBy(group => group.Key).Select(group => $"{DraftCatalog.Abbreviation(group.Key)}×{group.Count()}")));
+            }
         }
         else if (Target.Detailed(debug))
         {
-            fields.Add($"dmg {Shot.Damage}" + (Shot.SecondLocation is { } second
+            fields.Add($"dmg {Shot.Damage}" + (Shot.Splash > 0 ? $" + {Shot.Splash} splash" : "") + (Shot.SecondLocation is { } second
                 ? FormattableString.Invariant($", burn +{Shot.SecondDamage} {DraftCatalog.Abbreviation(second)} in {CombatRules.LaserSecondHalfDelay:0.0}s") : ""));
             if (Shot.DamageApplied.Count == 0) fields.Add("armour −0, structure −0");
             foreach (var part in Shot.DamageApplied)
@@ -78,6 +83,8 @@ public sealed record CombatLogEntry(double Time, CombatShot Shot, CombatLogUnit 
             if (Shot.TargetStatus is { } status) fields.Add($"target {status.ToString().ToUpperInvariant()}");
             if (Shot.TargetHeat > 0) fields.Add(FormattableString.Invariant($"target heat +{Shot.TargetHeat} → {Target.Heat:0.0}"));
         }
+        if (Shot.Impact && Shot.Splash > 0)
+            fields.Add(FormattableString.Invariant($"electro-interference {CombatRules.InterferenceSeconds:0}s"));
         return string.Join(" · ", fields);
     }
 }
