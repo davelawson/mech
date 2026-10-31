@@ -36,8 +36,9 @@ public static partial class CombatRules
         (mode == MovementMode.Run ? spec.Run : spec.Walk) * MovementScale;
     public static float Cooldown(WeaponSpec weapon) => weapon.Kind switch
     {
-        WeaponKind.MachineGun => 2, WeaponKind.Flamer or WeaponKind.SmallLaser => 6, WeaponKind.MediumLaser => 8,
-        WeaponKind.LargeLaser or WeaponKind.ERLargeLaser or WeaponKind.PPC or WeaponKind.AC2 or WeaponKind.AC5
+        WeaponKind.MachineGun => 2, WeaponKind.SmallLaser => 3, WeaponKind.MediumLaser => 5,
+        WeaponKind.Flamer => 6, WeaponKind.LargeLaser or WeaponKind.ERLargeLaser => 7,
+        WeaponKind.PPC or WeaponKind.AC2 or WeaponKind.AC5
             or WeaponKind.AC10 or WeaponKind.AC20 or WeaponKind.LRM5 or WeaponKind.LRM10 or WeaponKind.LRM15
             or WeaponKind.LRM20 or WeaponKind.SRM2 or WeaponKind.SRM4 or WeaponKind.SRM6 => 10,
         _ => throw new ArgumentOutOfRangeException(nameof(weapon))

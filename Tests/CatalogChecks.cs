@@ -62,7 +62,7 @@ internal static class CatalogChecks
                 var packet = int.Parse(text.Split(' ')[0], System.Globalization.CultureInfo.InvariantCulture);
                 if (text.Contains("/ missile", StringComparison.Ordinal)) packet *= int.Parse(name.Split(' ')[^1], System.Globalization.CultureInfo.InvariantCulture);
                 packet = name == "Machine Gun" ? 5 : packet * scale;
-                var cooldown = name switch { "Machine Gun" => 2, "Flamer" or "Small Laser" => 6, "Medium Laser" => 8, _ => 10 };
+                var cooldown = name switch { "Machine Gun" => 2, "Small Laser" => 3, "Medium Laser" => 5, "Flamer" => 6, "Large Laser" or "ER Large Laser" => 7, _ => 10 };
                 check(CombatRules.Damage(w) == packet && CombatRules.Cooldown(w) == cooldown
                     && CombatRules.FlamerHeat(w) == (name == "Flamer" ? 2 : 0), $"{m.Id}/{w.Id} preserves damage, cadence and target heat");
             }

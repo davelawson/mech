@@ -44,6 +44,7 @@ Status: confirmed October 25, 2026. The initial design interview is complete. Th
 
 ### Lasers
 
+- Lasers are the premium damage-per-second weapons, paid for in heat and in damage split across locations. They cycle faster than other weapons of their class, and smaller lasers cycle fastest.
 - Small, medium, large and ER large lasers discharge as a one-second burn. A laser hit applies half its damage, rounded up, to the rolled location at discharge. Half a second later the burn applies the remainder. If the target was moving, turning or twisting its torso when struck, the burn spreads to an adjacent location, rolled at discharge from the struck location's neighbors and weighted by the hit-location table; a stationary target takes the remainder on the struck location. Destroyed locations remain eligible and transfer damage normally.
 - The one hit roll covers both halves. Heat and cooldown apply at discharge, and volley selection uses full expected damage.
 - The second half lands with that step's exchange, using current positions and torso facing to choose front or rear armor. It lands even if the shooter is disabled or shut down, if its laser location is lost, or if the target moves out of sight or range. It is lost if the target has been destroyed. Destroying the shooter cancels the burn, unless the second half is due in the same step that destroys the shooter.

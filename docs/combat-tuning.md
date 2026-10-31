@@ -62,8 +62,10 @@ Move orders resolve inaccessible destinations to the nearest reachable navigatio
 | Weapon | Cooldown |
 | --- | --- |
 | Machine gun | 2 seconds |
-| Flamer / Small Laser | 6 seconds |
-| Medium Laser | 8 seconds |
+| Small Laser | 3 seconds |
+| Medium Laser | 5 seconds |
+| Flamer | 6 seconds |
+| Large / ER Large Laser | 7 seconds |
 | Other weapons | 10 seconds |
 
 Weapons start ready; cooldowns progress only during unpaused simulation time, including thermal shutdown. Armor, structure and weapon damage are counted in tenths of a stock point, so the catalog holds stock values × 10: a medium laser deals 50, a Firestarter's center torso has 130 armor, 60 rear armor and 110 structure, and every head has 30 structure. The machine gun is cut to half a stock point, 5 per burst. Combat multiplies all four stock weapon range boundaries by three; the imported catalog remains unchanged, and weapon inspection shows effective ranges. A medium laser therefore has short/medium/long ranges of 9/18/27 hexes. PPC minimum range is 9 and LRM minimum range is 18. Both sides use the same multiplier for targeting, firing, hit chance and terrain firing-position searches. Each missile of an LRM or SRM salvo rolls its own hit and location and deals its per-missile damage, 10 for LRMs and 20 for SRMs. Each successful flamer hit deals its ordinary damage and adds 2 target heat, including through armor. Misses add no target heat. Each discharge of an ammunition-fed weapon spends one shot from the emptiest intact compatible bin; stock bins hold 200 (machine gun), 45 (AC/2), 20 (AC/5), 10 (AC/10) and 5 (AC/20) shots per ton.
