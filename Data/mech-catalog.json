@@ -23,51 +23,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 13,
-          "RearArmor": 6,
-          "Structure": 11
+          "Armor": 130,
+          "RearArmor": 60,
+          "Structure": 110
         },
         {
           "Location": "LeftTorso",
-          "Armor": 11,
-          "RearArmor": 5,
-          "Structure": 8
+          "Armor": 110,
+          "RearArmor": 50,
+          "Structure": 80
         },
         {
           "Location": "RightTorso",
-          "Armor": 11,
-          "RearArmor": 5,
-          "Structure": 8
+          "Armor": 110,
+          "RearArmor": 50,
+          "Structure": 80
         },
         {
           "Location": "LeftArm",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         },
         {
           "Location": "RightArm",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         },
         {
           "Location": "LeftLeg",
-          "Armor": 8,
+          "Armor": 80,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         },
         {
           "Location": "RightLeg",
-          "Armor": 8,
+          "Armor": 80,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         }
       ],
       "Weapons": [
@@ -79,7 +79,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -98,7 +98,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 1,
             "TargetHeat": 2
           },
@@ -117,7 +117,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -136,7 +136,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 1,
             "TargetHeat": 2
           },
@@ -155,7 +155,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -174,7 +174,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -193,7 +193,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 1,
             "TargetHeat": 2
           },
@@ -212,7 +212,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 1,
             "TargetHeat": 2
           },
@@ -438,51 +438,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 7,
+          "Armor": 70,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 10,
-          "RearArmor": 3,
-          "Structure": 11
+          "Armor": 100,
+          "RearArmor": 30,
+          "Structure": 110
         },
         {
           "Location": "LeftTorso",
-          "Armor": 8,
-          "RearArmor": 4,
-          "Structure": 8
+          "Armor": 80,
+          "RearArmor": 40,
+          "Structure": 80
         },
         {
           "Location": "RightTorso",
-          "Armor": 8,
-          "RearArmor": 4,
-          "Structure": 8
+          "Armor": 80,
+          "RearArmor": 40,
+          "Structure": 80
         },
         {
           "Location": "LeftArm",
-          "Armor": 4,
+          "Armor": 40,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         },
         {
           "Location": "RightArm",
-          "Armor": 4,
+          "Armor": 40,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         },
         {
           "Location": "LeftLeg",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         },
         {
           "Location": "RightLeg",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         }
       ],
       "Weapons": [
@@ -494,7 +494,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -513,7 +513,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -532,7 +532,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -551,7 +551,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -570,7 +570,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 4,
             "TargetHeat": 0
           },
@@ -780,51 +780,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 14,
-          "RearArmor": 7,
-          "Structure": 11
+          "Armor": 140,
+          "RearArmor": 70,
+          "Structure": 110
         },
         {
           "Location": "LeftTorso",
-          "Armor": 10,
-          "RearArmor": 5,
-          "Structure": 8
+          "Armor": 100,
+          "RearArmor": 50,
+          "Structure": 80
         },
         {
           "Location": "RightTorso",
-          "Armor": 10,
-          "RearArmor": 5,
-          "Structure": 8
+          "Armor": 100,
+          "RearArmor": 50,
+          "Structure": 80
         },
         {
           "Location": "LeftArm",
-          "Armor": 10,
+          "Armor": 100,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         },
         {
           "Location": "RightArm",
-          "Armor": 10,
+          "Armor": 100,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         },
         {
           "Location": "LeftLeg",
-          "Armor": 12,
+          "Armor": 120,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         },
         {
           "Location": "RightLeg",
-          "Armor": 12,
+          "Armor": 120,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         }
       ],
       "Weapons": [
@@ -836,7 +836,7 @@
           "Heat": 10,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -855,7 +855,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 4,
             "TargetHeat": 0
           },
@@ -1097,51 +1097,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 20,
-          "RearArmor": 7,
-          "Structure": 18
+          "Armor": 200,
+          "RearArmor": 70,
+          "Structure": 180
         },
         {
           "Location": "LeftTorso",
-          "Armor": 20,
-          "RearArmor": 6,
-          "Structure": 13
+          "Armor": 200,
+          "RearArmor": 60,
+          "Structure": 130
         },
         {
           "Location": "RightTorso",
-          "Armor": 20,
-          "RearArmor": 6,
-          "Structure": 13
+          "Armor": 200,
+          "RearArmor": 60,
+          "Structure": 130
         },
         {
           "Location": "LeftArm",
-          "Armor": 14,
+          "Armor": 140,
           "RearArmor": 0,
-          "Structure": 9
+          "Structure": 90
         },
         {
           "Location": "RightArm",
-          "Armor": 14,
+          "Armor": 140,
           "RearArmor": 0,
-          "Structure": 9
+          "Structure": 90
         },
         {
           "Location": "LeftLeg",
-          "Armor": 18,
+          "Armor": 180,
           "RearArmor": 0,
-          "Structure": 13
+          "Structure": 130
         },
         {
           "Location": "RightLeg",
-          "Armor": 18,
+          "Armor": 180,
           "RearArmor": 0,
-          "Structure": 13
+          "Structure": 130
         }
       ],
       "Weapons": [
@@ -1153,7 +1153,7 @@
           "Heat": 10,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -1172,7 +1172,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 10,
             "TargetHeat": 0
           },
@@ -1421,51 +1421,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 23,
-          "RearArmor": 8,
-          "Structure": 18
+          "Armor": 230,
+          "RearArmor": 80,
+          "Structure": 180
         },
         {
           "Location": "LeftTorso",
-          "Armor": 18,
-          "RearArmor": 6,
-          "Structure": 13
+          "Armor": 180,
+          "RearArmor": 60,
+          "Structure": 130
         },
         {
           "Location": "RightTorso",
-          "Armor": 18,
-          "RearArmor": 6,
-          "Structure": 13
+          "Armor": 180,
+          "RearArmor": 60,
+          "Structure": 130
         },
         {
           "Location": "LeftArm",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 9
+          "Structure": 90
         },
         {
           "Location": "RightArm",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 9
+          "Structure": 90
         },
         {
           "Location": "LeftLeg",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 13
+          "Structure": 130
         },
         {
           "Location": "RightLeg",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 13
+          "Structure": 130
         }
       ],
       "Weapons": [
@@ -1477,7 +1477,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -1496,7 +1496,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -1515,7 +1515,7 @@
           "Heat": 2,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 5,
             "TargetHeat": 0
           },
@@ -1534,7 +1534,7 @@
           "Heat": 2,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 2,
             "TargetHeat": 0
           },
@@ -1790,51 +1790,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 8,
+          "Armor": 80,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 20,
-          "RearArmor": 8,
-          "Structure": 18
+          "Armor": 200,
+          "RearArmor": 80,
+          "Structure": 180
         },
         {
           "Location": "LeftTorso",
-          "Armor": 20,
-          "RearArmor": 6,
-          "Structure": 13
+          "Armor": 200,
+          "RearArmor": 60,
+          "Structure": 130
         },
         {
           "Location": "RightTorso",
-          "Armor": 20,
-          "RearArmor": 6,
-          "Structure": 13
+          "Armor": 200,
+          "RearArmor": 60,
+          "Structure": 130
         },
         {
           "Location": "LeftArm",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 9
+          "Structure": 90
         },
         {
           "Location": "RightArm",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 9
+          "Structure": 90
         },
         {
           "Location": "LeftLeg",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 13
+          "Structure": 130
         },
         {
           "Location": "RightLeg",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 13
+          "Structure": 130
         }
       ],
       "Weapons": [
@@ -1846,7 +1846,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -1865,7 +1865,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -1884,7 +1884,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -2133,51 +2133,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 24,
-          "RearArmor": 11,
-          "Structure": 21
+          "Armor": 240,
+          "RearArmor": 110,
+          "Structure": 210
         },
         {
           "Location": "LeftTorso",
-          "Armor": 19,
-          "RearArmor": 8,
-          "Structure": 15
+          "Armor": 190,
+          "RearArmor": 80,
+          "Structure": 150
         },
         {
           "Location": "RightTorso",
-          "Armor": 19,
-          "RearArmor": 8,
-          "Structure": 15
+          "Armor": 190,
+          "RearArmor": 80,
+          "Structure": 150
         },
         {
           "Location": "LeftArm",
-          "Armor": 13,
+          "Armor": 130,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "RightArm",
-          "Armor": 13,
+          "Armor": 130,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "LeftLeg",
-          "Armor": 18,
+          "Armor": 180,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         },
         {
           "Location": "RightLeg",
-          "Armor": 18,
+          "Armor": 180,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         }
       ],
       "Weapons": [
@@ -2189,7 +2189,7 @@
           "Heat": 5,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 15,
             "TargetHeat": 0
           },
@@ -2208,7 +2208,7 @@
           "Heat": 5,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 15,
             "TargetHeat": 0
           },
@@ -2227,7 +2227,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -2246,7 +2246,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -2265,7 +2265,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -2284,7 +2284,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -2509,51 +2509,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 33,
-          "RearArmor": 8,
-          "Structure": 21
+          "Armor": 330,
+          "RearArmor": 80,
+          "Structure": 210
         },
         {
           "Location": "LeftTorso",
-          "Armor": 24,
-          "RearArmor": 6,
-          "Structure": 15
+          "Armor": 240,
+          "RearArmor": 60,
+          "Structure": 150
         },
         {
           "Location": "RightTorso",
-          "Armor": 24,
-          "RearArmor": 6,
-          "Structure": 15
+          "Armor": 240,
+          "RearArmor": 60,
+          "Structure": 150
         },
         {
           "Location": "LeftArm",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "RightArm",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "LeftLeg",
-          "Armor": 21,
+          "Armor": 210,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         },
         {
           "Location": "RightLeg",
-          "Armor": 21,
+          "Armor": 210,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         }
       ],
       "Weapons": [
@@ -2565,7 +2565,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -2584,7 +2584,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -2603,7 +2603,7 @@
           "Heat": 5,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 15,
             "TargetHeat": 0
           },
@@ -2622,7 +2622,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -2641,7 +2641,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -2660,7 +2660,7 @@
           "Heat": 5,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 15,
             "TargetHeat": 0
           },
@@ -2679,7 +2679,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -2698,7 +2698,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -2929,51 +2929,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 30,
-          "RearArmor": 11,
-          "Structure": 21
+          "Armor": 300,
+          "RearArmor": 110,
+          "Structure": 210
         },
         {
           "Location": "LeftTorso",
-          "Armor": 24,
-          "RearArmor": 6,
-          "Structure": 15
+          "Armor": 240,
+          "RearArmor": 60,
+          "Structure": 150
         },
         {
           "Location": "RightTorso",
-          "Armor": 24,
-          "RearArmor": 6,
-          "Structure": 15
+          "Armor": 240,
+          "RearArmor": 60,
+          "Structure": 150
         },
         {
           "Location": "LeftArm",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "RightArm",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "LeftLeg",
-          "Armor": 29,
+          "Armor": 290,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         },
         {
           "Location": "RightLeg",
-          "Armor": 29,
+          "Armor": 290,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         }
       ],
       "Weapons": [
@@ -2985,7 +2985,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -3004,7 +3004,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -3023,7 +3023,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -3042,7 +3042,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -3061,7 +3061,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -3080,7 +3080,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -3099,7 +3099,7 @@
           "Heat": 5,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 15,
             "TargetHeat": 0
           },
@@ -3118,7 +3118,7 @@
           "Heat": 2,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 2,
             "TargetHeat": 0
           },
@@ -3373,51 +3373,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 30,
-          "RearArmor": 19,
-          "Structure": 25
+          "Armor": 300,
+          "RearArmor": 190,
+          "Structure": 250
         },
         {
           "Location": "LeftTorso",
-          "Armor": 24,
-          "RearArmor": 10,
-          "Structure": 17
+          "Armor": 240,
+          "RearArmor": 100,
+          "Structure": 170
         },
         {
           "Location": "RightTorso",
-          "Armor": 24,
-          "RearArmor": 10,
-          "Structure": 17
+          "Armor": 240,
+          "RearArmor": 100,
+          "Structure": 170
         },
         {
           "Location": "LeftArm",
-          "Armor": 24,
+          "Armor": 240,
           "RearArmor": 0,
-          "Structure": 13
+          "Structure": 130
         },
         {
           "Location": "RightArm",
-          "Armor": 24,
+          "Armor": 240,
           "RearArmor": 0,
-          "Structure": 13
+          "Structure": 130
         },
         {
           "Location": "LeftLeg",
-          "Armor": 33,
+          "Armor": 330,
           "RearArmor": 0,
-          "Structure": 17
+          "Structure": 170
         },
         {
           "Location": "RightLeg",
-          "Armor": 33,
+          "Armor": 330,
           "RearArmor": 0,
-          "Structure": 17
+          "Structure": 170
         }
       ],
       "Weapons": [
@@ -3429,7 +3429,7 @@
           "Heat": 10,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -3448,7 +3448,7 @@
           "Heat": 10,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -3467,7 +3467,7 @@
           "Heat": 10,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -3486,7 +3486,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 3,
+            "PerProjectile": 30,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -3728,51 +3728,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 30,
-          "RearArmor": 15,
-          "Structure": 25
+          "Armor": 300,
+          "RearArmor": 150,
+          "Structure": 250
         },
         {
           "Location": "LeftTorso",
-          "Armor": 20,
-          "RearArmor": 10,
-          "Structure": 17
+          "Armor": 200,
+          "RearArmor": 100,
+          "Structure": 170
         },
         {
           "Location": "RightTorso",
-          "Armor": 20,
-          "RearArmor": 10,
-          "Structure": 17
+          "Armor": 200,
+          "RearArmor": 100,
+          "Structure": 170
         },
         {
           "Location": "LeftArm",
-          "Armor": 15,
+          "Armor": 150,
           "RearArmor": 0,
-          "Structure": 13
+          "Structure": 130
         },
         {
           "Location": "RightArm",
-          "Armor": 15,
+          "Armor": 150,
           "RearArmor": 0,
-          "Structure": 13
+          "Structure": 130
         },
         {
           "Location": "LeftLeg",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 17
+          "Structure": 170
         },
         {
           "Location": "RightLeg",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 17
+          "Structure": 170
         }
       ],
       "Weapons": [
@@ -3784,7 +3784,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -3803,7 +3803,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -3822,7 +3822,7 @@
           "Heat": 7,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 20,
+            "PerProjectile": 200,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -3841,7 +3841,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 4,
             "TargetHeat": 0
           },
@@ -4104,51 +4104,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 26,
-          "RearArmor": 9,
-          "Structure": 25
+          "Armor": 260,
+          "RearArmor": 90,
+          "Structure": 250
         },
         {
           "Location": "LeftTorso",
-          "Armor": 18,
-          "RearArmor": 6,
-          "Structure": 17
+          "Armor": 180,
+          "RearArmor": 60,
+          "Structure": 170
         },
         {
           "Location": "RightTorso",
-          "Armor": 18,
-          "RearArmor": 6,
-          "Structure": 17
+          "Armor": 180,
+          "RearArmor": 60,
+          "Structure": 170
         },
         {
           "Location": "LeftArm",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 13
+          "Structure": 130
         },
         {
           "Location": "RightArm",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 13
+          "Structure": 130
         },
         {
           "Location": "LeftLeg",
-          "Armor": 24,
+          "Armor": 240,
           "RearArmor": 0,
-          "Structure": 17
+          "Structure": 170
         },
         {
           "Location": "RightLeg",
-          "Armor": 24,
+          "Armor": 240,
           "RearArmor": 0,
-          "Structure": 17
+          "Structure": 170
         }
       ],
       "Weapons": [
@@ -4160,7 +4160,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -4179,7 +4179,7 @@
           "Heat": 5,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 15,
             "TargetHeat": 0
           },
@@ -4198,7 +4198,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -4217,7 +4217,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -4236,7 +4236,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -4461,51 +4461,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 47,
-          "RearArmor": 14,
-          "Structure": 31
+          "Armor": 470,
+          "RearArmor": 140,
+          "Structure": 310
         },
         {
           "Location": "LeftTorso",
-          "Armor": 32,
-          "RearArmor": 10,
-          "Structure": 21
+          "Armor": 320,
+          "RearArmor": 100,
+          "Structure": 210
         },
         {
           "Location": "RightTorso",
-          "Armor": 32,
-          "RearArmor": 10,
-          "Structure": 21
+          "Armor": 320,
+          "RearArmor": 100,
+          "Structure": 210
         },
         {
           "Location": "LeftArm",
-          "Armor": 34,
+          "Armor": 340,
           "RearArmor": 0,
-          "Structure": 17
+          "Structure": 170
         },
         {
           "Location": "RightArm",
-          "Armor": 34,
+          "Armor": 340,
           "RearArmor": 0,
-          "Structure": 17
+          "Structure": 170
         },
         {
           "Location": "LeftLeg",
-          "Armor": 41,
+          "Armor": 410,
           "RearArmor": 0,
-          "Structure": 21
+          "Structure": 210
         },
         {
           "Location": "RightLeg",
-          "Armor": 41,
+          "Armor": 410,
           "RearArmor": 0,
-          "Structure": 21
+          "Structure": 210
         }
       ],
       "Weapons": [
@@ -4517,7 +4517,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -4536,7 +4536,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -4555,7 +4555,7 @@
           "Heat": 6,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 20,
             "TargetHeat": 0
           },
@@ -4574,7 +4574,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -4593,7 +4593,7 @@
           "Heat": 7,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 20,
+            "PerProjectile": 200,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -4612,7 +4612,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -4631,7 +4631,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -4917,51 +4917,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 25,
-          "RearArmor": 10,
-          "Structure": 31
+          "Armor": 250,
+          "RearArmor": 100,
+          "Structure": 310
         },
         {
           "Location": "LeftTorso",
-          "Armor": 21,
-          "RearArmor": 9,
-          "Structure": 21
+          "Armor": 210,
+          "RearArmor": 90,
+          "Structure": 210
         },
         {
           "Location": "RightTorso",
-          "Armor": 21,
-          "RearArmor": 9,
-          "Structure": 21
+          "Armor": 210,
+          "RearArmor": 90,
+          "Structure": 210
         },
         {
           "Location": "LeftArm",
-          "Armor": 24,
+          "Armor": 240,
           "RearArmor": 0,
-          "Structure": 17
+          "Structure": 170
         },
         {
           "Location": "RightArm",
-          "Armor": 24,
+          "Armor": 240,
           "RearArmor": 0,
-          "Structure": 17
+          "Structure": 170
         },
         {
           "Location": "LeftLeg",
-          "Armor": 24,
+          "Armor": 240,
           "RearArmor": 0,
-          "Structure": 21
+          "Structure": 210
         },
         {
           "Location": "RightLeg",
-          "Armor": 24,
+          "Armor": 240,
           "RearArmor": 0,
-          "Structure": 21
+          "Structure": 210
         }
       ],
       "Weapons": [
@@ -4973,7 +4973,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -4992,7 +4992,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -5011,7 +5011,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -5030,7 +5030,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -5049,7 +5049,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -5068,7 +5068,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -5087,7 +5087,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -5106,7 +5106,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -5353,51 +5353,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 33,
-          "RearArmor": 10,
-          "Structure": 22
+          "Armor": 330,
+          "RearArmor": 100,
+          "Structure": 220
         },
         {
           "Location": "LeftTorso",
-          "Armor": 24,
-          "RearArmor": 6,
-          "Structure": 15
+          "Armor": 240,
+          "RearArmor": 60,
+          "Structure": 150
         },
         {
           "Location": "RightTorso",
-          "Armor": 24,
-          "RearArmor": 6,
-          "Structure": 15
+          "Armor": 240,
+          "RearArmor": 60,
+          "Structure": 150
         },
         {
           "Location": "LeftArm",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 11
+          "Structure": 110
         },
         {
           "Location": "RightArm",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 11
+          "Structure": 110
         },
         {
           "Location": "LeftLeg",
-          "Armor": 26,
+          "Armor": 260,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         },
         {
           "Location": "RightLeg",
-          "Armor": 26,
+          "Armor": 260,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         }
       ],
       "Weapons": [
@@ -5409,7 +5409,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -5428,7 +5428,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -5447,7 +5447,7 @@
           "Heat": 6,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 20,
             "TargetHeat": 0
           },
@@ -5466,7 +5466,7 @@
           "Heat": 6,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 20,
             "TargetHeat": 0
           },
@@ -5485,7 +5485,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -5504,7 +5504,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -5735,51 +5735,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 8,
+          "Armor": 80,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 12,
-          "RearArmor": 4,
-          "Structure": 12
+          "Armor": 120,
+          "RearArmor": 40,
+          "Structure": 120
         },
         {
           "Location": "LeftTorso",
-          "Armor": 10,
-          "RearArmor": 2,
-          "Structure": 10
+          "Armor": 100,
+          "RearArmor": 20,
+          "Structure": 100
         },
         {
           "Location": "RightTorso",
-          "Armor": 10,
-          "RearArmor": 2,
-          "Structure": 10
+          "Armor": 100,
+          "RearArmor": 20,
+          "Structure": 100
         },
         {
           "Location": "LeftArm",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         },
         {
           "Location": "RightArm",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         },
         {
           "Location": "LeftLeg",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "RightLeg",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         }
       ],
       "Weapons": [
@@ -5791,7 +5791,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -5810,7 +5810,7 @@
           "Heat": 2,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 2,
             "TargetHeat": 0
           },
@@ -5829,7 +5829,7 @@
           "Heat": 2,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 5,
             "TargetHeat": 0
           },
@@ -6062,51 +6062,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
-        },
-        {
-          "Location": "CenterTorso",
-          "Armor": 40,
-          "RearArmor": 17,
           "Structure": 30
         },
         {
+          "Location": "CenterTorso",
+          "Armor": 400,
+          "RearArmor": 170,
+          "Structure": 300
+        },
+        {
           "Location": "LeftTorso",
-          "Armor": 30,
-          "RearArmor": 10,
-          "Structure": 20
+          "Armor": 300,
+          "RearArmor": 100,
+          "Structure": 200
         },
         {
           "Location": "RightTorso",
-          "Armor": 30,
-          "RearArmor": 10,
-          "Structure": 20
+          "Armor": 300,
+          "RearArmor": 100,
+          "Structure": 200
         },
         {
           "Location": "LeftArm",
-          "Armor": 21,
+          "Armor": 210,
           "RearArmor": 0,
-          "Structure": 16
+          "Structure": 160
         },
         {
           "Location": "RightArm",
-          "Armor": 21,
+          "Armor": 210,
           "RearArmor": 0,
-          "Structure": 16
+          "Structure": 160
         },
         {
           "Location": "LeftLeg",
-          "Armor": 26,
+          "Armor": 260,
           "RearArmor": 0,
-          "Structure": 20
+          "Structure": 200
         },
         {
           "Location": "RightLeg",
-          "Armor": 26,
+          "Armor": 260,
           "RearArmor": 0,
-          "Structure": 20
+          "Structure": 200
         }
       ],
       "Weapons": [
@@ -6118,7 +6118,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6137,7 +6137,7 @@
           "Heat": 10,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6156,7 +6156,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 3,
+            "PerProjectile": 30,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6374,51 +6374,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 40,
-          "RearArmor": 11,
-          "Structure": 27
+          "Armor": 400,
+          "RearArmor": 110,
+          "Structure": 270
         },
         {
           "Location": "LeftTorso",
-          "Armor": 28,
-          "RearArmor": 8,
-          "Structure": 18
+          "Armor": 280,
+          "RearArmor": 80,
+          "Structure": 180
         },
         {
           "Location": "RightTorso",
-          "Armor": 28,
-          "RearArmor": 8,
-          "Structure": 18
+          "Armor": 280,
+          "RearArmor": 80,
+          "Structure": 180
         },
         {
           "Location": "LeftArm",
-          "Armor": 24,
+          "Armor": 240,
           "RearArmor": 0,
-          "Structure": 14
+          "Structure": 140
         },
         {
           "Location": "RightArm",
-          "Armor": 24,
+          "Armor": 240,
           "RearArmor": 0,
-          "Structure": 14
+          "Structure": 140
         },
         {
           "Location": "LeftLeg",
-          "Armor": 26,
+          "Armor": 260,
           "RearArmor": 0,
-          "Structure": 18
+          "Structure": 180
         },
         {
           "Location": "RightLeg",
-          "Armor": 26,
+          "Armor": 260,
           "RearArmor": 0,
-          "Structure": 18
+          "Structure": 180
         }
       ],
       "Weapons": [
@@ -6430,7 +6430,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6449,7 +6449,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6468,7 +6468,7 @@
           "Heat": 10,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6487,7 +6487,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -6506,7 +6506,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6525,7 +6525,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6544,7 +6544,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6563,7 +6563,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6582,7 +6582,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6601,7 +6601,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6849,51 +6849,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 18,
-          "RearArmor": 9,
-          "Structure": 14
+          "Armor": 180,
+          "RearArmor": 90,
+          "Structure": 140
         },
         {
           "Location": "LeftTorso",
-          "Armor": 15,
-          "RearArmor": 6,
-          "Structure": 11
+          "Armor": 150,
+          "RearArmor": 60,
+          "Structure": 110
         },
         {
           "Location": "RightTorso",
-          "Armor": 15,
-          "RearArmor": 6,
-          "Structure": 11
+          "Armor": 150,
+          "RearArmor": 60,
+          "Structure": 110
         },
         {
           "Location": "LeftArm",
-          "Armor": 12,
+          "Armor": 120,
           "RearArmor": 0,
-          "Structure": 7
+          "Structure": 70
         },
         {
           "Location": "RightArm",
-          "Armor": 12,
+          "Armor": 120,
           "RearArmor": 0,
-          "Structure": 7
+          "Structure": 70
         },
         {
           "Location": "LeftLeg",
-          "Armor": 17,
+          "Armor": 170,
           "RearArmor": 0,
-          "Structure": 11
+          "Structure": 110
         },
         {
           "Location": "RightLeg",
-          "Armor": 17,
+          "Armor": 170,
           "RearArmor": 0,
-          "Structure": 11
+          "Structure": 110
         }
       ],
       "Weapons": [
@@ -6905,7 +6905,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6924,7 +6924,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6943,7 +6943,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6962,7 +6962,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -6981,7 +6981,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -7000,7 +7000,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -7210,51 +7210,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 25,
-          "RearArmor": 8,
-          "Structure": 23
+          "Armor": 250,
+          "RearArmor": 80,
+          "Structure": 230
         },
         {
           "Location": "LeftTorso",
-          "Armor": 20,
-          "RearArmor": 7,
-          "Structure": 16
+          "Armor": 200,
+          "RearArmor": 70,
+          "Structure": 160
         },
         {
           "Location": "RightTorso",
-          "Armor": 20,
-          "RearArmor": 7,
-          "Structure": 16
+          "Armor": 200,
+          "RearArmor": 70,
+          "Structure": 160
         },
         {
           "Location": "LeftArm",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         },
         {
           "Location": "RightArm",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         },
         {
           "Location": "LeftLeg",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 16
+          "Structure": 160
         },
         {
           "Location": "RightLeg",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 16
+          "Structure": 160
         }
       ],
       "Weapons": [
@@ -7266,7 +7266,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -7285,7 +7285,7 @@
           "Heat": 10,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -7304,7 +7304,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -7323,7 +7323,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -7342,7 +7342,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -7361,7 +7361,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -7380,7 +7380,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -7399,7 +7399,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 3,
+            "PerProjectile": 30,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -7633,51 +7633,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 26,
-          "RearArmor": 9,
-          "Structure": 22
+          "Armor": 260,
+          "RearArmor": 90,
+          "Structure": 220
         },
         {
           "Location": "LeftTorso",
-          "Armor": 16,
-          "RearArmor": 6,
-          "Structure": 15
+          "Armor": 160,
+          "RearArmor": 60,
+          "Structure": 150
         },
         {
           "Location": "RightTorso",
-          "Armor": 16,
-          "RearArmor": 6,
-          "Structure": 15
+          "Armor": 160,
+          "RearArmor": 60,
+          "Structure": 150
         },
         {
           "Location": "LeftArm",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 11
+          "Structure": 110
         },
         {
           "Location": "RightArm",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 11
+          "Structure": 110
         },
         {
           "Location": "LeftLeg",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         },
         {
           "Location": "RightLeg",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         }
       ],
       "Weapons": [
@@ -7689,7 +7689,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -7708,7 +7708,7 @@
           "Heat": 10,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -7727,7 +7727,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -7746,7 +7746,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -7765,7 +7765,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -7784,7 +7784,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -8010,51 +8010,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 18,
-          "RearArmor": 7,
-          "Structure": 16
+          "Armor": 180,
+          "RearArmor": 70,
+          "Structure": 160
         },
         {
           "Location": "LeftTorso",
-          "Armor": 13,
-          "RearArmor": 6,
-          "Structure": 12
+          "Armor": 130,
+          "RearArmor": 60,
+          "Structure": 120
         },
         {
           "Location": "RightTorso",
-          "Armor": 13,
-          "RearArmor": 6,
-          "Structure": 12
+          "Armor": 130,
+          "RearArmor": 60,
+          "Structure": 120
         },
         {
           "Location": "LeftArm",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         },
         {
           "Location": "RightArm",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         },
         {
           "Location": "LeftLeg",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         },
         {
           "Location": "RightLeg",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         }
       ],
       "Weapons": [
@@ -8066,7 +8066,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -8085,7 +8085,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 10,
             "TargetHeat": 0
           },
@@ -8104,7 +8104,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -8123,7 +8123,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -8362,51 +8362,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 11,
-          "RearArmor": 6,
-          "Structure": 12
+          "Armor": 110,
+          "RearArmor": 60,
+          "Structure": 120
         },
         {
           "Location": "LeftTorso",
-          "Armor": 6,
-          "RearArmor": 3,
-          "Structure": 10
+          "Armor": 60,
+          "RearArmor": 30,
+          "Structure": 100
         },
         {
           "Location": "RightTorso",
-          "Armor": 6,
-          "RearArmor": 3,
-          "Structure": 10
+          "Armor": 60,
+          "RearArmor": 30,
+          "Structure": 100
         },
         {
           "Location": "LeftArm",
-          "Armor": 4,
+          "Armor": 40,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         },
         {
           "Location": "RightArm",
-          "Armor": 4,
+          "Armor": 40,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         },
         {
           "Location": "LeftLeg",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "RightLeg",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         }
       ],
       "Weapons": [
@@ -8418,7 +8418,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -8437,7 +8437,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -8456,7 +8456,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 3,
+            "PerProjectile": 30,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -8626,51 +8626,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 8,
-          "RearArmor": 4,
-          "Structure": 8
+          "Armor": 80,
+          "RearArmor": 40,
+          "Structure": 80
         },
         {
           "Location": "LeftTorso",
-          "Armor": 6,
-          "RearArmor": 3,
-          "Structure": 6
+          "Armor": 60,
+          "RearArmor": 30,
+          "Structure": 60
         },
         {
           "Location": "RightTorso",
-          "Armor": 6,
-          "RearArmor": 3,
-          "Structure": 6
+          "Armor": 60,
+          "RearArmor": 30,
+          "Structure": 60
         },
         {
           "Location": "LeftArm",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 4
+          "Structure": 40
         },
         {
           "Location": "RightArm",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 4
+          "Structure": 40
         },
         {
           "Location": "LeftLeg",
-          "Armor": 8,
+          "Armor": 80,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         },
         {
           "Location": "RightLeg",
-          "Armor": 8,
+          "Armor": 80,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         }
       ],
       "Weapons": [
@@ -8682,7 +8682,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -8701,7 +8701,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 4,
             "TargetHeat": 0
           },
@@ -8720,7 +8720,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -8953,51 +8953,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 18,
-          "RearArmor": 7,
-          "Structure": 16
+          "Armor": 180,
+          "RearArmor": 70,
+          "Structure": 160
         },
         {
           "Location": "LeftTorso",
-          "Armor": 14,
-          "RearArmor": 5,
-          "Structure": 12
+          "Armor": 140,
+          "RearArmor": 50,
+          "Structure": 120
         },
         {
           "Location": "RightTorso",
-          "Armor": 14,
-          "RearArmor": 5,
-          "Structure": 12
+          "Armor": 140,
+          "RearArmor": 50,
+          "Structure": 120
         },
         {
           "Location": "LeftArm",
-          "Armor": 14,
+          "Armor": 140,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         },
         {
           "Location": "RightArm",
-          "Armor": 14,
+          "Armor": 140,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         },
         {
           "Location": "LeftLeg",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         },
         {
           "Location": "RightLeg",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         }
       ],
       "Weapons": [
@@ -9009,7 +9009,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -9028,7 +9028,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -9047,7 +9047,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -9066,7 +9066,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 3,
+            "PerProjectile": 30,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -9300,51 +9300,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 30,
-          "RearArmor": 11,
-          "Structure": 29
+          "Armor": 300,
+          "RearArmor": 110,
+          "Structure": 290
         },
         {
           "Location": "LeftTorso",
-          "Armor": 20,
-          "RearArmor": 8,
-          "Structure": 19
+          "Armor": 200,
+          "RearArmor": 80,
+          "Structure": 190
         },
         {
           "Location": "RightTorso",
-          "Armor": 20,
-          "RearArmor": 8,
-          "Structure": 19
+          "Armor": 200,
+          "RearArmor": 80,
+          "Structure": 190
         },
         {
           "Location": "LeftArm",
-          "Armor": 10,
+          "Armor": 100,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         },
         {
           "Location": "RightArm",
-          "Armor": 10,
+          "Armor": 100,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         },
         {
           "Location": "LeftLeg",
-          "Armor": 17,
+          "Armor": 170,
           "RearArmor": 0,
-          "Structure": 19
+          "Structure": 190
         },
         {
           "Location": "RightLeg",
-          "Armor": 17,
+          "Armor": 170,
           "RearArmor": 0,
-          "Structure": 19
+          "Structure": 190
         }
       ],
       "Weapons": [
@@ -9356,7 +9356,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -9375,7 +9375,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -9394,7 +9394,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 10,
             "TargetHeat": 0
           },
@@ -9413,7 +9413,7 @@
           "Heat": 7,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 20,
+            "PerProjectile": 200,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -9432,7 +9432,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 4,
             "TargetHeat": 0
           },
@@ -9677,51 +9677,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 27,
-          "RearArmor": 12,
-          "Structure": 20
+          "Armor": 270,
+          "RearArmor": 120,
+          "Structure": 200
         },
         {
           "Location": "LeftTorso",
-          "Armor": 16,
-          "RearArmor": 8,
-          "Structure": 14
+          "Armor": 160,
+          "RearArmor": 80,
+          "Structure": 140
         },
         {
           "Location": "RightTorso",
-          "Armor": 16,
-          "RearArmor": 8,
-          "Structure": 14
+          "Armor": 160,
+          "RearArmor": 80,
+          "Structure": 140
         },
         {
           "Location": "LeftArm",
-          "Armor": 14,
+          "Armor": 140,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "RightArm",
-          "Armor": 14,
+          "Armor": 140,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "LeftLeg",
-          "Armor": 18,
+          "Armor": 180,
           "RearArmor": 0,
-          "Structure": 14
+          "Structure": 140
         },
         {
           "Location": "RightLeg",
-          "Armor": 18,
+          "Armor": 180,
           "RearArmor": 0,
-          "Structure": 14
+          "Structure": 140
         }
       ],
       "Weapons": [
@@ -9733,7 +9733,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -9752,7 +9752,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -9771,7 +9771,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -9790,7 +9790,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 10,
             "TargetHeat": 0
           },
@@ -10013,51 +10013,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 23,
-          "RearArmor": 4,
-          "Structure": 16
+          "Armor": 230,
+          "RearArmor": 40,
+          "Structure": 160
         },
         {
           "Location": "LeftTorso",
-          "Armor": 17,
-          "RearArmor": 3,
-          "Structure": 12
+          "Armor": 170,
+          "RearArmor": 30,
+          "Structure": 120
         },
         {
           "Location": "RightTorso",
-          "Armor": 17,
-          "RearArmor": 3,
-          "Structure": 12
+          "Armor": 170,
+          "RearArmor": 30,
+          "Structure": 120
         },
         {
           "Location": "LeftArm",
-          "Armor": 14,
+          "Armor": 140,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         },
         {
           "Location": "RightArm",
-          "Armor": 14,
+          "Armor": 140,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         },
         {
           "Location": "LeftLeg",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         },
         {
           "Location": "RightLeg",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         }
       ],
       "Weapons": [
@@ -10069,7 +10069,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -10088,7 +10088,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -10107,7 +10107,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 3,
+            "PerProjectile": 30,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -10333,51 +10333,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 5,
+          "Armor": 50,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 8,
-          "RearArmor": 3,
-          "Structure": 6
+          "Armor": 80,
+          "RearArmor": 30,
+          "Structure": 60
         },
         {
           "Location": "LeftTorso",
-          "Armor": 5,
-          "RearArmor": 3,
-          "Structure": 5
+          "Armor": 50,
+          "RearArmor": 30,
+          "Structure": 50
         },
         {
           "Location": "RightTorso",
-          "Armor": 5,
-          "RearArmor": 3,
-          "Structure": 5
+          "Armor": 50,
+          "RearArmor": 30,
+          "Structure": 50
         },
         {
           "Location": "LeftArm",
-          "Armor": 4,
+          "Armor": 40,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "RightArm",
-          "Armor": 4,
+          "Armor": 40,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "LeftLeg",
-          "Armor": 4,
+          "Armor": 40,
           "RearArmor": 0,
-          "Structure": 4
+          "Structure": 40
         },
         {
           "Location": "RightLeg",
-          "Armor": 4,
+          "Armor": 40,
           "RearArmor": 0,
-          "Structure": 4
+          "Structure": 40
         }
       ],
       "Weapons": [
@@ -10389,7 +10389,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -10408,7 +10408,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -10427,7 +10427,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -10446,7 +10446,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -10465,7 +10465,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 3,
+            "PerProjectile": 30,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -10484,7 +10484,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 3,
+            "PerProjectile": 30,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -10503,7 +10503,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 1,
             "TargetHeat": 2
           },
@@ -10713,51 +10713,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 30,
-          "RearArmor": 13,
-          "Structure": 22
+          "Armor": 300,
+          "RearArmor": 130,
+          "Structure": 220
         },
         {
           "Location": "LeftTorso",
-          "Armor": 20,
-          "RearArmor": 10,
-          "Structure": 15
+          "Armor": 200,
+          "RearArmor": 100,
+          "Structure": 150
         },
         {
           "Location": "RightTorso",
-          "Armor": 20,
-          "RearArmor": 10,
-          "Structure": 15
+          "Armor": 200,
+          "RearArmor": 100,
+          "Structure": 150
         },
         {
           "Location": "LeftArm",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 11
+          "Structure": 110
         },
         {
           "Location": "RightArm",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 11
+          "Structure": 110
         },
         {
           "Location": "LeftLeg",
-          "Armor": 26,
+          "Armor": 260,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         },
         {
           "Location": "RightLeg",
-          "Armor": 26,
+          "Armor": 260,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         }
       ],
       "Weapons": [
@@ -10769,7 +10769,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -10788,7 +10788,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -10807,7 +10807,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -10826,7 +10826,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -10845,7 +10845,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -10864,7 +10864,7 @@
           "Heat": 2,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 5,
             "TargetHeat": 0
           },
@@ -11122,51 +11122,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 41,
-          "RearArmor": 17,
-          "Structure": 29
+          "Armor": 410,
+          "RearArmor": 170,
+          "Structure": 290
         },
         {
           "Location": "LeftTorso",
-          "Armor": 28,
-          "RearArmor": 10,
-          "Structure": 19
+          "Armor": 280,
+          "RearArmor": 100,
+          "Structure": 190
         },
         {
           "Location": "RightTorso",
-          "Armor": 28,
-          "RearArmor": 10,
-          "Structure": 19
+          "Armor": 280,
+          "RearArmor": 100,
+          "Structure": 190
         },
         {
           "Location": "LeftArm",
-          "Armor": 30,
+          "Armor": 300,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         },
         {
           "Location": "RightArm",
-          "Armor": 30,
+          "Armor": 300,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         },
         {
           "Location": "LeftLeg",
-          "Armor": 38,
+          "Armor": 380,
           "RearArmor": 0,
-          "Structure": 19
+          "Structure": 190
         },
         {
           "Location": "RightLeg",
-          "Armor": 38,
+          "Armor": 380,
           "RearArmor": 0,
-          "Structure": 19
+          "Structure": 190
         }
       ],
       "Weapons": [
@@ -11178,7 +11178,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -11197,7 +11197,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -11216,7 +11216,7 @@
           "Heat": 6,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 20,
             "TargetHeat": 0
           },
@@ -11235,7 +11235,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -11254,7 +11254,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -11546,51 +11546,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 26,
-          "RearArmor": 5,
-          "Structure": 16
+          "Armor": 260,
+          "RearArmor": 50,
+          "Structure": 160
         },
         {
           "Location": "LeftTorso",
-          "Armor": 20,
-          "RearArmor": 4,
-          "Structure": 12
+          "Armor": 200,
+          "RearArmor": 40,
+          "Structure": 120
         },
         {
           "Location": "RightTorso",
-          "Armor": 20,
-          "RearArmor": 4,
-          "Structure": 12
+          "Armor": 200,
+          "RearArmor": 40,
+          "Structure": 120
         },
         {
           "Location": "LeftArm",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         },
         {
           "Location": "RightArm",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         },
         {
           "Location": "LeftLeg",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         },
         {
           "Location": "RightLeg",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         }
       ],
       "Weapons": [
@@ -11602,7 +11602,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -11621,7 +11621,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -11640,7 +11640,7 @@
           "Heat": 7,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 20,
+            "PerProjectile": 200,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -11659,7 +11659,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 3,
+            "PerProjectile": 30,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -11900,51 +11900,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 16,
-          "RearArmor": 5,
-          "Structure": 21
+          "Armor": 160,
+          "RearArmor": 50,
+          "Structure": 210
         },
         {
           "Location": "LeftTorso",
-          "Armor": 13,
-          "RearArmor": 3,
-          "Structure": 15
+          "Armor": 130,
+          "RearArmor": 30,
+          "Structure": 150
         },
         {
           "Location": "RightTorso",
-          "Armor": 13,
-          "RearArmor": 3,
-          "Structure": 15
+          "Armor": 130,
+          "RearArmor": 30,
+          "Structure": 150
         },
         {
           "Location": "LeftArm",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "RightArm",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "LeftLeg",
-          "Armor": 11,
+          "Armor": 110,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         },
         {
           "Location": "RightLeg",
-          "Armor": 11,
+          "Armor": 110,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         }
       ],
       "Weapons": [
@@ -11956,7 +11956,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -11975,7 +11975,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -11994,7 +11994,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -12013,7 +12013,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -12032,7 +12032,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -12051,7 +12051,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -12243,51 +12243,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 8,
-          "RearArmor": 2,
-          "Structure": 10
+          "Armor": 80,
+          "RearArmor": 20,
+          "Structure": 100
         },
         {
           "Location": "LeftTorso",
-          "Armor": 8,
-          "RearArmor": 2,
-          "Structure": 7
+          "Armor": 80,
+          "RearArmor": 20,
+          "Structure": 70
         },
         {
           "Location": "RightTorso",
-          "Armor": 8,
-          "RearArmor": 2,
-          "Structure": 7
+          "Armor": 80,
+          "RearArmor": 20,
+          "Structure": 70
         },
         {
           "Location": "LeftArm",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 5
+          "Structure": 50
         },
         {
           "Location": "RightArm",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 5
+          "Structure": 50
         },
         {
           "Location": "LeftLeg",
-          "Armor": 8,
+          "Armor": 80,
           "RearArmor": 0,
-          "Structure": 7
+          "Structure": 70
         },
         {
           "Location": "RightLeg",
-          "Armor": 8,
+          "Armor": 80,
           "RearArmor": 0,
-          "Structure": 7
+          "Structure": 70
         }
       ],
       "Weapons": [
@@ -12299,7 +12299,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -12318,7 +12318,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -12575,51 +12575,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 39,
-          "RearArmor": 12,
-          "Structure": 31
+          "Armor": 390,
+          "RearArmor": 120,
+          "Structure": 310
         },
         {
           "Location": "LeftTorso",
-          "Armor": 29,
-          "RearArmor": 10,
-          "Structure": 21
+          "Armor": 290,
+          "RearArmor": 100,
+          "Structure": 210
         },
         {
           "Location": "RightTorso",
-          "Armor": 29,
-          "RearArmor": 10,
-          "Structure": 21
+          "Armor": 290,
+          "RearArmor": 100,
+          "Structure": 210
         },
         {
           "Location": "LeftArm",
-          "Armor": 33,
+          "Armor": 330,
           "RearArmor": 0,
-          "Structure": 17
+          "Structure": 170
         },
         {
           "Location": "RightArm",
-          "Armor": 33,
+          "Armor": 330,
           "RearArmor": 0,
-          "Structure": 17
+          "Structure": 170
         },
         {
           "Location": "LeftLeg",
-          "Armor": 34,
+          "Armor": 340,
           "RearArmor": 0,
-          "Structure": 21
+          "Structure": 210
         },
         {
           "Location": "RightLeg",
-          "Armor": 34,
+          "Armor": 340,
           "RearArmor": 0,
-          "Structure": 21
+          "Structure": 210
         }
       ],
       "Weapons": [
@@ -12631,7 +12631,7 @@
           "Heat": 7,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 20,
+            "PerProjectile": 200,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -12650,7 +12650,7 @@
           "Heat": 7,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 20,
+            "PerProjectile": 200,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -12669,7 +12669,7 @@
           "Heat": 5,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 15,
             "TargetHeat": 0
           },
@@ -12688,7 +12688,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -12936,51 +12936,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 26,
-          "RearArmor": 9,
-          "Structure": 18
+          "Armor": 260,
+          "RearArmor": 90,
+          "Structure": 180
         },
         {
           "Location": "LeftTorso",
-          "Armor": 18,
-          "RearArmor": 7,
-          "Structure": 13
+          "Armor": 180,
+          "RearArmor": 70,
+          "Structure": 130
         },
         {
           "Location": "RightTorso",
-          "Armor": 18,
-          "RearArmor": 7,
-          "Structure": 13
+          "Armor": 180,
+          "RearArmor": 70,
+          "Structure": 130
         },
         {
           "Location": "LeftArm",
-          "Armor": 18,
+          "Armor": 180,
           "RearArmor": 0,
-          "Structure": 9
+          "Structure": 90
         },
         {
           "Location": "RightArm",
-          "Armor": 18,
+          "Armor": 180,
           "RearArmor": 0,
-          "Structure": 9
+          "Structure": 90
         },
         {
           "Location": "LeftLeg",
-          "Armor": 23,
+          "Armor": 230,
           "RearArmor": 0,
-          "Structure": 13
+          "Structure": 130
         },
         {
           "Location": "RightLeg",
-          "Armor": 23,
+          "Armor": 230,
           "RearArmor": 0,
-          "Structure": 13
+          "Structure": 130
         }
       ],
       "Weapons": [
@@ -12992,7 +12992,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -13011,7 +13011,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -13030,7 +13030,7 @@
           "Heat": 2,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 5,
             "TargetHeat": 0
           },
@@ -13049,7 +13049,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -13068,7 +13068,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -13087,7 +13087,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -13318,51 +13318,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 8,
+          "Armor": 80,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 10,
-          "RearArmor": 2,
-          "Structure": 6
+          "Armor": 100,
+          "RearArmor": 20,
+          "Structure": 60
         },
         {
           "Location": "LeftTorso",
-          "Armor": 8,
-          "RearArmor": 2,
-          "Structure": 5
+          "Armor": 80,
+          "RearArmor": 20,
+          "Structure": 50
         },
         {
           "Location": "RightTorso",
-          "Armor": 8,
-          "RearArmor": 2,
-          "Structure": 5
+          "Armor": 80,
+          "RearArmor": 20,
+          "Structure": 50
         },
         {
           "Location": "LeftArm",
-          "Armor": 4,
+          "Armor": 40,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "RightArm",
-          "Armor": 4,
+          "Armor": 40,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "LeftLeg",
-          "Armor": 8,
+          "Armor": 80,
           "RearArmor": 0,
-          "Structure": 4
+          "Structure": 40
         },
         {
           "Location": "RightLeg",
-          "Armor": 8,
+          "Armor": 80,
           "RearArmor": 0,
-          "Structure": 4
+          "Structure": 40
         }
       ],
       "Weapons": [
@@ -13374,7 +13374,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -13393,7 +13393,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -13412,7 +13412,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -13606,51 +13606,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 35,
-          "RearArmor": 10,
-          "Structure": 23
+          "Armor": 350,
+          "RearArmor": 100,
+          "Structure": 230
         },
         {
           "Location": "LeftTorso",
-          "Armor": 17,
-          "RearArmor": 8,
-          "Structure": 16
+          "Armor": 170,
+          "RearArmor": 80,
+          "Structure": 160
         },
         {
           "Location": "RightTorso",
-          "Armor": 17,
-          "RearArmor": 8,
-          "Structure": 16
+          "Armor": 170,
+          "RearArmor": 80,
+          "Structure": 160
         },
         {
           "Location": "LeftArm",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         },
         {
           "Location": "RightArm",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         },
         {
           "Location": "LeftLeg",
-          "Armor": 18,
+          "Armor": 180,
           "RearArmor": 0,
-          "Structure": 16
+          "Structure": 160
         },
         {
           "Location": "RightLeg",
-          "Armor": 18,
+          "Armor": 180,
           "RearArmor": 0,
-          "Structure": 16
+          "Structure": 160
         }
       ],
       "Weapons": [
@@ -13662,7 +13662,7 @@
           "Heat": 10,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -13681,7 +13681,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -13700,7 +13700,7 @@
           "Heat": 10,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -13719,7 +13719,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -13738,7 +13738,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -13948,51 +13948,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 27,
-          "RearArmor": 10,
-          "Structure": 29
+          "Armor": 270,
+          "RearArmor": 100,
+          "Structure": 290
         },
         {
           "Location": "LeftTorso",
-          "Armor": 26,
-          "RearArmor": 10,
-          "Structure": 19
+          "Armor": 260,
+          "RearArmor": 100,
+          "Structure": 190
         },
         {
           "Location": "RightTorso",
-          "Armor": 26,
-          "RearArmor": 10,
-          "Structure": 19
+          "Armor": 260,
+          "RearArmor": 100,
+          "Structure": 190
         },
         {
           "Location": "LeftArm",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         },
         {
           "Location": "RightArm",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         },
         {
           "Location": "LeftLeg",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 19
+          "Structure": 190
         },
         {
           "Location": "RightLeg",
-          "Armor": 22,
+          "Armor": 220,
           "RearArmor": 0,
-          "Structure": 19
+          "Structure": 190
         }
       ],
       "Weapons": [
@@ -14004,7 +14004,7 @@
           "Heat": 12,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -14023,7 +14023,7 @@
           "Heat": 12,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -14042,7 +14042,7 @@
           "Heat": 5,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 15,
             "TargetHeat": 0
           },
@@ -14061,7 +14061,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -14080,7 +14080,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -14099,7 +14099,7 @@
           "Heat": 5,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 15,
             "TargetHeat": 0
           },
@@ -14118,7 +14118,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -14137,7 +14137,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -14382,51 +14382,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 36,
-          "RearArmor": 10,
-          "Structure": 23
+          "Armor": 360,
+          "RearArmor": 100,
+          "Structure": 230
         },
         {
           "Location": "LeftTorso",
-          "Armor": 22,
-          "RearArmor": 10,
-          "Structure": 16
+          "Armor": 220,
+          "RearArmor": 100,
+          "Structure": 160
         },
         {
           "Location": "RightTorso",
-          "Armor": 22,
-          "RearArmor": 10,
-          "Structure": 16
+          "Armor": 220,
+          "RearArmor": 100,
+          "Structure": 160
         },
         {
           "Location": "LeftArm",
-          "Armor": 24,
+          "Armor": 240,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         },
         {
           "Location": "RightArm",
-          "Armor": 24,
+          "Armor": 240,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         },
         {
           "Location": "LeftLeg",
-          "Armor": 32,
+          "Armor": 320,
           "RearArmor": 0,
-          "Structure": 16
+          "Structure": 160
         },
         {
           "Location": "RightLeg",
-          "Armor": 32,
+          "Armor": 320,
           "RearArmor": 0,
-          "Structure": 16
+          "Structure": 160
         }
       ],
       "Weapons": [
@@ -14438,7 +14438,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -14457,7 +14457,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -14476,7 +14476,7 @@
           "Heat": 5,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 15,
             "TargetHeat": 0
           },
@@ -14495,7 +14495,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 4,
             "TargetHeat": 0
           },
@@ -14514,7 +14514,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -14736,51 +14736,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 23,
-          "RearArmor": 5,
-          "Structure": 14
+          "Armor": 230,
+          "RearArmor": 50,
+          "Structure": 140
         },
         {
           "Location": "LeftTorso",
-          "Armor": 18,
-          "RearArmor": 4,
-          "Structure": 11
+          "Armor": 180,
+          "RearArmor": 40,
+          "Structure": 110
         },
         {
           "Location": "RightTorso",
-          "Armor": 18,
-          "RearArmor": 4,
-          "Structure": 11
+          "Armor": 180,
+          "RearArmor": 40,
+          "Structure": 110
         },
         {
           "Location": "LeftArm",
-          "Armor": 10,
+          "Armor": 100,
           "RearArmor": 0,
-          "Structure": 7
+          "Structure": 70
         },
         {
           "Location": "RightArm",
-          "Armor": 10,
+          "Armor": 100,
           "RearArmor": 0,
-          "Structure": 7
+          "Structure": 70
         },
         {
           "Location": "LeftLeg",
-          "Armor": 15,
+          "Armor": 150,
           "RearArmor": 0,
-          "Structure": 11
+          "Structure": 110
         },
         {
           "Location": "RightLeg",
-          "Armor": 15,
+          "Armor": 150,
           "RearArmor": 0,
-          "Structure": 11
+          "Structure": 110
         }
       ],
       "Weapons": [
@@ -14792,7 +14792,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -14811,7 +14811,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -14830,7 +14830,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -14849,7 +14849,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -14868,7 +14868,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -15094,51 +15094,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 17,
-          "RearArmor": 8,
-          "Structure": 20
+          "Armor": 170,
+          "RearArmor": 80,
+          "Structure": 200
         },
         {
           "Location": "LeftTorso",
-          "Armor": 14,
-          "RearArmor": 7,
-          "Structure": 14
+          "Armor": 140,
+          "RearArmor": 70,
+          "Structure": 140
         },
         {
           "Location": "RightTorso",
-          "Armor": 14,
-          "RearArmor": 7,
-          "Structure": 14
+          "Armor": 140,
+          "RearArmor": 70,
+          "Structure": 140
         },
         {
           "Location": "LeftArm",
-          "Armor": 11,
+          "Armor": 110,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "RightArm",
-          "Armor": 11,
+          "Armor": 110,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "LeftLeg",
-          "Armor": 15,
+          "Armor": 150,
           "RearArmor": 0,
-          "Structure": 14
+          "Structure": 140
         },
         {
           "Location": "RightLeg",
-          "Armor": 15,
+          "Armor": 150,
           "RearArmor": 0,
-          "Structure": 14
+          "Structure": 140
         }
       ],
       "Weapons": [
@@ -15150,7 +15150,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -15169,7 +15169,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -15188,7 +15188,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 10,
             "TargetHeat": 0
           },
@@ -15207,7 +15207,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -15226,7 +15226,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -15245,7 +15245,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 4,
             "TargetHeat": 0
           },
@@ -15494,51 +15494,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 14,
-          "RearArmor": 5,
-          "Structure": 11
+          "Armor": 140,
+          "RearArmor": 50,
+          "Structure": 110
         },
         {
           "Location": "LeftTorso",
-          "Armor": 10,
-          "RearArmor": 4,
-          "Structure": 8
+          "Armor": 100,
+          "RearArmor": 40,
+          "Structure": 80
         },
         {
           "Location": "RightTorso",
-          "Armor": 10,
-          "RearArmor": 4,
-          "Structure": 8
+          "Armor": 100,
+          "RearArmor": 40,
+          "Structure": 80
         },
         {
           "Location": "LeftArm",
-          "Armor": 10,
+          "Armor": 100,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         },
         {
           "Location": "RightArm",
-          "Armor": 10,
+          "Armor": 100,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         },
         {
           "Location": "LeftLeg",
-          "Armor": 14,
+          "Armor": 140,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         },
         {
           "Location": "RightLeg",
-          "Armor": 14,
+          "Armor": 140,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         }
       ],
       "Weapons": [
@@ -15550,7 +15550,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -15569,7 +15569,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -15588,7 +15588,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -15607,7 +15607,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -15809,51 +15809,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 22,
-          "RearArmor": 4,
-          "Structure": 20
+          "Armor": 220,
+          "RearArmor": 40,
+          "Structure": 200
         },
         {
           "Location": "LeftTorso",
-          "Armor": 15,
-          "RearArmor": 2,
-          "Structure": 14
+          "Armor": 150,
+          "RearArmor": 20,
+          "Structure": 140
         },
         {
           "Location": "RightTorso",
-          "Armor": 15,
-          "RearArmor": 2,
-          "Structure": 14
+          "Armor": 150,
+          "RearArmor": 20,
+          "Structure": 140
         },
         {
           "Location": "LeftArm",
-          "Armor": 15,
+          "Armor": 150,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "RightArm",
-          "Armor": 15,
+          "Armor": 150,
           "RearArmor": 0,
-          "Structure": 10
+          "Structure": 100
         },
         {
           "Location": "LeftLeg",
-          "Armor": 12,
+          "Armor": 120,
           "RearArmor": 0,
-          "Structure": 14
+          "Structure": 140
         },
         {
           "Location": "RightLeg",
-          "Armor": 12,
+          "Armor": 120,
           "RearArmor": 0,
-          "Structure": 14
+          "Structure": 140
         }
       ],
       "Weapons": [
@@ -15865,7 +15865,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -15884,7 +15884,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -15903,7 +15903,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -15922,7 +15922,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -15941,7 +15941,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -15960,7 +15960,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -16146,51 +16146,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 8,
-          "RearArmor": 4,
-          "Structure": 10
+          "Armor": 80,
+          "RearArmor": 40,
+          "Structure": 100
         },
         {
           "Location": "LeftTorso",
-          "Armor": 6,
-          "RearArmor": 2,
-          "Structure": 7
+          "Armor": 60,
+          "RearArmor": 20,
+          "Structure": 70
         },
         {
           "Location": "RightTorso",
-          "Armor": 6,
-          "RearArmor": 2,
-          "Structure": 7
+          "Armor": 60,
+          "RearArmor": 20,
+          "Structure": 70
         },
         {
           "Location": "LeftArm",
-          "Armor": 5,
+          "Armor": 50,
           "RearArmor": 0,
-          "Structure": 5
+          "Structure": 50
         },
         {
           "Location": "RightArm",
-          "Armor": 5,
+          "Armor": 50,
           "RearArmor": 0,
-          "Structure": 5
+          "Structure": 50
         },
         {
           "Location": "LeftLeg",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 7
+          "Structure": 70
         },
         {
           "Location": "RightLeg",
-          "Armor": 6,
+          "Armor": 60,
           "RearArmor": 0,
-          "Structure": 7
+          "Structure": 70
         }
       ],
       "Weapons": [
@@ -16202,7 +16202,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -16221,7 +16221,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -16447,51 +16447,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 36,
-          "RearArmor": 11,
-          "Structure": 27
+          "Armor": 360,
+          "RearArmor": 110,
+          "Structure": 270
         },
         {
           "Location": "LeftTorso",
-          "Armor": 25,
-          "RearArmor": 7,
-          "Structure": 18
+          "Armor": 250,
+          "RearArmor": 70,
+          "Structure": 180
         },
         {
           "Location": "RightTorso",
-          "Armor": 25,
-          "RearArmor": 7,
-          "Structure": 18
+          "Armor": 250,
+          "RearArmor": 70,
+          "Structure": 180
         },
         {
           "Location": "LeftArm",
-          "Armor": 23,
+          "Armor": 230,
           "RearArmor": 0,
-          "Structure": 14
+          "Structure": 140
         },
         {
           "Location": "RightArm",
-          "Armor": 23,
+          "Armor": 230,
           "RearArmor": 0,
-          "Structure": 14
+          "Structure": 140
         },
         {
           "Location": "LeftLeg",
-          "Armor": 25,
+          "Armor": 250,
           "RearArmor": 0,
-          "Structure": 18
+          "Structure": 180
         },
         {
           "Location": "RightLeg",
-          "Armor": 25,
+          "Armor": 250,
           "RearArmor": 0,
-          "Structure": 18
+          "Structure": 180
         }
       ],
       "Weapons": [
@@ -16503,7 +16503,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 10,
             "TargetHeat": 0
           },
@@ -16522,7 +16522,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -16541,7 +16541,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -16560,7 +16560,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 10,
             "TargetHeat": 0
           },
@@ -16579,7 +16579,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -16598,7 +16598,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -16617,7 +16617,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -16636,7 +16636,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -16655,7 +16655,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -16674,7 +16674,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -16929,51 +16929,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 22,
-          "RearArmor": 7,
-          "Structure": 16
+          "Armor": 220,
+          "RearArmor": 70,
+          "Structure": 160
         },
         {
           "Location": "LeftTorso",
-          "Armor": 11,
-          "RearArmor": 5,
-          "Structure": 12
+          "Armor": 110,
+          "RearArmor": 50,
+          "Structure": 120
         },
         {
           "Location": "RightTorso",
-          "Armor": 11,
-          "RearArmor": 5,
-          "Structure": 12
+          "Armor": 110,
+          "RearArmor": 50,
+          "Structure": 120
         },
         {
           "Location": "LeftArm",
-          "Armor": 10,
+          "Armor": 100,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         },
         {
           "Location": "RightArm",
-          "Armor": 10,
+          "Armor": 100,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         },
         {
           "Location": "LeftLeg",
-          "Armor": 15,
+          "Armor": 150,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         },
         {
           "Location": "RightLeg",
-          "Armor": 15,
+          "Armor": 150,
           "RearArmor": 0,
-          "Structure": 12
+          "Structure": 120
         }
       ],
       "Weapons": [
@@ -16985,7 +16985,7 @@
           "Heat": 5,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 15,
             "TargetHeat": 0
           },
@@ -17004,7 +17004,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -17023,7 +17023,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -17042,7 +17042,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -17061,7 +17061,7 @@
           "Heat": 5,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 1,
+            "PerProjectile": 10,
             "ProjectileCount": 15,
             "TargetHeat": 0
           },
@@ -17270,51 +17270,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 22,
-          "RearArmor": 9,
-          "Structure": 22
+          "Armor": 220,
+          "RearArmor": 90,
+          "Structure": 220
         },
         {
           "Location": "LeftTorso",
-          "Armor": 17,
-          "RearArmor": 8,
-          "Structure": 15
+          "Armor": 170,
+          "RearArmor": 80,
+          "Structure": 150
         },
         {
           "Location": "RightTorso",
-          "Armor": 17,
-          "RearArmor": 8,
-          "Structure": 15
+          "Armor": 170,
+          "RearArmor": 80,
+          "Structure": 150
         },
         {
           "Location": "LeftArm",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 11
+          "Structure": 110
         },
         {
           "Location": "RightArm",
-          "Armor": 20,
+          "Armor": 200,
           "RearArmor": 0,
-          "Structure": 11
+          "Structure": 110
         },
         {
           "Location": "LeftLeg",
-          "Armor": 15,
+          "Armor": 150,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         },
         {
           "Location": "RightLeg",
-          "Armor": 15,
+          "Armor": 150,
           "RearArmor": 0,
-          "Structure": 15
+          "Structure": 150
         }
       ],
       "Weapons": [
@@ -17326,7 +17326,7 @@
           "Heat": 10,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -17345,7 +17345,7 @@
           "Heat": 10,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 10,
+            "PerProjectile": 100,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -17364,7 +17364,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -17383,7 +17383,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 3,
+            "PerProjectile": 30,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -17402,7 +17402,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -17421,7 +17421,7 @@
           "Heat": 4,
           "DamageProfile": {
             "Kind": "Missile",
-            "PerProjectile": 2,
+            "PerProjectile": 20,
             "ProjectileCount": 6,
             "TargetHeat": 0
           },
@@ -17440,7 +17440,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -17459,7 +17459,7 @@
           "Heat": 1,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 3,
+            "PerProjectile": 30,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -17478,7 +17478,7 @@
           "Heat": 0,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 2,
+            "PerProjectile": 5,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -17719,51 +17719,51 @@
       "Locations": [
         {
           "Location": "Head",
-          "Armor": 9,
+          "Armor": 90,
           "RearArmor": 0,
-          "Structure": 3
+          "Structure": 30
         },
         {
           "Location": "CenterTorso",
-          "Armor": 16,
-          "RearArmor": 6,
-          "Structure": 11
+          "Armor": 160,
+          "RearArmor": 60,
+          "Structure": 110
         },
         {
           "Location": "LeftTorso",
-          "Armor": 11,
-          "RearArmor": 5,
-          "Structure": 8
+          "Armor": 110,
+          "RearArmor": 50,
+          "Structure": 80
         },
         {
           "Location": "RightTorso",
-          "Armor": 11,
-          "RearArmor": 5,
-          "Structure": 8
+          "Armor": 110,
+          "RearArmor": 50,
+          "Structure": 80
         },
         {
           "Location": "LeftArm",
-          "Armor": 12,
+          "Armor": 120,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         },
         {
           "Location": "RightArm",
-          "Armor": 12,
+          "Armor": 120,
           "RearArmor": 0,
-          "Structure": 6
+          "Structure": 60
         },
         {
           "Location": "LeftLeg",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         },
         {
           "Location": "RightLeg",
-          "Armor": 16,
+          "Armor": 160,
           "RearArmor": 0,
-          "Structure": 8
+          "Structure": 80
         }
       ],
       "Weapons": [
@@ -17775,7 +17775,7 @@
           "Heat": 8,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 8,
+            "PerProjectile": 80,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -17794,7 +17794,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -17813,7 +17813,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -17832,7 +17832,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },
@@ -17851,7 +17851,7 @@
           "Heat": 3,
           "DamageProfile": {
             "Kind": "Direct",
-            "PerProjectile": 5,
+            "PerProjectile": 50,
             "ProjectileCount": 1,
             "TargetHeat": 0
           },

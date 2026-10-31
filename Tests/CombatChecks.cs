@@ -70,7 +70,7 @@ internal static partial class CombatChecks
             && !Friendly(randomized).WeaponUsable(Friendly(randomized).Weapons[0]), "randomized battle retains friendly campaign condition");
         foreach (var battle in new[] { copied, randomized })
         {
-            foreach (var unit in battle.Units) unit.ApplyDamage(MechLocation.CenterTorso, 1000);
+            foreach (var unit in battle.Units) unit.ApplyDamage(MechLocation.CenterTorso, 10000);
             battle.End();
         }
         check(JsonSerializer.Serialize(damagedRoster.Snapshot()) == damagedBefore, "neither simulation mode repairs or damages the campaign roster");
@@ -118,15 +118,16 @@ internal static partial class CombatChecks
         CheckOutcomes(check);
         CheckLasers(check);
         CheckAutocannons(check);
+        CheckMachineGuns(check);
         CheckLrms(check);
         CheckPpcs(check);
 
         sim = Deploy(roster, roster.Mechs.Select(item => item.Id), 12);
-        foreach (var unit in sim.Units.Where(item => item.Side == CombatSide.Friendly)) unit.ApplyDamage(MechLocation.CenterTorso, 500);
+        foreach (var unit in sim.Units.Where(item => item.Side == CombatSide.Friendly)) unit.ApplyDamage(MechLocation.CenterTorso, 5000);
         sim.Paused = false; sim.Advance(.1); sim.End();
         check(JsonSerializer.Serialize(roster.Snapshot()) == before, "deployment, damage and completion never mutate source roster or equipment");
-        check(CombatRules.Damage(DraftCatalog.Mech("jenner").Weapons.Single(item => item.Name == "SRM 4")) == 8, "missile rack delivers one full damage packet");
-        check(CombatRules.Damage(DraftCatalog.Mech("catapult").Weapons.First(item => item.Name == "LRM 15")) == 15, "LRM packet retains stock per-missile damage");
+        check(CombatRules.Damage(DraftCatalog.Mech("jenner").Weapons.Single(item => item.Name == "SRM 4")) == 80, "missile rack delivers one full damage packet");
+        check(CombatRules.Damage(DraftCatalog.Mech("catapult").Weapons.First(item => item.Name == "LRM 15")) == 150, "LRM packet retains stock per-missile damage");
         var a = Battle(seed: 73); var b = Battle(seed: 73); Arrange(a); Arrange(b); a.Paused = b.Paused = false;
         a.Advance(10); for (var i = 0; i < 100; i++) b.Advance(.1);
         check(a.Units.Zip(b.Units).All(pair => pair.First.Hits == pair.Second.Hits && pair.First.ArmorLost == pair.Second.ArmorLost), "fixed-step combat is independent of frame partitioning");
@@ -160,7 +161,7 @@ internal static partial class CombatChecks
                     && unit.Warrior.Rank == (unit.Spec.WeightClass == MechWeightClass.Assault ? WarriorExperience.Veteran : WarriorExperience.Regular)),
                     "drafted enemies are pristine with legal pilots assigned by draft column");
                 signatures.Add(string.Join(",", enemies.Select(unit => $"{unit.Spec.Id}/{unit.Warrior.Id}")));
-                foreach (var unit in sim.Units) unit.ApplyDamage(MechLocation.CenterTorso, 1000);
+                foreach (var unit in sim.Units) unit.ApplyDamage(MechLocation.CenterTorso, 10000);
                 sim.End();
             }
             check(signatures.Count > 1, "fresh enemy drafts vary across simulation seeds");
@@ -285,7 +286,7 @@ internal static partial class CombatChecks
         unit.ApplyDamage(MechLocation.LeftArm, 2);
         check(torso.Armor == torsoArmor - 5, "subsequent destroyed-arm hit transfers inward");
         check(unit.Weapons.Where(item => item.Spec.Location == MechLocation.LeftArm).All(item => !unit.WeaponUsable(item)), "destroyed location loses mounted weapons");
-        unit.ApplyDamage(MechLocation.RightTorso, 1000);
+        unit.ApplyDamage(MechLocation.RightTorso, 10000);
         check(!unit.Intact(MechLocation.RightArm) && !unit.Intact(MechLocation.RightTorso), "side torso loss also destroys attached arm");
         check(unit.Locations.Values.Select(item => item.RearArmor).SequenceEqual(rear), "front damage leaves rear armor unchanged");
         sim = Battle(); unit = Friendly(sim); var speed = unit.Speed;
@@ -300,13 +301,13 @@ internal static partial class CombatChecks
         foreach (var location in unit.Weapons.Select(item => item.Spec.Location).Distinct())
             unit.ApplyDamage(location, unit.Locations[location].Armor + unit.Locations[location].Structure);
         check(unit.Status == CombatStatus.Disabled, "loss of all physical weapons disables mech");
-        sim = Battle(); unit = Friendly(sim); unit.ApplyDamage(MechLocation.Head, 100);
+        sim = Battle(); unit = Friendly(sim); unit.ApplyDamage(MechLocation.Head, 1000);
         check(unit.Status == CombatStatus.Destroyed, "head destruction destroys mech");
         sim = Battle(); unit = Friendly(sim);
         unit.ApplyDamage(MechLocation.LeftTorso, unit.Locations[MechLocation.LeftTorso].Armor + unit.Locations[MechLocation.LeftTorso].Structure);
         unit.ApplyDamage(MechLocation.LeftArm, 3);
         check(unit.Locations[MechLocation.CenterTorso].Armor == unit.Locations[MechLocation.CenterTorso].InitialArmor - 3, "transfer continues through destroyed side torso");
-        unit.ApplyDamage(MechLocation.CenterTorso, 1000);
+        unit.ApplyDamage(MechLocation.CenterTorso, 10000);
         check(unit.Status == CombatStatus.Destroyed, "center torso loss destroys mech");
     }
     private static void CheckNavigation(Action<bool, string> check)
@@ -340,8 +341,8 @@ internal static partial class CombatChecks
         foreach (var outcome in new[] { CombatOutcome.Victory, CombatOutcome.Defeat, CombatOutcome.Draw })
         {
             var sim = Battle(); sim.EnemyAiEnabled = false;
-            if (outcome != CombatOutcome.Defeat) Enemy(sim).ApplyDamage(MechLocation.CenterTorso, 1000);
-            if (outcome != CombatOutcome.Victory) Friendly(sim).ApplyDamage(MechLocation.CenterTorso, 1000);
+            if (outcome != CombatOutcome.Defeat) Enemy(sim).ApplyDamage(MechLocation.CenterTorso, 10000);
+            if (outcome != CombatOutcome.Victory) Friendly(sim).ApplyDamage(MechLocation.CenterTorso, 10000);
             sim.Paused = false; sim.Advance(.05);
             check(sim.Outcome == CombatOutcome.Ongoing && sim.WindingDown, $"{outcome} begins the wind-down");
             sim.Advance(CombatRules.WindDownSeconds - .05);

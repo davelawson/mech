@@ -34,19 +34,26 @@ internal static class CatalogChecks
         var expected = baseline["Mechs"]!.AsArray();
         check(expected.Select(m => m!["Id"]!.GetValue<string>()).SequenceEqual(DraftCatalog.AllMechs.Select(m => m.Id)),
             "typed catalog preserves all stock identities and their deterministic order");
+        // The fixture keeps stock points. The game counts tenths of a point and cuts machine gun damage from 2 to 0.5.
+        const int scale = CombatRules.DamageScale;
+        static int StockPerProjectile(WeaponSpec w) => w.Kind == WeaponKind.MachineGun ? 2 : w.DamageProfile.PerProjectile / scale;
         foreach (var (m, old) in DraftCatalog.AllMechs.Zip(expected))
         {
             var projection = JsonSerializer.SerializeToNode(new
             {
                 m.Id, m.Chassis, m.Variant, m.Tonnage, WeightClass = DefinitionText.WeightClass(m.WeightClass), m.Introduced,
                 m.Role, m.Walk, m.Run, m.Jump, m.HeatSinks, m.Engine, HeatSinkType = m.HeatSinkType.ToString(),
-                Locations = m.Locations.Select(l => new { Location = l.Location.ToString(), l.Armor, l.RearArmor, l.Structure }),
+                Locations = m.Locations.Select(l => new { Location = l.Location.ToString(), Armor = l.Armor / scale, RearArmor = l.RearArmor / scale,
+                    Structure = l.Structure / scale }),
                 Weapons = m.Weapons.Select(w => new { w.Id, w.Name, Location = w.Location.ToString(), w.Rear, w.Heat,
-                    Damage = DefinitionText.Damage(w.DamageProfile), w.Minimum, w.Short, w.Medium, w.Long, AmmoType = AmmoText(w.AmmoKind) }),
+                    Damage = DefinitionText.Damage(w.DamageProfile with { PerProjectile = StockPerProjectile(w) }), w.Minimum, w.Short, w.Medium, w.Long, AmmoType = AmmoText(w.AmmoKind) }),
                 Components = m.Components.Select(c => new { c.Id, c.Name, Location = c.Location.ToString(), c.Slots }),
                 Ammo = m.Ammo.Select(a => new { a.Id, a.Name, Location = a.Location.ToString(), AmmoType = AmmoText(a.AmmoKind), a.Shots }),
                 m.Source
             });
+            check(m.Locations.All(l => l.Armor % scale == 0 && l.RearArmor % scale == 0 && l.Structure % scale == 0)
+                && m.Weapons.All(w => w.DamageProfile.PerProjectile == (w.Kind == WeaponKind.MachineGun ? 5 : StockPerProjectile(w) * scale)),
+                $"{m.Id} counts protection and damage in tenths of a stock point, with machine guns at 0.5");
             check(JsonNode.DeepEquals(projection, old), $"{m.Id} preserves original facts, equipment IDs/grouping/order, provenance and display text");
             foreach (var (w, prior) in m.Weapons.Zip(old!["Weapons"]!.AsArray()))
             {
@@ -54,7 +61,8 @@ internal static class CatalogChecks
                 var text = prior!["Damage"]!.GetValue<string>(); var name = prior["Name"]!.GetValue<string>();
                 var packet = int.Parse(text.Split(' ')[0], System.Globalization.CultureInfo.InvariantCulture);
                 if (text.Contains("/ missile", StringComparison.Ordinal)) packet *= int.Parse(name.Split(' ')[^1], System.Globalization.CultureInfo.InvariantCulture);
-                var cooldown = name switch { "Machine Gun" => 4, "Flamer" or "Small Laser" => 6, "Medium Laser" => 8, _ => 10 };
+                packet = name == "Machine Gun" ? 5 : packet * scale;
+                var cooldown = name switch { "Machine Gun" => 2, "Flamer" or "Small Laser" => 6, "Medium Laser" => 8, _ => 10 };
                 check(CombatRules.Damage(w) == packet && CombatRules.Cooldown(w) == cooldown
                     && CombatRules.FlamerHeat(w) == (name == "Flamer" ? 2 : 0), $"{m.Id}/{w.Id} preserves damage, cadence and target heat");
             }
@@ -98,9 +106,9 @@ internal static class CatalogChecks
         var sim = CombatSimulation.Deploy(roster, roster.Mechs.Select(m => m.Id), seed: 41, terrainSeed: 41);
         var changed = stock with { Weapons = stock.Weapons.SetItem(0, originalWeapon with
             { DamageProfile = originalWeapon.DamageProfile with { PerProjectile = 999 } }) };
-        sim.Units[0].ApplyDamage(MechLocation.LeftArm, 1000);
+        sim.Units[0].ApplyDamage(MechLocation.LeftArm, 10000);
         check(ReferenceEquals(roster.Mechs[0].Spec, roster.Mechs[1].Spec) && sim.Units.All(u => ReferenceEquals(u.Spec, stock))
-            && changed.Weapons[0].DamageProfile.PerProjectile == 999 && stock.Weapons[0].DamageProfile.PerProjectile == 5
+            && changed.Weapons[0].DamageProfile.PerProjectile == 999 && stock.Weapons[0].DamageProfile.PerProjectile == 50
             && roster.Mechs.All(m => m.LocationIntact(MechLocation.LeftArm)) && sim.Units[1].Intact(MechLocation.LeftArm),
             "two owned mechs and mirrored combat units safely share definitions while copies and condition change independently");
     }
@@ -214,8 +222,13 @@ internal static class CatalogChecks
                 && mech.Ammo.All(a => a.Shots == mech.Spec.Ammo.Single(s => s.Id == a.Id).Shots / 2),
                 "pre-refactor campaign save resolves typed definitions and retains damage, ammo, assignment and injury");
             store.Save(campaign);
-            check(JsonNode.DeepEquals(JsonNode.Parse(fixture), JsonNode.Parse(File.ReadAllText(path))),
-                "definition refactor preserves the entire existing version-four save shape and values");
+            // Resaving upgrades to version 5, which counts armor and structure in tenths of a point.
+            var expected = JsonNode.Parse(fixture)!; expected["Version"] = 5;
+            foreach (var location in expected["Roster"]!["Mechs"]!.AsArray().SelectMany(m => m!["Locations"]!.AsArray()))
+                foreach (var field in new[] { "Armor", "RearArmor", "Structure" })
+                    location![field] = location[field]!.GetValue<int>() * CombatRules.DamageScale;
+            check(JsonNode.DeepEquals(expected, JsonNode.Parse(File.ReadAllText(path))),
+                "a version-four save keeps its shape and values when resaved, with protection rescaled");
             campaign.AdvanceOneDay(); campaign.AdvanceOneDay();
             check(warrior.Health == WarriorHealth.Healthy && warrior.RecoveryDate is null, "old saved recovery date still resolves normally");
         }

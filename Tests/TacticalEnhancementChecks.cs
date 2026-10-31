@@ -70,7 +70,7 @@ public partial class SmokeTests
             field.GrabFocus(); screen.OpenMenu();
             Check(!KeyPress(Key.Key3) && !KeyPress(Key.Quoteleft, true), "combat modal blocks selection and log shortcuts");
             screen.Resume();
-            friends[3].ApplyDamage(MechLocation.Head, 1000); KeyPress(Key.Key4);
+            friends[3].ApplyDamage(MechLocation.Head, 10000); KeyPress(Key.Key4);
             Check(screen.Selected.SequenceEqual([friends[3].Id]) && screen.Paperdoll.Unit == friends[3],
                 "destroyed friendly slots remain selectable for inspection");
 

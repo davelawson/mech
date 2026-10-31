@@ -62,11 +62,29 @@ internal static class CampaignChecks
         leap.AdvanceOneDay();
         check(leap.Date == new DateOnly(3028, 3, 1), "calendar crosses leap February");
         Throws(() => Campaign.Restore(campaign.Snapshot() with { Version = 99 }), check, "reject incompatible save versions");
+        var worn = NewCompany().Snapshot();
+        worn = worn with { Roster = worn.Roster! with { Mechs = worn.Roster.Mechs.Select((mech, i) => i > 0 ? mech : mech with
+            { Locations = mech.Locations.Select((loc, j) => j > 0 ? loc : loc with { Armor = 30, Structure = 10 }).ToArray() }).ToArray() } };
+        var migrated = Campaign.Restore(Legacy(worn, 4)).Roster!.Snapshot();
+        check(worn.Version == 5 && migrated.Mechs.Zip(worn.Roster!.Mechs).All(pair => pair.First.Locations.SequenceEqual(pair.Second.Locations)),
+            "version 4 saves count armor and structure in tenths of a point after loading");
+        Throws(() => Campaign.Restore(worn with { Version = 4 }), check, "a version 4 save cannot hold more than stock protection once rescaled");
         Throws(() => Campaign.Restore(campaign.Snapshot() with { Cash = -1 }), check, "reject corrupt finance state");
         Throws(() => Campaign.Restore(campaign.Snapshot() with { NextQuarter = campaign.Date }), check, "reject invalid payment recurrence");
 
         TestStorage(check);
     }
+
+    /// <summary>The snapshot as an older version would have saved it: whole stock points of armor and structure.</summary>
+    internal static CampaignSnapshot Legacy(CampaignSnapshot save, int version) => save with
+    {
+        Version = version,
+        Roster = save.Roster is not { } roster ? null : roster with { Mechs = roster.Mechs.Select(mech => mech with
+        {
+            Locations = mech.Locations.Select(loc => loc with { Armor = loc.Armor / CombatRules.DamageScale,
+                RearArmor = loc.RearArmor / CombatRules.DamageScale, Structure = loc.Structure / CombatRules.DamageScale }).ToArray()
+        }).ToArray() }
+    };
 
     internal static Campaign NewCompany()
     {

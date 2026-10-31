@@ -69,6 +69,10 @@ _Avoid_: Attack order
 **Salvo**:
 The missiles an LRM or SRM rack fires in one discharge, each rolling its own hit and location.
 
+**Burst**:
+The one-second stream of tracers a machine gun fires in one discharge, resolved by a single hit roll.
+_Avoid_: Volley, which is a MechWarrior's selection of weapons to fire together
+
 **Indirect fire**:
 An LRM salvo at a priority or Attack target the shooter cannot see, guided by a spotter.
 

@@ -107,7 +107,7 @@ internal static partial class CombatChecks
             "arrival brakes to a stable stop within destination tolerance");
 
         sim = MovementBattle(count: 2); f = Friendly(sim); var wreck = Enemy(sim);
-        wreck.Position = new(0, -4); wreck.ApplyDamage(MechLocation.Head, 1000);
+        wreck.Position = new(0, -4); wreck.ApplyDamage(MechLocation.Head, 10000);
         sim.Move([f.Id], new(0, -8)); var crossed = false; var aligned = true;
         for (var i = 0; i < 1200; i++)
         {
@@ -134,7 +134,7 @@ internal static partial class CombatChecks
         sim = MovementBattle(count: 2); f = Friendly(sim); wreck = Enemy(sim);
         sim.Move([f.Id], new(0, -8)); sim.Advance(3);
         wreck.Position = f.Position + f.Facing * (CombatRules.UnitRadius * 2 + .05f);
-        wreck.ApplyDamage(MechLocation.CenterTorso, 1000);
+        wreck.ApplyDamage(MechLocation.CenterTorso, 10000);
         var wreckPosition = wreck.Position; sim.Advance(20);
         check(f.Position.Y < wreckPosition.Y - 1 && wreck.Position == wreckPosition,
             "a newly destroyed mech immediately becomes passable while its wreck stays in place");

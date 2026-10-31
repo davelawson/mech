@@ -24,7 +24,7 @@ internal static partial class CombatChecks
         check(first.DebugText.IndexOf("heat", StringComparison.Ordinal) < first.DebugText.IndexOf("hex", StringComparison.Ordinal)
             && first.DebugText.Contains("chance 100.0%") && first.DebugText.Contains("roll "),
             "terse entries place heat before range and show percentage chance and draw");
-        var snapshot = first.DebugText; enemy.ApplyDamage(MechLocation.CenterTorso, 10000); enemy.AddHeat(29);
+        var snapshot = first.DebugText; enemy.ApplyDamage(MechLocation.CenterTorso, 100000); enemy.AddHeat(29);
         check(first.DebugText == snapshot, "old combat events retain immutable condition and heat snapshots");
 
         sim = HeatFixture([HeatGun("miss", 2, 1)], seed: 1, gunnery: 8);
@@ -34,7 +34,7 @@ internal static partial class CombatChecks
             "misses are retained with roll, zero damage and firing heat");
 
         // Destroy a side torso with a known first hit; its attached arm and mounted systems must be attributed too.
-        var gun = HeatGun("cannon", 0, 1000);
+        var gun = HeatGun("cannon", 0, 10000);
         var seed = Enumerable.Range(1, 100).First(candidate =>
         {
             var probe = HeatFixture([gun], seed: candidate); Enemy(probe).Firing = FiringMode.HoldFire;

@@ -141,7 +141,7 @@ public partial class SmokeTests
 
             burning = Fresh(shot => shot.Hit);
             var beams = field.Beams().Count();
-            sim.Unit(burning!.AttackerId).ApplyDamage(MechLocation.Head, 10000); field._Process(0);
+            sim.Unit(burning!.AttackerId).ApplyDamage(MechLocation.Head, 100000); field._Process(0);
             Check(!field.ShotPaths().Any(path => path.Shot.Sequence == burning.Sequence) && field.Beams().Count() < beams,
                 "a destroyed shooter's beam vanishes immediately");
 
@@ -188,7 +188,7 @@ public partial class SmokeTests
                     && Ppc().Bolt.DistanceTo(ModelAt(sim.Unit(bolt!.TargetId)).LocationCenter(bolt.Location)) > 1,
                 "a PPC flashes its beam at once and launches a bolt from the muzzle");
             sim.Advance(bolt!.FlightSeconds + .03); field._Process(0);
-            var splashes = bolt.SplashPoints.Distinct().Count();
+            var splashes = bolt.Splashes.Select(splash => splash.Location).Distinct().Count();
             Check(!Ppc().Flying && Ppc().Bursting && Ppc().BeamVisible && Ppc().Arcs == CombatViewport.PpcRadialArcs + splashes
                     && Ppc().Bolt.IsEqualApprox(ModelAt(sim.Unit(bolt.TargetId)).LocationCenter(bolt.Location)),
                 "the bolt bursts at the struck location with radial arcs and one arc per location its splash reached, while the beam still shows");
@@ -237,6 +237,78 @@ public partial class SmokeTests
                 Check(swarm.Where(item => !item.Missile.Hit).All(item => Math.Abs(item.End.Y - sim.Terrain.HeightAt(new Vector2(item.End.X, item.End.Z))) < 1e-3f),
                     "missed missiles come down on the ground");
             }
+            Check(CombatViewport.TracerRadius * 3 <= CombatViewport.ShellRadius(WeaponKind.AC2) && CombatViewport.TracerRounds == 15,
+                "machine gun tracers are a third of an AC/2 shell's radius, fifteen to a burst");
+            var gunners = ForceRoster.Create("Tracer checks", [DraftCatalog.Mech("firestarter")], DraftCatalog.Warriors.Take(1));
+            gunners.Assign(gunners.Mechs[0].Id, gunners.Warriors[0].Id);
+            void DeployGunners()
+            {
+                sim = CombatSimulation.DeployOnTerrain(gunners, [gunners.Mechs[0].Id], BattlefieldTerrain.Flat);
+                var gunner = sim.Units.Single(unit => unit.Side == CombatSide.Friendly); var mark = sim.Units.Single(unit => unit.Side == CombatSide.Enemy);
+                gunner.Position = Vector2.Zero; gunner.Facing = Vector2.Up; mark.Position = new Vector2(0, -5); mark.Facing = Vector2.Down;
+                foreach (var weapon in gunner.Weapons) weapon.Enabled = weapon.Spec.Kind == WeaponKind.MachineGun;
+                mark.Firing = FiringMode.HoldFire; sim.EnemyAiEnabled = false;
+                field.Display(sim); sim.RefreshDetection(); sim.Paused = false;
+                shots.Clear(); sim.ShotFired += shots.Add;
+                models = field.FindChildren("*", "Node3D", true, false).OfType<MechModel>().ToArray();
+            }
+            CombatShot? Burst(bool hit)
+            {
+                for (var step = 0; step < 4000; step++)
+                {
+                    var before = shots.Count; sim.Advance(CombatRules.StepSeconds); field._Process(0);
+                    if (shots.Skip(before).FirstOrDefault(shot => shot.Hit == hit && !shot.Impact && field.Tracers().Any(item => item.Shot == shot)) is { } found)
+                        return found;
+                }
+                return null;
+            }
+            DeployGunners();
+            var burst = Burst(hit: true);
+            Check(burst is not null, "the exchange produced a visible machine gun hit");
+            (CombatShot Shot, float Fired, Color Color, bool Launched, Vector3 Head, Vector3 End, MeshInstance3D Streak, bool Sparking)[] Rounds(CombatShot shot) =>
+                field.Tracers().Where(item => item.Shot == shot).ToArray();
+            var rounds = Rounds(burst!);
+            Check(rounds.Length == CombatViewport.TracerRounds && rounds.Count(round => round.Launched) == 1
+                    && rounds.All(round => round.Color == CombatViewport.TracerYellow || round.Color == CombatViewport.TracerOrange)
+                    && rounds.Select(round => round.Color).Distinct().Count() == 2 && field.MuzzleFlashing(burst!),
+                "a burst opens with one round and a muzzle flash, its tracers mixing yellow and orange");
+            sim.Advance(.5); field._Process(0);
+            rounds = Rounds(burst!);
+            var gunModel = ModelAt(sim.Unit(burst!.TargetId));
+            struck = gunModel.LocationCenter(burst.Location);
+            Check(rounds.Count(round => round.Launched) is >= 7 and <= 9
+                    && rounds.Where(round => round.Launched).All(round => round.End.DistanceTo(struck) <= CombatViewport.TracerScatter * Mathf.Sqrt(3) + 1e-4f),
+                "the burst keeps firing for its second, every hit round aimed within its scatter of the struck location");
+            var streaks = rounds.Where(round => round.Streak.Visible).ToArray();
+            Check(streaks.All(round => Math.Abs(round.Streak.GlobalTransform.Basis.X.Length() - CombatViewport.TracerRadius) < 1e-4f
+                    && round.Streak.GlobalTransform.Basis.Y.Length() <= CombatViewport.TracerLength + 1e-4f),
+                "each tracer is a thin glowing streak no longer than its set length");
+            Check(rounds.Any(round => round.Sparking), "hit rounds spark where they strike");
+            sim.Advance(.7); field._Process(0);
+            Check(!field.Tracers().Any(item => item.Shot == burst), "the burst's effect ends shortly after its last round lands");
+
+            DeployGunners();
+            burst = Burst(hit: true);
+            sim.Advance(.3); field._Process(0);
+            var fired = Rounds(burst!).Count(round => round.Launched);
+            sim.Unit(burst!.AttackerId).ApplyDamage(MechLocation.Head, 100000); field._Process(0);
+            // An unbroken burst would have fired another round by now; the effect lingers only for the rounds already in the air.
+            sim.Advance(.08); field._Process(0);
+            Check(Rounds(burst).Count(round => round.Launched) == fired && fired > 1, "a destroyed gunner stops firing its burst at once");
+
+            DeployGunners();
+            var spray = Burst(hit: false);
+            Check(spray is not null, "the exchange produced a visible machine gun miss");
+            var sparked = false; var wide = true;
+            for (var step = 0; step < 30 && Rounds(spray!).Length > 0; step++)
+            {
+                var aim = ModelAt(sim.Unit(spray!.TargetId)).LocationCenter(spray.Location);
+                sparked |= Rounds(spray).Any(round => round.Sparking);
+                wide &= Rounds(spray).Where(round => round.Launched).All(round => round.End.DistanceTo(aim) > 1);
+                sim.Advance(CombatRules.StepSeconds); field._Process(0);
+            }
+            Check(!sparked && wide && Rounds(spray!).Length == 0, "missed rounds spray beside and past the rolled location and vanish without sparks");
+
             // Make every enemy location fragile so the next hit destroys one.
             Deploy(atlasFires: true);
             foreach (var part in sim.Units.Where(unit => unit.Side == CombatSide.Enemy).SelectMany(unit => unit.Locations.Values))

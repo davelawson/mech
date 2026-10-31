@@ -198,7 +198,7 @@ internal static partial class CombatChecks
         e.Position = new(2, 0); rear.Position = new(-2, 0);
         f.AddHeat(30); Equivalent("thermal shutdown");
         f.AddHeat(-f.Heat); sim.RefreshDetection();
-        f.ApplyDamage(MechLocation.RightArm, 1_000); Equivalent("lost weapon mount");
+        f.ApplyDamage(MechLocation.RightArm, 10000); Equivalent("lost weapon mount");
 
         sim = HeatFixture(weapons, gunnery: 4); f = Friendly(sim); e = Enemy(sim);
         // Warm both code paths before comparing allocation; no wall-clock timing assertion.
@@ -250,7 +250,7 @@ internal static partial class CombatChecks
         foreach (var unit in sim.Units) { unit.AddHeat(40); unit.Firing = FiringMode.HoldFire; }
         f = Friendly(sim); f.AddHeat(15); sim.Paused = false; sim.Advance(1);
         check(sim.Outcome == CombatOutcome.Ongoing && f.Heat > 53.9 && sim.Units.All(unit => unit.Shutdown), "both sides can shut down without a draw and excess heat extends cooling");
-        f.ApplyDamage(MechLocation.Head, 100); sim.Advance(.05 + CombatRules.WindDownSeconds);
+        f.ApplyDamage(MechLocation.Head, 1000); sim.Advance(.05 + CombatRules.WindDownSeconds);
         check(sim.Outcome == CombatOutcome.Defeat && f.Status == CombatStatus.Destroyed, "physical defeat still ends combat during a thermal shutdown");
 
         sim = Battle(2); sim.EnemyAiEnabled = false;
@@ -265,7 +265,7 @@ internal static partial class CombatChecks
     {
         foreach (var reverse in new[] { false, true })
         {
-            var flamers = Enumerable.Range(0, 4).Select(index => HeatGun($"flamer-{index}", 3, 2) with { Name = "Flamer", Kind = WeaponKind.Flamer, DamageProfile = new(DamageKind.Direct, 2, 1, 2) }).ToArray();
+            var flamers = Enumerable.Range(0, 4).Select(index => HeatGun($"flamer-{index}", 3, 2) with { Name = "Flamer", Kind = WeaponKind.Flamer, DamageProfile = new(DamageKind.Direct, 20, 1, 2) }).ToArray();
             var fixture = HeatFixture([.. flamers, HeatGun("return", 0, 1)]);
             var sim = reverse ? new CombatSimulation(fixture.Units.Reverse(), 41, BattlefieldTerrain.Flat) { EnemyAiEnabled = false } : fixture;
             var f = Friendly(sim); var e = Enemy(sim);
@@ -276,10 +276,10 @@ internal static partial class CombatChecks
             sim.Paused = false; sim.Advance(.05);
             check(f.ShotsFired == 4 && e.ShotsFired == 1 && e.Heat == 36 && e.Shutdown && f.Heat == 12,
                 $"four flamers stack eight heat above shutdown while preserving simultaneous return fire, reversed={reverse}");
-            check(shots.Where(shot => shot.AttackerId == f.Id).All(shot => shot.Hit && shot.Damage == 2 && shot.TargetHeat == 2), "flamers retain ordinary damage and heat through armor");
+            check(shots.Where(shot => shot.AttackerId == f.Id).All(shot => shot.Hit && shot.Damage == 20 && shot.TargetHeat == 2), "flamers retain ordinary damage and heat through armor");
         }
         var missSeed = Enumerable.Range(1, 100).First(seed => new Random(seed).NextDouble() >= 21d / 36);
-        var miss = HeatFixture([HeatGun("flamer", 3, 2) with { Name = "Flamer", Kind = WeaponKind.Flamer, DamageProfile = new(DamageKind.Direct, 2, 1, 2) }], seed: missSeed, gunnery: 4);
+        var miss = HeatFixture([HeatGun("flamer", 3, 2) with { Name = "Flamer", Kind = WeaponKind.Flamer, DamageProfile = new(DamageKind.Direct, 20, 1, 2) }], seed: missSeed, gunnery: 4);
         Enemy(miss).Firing = FiringMode.HoldFire; miss.Paused = false; miss.Advance(.05);
         check(Friendly(miss).ShotsFired == 1 && Friendly(miss).Hits == 0 && Friendly(miss).Heat == 3 && Enemy(miss).Heat == 0,
             "missed flamer generates firing heat but no target heat");

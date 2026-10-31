@@ -46,7 +46,7 @@ public partial class SmokeTests
             tactical.Size = new Vector2(1440, 900);
             await Frames();
             await Capture("combat-heat-shutdown");
-            friends[0].ApplyDamage(MechLocation.Head, 100);
+            friends[0].ApplyDamage(MechLocation.Head, 1000);
             tactical.SelectUnits([friends[0].Id], false);
             Check(!tactical.NormalHeatButton.IsVisibleInTree(), "physically defeated units do not retain heat policy controls");
         }

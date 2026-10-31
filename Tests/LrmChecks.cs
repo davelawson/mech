@@ -8,8 +8,8 @@ internal static partial class CombatChecks
     private static CombatSimulation LrmFixture(int seed = 41, int gunnery = 2, BattlefieldTerrain? terrain = null, bool srm = false, params Vector2[] spotters)
     {
         var ammo = srm ? AmmoKind.SRM6 : AmmoKind.LRM15;
-        WeaponSpec rack = srm ? new("rack", "Test SRM", MechLocation.RightTorso, false, 0, new(DamageKind.Missile, 2, 6, 0), 0, 7, 14, 21, ammo, WeaponKind.SRM6)
-            : new("rack", "Test LRM", MechLocation.RightTorso, false, 0, new(DamageKind.Missile, 1, 15, 0), 6, 7, 14, 21, ammo, WeaponKind.LRM15);
+        WeaponSpec rack = srm ? new("rack", "Test SRM", MechLocation.RightTorso, false, 0, new(DamageKind.Missile, 20, 6, 0), 0, 7, 14, 21, ammo, WeaponKind.SRM6)
+            : new("rack", "Test LRM", MechLocation.RightTorso, false, 0, new(DamageKind.Missile, 10, 15, 0), 6, 7, 14, 21, ammo, WeaponKind.LRM15);
         var spec = DraftCatalog.Mech("awesome") with
         {
             Weapons = [rack], Components = [], HeatSinks = 0,
@@ -54,7 +54,7 @@ internal static partial class CombatChecks
         check(discharge.Missiles.Count == 15 && discharge.Missiles.All(missile => missile.Hit == missile.Roll < discharge.Chance)
                 && discharge.Missiles.Select(missile => missile.Roll).Distinct().Count() == 15,
             "each missile in a salvo makes its own hit roll at the salvo's chance");
-        check(hits is > 0 and < 15 && discharge.Hit && discharge.Damage == hits && discharge.MissileDamage == 1,
+        check(hits is > 0 and < 15 && discharge.Hit && discharge.Damage == 10 * hits && discharge.MissileDamage == 10,
             "a salvo hits when any missile hits, and its damage totals the hits");
         check(discharge.Missiles.Where(missile => missile.Hit).Select(missile => missile.Location).Distinct().Count() > 1,
             "missiles roll their own locations, spreading a salvo's damage");
@@ -63,7 +63,7 @@ internal static partial class CombatChecks
                 && shooter.DamageDealt == 0, "salvo damage waits for the missiles to land");
         var debug = sim.History[0].DebugText;
         check(debug.Contains($"{hits}/15 HIT") && debug.Contains("rolls ") && debug.Contains("in flight 1.43s")
-                && debug.Contains("hits ") && debug.Contains($"dmg {hits} on impact"),
+                && debug.Contains("hits ") && debug.Contains($"dmg {10 * hits} on impact"),
             "the discharge entry reports missile hits, rolls and locations");
         check(sim.History[0].CombatText is { } combat && combat.Contains($"{hits}/15 HIT") && !combat.Contains("rolls "),
             "per-missile rolls appear only in debug");
@@ -72,20 +72,20 @@ internal static partial class CombatChecks
         Steps(sim, 1);
         var impact = sim.History[^1].Shot;
         var landed = impact.DamageApplied.ToDictionary(part => part.Location, part => part.Armor + part.RearArmor + part.Structure);
-        check(sim.History.Count == 2 && impact.Impact && impact.Sequence == discharge.Sequence && landed.Values.Sum() == hits
+        check(sim.History.Count == 2 && impact.Impact && impact.Sequence == discharge.Sequence && landed.Values.Sum() == 10 * hits
                 && discharge.Missiles.Where(missile => missile.Hit).GroupBy(missile => missile.Location)
-                    .All(group => landed.GetValueOrDefault(group.Key) == group.Count())
-                && target.ArmorLost + target.StructureLost == hits && shooter.DamageDealt == hits
+                    .All(group => landed.GetValueOrDefault(group.Key) == 10 * group.Count())
+                && target.ArmorLost + target.StructureLost == 10 * hits && shooter.DamageDealt == 10 * hits
                 && shooter.Hits == 1 && shooter.ShotsFired == 1,
             "every hit missile lands on its own location in one impact entry");
 
         sim = LrmFixture(); Steps(sim, 1);
-        Enemy(sim).ApplyDamage(MechLocation.CenterTorso, 10000); var lost = Enemy(sim).ArmorLost + Enemy(sim).StructureLost;
+        Enemy(sim).ApplyDamage(MechLocation.CenterTorso, 100000); var lost = Enemy(sim).ArmorLost + Enemy(sim).StructureLost;
         Steps(sim, 29);
         check(sim.History.Count == 2 && sim.History[^1].Shot is { Wreck: true, Damage: 0 } && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == lost
                 && Friendly(sim).DamageDealt == 0, "missiles reaching a destroyed target burst on the wreck without damage");
         sim = LrmFixture(); Steps(sim, 1); hits = sim.History[0].Shot.Damage;
-        Friendly(sim).ApplyDamage(MechLocation.Head, 10000); Steps(sim, 29);
+        Friendly(sim).ApplyDamage(MechLocation.Head, 100000); Steps(sim, 29);
         check(sim.History.Count(entry => entry.Shot.Impact) == 1 && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == hits,
             "missiles land even after their shooter is destroyed");
 
@@ -122,18 +122,18 @@ internal static partial class CombatChecks
         shooter.Firing = FiringMode.HoldFire; sim.Attack([shooter.Id], target.Id);
         check(sim.IndirectSpotter(shooter, target, shooter.Weapons[0]) is not null && sim.CanFire(shooter, target, shooter.Weapons[0]),
             "an explicit Attack order permits indirect fire, even under Hold fire");
-        sim.Units[1].ApplyDamage(MechLocation.Head, 10000); sim.RefreshDetection();
+        sim.Units[1].ApplyDamage(MechLocation.Head, 100000); sim.RefreshDetection();
         check(sim.IndirectSpotter(shooter, target, shooter.Weapons[0]) is null && !sim.CanFire(shooter, target, shooter.Weapons[0]),
             "indirect fire needs an active spotter with its own clear sight");
 
         sim = LrmFixture(srm: true); Steps(sim, 1);
         discharge = sim.History.Single().Shot; hits = discharge.Missiles.Count(missile => missile.Hit);
         check(discharge.Missiles.Count == 6 && discharge.Missiles.All(missile => missile.Hit == missile.Roll < discharge.Chance)
-                && discharge.InFlight && Math.Abs(discharge.FlightSeconds - CombatRules.SrmFlightSeconds(25)) < 1e-6 && discharge.Damage == 2 * hits && discharge.MissileDamage == 2
+                && discharge.InFlight && Math.Abs(discharge.FlightSeconds - CombatRules.SrmFlightSeconds(25)) < 1e-6 && discharge.Damage == 20 * hits && discharge.MissileDamage == 20
                 && Friendly(sim).Shots("bin-b") == 0 && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == 0,
             "an SRM salvo rolls each missile, spends one shot and lands after its accelerating flight");
         Steps(sim, 31);
-        check(sim.History.Count == (hits > 0 ? 2 : 1) && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == 2 * hits,
+        check(sim.History.Count == (hits > 0 ? 2 : 1) && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == 20 * hits,
             "SRM missiles each deal their stock damage on impact");
         sim = LrmFixture(terrain: rock, srm: true, spotters: [new Vector2(25, 12)]); shooter = Friendly(sim); target = Enemy(sim); sim.RefreshDetection();
         shooter.Firing = FiringMode.HoldFire; sim.Attack([shooter.Id], target.Id); sim.SetPriority([shooter.Id], target.Id);
@@ -147,7 +147,7 @@ internal static partial class CombatChecks
         sim = LrmFixture(terrain: screened, spotters: [new Vector2(25, 8), new Vector2(25, -16)]); shooter = Friendly(sim); target = Enemy(sim);
         sim.RefreshDetection(); sim.SetPriority([shooter.Id], target.Id); rack = shooter.Weapons[0];
         check(sim.IndirectSpotter(shooter, target, rack) == sim.Units[2], "the spotter with the least vegetation is chosen before the nearest");
-        sim.Units[2].ApplyDamage(MechLocation.Head, 10000);
+        sim.Units[2].ApplyDamage(MechLocation.Head, 100000);
         check(sim.IndirectSpotter(shooter, target, rack) == sim.Units[1]
                 && Math.Abs(sim.TerrainHitChance(shooter, target, rack) - CombatSimulation.HitChance(shooter, target, rack, 1 + CombatRules.IndirectFireModifier)) < 1e-9,
             "indirect fire uses the spotter's vegetation modifier");

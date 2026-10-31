@@ -42,7 +42,7 @@ public partial class SmokeTests
             Check(field.DetectionRanges is [{ Observer: var observer, Identification: 25f, Detail: 12.5f }] && observer == friends[0]
                 && field.SensorRangeText.StartsWith(friends[0].Warrior.Callsign),
                 "disabled selections are excluded and one active contributor keeps the single-mech readout");
-            friends[0].ApplyDamage(MechLocation.Head, 1000); await Frames();
+            friends[0].ApplyDamage(MechLocation.Head, 10000); await Frames();
             Check(field.DetectionRanges.Count == 0 && field.SensorRangeText == "",
                 "destroyed and disabled selections produce no overlay despite an unselected active observer");
             field.Selection = []; Check(field.DetectionRanges.Count == 0, "empty selection produces no overlay");

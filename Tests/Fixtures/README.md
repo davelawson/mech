@@ -1,4 +1,4 @@
-`catalog-baseline.json` freezes the pre-refactor stock catalog and authored warrior records. Its legacy damage strings are an independent regression oracle, not runtime input. The stock facts retain the attribution and license recorded inside the fixture and in [Data/README.md](../../Data/README.md).
+`catalog-baseline.json` freezes the pre-refactor stock catalog and authored warrior records. Its legacy damage strings are an independent regression oracle, not runtime input. It keeps stock points; the catalog checks scale it to the game's tenths of a point and machine guns' half-point damage. The stock facts retain the attribution and license recorded inside the fixture and in [Data/README.md](../../Data/README.md).
 
 `definition-save.json` uses the existing version-four campaign format with damaged armor/equipment, partial ammunition, an assignment, and a recovering warrior. It contains only definition IDs and condition, never serialized definitions.
 

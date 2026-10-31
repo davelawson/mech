@@ -234,7 +234,7 @@ public partial class SmokeTests
         Check(randomFriends.Length == 2 && randomEnemies.Length == 2 && randomFriends.Zip(randomEnemies)
             .All(pair => pair.First.Spec.WeightClass == pair.Second.Spec.WeightClass) && tactical.Simulation.Terrain.Seed == 183,
             "randomized launch honors selected force categories, count and terrain seed");
-        foreach (var unit in tactical.Simulation!.Units.Where(item => item.Side == CombatSide.Enemy)) unit.ApplyDamage(MechLocation.CenterTorso, 1000);
+        foreach (var unit in tactical.Simulation!.Units.Where(item => item.Side == CombatSide.Enemy)) unit.ApplyDamage(MechLocation.CenterTorso, 10000);
         tactical.TogglePause(); await Delay(.15);
         Check(tactical.Modal == CombatModal.None && tactical.Simulation.WindingDown, "the first defeat begins a wind-down before results");
         await Delay(CombatRules.WindDownSeconds);

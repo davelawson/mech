@@ -60,6 +60,18 @@ public partial class CombatViewport : Control
     private const float PpcArcRadius = .025f;
     /// <summary>Arcs jump to new random paths this often, in effect age.</summary>
     private const float PpcArcFlicker = .06f;
+    // A machine gun's burst streams tiny yellow and orange tracers; hits spark on the target, misses vanish.
+    internal const int TracerRounds = 15;
+    internal const float TracerRadius = .02f;
+    internal const float TracerLength = .4f;
+    internal const float TracerScatter = .15f;
+    internal const float SparkRadius = .05f;
+    internal const float SparkSeconds = .08f;
+    internal const float TracerFlashSeconds = .04f;
+    private const float TracerFlashRadius = .08f;
+    internal static readonly Color TracerYellow = new(1, .9f, .3f);
+    internal static readonly Color TracerOrange = new(1, .55f, .1f);
+    private static readonly Color SparkColor = new(1, 1, .75f);
     // Missile salvos ripple out of the rack and skitter in flight, gathering only as they reach their impact points.
     internal const float MissileRipple = .25f;
     internal const float MissileWobble = .75f;
@@ -95,6 +107,8 @@ public partial class CombatViewport : Control
         public WeaponKind? Laser { get; } = laser;
         public WeaponKind? Shell { get; } = shell;
         public float Duration => Salvo is { } salvo ? salvo.Max(missile => missile.Arrival) + MissileBlastSeconds
+            : Rounds is { } rounds ? rounds.Max(round => round.Launched ? round.Fired + round.Flight + Math.Max(SparkSeconds, ShellFade)
+                : round.Fired < (CutOff ?? float.MaxValue) ? float.MaxValue : 0)
             : Ppc ? Flight + (Shot.Hit || Grounded ? PpcBurstSeconds : ShellFade)
             : Shell is { } kind ? Flight + (Shot.Hit || Grounded ? ExplosionSeconds(kind) : ShellFade)
             : Laser is null ? ShotLife : (float)CombatRules.LaserBurnSeconds + BeamFade;
@@ -117,6 +131,26 @@ public partial class CombatViewport : Control
         public MechLocation[] SplashLocations { get; set; } = [];
         /// <summary>Peak height of the salvo's arc above the straight line to its target.</summary>
         public float Loft { get; set; }
+        public WeaponSpec? Weapon { get; init; }
+        /// <summary>A machine gun burst's tracers, and the effect age at which its shooter stopped firing.</summary>
+        public IReadOnlyList<TracerRound>? Rounds { get; set; }
+        public float? CutOff { get; set; }
+    }
+    private sealed class TracerRound(float fired, Color color, Vector3 scatter)
+    {
+        public float Fired { get; } = fired;
+        public Color Color { get; } = color;
+        /// <summary>Offset from the struck location for a hit; a miss spreads three times wider around its miss point.</summary>
+        public Vector3 Scatter { get; } = scatter;
+        public bool Launched { get; set; }
+        public Vector3 Launch { get; set; }
+        public Vector3 MissEnd { get; set; }
+        public bool Grounded { get; set; }
+        public float Flight { get; set; }
+        public Vector3 Head { get; set; }
+        public Vector3 End { get; set; }
+        public MeshInstance3D Streak { get; set; } = null!;
+        public MeshInstance3D Spark { get; set; } = null!;
     }
     private sealed class MissileFlight(CombatMissile missile, Node3D? tube, float delay, float arrival, float amplitude, float[] waves)
     {
@@ -254,7 +288,7 @@ public partial class CombatViewport : Control
         var shell = weapon is not null && CombatRules.IsAutocannon(weapon.Kind) ? weapon.Kind : (WeaponKind?)null;
         var created = new ShotEffect(shot, weapon?.Location ?? MechLocation.CenterTorso,
             weapon is null ? null : _models[shot.AttackerId].NextFiringMarker(weapon.Id), Simulation.Elapsed, laser, shell)
-        { Ppc = weapon is not null && CombatRules.IsPpc(weapon.Kind) };
+        { Ppc = weapon is not null && CombatRules.IsPpc(weapon.Kind), Weapon = weapon };
         if (laser is { } kind)
         {
             var color = LaserColor(kind);
@@ -263,6 +297,7 @@ public partial class CombatViewport : Control
         if (shell is not null) LaunchShell(created, weapon!);
         if (created.Ppc) LaunchPpc(created, weapon!);
         if (shot.Missiles.Count > 0) LaunchSalvo(created, weapon!);
+        if (weapon is not null && CombatRules.IsMachineGun(weapon.Kind)) LoadBurst(created);
         _effects.Add(created);
     }
     // Unshaded additive cylinders read as a glowing beam from any camera angle without post-processing.
@@ -353,7 +388,7 @@ public partial class CombatViewport : Control
         // A miss keeps the speed a hit would have had, flying on past the target.
         var (from, to, _) = ShotPath(effect);
         AimProjectile(effect, weapon, Math.Max(from.DistanceTo(to), 1e-3f) / (float)CombatRules.PpcFlightSeconds);
-        effect.SplashLocations = effect.Shot.SplashPoints.Distinct().ToArray();
+        effect.SplashLocations = effect.Shot.Splashes.Select(splash => splash.Location).Distinct().ToArray();
         var arcs = (PpcRadialArcs + effect.SplashLocations.Length) * PpcArcSegments;
         // Beam halo and core, bolt halo and core, burst glow and flash, then the arc segments.
         effect.PpcMeshes = new[] { Beam(PpcColor), Beam(PpcColor.Lerp(Colors.White, .5f)), Blob(PpcColor), Blob(PpcWhite),
@@ -618,6 +653,86 @@ public partial class CombatViewport : Control
                 missile.Blast.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * MissileBlastRadius * (.35f + .65f * Mathf.Sqrt(blast))), head);
         }
     }
+    private void LoadBurst(ShotEffect effect)
+    {
+        // Visual randomness is seeded by the discharge and never touches the simulation's draws.
+        var random = new Random(unchecked((int)effect.Shot.Sequence * 7919 + 29));
+        float Spread() => ((float)random.NextDouble() * 2 - 1) * TracerScatter;
+        effect.Rounds = Enumerable.Range(0, TracerRounds).Select(i =>
+        {
+            var round = new TracerRound(i * (float)CombatRules.MachineGunBurstSeconds / TracerRounds,
+                random.Next(2) == 0 ? TracerYellow : TracerOrange, new Vector3(Spread(), Spread(), Spread()));
+            round.Streak = Beam(round.Color); round.Streak.Visible = false; round.Spark = Blob(SparkColor);
+            return round;
+        }).ToArray();
+        effect.Flash = Blob(TracerYellow.Lerp(Colors.White, .5f));
+    }
+    // Each round leaves the muzzle where it is when fired. A hit flies to the live struck location with the discharge's flight time;
+    // a miss sprays past its miss point to the ground, or fades beyond long range plus 10 hexes.
+    private void LaunchRound(ShotEffect effect, TracerRound round)
+    {
+        var (from, to, _) = ShotPath(effect);
+        round.Launched = true; round.Launch = from;
+        if (effect.Shot.Hit) { round.Flight = (float)effect.Shot.FlightSeconds; return; }
+        to += round.Scatter * 3;
+        var direction = (to - from).Normalized();
+        var reach = effect.Weapon!.Long * CombatRules.WeaponRangeScale + 10;
+        var ground = Simulation!.Terrain.RayDistance(to, direction, Math.Max(0, reach - from.DistanceTo(to)));
+        round.Grounded = ground is not null;
+        round.MissEnd = ground is { } distance ? to + direction * distance : from + direction * reach;
+        round.Flight = from.DistanceTo(round.MissEnd) / CombatRules.BulletSpeed;
+    }
+    // A shooter destroyed, shut down or stripped of the gun stops firing; rounds already in the air fly on.
+    private void FireRounds(ShotEffect effect)
+    {
+        if (effect.Rounds is not { } rounds) return;
+        var age = Age(effect);
+        var attacker = Simulation!.Unit(effect.Shot.AttackerId);
+        if (effect.CutOff is null && (attacker.Status is CombatStatus.Destroyed or CombatStatus.Shutdown
+            || !attacker.WeaponIntact(attacker.Weapons.Single(weapon => weapon.Spec.Id == effect.Shot.WeaponId))))
+            effect.CutOff = age;
+        foreach (var round in rounds)
+            if (!round.Launched && age >= round.Fired && round.Fired < (effect.CutOff ?? float.MaxValue)) LaunchRound(effect, round);
+    }
+    private void UpdateBurst(ShotEffect effect)
+    {
+        if (effect.Rounds is not { } rounds) return;
+        var age = Age(effect);
+        static void Set(MeshInstance3D mesh, float alpha)
+        {
+            mesh.Visible = alpha > 0;
+            var material = (StandardMaterial3D)mesh.MaterialOverride;
+            material.AlbedoColor = new Color(material.AlbedoColor, alpha);
+        }
+        var lastFired = -1f;
+        foreach (var round in rounds)
+        {
+            if (!round.Launched) { Set(round.Streak, 0); Set(round.Spark, 0); continue; }
+            lastFired = round.Fired;
+            round.End = effect.Shot.Hit ? _models[effect.Shot.TargetId].LocationCenter(effect.Shot.Location) + round.Scatter : round.MissEnd;
+            var flown = age - round.Fired;
+            round.Head = round.Flight <= 0 ? round.End : round.Launch.Lerp(round.End, Math.Clamp(flown / round.Flight, 0, 1));
+            // The streak trails its head back toward the muzzle, never past it.
+            var direction = (round.End - round.Launch).Normalized();
+            var tail = round.Head - direction * Math.Min(TracerLength, round.Head.DistanceTo(round.Launch));
+            var flying = flown < round.Flight;
+            var fade = flying ? 1 : effect.Shot.Hit || round.Grounded ? 0 : Math.Clamp(1 - (flown - round.Flight) / ShellFade, 0, 1);
+            Set(round.Streak, tail.DistanceSquaredTo(round.Head) > 1e-6f ? fade : 0);
+            if (round.Streak.Visible) round.Streak.GlobalTransform = Span(tail, round.Head, TracerRadius);
+            var spark = effect.Shot.Hit && !flying ? (flown - round.Flight) / SparkSeconds : -1;
+            Set(round.Spark, spark is >= 0 and < 1 ? 1 - spark : 0);
+            if (round.Spark.Visible) round.Spark.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * SparkRadius), round.End);
+        }
+        // The muzzle re-flashes with every round.
+        var flash = lastFired < 0 ? 0 : Math.Clamp(1 - (age - lastFired) / TracerFlashSeconds, 0, 1);
+        Set(effect.Flash!, flash);
+        if (flash > 0) effect.Flash!.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * TracerFlashRadius),
+            effect.Muzzle?.GlobalPosition ?? _models[effect.Shot.AttackerId].LocationCenter(effect.Mount));
+    }
+    internal IEnumerable<(CombatShot Shot, float Fired, Color Color, bool Launched, Vector3 Head, Vector3 End, MeshInstance3D Streak, bool Sparking)> Tracers() =>
+        _effects.Where(effect => effect.Rounds is not null).SelectMany(effect => effect.Rounds!.Select(round =>
+            (effect.Shot, round.Fired, round.Color, round.Launched, round.Head, round.End, round.Streak, round.Spark.Visible)));
+    internal bool MuzzleFlashing(CombatShot shot) => _effects.Any(effect => effect.Shot == shot && effect.Rounds is not null && effect.Flash!.Visible);
     private void RemoveEffect(int index)
     {
         var effect = _effects[index];
@@ -626,6 +741,7 @@ public partial class CombatViewport : Control
         foreach (var mesh in effect.PpcMeshes) mesh.QueueFree();
         foreach (var missile in effect.Salvo ?? [])
         { missile.Glow.QueueFree(); missile.Trail.QueueFree(); missile.Flash.QueueFree(); missile.Blast.QueueFree(); }
+        foreach (var round in effect.Rounds ?? []) { round.Streak.QueueFree(); round.Spark.QueueFree(); }
         _effects.RemoveAt(index);
     }
     private float Age(ShotEffect effect) => (float)((Simulation?.Clock ?? effect.Start) - effect.Start);
@@ -781,12 +897,13 @@ public partial class CombatViewport : Control
             if (Input.IsPhysicalKeyPressed(Key.E)) { _yaw += (float)delta; UpdateCamera(); }
         }
         SyncModels(!Simulation.Paused && Simulation.Outcome == CombatOutcome.Ongoing ? (float)delta : 0);
-        // A destroyed shooter's beam vanishes at once.
+        // A destroyed shooter's beam vanishes at once. Bursts fire their due rounds first so their duration is current.
+        foreach (var effect in _effects) FireRounds(effect);
         for (var i = _effects.Count - 1; i >= 0; i--)
             if (Age(_effects[i]) >= _effects[i].Duration
                 || _effects[i].Laser is not null && Simulation.Unit(_effects[i].Shot.AttackerId).Status == CombatStatus.Destroyed)
                 RemoveEffect(i);
-        foreach (var effect in _effects) { UpdateBeam(effect); UpdateShell(effect); UpdatePpc(effect); UpdateSalvo(effect); }
+        foreach (var effect in _effects) { UpdateBeam(effect); UpdateShell(effect); UpdatePpc(effect); UpdateSalvo(effect); UpdateBurst(effect); }
         for (var i = _destructions.Count - 1; i >= 0; i--)
             if (Age(_destructions[i]) >= DestructionSeconds) RemoveDestruction(i);
         foreach (var destruction in _destructions) UpdateDestruction(destruction);
@@ -1076,7 +1193,7 @@ public partial class CombatViewport : Control
                     ImpactRing(_models[shot.TargetId].LocationCenter(second), (float)(Simulation.Clock - landed), LaserColor(kind));
                 continue;
             }
-            if (effect.Shell is not null || effect.Salvo is not null || effect.Ppc) continue;
+            if (effect.Shell is not null || effect.Salvo is not null || effect.Ppc || effect.Rounds is not null) continue;
             var color = new Color(shot.Hit ? Ui.Gold : Ui.Muted, 1 - age / ShotLife);
             DrawLine(Camera.UnprojectPosition(from), Camera.UnprojectPosition(to), color, 1, true);
             if (shot.Hit) ImpactRing(to, age, Ui.Gold);

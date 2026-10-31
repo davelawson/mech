@@ -54,7 +54,7 @@ internal static partial class CombatChecks
             foreach (var unit in sim.Units) unit.Firing = FiringMode.HoldFire;
             var follower = Friendly(sim); leader = sim.Units.Last(unit => unit.Side == CombatSide.Friendly);
             sim.Follow([follower.Id], leader.Id);
-            if (destroyed) leader.ApplyDamage(MechLocation.Head, 1000);
+            if (destroyed) leader.ApplyDamage(MechLocation.Head, 10000);
             else foreach (var location in new[] { MechLocation.LeftLeg, MechLocation.RightLeg })
                 leader.ApplyDamage(location, leader.Locations[location].Armor + leader.Locations[location].Structure);
             sim.Paused = false; sim.Advance(.05);
@@ -84,7 +84,7 @@ internal static partial class CombatChecks
             var follower = Friendly(sim); leader = sim.Units.Last(unit => unit.Side == CombatSide.Friendly);
             follower.Position = new(0, 9); follower.Facing = Vector2.Up; leader.Position = Vector2.Zero;
             var obstacle = Enemy(sim); obstacle.Position = new(0, CombatRules.FollowDistance);
-            if (destroyed) obstacle.ApplyDamage(MechLocation.Head, 1000);
+            if (destroyed) obstacle.ApplyDamage(MechLocation.Head, 10000);
             else foreach (var location in new[] { MechLocation.LeftLeg, MechLocation.RightLeg })
                 obstacle.ApplyDamage(location, obstacle.Locations[location].Armor + obstacle.Locations[location].Structure);
             sim.Follow([follower.Id], leader.Id); sim.Paused = false; sim.Advance(40);

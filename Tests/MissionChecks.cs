@@ -42,7 +42,7 @@ internal static class MissionChecks
         Reject(() => Campaign.Restore(campaign.Snapshot() with { Missions = null }), check, "current saves require mission state");
         foreach (var version in new[] { 1, 2 })
         {
-            var legacy = campaign.Snapshot() with { Version = version, Missions = null };
+            var legacy = CampaignChecks.Legacy(campaign.Snapshot(), version) with { Missions = null };
             if (version == 1) legacy = legacy with { Roster = null };
             var migrated = Campaign.Restore(legacy);
             check(migrated.Missions.Current is null && migrated.Missions.HasUnseenOffers && migrated.Cash == campaign.Cash,

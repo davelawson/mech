@@ -70,7 +70,7 @@ internal static class TravelChecks
         check(campaign.AccruedTransitDays == costs && !campaign.Travel.HasJourney, "stationary orbit has no transit cost");
         foreach (var version in new[] { 1, 2, 3 })
         {
-            var legacy = CampaignChecks.NewCompany().Snapshot() with { Version = version, Travel = null };
+            var legacy = CampaignChecks.Legacy(CampaignChecks.NewCompany().Snapshot(), version) with { Travel = null };
             if (version == 1) legacy = legacy with { Roster = null, Missions = null };
             if (version == 2) legacy = legacy with { Missions = null };
             var loaded = Campaign.Restore(legacy);

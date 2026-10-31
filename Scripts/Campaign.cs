@@ -127,14 +127,14 @@ public sealed class Campaign
         return due;
     }
 
-    public CampaignSnapshot Snapshot() => new(4, Date, Cash, PaymentDue, DeferredDebt, NextQuarter, Bankrupt, _events.ToArray(), Roster?.Snapshot(), Missions.Snapshot(), Travel.Snapshot(), AccruedTransitDays, BilledTransitDays);
+    public CampaignSnapshot Snapshot() => new(5, Date, Cash, PaymentDue, DeferredDebt, NextQuarter, Bankrupt, _events.ToArray(), Roster?.Snapshot(), Missions.Snapshot(), Travel.Snapshot(), AccruedTransitDays, BilledTransitDays);
 
     public static Campaign Restore(CampaignSnapshot save)
     {
         ArgumentNullException.ThrowIfNull(save);
         var date = save.Date;
         var quarterStart = date == default ? StartDate : new DateOnly(date.Year, (date.Month - 1) / 3 * 3 + 1, 1);
-        if (save.Version is not (1 or 2 or 3 or 4) || date < StartDate || date.Year >= 9999 || save.Cash < 0
+        if (save.Version is not (1 or 2 or 3 or 4 or 5) || date < StartDate || date.Year >= 9999 || save.Cash < 0
             || save.DeferredDebt < 0 || save.DeferredDebt > 284_000
             || save.DeferredDebt != 0 && (save.DeferredDebt < QuarterlyCharge || save.DeferredDebt % TransitDailyCharge != 0)
             || save.AccruedTransitDays < 0 || save.AccruedTransitDays > date.DayNumber - quarterStart.DayNumber
@@ -147,7 +147,7 @@ public sealed class Campaign
             || save.Bankrupt != (save.PaymentDue > 0 && save.DeferredDebt > 0 && save.Cash < save.PaymentDue)
             || save.Events is null || save.Version == 1 && save.Roster is not null || save.Version >= 2 && save.Roster is null
             || save.Version < 3 && save.Missions is not null || save.Version >= 3 && save.Missions is null
-            || save.Version == 4 && save.Travel is null)
+            || save.Version >= 4 && save.Travel is null)
             throw new ArgumentException("The campaign save contains invalid state.");
 
         var campaign = new Campaign
@@ -157,7 +157,8 @@ public sealed class Campaign
             AccruedTransitDays = save.AccruedTransitDays, BilledTransitDays = save.BilledTransitDays
         };
         if (save.Version >= 4) campaign.Travel = Mech.Travel.Restore(save.Travel!, StarChart.Instance);
-        if (save.Roster is not null) campaign.Roster = ForceRoster.Restore(save.Roster, date);
+        // Saves before version 5 counted whole stock points of armor and structure.
+        if (save.Roster is not null) campaign.Roster = ForceRoster.Restore(save.Version < 5 ? ForceRoster.Rescale(save.Roster, CombatRules.DamageScale) : save.Roster, date);
         if (save.Missions is not null) campaign.Missions = MissionBoard.Restore(save.Missions);
         foreach (var item in save.Events)
         {

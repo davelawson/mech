@@ -51,10 +51,10 @@ internal static partial class CombatChecks
         check(shared.Detected(novice.Side, enemy.Id) && !shared.DetailsVisible(novice.Side, enemy.Id),
             "shared detailed contact downgrades when the scout leaves detailed range");
         var lastKnown = shared.Contacts(novice.Side)[enemy.Id].LastKnownPosition;
-        scout.ApplyDamage(MechLocation.CenterTorso, 1000); shared.RefreshDetection();
+        scout.ApplyDamage(MechLocation.CenterTorso, 10000); shared.RefreshDetection();
         check(!shared.Detected(novice.Side, enemy.Id) && !shared.DetailsVisible(novice.Side, enemy.Id)
             && shared.Contacts(novice.Side)[enemy.Id].LastKnownPosition == lastKnown, "inactive observers lose both information tiers while retaining last-known position");
-        enemy.Position = new Vector2(5, 0); enemy.ApplyDamage(MechLocation.CenterTorso, 1000); shared.RefreshDetection();
+        enemy.Position = new Vector2(5, 0); enemy.ApplyDamage(MechLocation.CenterTorso, 10000); shared.RefreshDetection();
         check(shared.DetailsVisible(novice.Side, enemy.Id), "destroyed targets remain observable within detailed range");
         var damaged = SensorUnit("damaged", "awesome", 4, CombatSide.Enemy, Vector2.Zero);
         var weapon = damaged.Weapons.First(w => w.Spec.Location is MechLocation.LeftArm or MechLocation.RightArm);

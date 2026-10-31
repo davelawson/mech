@@ -34,13 +34,21 @@ class CatalogImportChecks(unittest.TestCase):
 
     def test_numeric_missiles_and_target_heat(self):
         crusader = self.parse('crusader')
-        for kind, per, count in [('LRM15', 1, 15), ('SRM6', 2, 6)]:
+        for kind, per, count in [('LRM15', 10, 15), ('SRM6', 20, 6)]:
             weapon = next(w for w in crusader['Weapons'] if w['Kind'] == kind)
             self.assertEqual(weapon['DamageProfile'], dict(Kind='Missile', PerProjectile=per, ProjectileCount=count, TargetHeat=0))
             self.assertEqual(weapon['AmmoKind'], kind)
         flamer = next(w for w in self.parse('firestarter')['Weapons'] if w['Kind'] == 'Flamer')
-        self.assertEqual(flamer['DamageProfile'], dict(Kind='Direct', PerProjectile=2, ProjectileCount=1, TargetHeat=2))
+        self.assertEqual(flamer['DamageProfile'], dict(Kind='Direct', PerProjectile=20, ProjectileCount=1, TargetHeat=2))
         self.assertIsNone(flamer['AmmoKind'])
+
+    def test_protection_and_damage_use_tenths_of_a_stock_point(self):
+        firestarter = self.parse('firestarter')
+        ct = next(l for l in firestarter['Locations'] if l['Location'] == 'CenterTorso')
+        head = next(l for l in firestarter['Locations'] if l['Location'] == 'Head')
+        self.assertEqual((ct['Armor'], ct['RearArmor'], ct['Structure'], head['Structure']), (130, 60, 110, 30))
+        damage = {w['Kind']: w['DamageProfile']['PerProjectile'] for w in firestarter['Weapons']}
+        self.assertEqual((damage['MediumLaser'], damage['MachineGun']), (50, 5))
 
     def test_grouped_sinks_preserve_counts_and_internal_remainder(self):
         atlas = self.parse('atlas')

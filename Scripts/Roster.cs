@@ -238,6 +238,19 @@ public sealed class ForceRoster
         { warrior.Health = WarriorHealth.Healthy; warrior.RecoveryDate = null; }
     }
     public RosterSnapshot Snapshot() => new(ForceName, Mechs.Select(item => item.Snapshot()).ToArray(), Warriors.Select(item => item.Snapshot()).ToArray());
+    /// <summary>Multiplies saved armor and structure, leaving malformed entries for Restore to reject.</summary>
+    internal static RosterSnapshot Rescale(RosterSnapshot save, int factor)
+    {
+        int Scale(int value) => value >= 0 && value <= int.MaxValue / factor ? value * factor : -1;
+        return save with
+        {
+            Mechs = save.Mechs?.Select(mech => mech is null ? null! : mech with
+            {
+                Locations = mech.Locations?.Select(loc => loc is null ? null! : loc with
+                    { Armor = Scale(loc.Armor), RearArmor = Scale(loc.RearArmor), Structure = Scale(loc.Structure) }).ToArray()!
+            }).ToArray()!
+        };
+    }
     public static ForceRoster Restore(RosterSnapshot save, DateOnly date)
     {
         if (!InitialDraft.ValidName(save.ForceName) || save.ForceName != save.ForceName.Trim() || save.Mechs is null || save.Warriors is null

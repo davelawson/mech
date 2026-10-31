@@ -8,11 +8,13 @@ ADDITIONAL = json.loads((ROOT / 'Data' / 'additional-mechs.json').read_text())
 UNIT_PATHS = {unit['id']: unit['path'] for unit in ADDITIONAL}
 UNITS += [(unit['id'], unit['unit']) for unit in ADDITIONAL]
 # Stock profiles only: real-time cooldowns are authored in CombatRules, not imported.
+# The game counts armor, structure and damage in tenths of a stock point, so the catalog stores stock values × SCALE.
+SCALE = 10
 @dataclass(frozen=True)
 class WeaponProfile:
     kind: str
     heat: int
-    per_projectile: int
+    per_projectile: float
     projectiles: int
     minimum: int
     short: int
@@ -24,7 +26,7 @@ class WeaponProfile:
 WEAPONS = {
     'Medium Laser': WeaponProfile(kind='MediumLaser', heat=3, per_projectile=5, projectiles=1, minimum=0, short=3, medium=6, long=9, shots=0, target_heat=0),
     'Flamer': WeaponProfile(kind='Flamer', heat=3, per_projectile=2, projectiles=1, minimum=0, short=1, medium=2, long=3, shots=0, target_heat=2),
-    'Machine Gun': WeaponProfile(kind='MachineGun', heat=0, per_projectile=2, projectiles=1, minimum=0, short=1, medium=2, long=3, shots=200, target_heat=0),
+    'Machine Gun': WeaponProfile(kind='MachineGun', heat=0, per_projectile=0.5, projectiles=1, minimum=0, short=1, medium=2, long=3, shots=200, target_heat=0),
     'SRM 4': WeaponProfile(kind='SRM4', heat=3, per_projectile=2, projectiles=4, minimum=0, short=3, medium=6, long=9, shots=25, target_heat=0),
     'PPC': WeaponProfile(kind='PPC', heat=10, per_projectile=10, projectiles=1, minimum=3, short=6, medium=12, long=18, shots=0, target_heat=0),
     'LRM 10': WeaponProfile(kind='LRM10', heat=4, per_projectile=1, projectiles=10, minimum=6, short=7, medium=14, long=21, shots=12, target_heat=0),
@@ -81,14 +83,14 @@ def _parse_unit(text, ident, url):
         match=re.search(r'^'+spaced+r':\n(.*?)(?:\n\n|\Z)',text,re.M|re.S)
         criticals[loc]=[x.strip() for x in match[1].splitlines() if x.strip()!='-Empty-'] if match else []
         rear={'CT':'RTC','LT':'RTL','RT':'RTR'}.get(abbr)
-        locations.append(dict(Location=loc,Armor=int(fields[abbr+' armor']),RearArmor=int(fields.get(rear+' armor','0')) if rear else 0,Structure=3 if abbr=='HD' else ct if abbr=='CT' else side if abbr in ('LT','RT') else arm if abbr in ('LA','RA') else leg))
+        locations.append(dict(Location=loc,Armor=SCALE*int(fields[abbr+' armor']),RearArmor=SCALE*int(fields.get(rear+' armor','0')) if rear else 0,Structure=SCALE*(3 if abbr=='HD' else ct if abbr=='CT' else side if abbr in ('LT','RT') else arm if abbr in ('LA','RA') else leg)))
     weapon_lines=re.search(r'^Weapons:\d+\n(.*?)\n\n',text,re.M|re.S)[1].splitlines()
     weapons=[]
     for i,line in enumerate(weapon_lines):
         weapon,where=line.split(', ',1); loc=where.replace(' ',''); values=WEAPONS[weapon]
         rear_count=sum(x.endswith('(R)') and (x.startswith(weapon) or x.startswith(weapon.replace('AC/','Autocannon/'))) for x in criticals[loc])
         rear=sum(x==line for x in weapon_lines[i+1:]) < rear_count
-        weapons.append(dict(Id='weapon-'+str(i),Name=weapon,Location=loc,Rear=rear,Heat=values.heat,DamageProfile=dict(Kind='Missile' if values.projectiles > 1 else 'Direct',PerProjectile=values.per_projectile,ProjectileCount=values.projectiles,TargetHeat=values.target_heat),Minimum=values.minimum,Short=values.short,Medium=values.medium,Long=values.long,AmmoKind=values.kind if values.shots else None,Kind=values.kind))
+        weapons.append(dict(Id='weapon-'+str(i),Name=weapon,Location=loc,Rear=rear,Heat=values.heat,DamageProfile=dict(Kind='Missile' if values.projectiles > 1 else 'Direct',PerProjectile=round(values.per_projectile*SCALE),ProjectileCount=values.projectiles,TargetHeat=values.target_heat),Minimum=values.minimum,Short=values.short,Medium=values.medium,Long=values.long,AmmoKind=values.kind if values.shots else None,Kind=values.kind))
     components=[]; ammo=[]
     for loc,items in criticals.items():
         for item,count in collections.Counter(items).items():

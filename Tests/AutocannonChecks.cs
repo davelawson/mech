@@ -7,7 +7,7 @@ internal static partial class CombatChecks
 {
     // An AC/20 with lengthened brackets so a 30-hex shot stays in range; the leg bin holds fewer shots.
     private static CombatSimulation AutocannonFixture(int seed = 41, int gunnery = -10, float distance = 30, WeaponKind kind = WeaponKind.AC20,
-        AmmoKind ammo = AmmoKind.AC20, int damage = 20)
+        AmmoKind ammo = AmmoKind.AC20, int damage = 200)
     {
         var spec = DraftCatalog.Mech("awesome") with
         {
@@ -39,7 +39,7 @@ internal static partial class CombatChecks
         check(discharge.Hit && discharge.InFlight && Math.Abs(discharge.FlightSeconds - .5) < 1e-6
                 && enemy.ArmorLost + enemy.StructureLost == 0 && friendly.DamageDealt == 0,
             "an autocannon hit is rolled at discharge but deals no damage while in flight");
-        check(sim.History[0].DebugText.Contains("in flight 0.50s") && sim.History[0].DebugText.Contains("dmg 20 on impact")
+        check(sim.History[0].DebugText.Contains("in flight 0.50s") && sim.History[0].DebugText.Contains("dmg 200 on impact")
                 && !sim.History[0].DebugText.Contains("armour"),
             "the discharge entry reports the shell in flight");
         check(friendly.Shots("bin-b") == 0 && friendly.Shots("bin-a") == 3, "each discharge spends a shot from the emptiest bin");
@@ -48,8 +48,8 @@ internal static partial class CombatChecks
         Steps(sim, 1);
         var impact = sim.History[^1].Shot;
         check(sim.History.Count == 2 && impact.Impact && impact.Sequence == discharge.Sequence && impact.Location == discharge.Location
-                && impact.DamageApplied.Sum(part => part.Armor + part.RearArmor + part.Structure) == 20
-                && enemy.ArmorLost + enemy.StructureLost == 20 && friendly.DamageDealt == 20 && friendly.ShotsFired == 1,
+                && impact.DamageApplied.Sum(part => part.Armor + part.RearArmor + part.Structure) == 200
+                && enemy.ArmorLost + enemy.StructureLost == 200 && friendly.DamageDealt == 200 && friendly.ShotsFired == 1,
             "the shell applies its damage on impact as a separate entry");
         check(sim.History[^1].DebugText.Contains("impact") && !sim.History[^1].DebugText.Contains("chance"),
             "impact entries inherit their discharge roll");
@@ -80,15 +80,15 @@ internal static partial class CombatChecks
         check(friendly.AmmoRemaining(AmmoKind.AC20) == 1 && friendly.WeaponUsable(friendly.Weapons[0]), "surviving bins still feed the weapon");
 
         sim = AutocannonFixture(); Steps(sim, 1);
-        Enemy(sim).ApplyDamage(MechLocation.CenterTorso, 10000); var lost = Enemy(sim).ArmorLost + Enemy(sim).StructureLost;
+        Enemy(sim).ApplyDamage(MechLocation.CenterTorso, 100000); var lost = Enemy(sim).ArmorLost + Enemy(sim).StructureLost;
         Steps(sim, 10);
         check(sim.History.Count == 2 && sim.History[^1].Shot is { Wreck: true, Damage: 0 } && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == lost
                 && sim.History[^1].DebugText.Contains("no damage, target destroyed") && Friendly(sim).DamageDealt == 0,
             "a shell reaching a destroyed target explodes on the wreck without damage");
 
         sim = AutocannonFixture(); Steps(sim, 1);
-        Friendly(sim).ApplyDamage(MechLocation.Head, 10000); Steps(sim, 10);
-        check(sim.History.Count(entry => entry.Shot.Impact) == 1 && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == 20,
+        Friendly(sim).ApplyDamage(MechLocation.Head, 100000); Steps(sim, 10);
+        check(sim.History.Count(entry => entry.Shot.Impact) == 1 && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == 200,
             "a shell lands even after its shooter is destroyed");
         check(sim.WindingDown && sim.Outcome == CombatOutcome.Ongoing, "shells in flight land during the wind-down");
 

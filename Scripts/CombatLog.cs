@@ -66,8 +66,8 @@ public sealed record CombatLogEntry(double Time, CombatShot Shot, CombatLogUnit 
             if (Shot.Hit && Target.Detailed(debug))
             {
                 fields.Add($"dmg {Shot.Damage}" + (Shot.Splash > 0 ? $" + {Shot.Splash} splash" : "") + " on impact");
-                if (Shot.Splash > 0) fields.Add("splash " + string.Join(", ", Shot.SplashPoints.GroupBy(location => location)
-                    .OrderBy(group => group.Key).Select(group => $"{DraftCatalog.Abbreviation(group.Key)}×{group.Count()}")));
+                if (Shot.Splash > 0) fields.Add("splash " + string.Join(", ", Shot.Splashes.GroupBy(item => item.Location)
+                    .OrderBy(group => group.Key).Select(group => $"{DraftCatalog.Abbreviation(group.Key)} {group.Sum(item => item.Damage)}")));
             }
         }
         else if (Target.Detailed(debug))

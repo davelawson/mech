@@ -195,11 +195,11 @@ public partial class SmokeTests
             GetWindow().Size = size; await Frames(); await Capture($"awesome-combat-enemy-{size.X}x{size.Y}");
             Check(combat.Paperdoll.Size.X > 200, $"paperdoll fits sidebar width at {size}");
         }
-        enemy.ApplyDamage(MechLocation.RightTorso, 100); await Frames();
+        enemy.ApplyDamage(MechLocation.RightTorso, 1000); await Frames();
         var enemyModel = combatModels.Single(item => item.Position.X == enemy.Position.X);
         Check(!enemyModel.Locations[MechLocation.RightTorso].Visible && !enemyModel.Locations[MechLocation.RightArm].Visible,
             "side-torso destruction removes its entire visual region and attached arm");
-        enemy.ApplyDamage(MechLocation.Head, 100); await Frames();
+        enemy.ApplyDamage(MechLocation.Head, 1000); await Frames();
         Check(!enemyModel.Locations[MechLocation.Head].Visible && !enemyModel.Locations[MechLocation.Head].IsVisibleInTree(),
             "head loss removes visor and laser along with cockpit geometry");
         GetWindow().Size = new(1440, 900);
