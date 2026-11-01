@@ -33,7 +33,6 @@ public partial class HangarScreen : Control
     private ForceRoster _roster = null!;
     private int _selected;
     private TextureRect _background = null!;
-    private Label _title = null!;
     private Label _mechName = null!;
     private Label _mechClass = null!;
     private Label _mechStatus = null!;
@@ -58,8 +57,6 @@ public partial class HangarScreen : Control
         _boardContent = new Control { MouseFilter = MouseFilterEnum.Pass }; Board.AddChild(_boardContent);
         foreach (var location in Enum.GetValues<MechLocation>())
         { var panel = new HangarLocationPanel(location); _boardContent.AddChild(panel); _locations[location] = panel; }
-        _title = Ui.Label(this, "MECH HANGAR", 25, Ui.Gold);
-        _title.ClipText = true;
         BackButton = Ui.Button(this, "Back to office"); BackButton.Pressed += () => BackRequested?.Invoke();
 
         StoragePanel = Panel();
@@ -123,7 +120,6 @@ public partial class HangarScreen : Control
     public void Select(int index)
     {
         _selected = index; var mech = SelectedMech; var spec = mech.Spec; var warrior = _roster.Pilot(mech);
-        _title.Text = $"MECH HANGAR  /  {_roster.ForceName}";
         Preview.Display(mech);
         var layout = CriticalLayout.For(spec);
         foreach (var (location, panel) in _locations) panel.Display(mech, layout[location]);
@@ -192,18 +188,17 @@ public partial class HangarScreen : Control
     {
         if (_background is null) return;
         Ui.Place(_background, 0, 0, Size.X, Size.Y);
-        Ui.Place(_title, 24, 8, Size.X - 222, 48);
-        Ui.Place(BackButton, Size.X - 174, 14, 150, 36);
         var compact = Compact;
         var leftWidth = compact ? 190 : 280; var rightWidth = compact ? 230 : 310;
-        var top = 64f; var bottom = Size.Y - 78; var gap = compact ? 10 : 16;
+        var top = 24f; var bottom = Size.Y - 78; var gap = compact ? 10 : 16;
         Ui.Place(StoragePanel, 24, top, leftWidth, bottom - top - 8);
         Ui.Place(SummaryPanel, Size.X - rightWidth - 24, top, rightWidth, bottom - top - 8);
         var centreX = 24 + leftWidth + gap; var centreWidth = Size.X - 48 - leftWidth - rightWidth - gap * 2;
         Ui.Place(Preview, centreX, top - 8, centreWidth, bottom - top + 8);
         Ui.Place(Board, centreX, top, centreWidth, bottom - top - 8);
         LayoutBoard(centreWidth, bottom - top - 8, compact);
-        Ui.Place(_rosterScroll, 24, Size.Y - 70, Size.X - 48 - 230, 62);
+        Ui.Place(_rosterScroll, 24, Size.Y - 70, Size.X - 48 - 230 - 158, 62);
+        Ui.Place(BackButton, Size.X - 234 - 158, Size.Y - 66, 150, 54);
         Ui.Place(DeploymentButton, Size.X - 234, Size.Y - 66, 210, 54);
     }
 

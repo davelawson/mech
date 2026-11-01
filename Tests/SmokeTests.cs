@@ -234,7 +234,7 @@ public partial class SmokeTests : Node
             {
                 (hotspot, OfficeScreen.ChartRegion), (office.CalendarButton, OfficeScreen.CalendarRegion),
                 (office.ReminderButton, OfficeScreen.ReminderRegion), (office.SafeButton, OfficeScreen.SafeRegion),
-                (office.FilingButton, OfficeScreen.FilingRegion), (office.WallMap, OfficeScreen.MapRegion),
+                (office.FilingButton, OfficeScreen.FilingRegion), (office.WallMap, OfficeScreen.MapRegion), (office.LocationStrip, OfficeScreen.LocationRegion),
                 (office.PhoneButton, OfficeScreen.PhoneRegion), (office.RolodexButton, OfficeScreen.RolodexRegion), (office.HangarButton, OfficeScreen.HangarRegion),
                 (office.JacketButton, OfficeScreen.JacketRegion)
             })
@@ -243,6 +243,9 @@ public partial class SmokeTests : Node
                     && (control.GetGlobalRect().Size / scale).DistanceTo(region.Size) < .1f,
                     $"{control.Name} follows its painted object at {size}");
             }
+            Check(office.LocationStrip.Text == _app.State.Travel.LocationText && office.LocationStrip.Text.Length > 0
+                && office.WallMap.GetGlobalRect().Grow(1).Encloses(office.LocationStrip.GetGlobalRect()),
+                $"current location shows along the bottom of the wall chart at {size}");
             Check(office.CalendarButton.TooltipText.Contains(_app.State.DateText)
                 && office.SafeButton.TooltipText.Contains("₡ 2,500,000"), $"small-window tooltips include date and balance at {size}");
             Check(office.CalendarButton.GetGlobalRect().Encloses(office.CalendarDate.GetGlobalRect())

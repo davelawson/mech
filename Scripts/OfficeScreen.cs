@@ -30,11 +30,13 @@ public partial class OfficeScreen : Control
     public Label QuarterText { get; private set; } = null!;
     public Label SafeReadout => _safeReadout;
     public TextureRect WallMap { get; private set; } = null!;
+    public Label LocationStrip { get; private set; } = null!;
     public Rect2 ArtworkRect { get; private set; }
     public bool ArtworkLoaded => _image.Texture is not null;
     // Shapes are traced in source-art pixels; regions are their bounds, and all controls use the artwork scale.
     public static readonly Vector2 ArtworkSize = new(1672, 940);
     public static readonly Rect2 MapRegion = new(347, 112, 288, 288f * 6 / 7);
+    public static readonly Rect2 LocationRegion = new(MapRegion.Position.X, MapRegion.End.Y - 28, MapRegion.Size.X, 28);
     public static readonly Vector2[] ChartShape = [new(328, 84), new(652, 84), new(652, 390), new(598, 390), new(598, 410), new(576, 410), new(576, 390), new(328, 390)];
     public static readonly Vector2[] CalendarShape = [new(730, 166), new(904, 166), new(912, 174), new(912, 292), new(904, 300), new(730, 300), new(722, 292), new(722, 174)];
     public static readonly Vector2[] ReminderShape = [new(767, 271), new(862, 271), new(862, 311), new(767, 311)];
@@ -60,7 +62,6 @@ public partial class OfficeScreen : Control
     private TextureRect _image = null!;
     private Label _error = null!;
     private Label _hint = null!;
-    private Label _section = null!;
     private Label _safeReadout = null!;
     private bool _paymentPending;
     private double _blinkTime;
@@ -68,11 +69,6 @@ public partial class OfficeScreen : Control
 
     public override void _Ready()
     {
-        Ui.Place(Ui.Label(this, "ABOARD THE DROPSHIP", 11, Ui.Muted), 36, 12, 400, 22);
-        Ui.Place(Ui.Label(this, "Captain’s office", 28), 36, 34, 500, 40);
-        _section = Ui.Label(this, "", 12, Ui.Gold);
-        _section.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        _section.HorizontalAlignment = HorizontalAlignment.Right;
         _frame = new Panel { ClipContents = true, MouseFilter = MouseFilterEnum.Ignore };
         _frame.AddThemeStyleboxOverride("panel", Ui.Box(new Color("0a0e0c"), Ui.Line));
         AddChild(_frame);
@@ -92,6 +88,13 @@ public partial class OfficeScreen : Control
             TextureFilter = TextureFilterEnum.LinearWithMipmaps
         };
         _frame.AddChild(WallMap);
+        LocationStrip = Ui.Label(_frame, "", 16, new Color("b6d4b1"));
+        LocationStrip.Name = "LocationStrip";
+        LocationStrip.AddThemeStyleboxOverride("normal", new StyleBoxFlat { BgColor = new Color(0, .02f, .02f, .78f) });
+        LocationStrip.HorizontalAlignment = HorizontalAlignment.Center;
+        LocationStrip.VerticalAlignment = VerticalAlignment.Center;
+        LocationStrip.ClipText = true;
+        LocationStrip.MouseFilter = MouseFilterEnum.Ignore;
         Hotspot = AddHotspot("StarMapHotspot", ChartShape);
         Hotspot.TooltipText = "Open star map";
         Hotspot.Pressed += () => EmitSignal(SignalName.MapRequested);
@@ -162,8 +165,8 @@ public partial class OfficeScreen : Control
 
     public void RefreshCampaign(Campaign campaign)
     {
-        _section.Text = campaign.Travel.LocationText;
-        _section.TooltipText = campaign.Travel.LocationText;
+        LocationStrip.Text = campaign.Travel.LocationText;
+        Hotspot.TooltipText = $"{campaign.Travel.LocationText}\nOpen star map";
         var count = campaign.Roster?.ReadyWarriors ?? 0;
         ReadyCount.Text = count.ToString();
         RolodexButton.TooltipText = $"Rolodex · {count} healthy MechWarriors ready for deployment";
@@ -213,8 +216,7 @@ public partial class OfficeScreen : Control
     private void Layout()
     {
         if (_frame is null) return;
-        Ui.Place(_section, Size.X - 430, 16, 394, 52);
-        Ui.Place(_frame, 36, 86, Size.X - 72, Size.Y - 136);
+        Ui.Place(_frame, 36, 16, Size.X - 72, Size.Y - 66);
         Ui.Place(_hint, 36, Size.Y - 50, Size.X - 72, 50);
         var source = ArtworkSize;
         var scale = Math.Min(_frame.Size.X / source.X, _frame.Size.Y / source.Y);
@@ -224,6 +226,7 @@ public partial class OfficeScreen : Control
         _image.Size = ArtworkRect.Size;
         Ui.Place(_error, 12, _frame.Size.Y / 2 + 60, _frame.Size.X - 24, 50);
         PlaceArtworkControl(WallMap, MapRegion, scale);
+        PlaceArtworkControl(LocationStrip, LocationRegion, scale);
         foreach (var hotspot in new[] { Hotspot, CalendarButton, ReminderButton, SafeButton, FilingButton, RolodexButton, PhoneButton, HangarButton, JacketButton })
             PlaceArtworkControl(hotspot, hotspot.Region, scale);
     }

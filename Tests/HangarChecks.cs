@@ -91,6 +91,11 @@ public partial class SmokeTests
             Check(hangar.GetGlobalRect().Encloses(hangar.DeploymentButton.GetGlobalRect()) && hangar.DeploymentButton.GetGlobalRect().Position.Y > board.End.Y
                 && hangar.DeploymentButton.GetGlobalRect().End.X > hangar.RosterButtons[^1].GetGlobalRect().End.X,
                 $"Simulate Deployment sits at the right of the mech buttons at {size}");
+            var back = hangar.BackButton.GetGlobalRect(); var deploy = hangar.DeploymentButton.GetGlobalRect();
+            var rosterScroll = hangar.RosterButtons[0].GetParent().GetParent<Control>().GetGlobalRect();
+            Check(back.Position.Y > board.End.Y && back.End.X <= deploy.Position.X && back.Position.X >= rosterScroll.End.X
+                && Mathf.IsEqualApprox(back.Position.Y, deploy.Position.Y),
+                $"Back to office sits between the mech buttons and Simulate Deployment at {size}");
             if (size.X < HangarScreen.CompactWidth)
                 Check(hangar.Compact && hangar.Board.GetVScrollBar().MaxValue > hangar.Board.Size.Y, "compact blueprint scrolls its location panels");
             else
