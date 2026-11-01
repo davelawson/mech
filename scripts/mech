@@ -63,15 +63,25 @@ export_windows() {
   (cd Builds/Windows && zip -q -r "$archive" .)
 }
 
-case "${1:-run}" in
+# Test groups are named arguments; none runs the full suite. See docs/testing.md.
+test_args() {
+  local IFS=,
+  if [[ $# -gt 0 ]]; then printf '%s\n' "--groups=$*"; fi
+}
+
+command="${1:-run}"
+[[ $# -gt 0 ]] && shift
+case "$command" in
   build) build ;;
   run) build; exec "$engine" --path . ;;
   editor) exec "$engine" --editor --path . ;;
-  test) build; exec "$engine" --headless --path . --scene res://Tests/SmokeTests.tscn ;;
-  capture) build; exec "$engine" --path . --scene res://Tests/SmokeTests.tscn -- --screenshots ;;
+  test)
+    if [[ "${1:-}" == --list ]]; then build; exec "$engine" --headless --path . --scene res://Tests/SmokeTests.tscn -- --list-groups; fi
+    build; exec "$engine" --headless --path . --scene res://Tests/SmokeTests.tscn -- $(test_args "$@") ;;
+  capture) build; exec "$engine" --path . --scene res://Tests/SmokeTests.tscn -- --screenshots $(test_args "$@") ;;
   export-linux) build; export_linux ;;
   export-macos) build; export_macos ;;
   export-windows) build; export_windows ;;
   exports) build; export_linux; export_macos; export_windows ;;
-  *) echo "Usage: $0 {run|editor|build|test|capture|export-linux|export-macos|export-windows|exports}" >&2; exit 2 ;;
+  *) echo "Usage: $0 {run|editor|build|test [--list|group...]|capture [group...]|export-linux|export-macos|export-windows|exports}" >&2; exit 2 ;;
 esac

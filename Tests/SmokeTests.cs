@@ -9,147 +9,84 @@ public partial class SmokeTests : Node
     private bool _screenshots;
     private string _saveFile = "";
 
+    /// <summary>How a test group starts: model checks only, a fresh app at the main menu, or a fresh app with a drafted company.</summary>
+    private enum Setup { None, Menu, Drafted }
+
+    /// <summary>A screen-sized slice of the suite. Each group must pass alone; see docs/testing.md.</summary>
+    private sealed record TestGroup(string Name, Setup Setup, Func<Task> Run, bool InFullRun = true);
+
+    private TestGroup[] Groups() =>
+    [
+        new("menu", Setup.Menu, async () =>
+        {
+            await TestMainMenuStart();
+            await Click(_app.MainMenu.NewButton); await FinishDraft();
+            // Unsaved-change checks come last: exit checks rely on the clean company they leave behind.
+            await TestBackNavigationUi(); await TestNavigationTransitions(); await TestMenuResumeUi(); await TestUnsavedChangesUi();
+        }),
+        new("draft", Setup.Menu, async () =>
+        {
+            await Click(_app.MainMenu.NewButton); await TestDraftUi(); await TestLegacyDraftUi();
+        }),
+        new("office", Setup.Drafted, async () => { await TestOfficeUi(); TestMissingArtwork(); }),
+        new("map", Setup.Drafted, async () =>
+        {
+            TestGeometry(); TravelChecks.Run(Check);
+            await TestStarMapUi(); await TestShipLocatorUi(); await TestTravelUi();
+        }),
+        new("roster", Setup.Drafted, async () => { RosterChecks.Run(Check); await TestRosterUi(); }),
+        new("hangar", Setup.Drafted, async () => { HangarChecks.Run(Check); await TestHangarAssignmentsUi(); await TestHangarScreen(); }),
+        new("missions", Setup.Menu, async () => { MissionChecks.Run(Check); await TestMissionsUi(); }),
+        new("finance", Setup.Menu, async () => { CampaignChecks.Run(Check); await TestCampaignUi(); }),
+        new("catalog", Setup.None, () => { CatalogChecks.Run(Check); return Task.CompletedTask; }),
+        new("combat-sim", Setup.None, () => { CombatChecks.Run(Check); TerrainChecks.Run(Check); return Task.CompletedTask; }),
+        new("combat-layout", Setup.None, TestCombatLayouts, InFullRun: false),
+        new("combat-ui", Setup.Drafted, async () =>
+        {
+            await TestCombatLayouts(); await TestBattlefieldPicking(); await TestDetectionOverlay(); await TestShotEffects();
+            await TestCombatUi();
+        }),
+        new("mech-visuals", Setup.None, async () =>
+        {
+            await TestMechVisuals(); await TestChassisVisuals(); await TestAdditionalChassis(); await TestFinalChassis(); await TestAdditionalBatch();
+        }),
+        new("layout", Setup.Drafted, TestResizing),
+    ];
+
     public override async void _Ready()
     {
+        var args = OS.GetCmdlineUserArgs();
+        var groups = Groups();
+        if (args.Contains("--list-groups"))
+        {
+            foreach (var group in groups) GD.Print(group.InFullRun ? group.Name : $"{group.Name} (subset; not in the full run)");
+            GetTree().Quit(0); return;
+        }
+        // An exit check leaves the last app running, then ends the process through a quit path.
+        var exitCheck = args.Contains("--discard-quit") || args.Contains("--clean-window-quit") || args.Contains("--menu-quit");
         try
         {
-            _screenshots = OS.GetCmdlineUserArgs().Contains("--screenshots");
+            _screenshots = args.Contains("--screenshots");
             // Synthetic headless mouse events need the enter notification a desktop window normally supplies.
             if (DisplayServer.GetName() == "headless") GetViewport().NotifyMouseEntered();
-            if (OS.GetCmdlineUserArgs().Contains("--menu-only"))
+            var requested = args.FirstOrDefault(arg => arg.StartsWith("--groups="))?["--groups=".Length..]
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var unknown = requested?.Where(name => groups.All(group => group.Name != name)).ToArray() ?? [];
+            if (unknown.Length > 0)
+                throw new ArgumentException($"Unknown test group {string.Join(", ", unknown)}; valid groups: {string.Join(", ", groups.Select(group => group.Name))}");
+            var selected = requested is null ? groups.Where(group => group.InFullRun).ToArray()
+                : groups.Where(group => requested.Contains(group.Name)).ToArray();
+            for (var i = 0; i < selected.Length; i++)
             {
-                _app = ResourceLoader.Load<PackedScene>("res://Scenes/Command.tscn").Instantiate<CommandApp>();
-                _app.SavePath = $"user://smoke-{Guid.NewGuid():N}.json";
-                _saveFile = ProjectSettings.GlobalizePath(_app.SavePath);
-                AddChild(_app); await Frames();
-                await Click(_app.MainMenu.NewButton); await FinishDraft();
-                await TestNavigationTransitions(); await TestMenuResumeUi(); await TestUnsavedChangesUi();
-                GD.Print($"PASS: {_checks} menu, resume and unsaved-change checks");
-                if (OS.GetCmdlineUserArgs().Contains("--discard-quit"))
-                {
-                    _app.State.AdvanceOneDay(); _app.ShowMainMenu(); await Frames();
-                    await Click(_app.MainMenu.QuitButton);
-                    // Return through finally to remove the temporary save before the engine exits.
-                    // The external timeout fails this invocation if the quit action does not exit.
-                    DialogButton("Quit Without Saving").EmitSignal(BaseButton.SignalName.Pressed);
-                    return;
-                }
-                if (OS.GetCmdlineUserArgs().Contains("--clean-window-quit"))
-                    GetWindow().EmitSignal(Window.SignalName.CloseRequested);
-                else
-                {
-                    _app.ShowMainMenu(); await Frames();
-                    _app.MainMenu.QuitButton.EmitSignal(BaseButton.SignalName.Pressed);
-                }
-                Check(!_app.UnsavedDialog.Visible, "clean quit skips confirmation");
-                return;
+                var group = selected[i];
+                var before = _checks;
+                if (group.Setup != Setup.None) await StartApp(group.Setup == Setup.Drafted);
+                await group.Run();
+                if (group.Setup != Setup.None && !(exitCheck && i == selected.Length - 1)) await StopApp();
+                GD.Print($"  {group.Name}: {_checks - before} checks");
             }
-            if (OS.GetCmdlineUserArgs().Contains("--combat-simulation-only"))
-            {
-                CombatChecks.Run(Check); TerrainChecks.Run(Check);
-                GD.Print($"PASS: {_checks} combat simulation checks"); GetTree().Quit(); return;
-            }
-            var combatUiOnly = OS.GetCmdlineUserArgs().Contains("--combat-ui-only");
-            var combatLayoutOnly = OS.GetCmdlineUserArgs().Contains("--combat-layout-only");
-            await TestCombatLayouts();
-            if (combatLayoutOnly)
-            {
-                GD.Print($"PASS: {_checks} combat layout checks"); GetTree().Quit(); return;
-            }
-            await TestBattlefieldPicking();
-            await TestDetectionOverlay();
-            await TestShotEffects();
-            if (!combatUiOnly)
-            {
-                TestGeometry();
-                CampaignChecks.Run(Check);
-                TravelChecks.Run(Check);
-                CatalogChecks.Run(Check);
-                RosterChecks.Run(Check);
-                HangarChecks.Run(Check);
-                MissionChecks.Run(Check);
-                CombatChecks.Run(Check);
-                TerrainChecks.Run(Check);
-            }
-            _app = ResourceLoader.Load<PackedScene>("res://Scenes/Command.tscn").Instantiate<CommandApp>();
-            _app.SavePath = $"user://smoke-{Guid.NewGuid():N}.json";
-            _saveFile = ProjectSettings.GlobalizePath(_app.SavePath);
-            AddChild(_app);
-            await Frames();
-            if (combatUiOnly)
-            {
-                await Click(_app.MainMenu.NewButton); await FinishDraft(); await TestCombatUi();
-                GD.Print($"PASS: {_checks} combat UI checks"); GetTree().Quit(); return;
-            }
-            Check(_app.MainMenu.Visible && !_app.Office.Visible && !_app.StarMap.Visible, "starts in the main menu");
-            Check(_app.MainMenu.LoadButton.Disabled, "load disabled before first manual save");
-            await PressKey(Key.Escape); await RightClick(new Vector2(20, 20));
-            Check(_app.MainMenu.Visible && !_app.Office.Visible, "main menu back gestures do nothing without a company to resume");
-            await Capture("main-menu");
-            await PressKey(Key.Enter);
-            await TestDraftUi();
-            Check(_app.Office.Visible && !_app.StarMap.Visible, "starts in the office");
-            Check(_app.Office.ArtworkLoaded && _app.StarMap.Viewport.MapLoaded, "both local images load");
-            Check(_app.Office.Hotspot.HasFocus(), "initial keyboard focus is on the wall map");
-            var wallMapRect = _app.Office.WallMap.GetRect();
-            var wallMapTexture = _app.Office.WallMap.Texture;
-            Check(wallMapTexture is not null && wallMapTexture == _app.StarMap.Viewport.Texture, "wall chart shares the complete reference texture with the opened map");
-            Near(wallMapTexture!.GetSize().X / wallMapTexture.GetSize().Y, 7f / 6, "wall chart uses the full 7:6 reference image");
-            Check(_app.Office.WallMap.StretchMode == TextureRect.StretchModeEnum.KeepAspectCentered, "wall chart fits the image without cropping or distortion");
-            await Capture("office");
-            await PressKey(Key.Enter);
-            Check(_app.StarMap.Visible && !_app.Office.Visible, "keyboard activation opens the chart");
-            Check(_app.StarMap.Viewport.HasFocus(), "map receives keyboard focus");
-            await Capture("map-fit");
-            await PressKey(Key.Plus);
-            Near(_app.StarMap.Viewport.Transform.Zoom, 1.35f, "keyboard zoom");
-            var offset = _app.StarMap.Viewport.Transform.Offset;
-            await PressKey(Key.Down);
-            Check(_app.StarMap.Viewport.Transform.Offset != offset, "arrow keys pan the map");
-            await Capture("map-zoom");
-            await PressKey(Key.Home);
-            Near(_app.StarMap.Viewport.Transform.Zoom, 1, "Home fits the map");
-            Check(_app.StarMap.ZoomOut.Disabled, "minimum zoom disables zoom out");
-            _app.StarMap.ZoomIn.EmitSignal(BaseButton.SignalName.Pressed);
-            Near(_app.StarMap.Viewport.Transform.Zoom, 1.35f, "zoom button changes the viewport");
-            _app.StarMap.FitButton.EmitSignal(BaseButton.SignalName.Pressed);
-            Near(_app.StarMap.Viewport.Transform.Zoom, 1, "Fit button restores the overview");
-            await TestMouse();
-            Check(_app.Office.WallMap.Texture == wallMapTexture && _app.Office.WallMap.GetRect() == wallMapRect,
-                "wall chart remains unchanged after zooming and panning the opened map");
-            var zoom = _app.StarMap.Viewport.Transform.Zoom;
-            var mapPosition = _app.StarMap.Viewport.Transform.Offset;
-            await PressKey(Key.Escape);
-            Check(_app.Office.Visible && _app.Office.Hotspot.HasFocus(), "Escape returns to the office and restores focus");
-            _app.Office.Hotspot.EmitSignal(BaseButton.SignalName.Pressed);
-            await Frames();
-            Near(_app.StarMap.Viewport.Transform.Zoom, zoom, "zoom survives navigation");
-            Check(_app.StarMap.Viewport.Transform.Offset.IsEqualApprox(mapPosition), "pan survives navigation");
-            _app.StarMap.BackButton.EmitSignal(BaseButton.SignalName.Pressed);
-            await Frames();
-            Check(_app.Office.Hotspot.HasFocus(), "Back button restores wall-map focus");
-            await TestMechVisuals();
-            await TestChassisVisuals();
-            await TestAdditionalChassis();
-            await TestFinalChassis();
-            await TestAdditionalBatch();
-            await TestCombatUi();
-            await TestRosterUi();
-            await TestMissionsUi();
-            await TestBackNavigationUi();
-            await TestShipLocatorUi();
-            await TestResizing();
-            TestMissingArtwork();
-            await TestCampaignUi();
-            await TestTravelUi();
-            await TestLegacyDraftUi();
-            await TestNavigationTransitions();
-            await TestMenuResumeUi();
-            await TestUnsavedChangesUi();
-            await Frames();
-            _app.QueueFree();
-            await Frames();
-            GD.Print($"PASS: {_checks} checks; tactical combat, deployment, campaign isolation, draft, rosters, missions, travel, finances, navigation, input and resizing.");
+            GD.Print($"PASS: {_checks} checks [{string.Join(", ", selected.Select(group => group.Name))}]");
+            if (exitCheck) { await RunExitCheck(); return; }
             GetTree().Quit(0);
         }
         catch (Exception error)
@@ -161,6 +98,108 @@ public partial class SmokeTests : Node
         {
             if (System.IO.File.Exists(_saveFile)) System.IO.File.Delete(_saveFile);
         }
+    }
+
+    /// <summary>Starts an isolated app with its own temporary save, optionally through a completed draft into the office.</summary>
+    private async Task StartApp(bool drafted)
+    {
+        GetWindow().Size = new Vector2I(1440, 900);
+        _app = ResourceLoader.Load<PackedScene>("res://Scenes/Command.tscn").Instantiate<CommandApp>();
+        _app.SavePath = $"user://smoke-{Guid.NewGuid():N}.json";
+        _saveFile = ProjectSettings.GlobalizePath(_app.SavePath);
+        AddChild(_app);
+        await Frames();
+        if (drafted) { await Click(_app.MainMenu.NewButton); await FinishDraft(); }
+    }
+
+    private async Task StopApp()
+    {
+        await Frames();
+        _app.QueueFree();
+        await Frames();
+        if (System.IO.File.Exists(_saveFile)) System.IO.File.Delete(_saveFile);
+        GetWindow().Size = new Vector2I(1440, 900);
+    }
+
+    /// <summary>Exit paths run in their own process because success terminates the game; an external timeout catches a failed exit.</summary>
+    private async Task RunExitCheck()
+    {
+        var args = OS.GetCmdlineUserArgs();
+        if (args.Contains("--discard-quit"))
+        {
+            _app.State.AdvanceOneDay(); _app.ShowMainMenu(); await Frames();
+            await Click(_app.MainMenu.QuitButton);
+            // Return through finally to remove the temporary save before the engine exits.
+            DialogButton("Quit Without Saving").EmitSignal(BaseButton.SignalName.Pressed);
+            return;
+        }
+        if (args.Contains("--clean-window-quit"))
+            GetWindow().EmitSignal(Window.SignalName.CloseRequested);
+        else
+        {
+            _app.ShowMainMenu(); await Frames();
+            _app.MainMenu.QuitButton.EmitSignal(BaseButton.SignalName.Pressed);
+        }
+        Check(!_app.UnsavedDialog.Visible, "clean quit skips confirmation");
+    }
+
+    private async Task TestMainMenuStart()
+    {
+        Check(_app.MainMenu.Visible && !_app.Office.Visible && !_app.StarMap.Visible, "starts in the main menu");
+        Check(_app.MainMenu.LoadButton.Disabled, "load disabled before first manual save");
+        await PressKey(Key.Escape); await RightClick(new Vector2(20, 20));
+        Check(_app.MainMenu.Visible && !_app.Office.Visible, "main menu back gestures do nothing without a company to resume");
+        await Capture("main-menu");
+    }
+
+    private async Task TestOfficeUi()
+    {
+        Check(_app.Office.Visible && !_app.StarMap.Visible, "starts in the office");
+        Check(_app.Office.ArtworkLoaded && _app.StarMap.Viewport.MapLoaded, "both local images load");
+        Check(_app.Office.Hotspot.HasFocus(), "initial keyboard focus is on the wall map");
+        var wallMapTexture = _app.Office.WallMap.Texture;
+        Check(wallMapTexture is not null && wallMapTexture == _app.StarMap.Viewport.Texture, "wall chart shares the complete reference texture with the opened map");
+        Near(wallMapTexture!.GetSize().X / wallMapTexture.GetSize().Y, 7f / 6, "wall chart uses the full 7:6 reference image");
+        Check(_app.Office.WallMap.StretchMode == TextureRect.StretchModeEnum.KeepAspectCentered, "wall chart fits the image without cropping or distortion");
+        await Capture("office");
+    }
+
+    private async Task TestStarMapUi()
+    {
+        _app.Office.Hotspot.GrabFocus(); await Frames();
+        var wallMapRect = _app.Office.WallMap.GetRect();
+        var wallMapTexture = _app.Office.WallMap.Texture;
+        await PressKey(Key.Enter);
+        Check(_app.StarMap.Visible && !_app.Office.Visible, "keyboard activation opens the chart");
+        Check(_app.StarMap.Viewport.HasFocus(), "map receives keyboard focus");
+        await Capture("map-fit");
+        await PressKey(Key.Plus);
+        Near(_app.StarMap.Viewport.Transform.Zoom, 1.35f, "keyboard zoom");
+        var offset = _app.StarMap.Viewport.Transform.Offset;
+        await PressKey(Key.Down);
+        Check(_app.StarMap.Viewport.Transform.Offset != offset, "arrow keys pan the map");
+        await Capture("map-zoom");
+        await PressKey(Key.Home);
+        Near(_app.StarMap.Viewport.Transform.Zoom, 1, "Home fits the map");
+        Check(_app.StarMap.ZoomOut.Disabled, "minimum zoom disables zoom out");
+        _app.StarMap.ZoomIn.EmitSignal(BaseButton.SignalName.Pressed);
+        Near(_app.StarMap.Viewport.Transform.Zoom, 1.35f, "zoom button changes the viewport");
+        _app.StarMap.FitButton.EmitSignal(BaseButton.SignalName.Pressed);
+        Near(_app.StarMap.Viewport.Transform.Zoom, 1, "Fit button restores the overview");
+        await TestMouse();
+        Check(_app.Office.WallMap.Texture == wallMapTexture && _app.Office.WallMap.GetRect() == wallMapRect,
+            "wall chart remains unchanged after zooming and panning the opened map");
+        var zoom = _app.StarMap.Viewport.Transform.Zoom;
+        var mapPosition = _app.StarMap.Viewport.Transform.Offset;
+        await PressKey(Key.Escape);
+        Check(_app.Office.Visible && _app.Office.Hotspot.HasFocus(), "Escape returns to the office and restores focus");
+        _app.Office.Hotspot.EmitSignal(BaseButton.SignalName.Pressed);
+        await Frames();
+        Near(_app.StarMap.Viewport.Transform.Zoom, zoom, "zoom survives navigation");
+        Check(_app.StarMap.Viewport.Transform.Offset.IsEqualApprox(mapPosition), "pan survives navigation");
+        _app.StarMap.BackButton.EmitSignal(BaseButton.SignalName.Pressed);
+        await Frames();
+        Check(_app.Office.Hotspot.HasFocus(), "Back button restores wall-map focus");
     }
 
     private void TestGeometry()
@@ -801,6 +840,34 @@ public partial class SmokeTests : Node
         await Capture("rolodex");
         for (var i = 0; i < 8; i++) { await PressKey(Key.Tab); Check(_app.Rolodex.IsAncestorOf(GetViewport().GuiGetFocusOwner()), "rolodex retains keyboard focus"); }
         await PressKey(Key.Escape); Check(!_app.Rolodex.Visible && _app.Office.Visible, "rolodex Escape returns to office");
+        var roster = _app.State.Roster!;
+        foreach (var size in new[] { new Vector2I(1440, 900), new Vector2I(900, 500) })
+        {
+            GetWindow().Size = size; await Frames();
+            await Click(_app.Office.RolodexButton); await Capture($"rolodex-{size.X}x{size.Y}"); await PressKey(Key.Escape);
+        }
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        await PressKey(Key.Escape);
+        Check(_app.MainMenu.Visible && _app.MainMenu.ResumeButton.Visible && _app.MainMenu.ResumeButton.Text == "Resume", "office Escape opens menu with Resume");
+        await Click(_app.MainMenu.ResumeButton);
+        Check(_app.Office.Visible && ReferenceEquals(roster, _app.State.Roster), "Resume retains unsaved roster and assignments");
+        roster.SetHealth(roster.Warriors[0].Id, WarriorHealth.Injured, _app.State.Date.AddDays(2), _app.State.Date);
+        _app.ShowOffice(); Check(_app.Office.ReadyCount.Text == "3", "rolodex counter excludes injured warriors");
+        await Click(_app.Office.RolodexButton); await Capture("rolodex-injured"); await PressKey(Key.Escape);
+        roster.SetHealth(roster.Warriors[0].Id, WarriorHealth.Healthy, null, _app.State.Date); _app.ShowOffice();
+        roster.SetHealth(roster.Warriors[1].Id, WarriorHealth.Dead, null, _app.State.Date);
+        _app.ShowWarriors(); _app.Rolodex.Section.Select(1); _app.Rolodex.Section.EmitSignal(OptionButton.SignalName.ItemSelected, 1L); await Frames();
+        Check(_app.Rolodex.CardName.Text.Contains(roster.Warriors[1].Spec.Name) && roster.Assignment(roster.Warriors[1].Id) is null,
+            "memorial section retains a deceased warrior and clears assignment");
+        Check(_app.Office.ReadyCount.Text == "3", "office count excludes memorial records");
+        await Capture("rolodex-memorial"); await PressKey(Key.Escape);
+    }
+
+    private async Task TestHangarAssignmentsUi()
+    {
+        // Start with every warrior unassigned so the hangar must make each assignment.
+        foreach (var mech in _app.State.Roster!.Mechs) _app.State.Roster.Assign(mech.Id, null);
+        _app.ShowOffice(); await Frames();
         await Click(_app.Office.HangarButton);
         Check(_app.Hangar.Visible && !_app.Office.Visible && _app.Hangar.ArtworkLoaded, "porthole opens separate illustrated hangar");
         await Click(_app.Hangar.AssignButton);
@@ -819,25 +886,8 @@ public partial class SmokeTests : Node
         {
             GetWindow().Size = size; await Frames(); await Capture($"hangar-{size.X}x{size.Y}");
             Check(_app.Hangar.GetGlobalRect().Encloses(_app.Hangar.BackButton.GetGlobalRect()) && _app.Hangar.GetGlobalRect().Encloses(_app.Hangar.RosterButtons[0].GetGlobalRect()), "hangar navigation survives resizing");
-            await PressKey(Key.Escape); await Click(_app.Office.RolodexButton); await Capture($"rolodex-{size.X}x{size.Y}");
-            await PressKey(Key.Escape); await Click(_app.Office.HangarButton);
         }
         GetWindow().Size = new Vector2I(1440, 900); await Frames();
-        await TestHangarScreen();
-        await PressKey(Key.Escape); await PressKey(Key.Escape);
-        Check(_app.MainMenu.Visible && _app.MainMenu.ResumeButton.Visible && _app.MainMenu.ResumeButton.Text == "Resume", "office Escape opens menu with Resume");
-        await Click(_app.MainMenu.ResumeButton);
-        Check(_app.Office.Visible && ReferenceEquals(roster, _app.State.Roster), "Resume retains unsaved roster and assignments");
-        roster.SetHealth(roster.Warriors[0].Id, WarriorHealth.Injured, _app.State.Date.AddDays(2), _app.State.Date);
-        _app.ShowOffice(); Check(_app.Office.ReadyCount.Text == "3", "rolodex counter excludes injured warriors");
-        await Click(_app.Office.RolodexButton); await Capture("rolodex-injured"); await PressKey(Key.Escape);
-        roster.SetHealth(roster.Warriors[0].Id, WarriorHealth.Healthy, null, _app.State.Date); _app.ShowOffice();
-        roster.SetHealth(roster.Warriors[1].Id, WarriorHealth.Dead, null, _app.State.Date);
-        _app.ShowWarriors(); _app.Rolodex.Section.Select(1); _app.Rolodex.Section.EmitSignal(OptionButton.SignalName.ItemSelected, 1L); await Frames();
-        Check(_app.Rolodex.CardName.Text.Contains(roster.Warriors[1].Spec.Name) && roster.Assignment(roster.Warriors[1].Id) is null,
-            "memorial section retains a deceased warrior and clears assignment");
-        Check(_app.Office.ReadyCount.Text == "3", "office count excludes memorial records");
-        await Capture("rolodex-memorial"); await PressKey(Key.Escape);
     }
 
     private async Task TestLegacyDraftUi()

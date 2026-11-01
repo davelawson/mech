@@ -236,8 +236,6 @@ public partial class SmokeTests
         Check(tactical.Modal == CombatModal.Results && tactical.Simulation.Outcome == CombatOutcome.Victory, "automatic combat outcome opens results");
         await PressKey(Key.Escape);
         Check(_app.Hangar.Visible && JsonSerializer.Serialize(_app.State.Snapshot()) == before, "result Escape preserves campaign and returns to hangar");
-        for (var i = 0; i < 4; i++) roster.Assign(roster.Mechs[i].Id, null);
-        _app.Hangar.Refresh(); _app.Hangar.Select(0);
         await PressKey(Key.Escape);
     }
     private async Task TestTerrainUi()

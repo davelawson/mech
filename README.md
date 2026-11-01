@@ -78,29 +78,32 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 
 ```sh
 ./scripts/mech build
-./scripts/mech test
-./scripts/mech capture
+./scripts/mech test [group...]
+./scripts/mech test --list
+./scripts/mech capture [group...]
 ```
+
+Tests are split into screen-sized groups (`menu`, `draft`, `office`, `map`, `roster`, `hangar`, `missions`, `finance`, `catalog`, `combat-sim`, `combat-ui`, `mech-visuals`, `layout`). With no group named, the full suite runs. See [testing](docs/testing.md) for what each group covers and when to run the full suite.
 
 `test` runs a C# headless Godot test scene with a nonzero exit code on failure. It checks all ten tactical acceptance scenarios, campaign isolation, deployment eligibility, simultaneous fire, location damage, shared detection, pursuit, targeting, AI, and actual combat controls, alongside star routing, travel, quarterly finances, saves, missions, drafting, assignments, health, navigation and resizing. Tests use isolated temporary saves. `capture` runs the same checks with a graphical display and saves deployment, combat, damage reports, draft, rolodex, hangar, office, mission, map, menu, finance, and payment screenshots to `TestResults/`.
 
-After building, the menu and unsaved-change checks can also run independently:
+After building, the menu and unsaved-change checks can also run directly:
 
 ```sh
-timeout 90s "$GODOT_BIN" --headless --path . --scene res://Tests/SmokeTests.tscn -- --menu-only
+timeout 90s "$GODOT_BIN" --headless --path . --scene res://Tests/SmokeTests.tscn -- --groups=menu --menu-quit
 ```
 
-This checks explicit navigation routes, nested popup and modal back actions, draft abandonment, screen restoration and focus recovery, dirty and clean replacement flows, canceled quit, save/load failures, and clean menu Quit. Add `--clean-window-quit` to check clean window close instead, or `--discard-quit` to check confirmed Quit Without Saving. These exit checks use separate processes because success terminates the game.
+This checks explicit navigation routes, nested popup and modal back actions, draft abandonment, screen restoration and focus recovery, dirty and clean replacement flows, canceled quit, save/load failures, and clean menu Quit. Use `--clean-window-quit` instead to check clean window close, or `--discard-quit` to check confirmed Quit Without Saving. These exit checks use separate processes because success terminates the game.
 
 The focused callback-queue regression can run without desktop mouse focus. After building, run the following with the pinned .NET Godot executable; the external timeout also catches layout loops that block engine timers:
 
 ```sh
-timeout 90s "$GODOT_BIN" --headless --path . --scene res://Tests/SmokeTests.tscn -- --combat-layout-only
+timeout 90s "$GODOT_BIN" --headless --path . --scene res://Tests/SmokeTests.tscn -- --groups=combat-layout
 # Render the same cases and save contact-preview/inspection captures:
-timeout 90s "$GODOT_BIN" --path . --scene res://Tests/SmokeTests.tscn -- --combat-layout-only --screenshots
+timeout 90s "$GODOT_BIN" --path . --scene res://Tests/SmokeTests.tscn -- --groups=combat-layout --screenshots
 ```
 
-These layout checks also run in the full suite. The isolated scrollbar reproduction sweeps panel heights around the former freeze threshold; live contact checks cover detection before firing, information-band changes and resizing.
+These layout checks also run in the `combat-ui` group. The isolated scrollbar reproduction sweeps panel heights around the former freeze threshold; live contact checks cover detection before firing, information-band changes and resizing.
 
 The equivalent direct commands, once tools are on PATH, are:
 
