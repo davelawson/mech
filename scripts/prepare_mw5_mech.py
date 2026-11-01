@@ -163,7 +163,8 @@ def prepare(chassis, prefix, displayed_height, model_scale, weapons, missile_tub
     hardpoints = {}
     for file in sorted((source / "Weapons").glob(f"Weapon_Mech_{prefix}_*_SKM.gltf")):
         parsed = weapon_file(prefix, file.stem)
-        if parsed is None or not GAME_VISUALS.fullmatch(parsed["visual"]):
+        # `Hero_` hardpoints belong to MW5 hero-variant bodies, not the prepared stock body.
+        if parsed is None or not GAME_VISUALS.fullmatch(parsed["visual"]) or parsed["bone"].startswith("Hero"):
             continue
         hardpoint = f"{parsed['bone']}_{parsed['cls']}H{parsed['n']}"
         hardpoints.setdefault(hardpoint, {"bone": parsed["bone"], "cls": parsed["cls"], "files": {}})
@@ -181,6 +182,8 @@ def prepare(chassis, prefix, displayed_height, model_scale, weapons, missile_tub
 
     def normal(p):
         length = math.sqrt(sum(v * v for v in p))
+        if length == 0:  # a few degenerate source vertices (e.g. Locust's LRM 20 racks)
+            return (0, 1, 0)
         return (p[2] / length, p[1] / length, -p[0] / length)
 
     def emit(target, parent, name, mesh_name, entries, sole_name=None):

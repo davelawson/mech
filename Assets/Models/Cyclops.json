@@ -11,16 +11,108 @@
     "Body/Materials/Textures/Cyclops_Variant_Default_MSK.png": "33a3c3c2f27d475b9a249499ada9e3eb1767ef34884a3f41bdbe729301407e38",
     "Body/Materials/Textures/Cyclops_Variant_NRM.png": "c52149b120fc3cd5af5660d941187e6d7705413ddd3fcbb9a20a132f79236f1d",
     "Body/Materials/Textures/Cyclops_Variant_Wear_MSK.png": "d4dcee4dc1aae5d5c13b2feb618dca47740d7b050d880c549a94c6fdb54bc9a3",
+    "Weapons/Weapon_Mech_CP_Forearm_Left_EH1_Flamer_SKM.bin": "8f5cff7c3f7ae68ec75458fee418b59ac8f911ec98d612757f922e66b0c62964",
+    "Weapons/Weapon_Mech_CP_Forearm_Left_EH1_Flamer_SKM.gltf": "2b49d3f8f992d00c2aab875319958383ac54318f26aa694be697b0f0b84fd9d8",
     "Weapons/Weapon_Mech_CP_Forearm_Left_EH1_Laser_SKM.bin": "dde969d1cab3c6a5a5cdc8baef7dac72215443ad3b57bdf6ef324a9d1f17f3d3",
     "Weapons/Weapon_Mech_CP_Forearm_Left_EH1_Laser_SKM.gltf": "de6e28f3cc305ef60bd5326cca0b21517dd48ddf0fab2856c3e66980103f2f82",
+    "Weapons/Weapon_Mech_CP_Forearm_Left_EH1_PPC_SKM.bin": "0eed3d97b7012d792770a4b3eca368099d02b09ae9a2773f684316fda6a6138c",
+    "Weapons/Weapon_Mech_CP_Forearm_Left_EH1_PPC_SKM.gltf": "096b94af7a7780521d1da0effb2f08de8e297de517a54d29f74c5c4a73d35f88",
+    "Weapons/Weapon_Mech_CP_Forearm_Left_EH2_Flamer_SKM.bin": "bd3d6cb1a5894b60249b5373ba31d277d8af72af291cf425fe5e794b7db9b59e",
+    "Weapons/Weapon_Mech_CP_Forearm_Left_EH2_Flamer_SKM.gltf": "2f26895da77f7c5b9f5a045dcb52222bf46dd64156c8980d4984de44b757629d",
+    "Weapons/Weapon_Mech_CP_Forearm_Left_EH2_Laser_SKM.bin": "29aa8a3c0e777c85d2165bb0279c573d9ef5e0ec3e2b61d7d40be0f9139505e4",
+    "Weapons/Weapon_Mech_CP_Forearm_Left_EH2_Laser_SKM.gltf": "097e30f4da50319f5706cca3b592314f13d34bd7f763a067c2d2d29e91036e19",
+    "Weapons/Weapon_Mech_CP_Forearm_Left_EH2_PPC_SKM.bin": "ea4c7330634dcfbd399df5d284f22342a37c5f25236132f565206092fd7dd976",
+    "Weapons/Weapon_Mech_CP_Forearm_Left_EH2_PPC_SKM.gltf": "91c5ef7a1df32e38adfd1d4de48eb1a48f2e48fbf5f15aab884b57e7731c0141",
+    "Weapons/Weapon_Mech_CP_Forearm_Right_EH1_Flamer_SKM.bin": "79dd15d55dcfd45311dfa712a0bfecf4d36e9cd111710a2aa233ae2915252df9",
+    "Weapons/Weapon_Mech_CP_Forearm_Right_EH1_Flamer_SKM.gltf": "b100c8a2d3bcf0f5553b48cf58027b80a31b63b708891ac4a654c9acd5a146b3",
     "Weapons/Weapon_Mech_CP_Forearm_Right_EH1_Laser_SKM.bin": "96265ffea558fa00cd38d3916e7b32365dc35b08aa69d1228682706f24f83ef7",
     "Weapons/Weapon_Mech_CP_Forearm_Right_EH1_Laser_SKM.gltf": "d605acf29023ff4b80ca50be64478a92d0471e4a2892684cffaa1b991a05886a",
+    "Weapons/Weapon_Mech_CP_Forearm_Right_EH1_PPC_SKM.bin": "c74a8e0cb70d12c9002a1a9f9b88afcbae5ddae5c72f686716e428ee2bfdb561",
+    "Weapons/Weapon_Mech_CP_Forearm_Right_EH1_PPC_SKM.gltf": "975e1213fa23bb0626f3e1984fd1c2871b24cbd6899d119239ef914416b0855e",
+    "Weapons/Weapon_Mech_CP_Forearm_Right_EH2_Flamer_SKM.bin": "701711993b1fbf06c590954df20f8ffae6e1533c11e10b526b6358cb7a8f341d",
+    "Weapons/Weapon_Mech_CP_Forearm_Right_EH2_Flamer_SKM.gltf": "2580e4d3cde1cab06325c2e71db46c040b2d057668cb02b7fe6605c8cd70a869",
+    "Weapons/Weapon_Mech_CP_Forearm_Right_EH2_Laser_SKM.bin": "24aa858ce1ab13d78b8466e7e3181aeae106abd6b72dbaac98ba35e134c936a6",
+    "Weapons/Weapon_Mech_CP_Forearm_Right_EH2_Laser_SKM.gltf": "da10be74b51c9ba5b1c646c35a6c546079a8d8f3df7c0b576d3047c2834eea5c",
+    "Weapons/Weapon_Mech_CP_Forearm_Right_EH2_PPC_SKM.bin": "97f8224142e89377cb47b1123da60b37497956d00e71ff235eab8cf1e27cf55d",
+    "Weapons/Weapon_Mech_CP_Forearm_Right_EH2_PPC_SKM.gltf": "1a8141ec4ca730201a485aa8b674c8ed3343f995a882b49fe01546e5297d8e01",
+    "Weapons/Weapon_Mech_CP_Head_EH1_Flamer_SKM.bin": "deea651a89d2ffc56cc3d71c0823d615bde881ea09e4a08ea36d371fcc5c9640",
+    "Weapons/Weapon_Mech_CP_Head_EH1_Flamer_SKM.gltf": "11ef79ceea2c34d601c7ab1daa42d6659e97efe4ab54a1d72d9f5e46c371c30d",
+    "Weapons/Weapon_Mech_CP_Head_EH1_Laser_SKM.bin": "a04a9cfc3625c1b2a7040edced3686d2d8469d2f7b3bb479b6cef728cbcc7984",
+    "Weapons/Weapon_Mech_CP_Head_EH1_Laser_SKM.gltf": "5b516bf2c5b49c04946981c8327165b6668a0620aeafd9bcd8a02520dcc88f5d",
+    "Weapons/Weapon_Mech_CP_Torso_Center_MH1_Missile10_SKM.bin": "ea9a0980751c601b207f0f51c9c014308867500e6a917a26a39ec6c4efeb71c7",
+    "Weapons/Weapon_Mech_CP_Torso_Center_MH1_Missile10_SKM.gltf": "0d74d010f6d452cefa7e83e6744f7653710ac5e791f011aead742ba72180bf54",
+    "Weapons/Weapon_Mech_CP_Torso_Center_MH1_Missile2_SKM.bin": "70c91b7e387540fe57e73e2c8044d7812c39a54830a395a84a73157ae4092f57",
+    "Weapons/Weapon_Mech_CP_Torso_Center_MH1_Missile2_SKM.gltf": "f33a06b49ae86998bcc80e8a5d96b11f55483f39c3e7b38c763719e477aaeacc",
     "Weapons/Weapon_Mech_CP_Torso_Center_MH1_Missile4_SKM.bin": "9730c00924278689e6e56ad1560cae0d5642c16396d4e6ff62d3aa2a58add7d5",
     "Weapons/Weapon_Mech_CP_Torso_Center_MH1_Missile4_SKM.gltf": "2dde8096e40ebf130bfe4814782193e275bcd9e82b79163abe6e99be9bb46295",
+    "Weapons/Weapon_Mech_CP_Torso_Center_MH1_Missile5_SKM.bin": "6ceefe34e8730972173999cc1c9bb9cffe89eb685c8e80abed3b20888a5fca7e",
+    "Weapons/Weapon_Mech_CP_Torso_Center_MH1_Missile5_SKM.gltf": "7810e30cfa87678dea3db59174c48f0516fae0d6cc6ac42b1cc642cc6068492e",
+    "Weapons/Weapon_Mech_CP_Torso_Center_MH1_Missile6_SKM.bin": "beddb40e31bc9f9c4d9c167431c297e66e3b009fa339a005224cb2ffad3794b6",
+    "Weapons/Weapon_Mech_CP_Torso_Center_MH1_Missile6_SKM.gltf": "26a462c326c609473fbe2acc782b4b1628dc271fb4c2f81831fd948197c6a5ba",
+    "Weapons/Weapon_Mech_CP_Torso_Left_BH1_AC10_SKM.bin": "99d1736f8d52e5250badab1e7b3ceaa87cfdce3258b8cddfa3702fff1c4e7a3f",
+    "Weapons/Weapon_Mech_CP_Torso_Left_BH1_AC10_SKM.gltf": "4b83775690568b86c657f92b399dbaf2ce65d19ca805e3ee0ec329268957db41",
+    "Weapons/Weapon_Mech_CP_Torso_Left_BH1_AC20_SKM.bin": "442dc50df15e117d69ab7d75dd3e5e95fdf782a28151b9b654ba116e289f8757",
+    "Weapons/Weapon_Mech_CP_Torso_Left_BH1_AC20_SKM.gltf": "71008d4362df74109316673169c1f94677522ebf6996342a2278605a26d68820",
+    "Weapons/Weapon_Mech_CP_Torso_Left_BH1_AC2_SKM.bin": "91dc09e73ee93e266d356c486a3d41cee69503057f7789865e10791521a7502b",
+    "Weapons/Weapon_Mech_CP_Torso_Left_BH1_AC2_SKM.gltf": "965c3713b74eeebbde3f0f58c3d7e7da7413905d3d9a1997dd034f5229967ecf",
+    "Weapons/Weapon_Mech_CP_Torso_Left_BH1_AC5_SKM.bin": "c78f969a8fe8f8031de490595c54226c36ba6ced5444329c190a73835224e781",
+    "Weapons/Weapon_Mech_CP_Torso_Left_BH1_AC5_SKM.gltf": "a66c6fa527d1a167750bd1fde281d7af5bc38811dbe298c29625ab356b4fdd46",
+    "Weapons/Weapon_Mech_CP_Torso_Left_BH1_MG_SKM.bin": "7194ac97df115e58cdbea3e5ac5b29a56a5c5502b98ac1be2fb05c75007522f3",
+    "Weapons/Weapon_Mech_CP_Torso_Left_BH1_MG_SKM.gltf": "43049346d64d59abeae531b1d3d6807c78a9edec6a1679377c4459952a87fe87",
     "Weapons/Weapon_Mech_CP_Torso_Left_MH1_Missile10_SKM.bin": "c0ff010628546f2ee951fcfb71fec7bfcb9518406bb27002755cc5487321825e",
     "Weapons/Weapon_Mech_CP_Torso_Left_MH1_Missile10_SKM.gltf": "7a8bd74c64442291208255b03302801492dd39d838dad05a24c4fc1d2d4ee1ec",
+    "Weapons/Weapon_Mech_CP_Torso_Left_MH1_Missile15_SKM.bin": "5a63443c96dbeda3256b4f62ea8422f7c0d36b473bf7b5d1a67db3012cf8fc88",
+    "Weapons/Weapon_Mech_CP_Torso_Left_MH1_Missile15_SKM.gltf": "146bba0d00f39f0cd05ffeb101ade9b96e6f49b9e45a558361b90fc5219aa87c",
+    "Weapons/Weapon_Mech_CP_Torso_Left_MH1_Missile20_SKM.bin": "496ebe085757cc526d5e2fb3d6492a105db7e0aa400f279c13458698cb872fa0",
+    "Weapons/Weapon_Mech_CP_Torso_Left_MH1_Missile20_SKM.gltf": "bbdf4164af5d6ccabf90120c549f33b7dd919a019c6e98297e9c0d8900373d1d",
+    "Weapons/Weapon_Mech_CP_Torso_Left_MH1_Missile2_SKM.bin": "a1632d95f23872d82873d68f466f9afef99fc0dbb33b2b6d460317485f4ea320",
+    "Weapons/Weapon_Mech_CP_Torso_Left_MH1_Missile2_SKM.gltf": "b18c233b2abb733acc8f07fb4838d4ed0b4221c8bd58f492cfcf36b3b17f470d",
+    "Weapons/Weapon_Mech_CP_Torso_Left_MH1_Missile4_SKM.bin": "22fe951237fb871aeab35a9efbf526b84d9ee66dc6ecaebc4587e119e6fcd3d7",
+    "Weapons/Weapon_Mech_CP_Torso_Left_MH1_Missile4_SKM.gltf": "7cd277b317952ae42f58c1348568afc6c1ada7c23b93e690c49c1097f2ea919d",
+    "Weapons/Weapon_Mech_CP_Torso_Left_MH1_Missile5_SKM.bin": "9f1831b6ad4dbf9d7cf7f4932ffdeee88ff476170f348912d24d8c2325d5fe52",
+    "Weapons/Weapon_Mech_CP_Torso_Left_MH1_Missile5_SKM.gltf": "51ceb0cd7862b568fa0a287f77a4655a1e33f0c33f19342e1778cc3e246ba631",
+    "Weapons/Weapon_Mech_CP_Torso_Left_MH1_Missile6_SKM.bin": "3fa2458aa74f134c390ae9855593fc9c31557661cd355c4ba5a3449fb25f07fa",
+    "Weapons/Weapon_Mech_CP_Torso_Left_MH1_Missile6_SKM.gltf": "2932970bac853d73214f03a79c0d52c1500b74543615482aef622faeaeac204d",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH1_AC10_SKM.bin": "04eac8c61028f1d32d478438e27eadbb9081a97981adbeaffb06ace0450a4e1a",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH1_AC10_SKM.gltf": "230585b32a138de5d9b7c9dc1f3ff47c41ede5b8bbc076d79daa8cc71126e5fa",
     "Weapons/Weapon_Mech_CP_Torso_Right_BH1_AC20_SKM.bin": "687373a190b45cfd64d0a1f263263cacf6e88f6304cfd8e5e604ede262d04cf1",
-    "Weapons/Weapon_Mech_CP_Torso_Right_BH1_AC20_SKM.gltf": "d82338d14667202efdf55382fb3de1d836d3e28f8c1909ccff9c292be1a453da"
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH1_AC20_SKM.gltf": "d82338d14667202efdf55382fb3de1d836d3e28f8c1909ccff9c292be1a453da",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH1_AC2_SKM.bin": "927b2ce9de6e6c3a5d2a88194fa723d9d760923fca847a381b0580fa7d4ccdca",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH1_AC2_SKM.gltf": "f2ae31b74afba843ed67eeed95f7bd45c2c475bdc135f297c1206286f9f3b7b3",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH1_AC5_SKM.bin": "dbac9ffadbbffeefd828451a5fcf196da270c0e51b4f1cfb9bb63034356f6626",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH1_AC5_SKM.gltf": "645b25de02a163e5fd1740f9a21d77e605badd48f28e0081e37041584166e5ed",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH1_MG_SKM.bin": "468ae76989ec1a63ddc4431080d3027fa7235a48688bea2e9a7c67622ff96b3f",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH1_MG_SKM.gltf": "4c5f73f101172daacb5dae789006b9f12f9e6564d127d43b71be0aeae645d649",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH2_AC10_SKM.bin": "fee60b6efc6c7cf0e657c76a19ddf419b299fa9b2e16395b0ac598a04b77b6d4",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH2_AC10_SKM.gltf": "08b71721636ebfb7e99efa2dd7a62e31247c2b373bc00676ea10a7ba77872ed8",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH2_AC20_SKM.bin": "ac840d65cff2dfd03559a3c4bec0ad358bf11ff4ce1e20fbc1decb0545d81ca4",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH2_AC20_SKM.gltf": "daec80c22db77c562ac0cc63453e187200701a6b4f229cb734c37e42aba79417",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH2_AC2_SKM.bin": "ba4ea121d1d7086dd2607b8c24eaf5e69f24fd3890ad1e15a264fc39bea8ab1d",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH2_AC2_SKM.gltf": "b155d597d8405f2e4612b9fe831bc9c6ca83e44118bfa1c8a1798533d489c764",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH2_AC5_SKM.bin": "fb93ad9529c482665b11f6a63f1b557a2cf9af0b98fd1350ee39e3bfff2ded5f",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH2_AC5_SKM.gltf": "d991d30ada0c9ae2b023cba84e0f62db14bb5b4afa25df1608f9c7599ce43976",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH2_MG_SKM.bin": "4b924a9baa6a360f5360a444385ea514764895f395505001e865908ad8836feb",
+    "Weapons/Weapon_Mech_CP_Torso_Right_BH2_MG_SKM.gltf": "0546b71343466e496044588b132d897e2723e0d534bda05c09d2177a33694b46",
+    "Weapons/Weapon_Mech_CP_Torso_Right_EH1_Flamer_SKM.bin": "120857a0a5c845d857c3834a4751d7ebdfd3be5cc50edb4ec6b9241d2b3b628c",
+    "Weapons/Weapon_Mech_CP_Torso_Right_EH1_Flamer_SKM.gltf": "0d87e2e3a1abedc8decfb7e87b85b69d521727ac596351265fcb2bff5c7914df",
+    "Weapons/Weapon_Mech_CP_Torso_Right_EH1_Laser_SKM.bin": "947c268c3fce15ec422aa069b5258bea02f85fdc7af42a1fdb92d22b8f186569",
+    "Weapons/Weapon_Mech_CP_Torso_Right_EH1_Laser_SKM.gltf": "7fd83f2f16def8e1da4721e7865d2319112afd00d507b29002e7cb05795580c4",
+    "Weapons/Weapon_Mech_CP_Torso_Right_EH1_PPC_SKM.bin": "4f65d62f6da76643924edb2c2c8a433b528ad09903ecaf27ab882dbf65088653",
+    "Weapons/Weapon_Mech_CP_Torso_Right_EH1_PPC_SKM.gltf": "edf88b62bfb0f57a83f151ddbfd49ff2acc66f2ef7824e79e17313d1917d77e8",
+    "Weapons/Weapon_Mech_CP_Torso_Right_MH1_Missile10_SKM.bin": "c27b4c6e2bb517fdd12cef6bf9808b39eda20a24d1ea95333699ea54d29b1303",
+    "Weapons/Weapon_Mech_CP_Torso_Right_MH1_Missile10_SKM.gltf": "4d13713945eac6144ab335a695573ab4dd21487289ff889460337e43db274a72",
+    "Weapons/Weapon_Mech_CP_Torso_Right_MH1_Missile15_SKM.bin": "9632790fb2599637745c893260b10c16ecf382d77bfcc3029827a224970a284d",
+    "Weapons/Weapon_Mech_CP_Torso_Right_MH1_Missile15_SKM.gltf": "1ea2bcd79602c48e82bfe8be62fa7b21810d83c7e63628b60eeec3ec8ff0d600",
+    "Weapons/Weapon_Mech_CP_Torso_Right_MH1_Missile20_SKM.bin": "cb8689e6bcd3687a199a30535ef77339965b27ce7973b7e8ed7dc24a7a3fce71",
+    "Weapons/Weapon_Mech_CP_Torso_Right_MH1_Missile20_SKM.gltf": "1400fd8054f816f24115d6f4be8657bfaf785e152896ef28a249349a6c965644",
+    "Weapons/Weapon_Mech_CP_Torso_Right_MH1_Missile2_SKM.bin": "cfcfbb9894e3d3caf0cd00eeab112aabae1b7e01657a85868342dd74d198f922",
+    "Weapons/Weapon_Mech_CP_Torso_Right_MH1_Missile2_SKM.gltf": "f3a4015b9dbd9224fcaf123f91d231ee2c75978a828c55e86319b13f2b00cf8b",
+    "Weapons/Weapon_Mech_CP_Torso_Right_MH1_Missile4_SKM.bin": "4bb344e64fb7b52bd58e5c593a735298716f41d580a567c41c1383f2d32d92da",
+    "Weapons/Weapon_Mech_CP_Torso_Right_MH1_Missile4_SKM.gltf": "8d7891ec054a5a493d0abd8c27a1c9559fc21d0b42aa0786e56408d75fcc89d0",
+    "Weapons/Weapon_Mech_CP_Torso_Right_MH1_Missile5_SKM.bin": "1a16093d7b9419cb372fbead006c39229c6b831a87ea53fceddffa9450d12100",
+    "Weapons/Weapon_Mech_CP_Torso_Right_MH1_Missile5_SKM.gltf": "9865689b8808201d503a4cd9fd8d08a16ed04faf577d51104f038cc4ad678045",
+    "Weapons/Weapon_Mech_CP_Torso_Right_MH1_Missile6_SKM.bin": "7771e2c1d2bb0353e385b04c8d694dde519f765e0f30eccc023757fb84e22372",
+    "Weapons/Weapon_Mech_CP_Torso_Right_MH1_Missile6_SKM.gltf": "57f99aab539affdc9c4ae14a2f662fa9b6ea4e75fa2a5189ab31f86da5efe43f"
   },
   "runtime_triangles": 32636,
   "render_meshes": 22,
@@ -120,8 +212,16 @@
       "location": "LeftArm",
       "bone": "Forearm_Left",
       "visuals": {
+        "Flamer": {
+          "triangles": 506,
+          "markers": 1
+        },
         "Laser": {
           "triangles": 522,
+          "markers": 1
+        },
+        "PPC": {
+          "triangles": 692,
           "markers": 1
         }
       },
@@ -131,13 +231,40 @@
       ],
       "stock": "Laser"
     },
+    "Forearm_Left_EH2": {
+      "class": "Energy",
+      "location": "LeftArm",
+      "bone": "Forearm_Left",
+      "visuals": {
+        "Flamer": {
+          "triangles": 506,
+          "markers": 1
+        },
+        "Laser": {
+          "triangles": 522,
+          "markers": 1
+        },
+        "PPC": {
+          "triangles": 692,
+          "markers": 1
+        }
+      }
+    },
     "Forearm_Right_EH1": {
       "class": "Energy",
       "location": "RightArm",
       "bone": "Forearm_Right",
       "visuals": {
+        "Flamer": {
+          "triangles": 506,
+          "markers": 1
+        },
         "Laser": {
           "triangles": 522,
+          "markers": 1
+        },
+        "PPC": {
+          "triangles": 692,
           "markers": 1
         }
       },
@@ -147,14 +274,64 @@
       ],
       "stock": "Laser"
     },
+    "Forearm_Right_EH2": {
+      "class": "Energy",
+      "location": "RightArm",
+      "bone": "Forearm_Right",
+      "visuals": {
+        "Flamer": {
+          "triangles": 506,
+          "markers": 1
+        },
+        "Laser": {
+          "triangles": 522,
+          "markers": 1
+        },
+        "PPC": {
+          "triangles": 692,
+          "markers": 1
+        }
+      }
+    },
+    "Head_EH1": {
+      "class": "Energy",
+      "location": "Head",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "Flamer": {
+          "triangles": 214,
+          "markers": 1
+        },
+        "Laser": {
+          "triangles": 230,
+          "markers": 1
+        }
+      }
+    },
     "Torso_Center_MH1": {
       "class": "Missile",
       "location": "CenterTorso",
       "bone": "Torso_Pitch",
       "visuals": {
+        "Missile10": {
+          "triangles": 954,
+          "markers": 10
+        },
+        "Missile2": {
+          "triangles": 194,
+          "markers": 2
+        },
         "Missile4": {
           "triangles": 366,
           "markers": 4
+        },
+        "Missile5": {
+          "triangles": 461,
+          "markers": 5
+        },
+        "Missile6": {
+          "triangles": 544,
+          "markers": 6
         }
       },
       "part": "Weapon1",
@@ -166,6 +343,33 @@
       ],
       "stock": "Missile4"
     },
+    "Torso_Left_BH1": {
+      "class": "Ballistic",
+      "location": "LeftTorso",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "AC10": {
+          "triangles": 1272,
+          "markers": 1
+        },
+        "AC2": {
+          "triangles": 1678,
+          "markers": 1
+        },
+        "AC20": {
+          "triangles": 1272,
+          "markers": 1
+        },
+        "AC5": {
+          "triangles": 1678,
+          "markers": 1
+        },
+        "MG": {
+          "triangles": 904,
+          "markers": 1
+        }
+      }
+    },
     "Torso_Left_MH1": {
       "class": "Missile",
       "location": "LeftTorso",
@@ -174,6 +378,30 @@
         "Missile10": {
           "triangles": 981,
           "markers": 10
+        },
+        "Missile15": {
+          "triangles": 1464,
+          "markers": 15
+        },
+        "Missile2": {
+          "triangles": 908,
+          "markers": 2
+        },
+        "Missile20": {
+          "triangles": 1901,
+          "markers": 20
+        },
+        "Missile4": {
+          "triangles": 914,
+          "markers": 4
+        },
+        "Missile5": {
+          "triangles": 1011,
+          "markers": 5
+        },
+        "Missile6": {
+          "triangles": 702,
+          "markers": 6
         }
       },
       "part": "Weapon0",
@@ -196,8 +424,24 @@
       "location": "RightTorso",
       "bone": "Torso_Pitch",
       "visuals": {
+        "AC10": {
+          "triangles": 1272,
+          "markers": 1
+        },
+        "AC2": {
+          "triangles": 1678,
+          "markers": 1
+        },
         "AC20": {
           "triangles": 1272,
+          "markers": 1
+        },
+        "AC5": {
+          "triangles": 1678,
+          "markers": 1
+        },
+        "MG": {
+          "triangles": 904,
           "markers": 1
         }
       },
@@ -206,9 +450,90 @@
         "WeaponMuzzle_Weapon2_00"
       ],
       "stock": "AC20"
+    },
+    "Torso_Right_BH2": {
+      "class": "Ballistic",
+      "location": "RightTorso",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "AC10": {
+          "triangles": 1124,
+          "markers": 1
+        },
+        "AC2": {
+          "triangles": 1530,
+          "markers": 1
+        },
+        "AC20": {
+          "triangles": 1124,
+          "markers": 1
+        },
+        "AC5": {
+          "triangles": 1530,
+          "markers": 1
+        },
+        "MG": {
+          "triangles": 756,
+          "markers": 1
+        }
+      }
+    },
+    "Torso_Right_EH1": {
+      "class": "Energy",
+      "location": "RightTorso",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "Flamer": {
+          "triangles": 298,
+          "markers": 1
+        },
+        "Laser": {
+          "triangles": 314,
+          "markers": 1
+        },
+        "PPC": {
+          "triangles": 702,
+          "markers": 1
+        }
+      }
+    },
+    "Torso_Right_MH1": {
+      "class": "Missile",
+      "location": "RightTorso",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "Missile10": {
+          "triangles": 981,
+          "markers": 10
+        },
+        "Missile15": {
+          "triangles": 1464,
+          "markers": 15
+        },
+        "Missile2": {
+          "triangles": 908,
+          "markers": 2
+        },
+        "Missile20": {
+          "triangles": 1901,
+          "markers": 20
+        },
+        "Missile4": {
+          "triangles": 914,
+          "markers": 4
+        },
+        "Missile5": {
+          "triangles": 1011,
+          "markers": 5
+        },
+        "Missile6": {
+          "triangles": 702,
+          "markers": 6
+        }
+      }
     }
   },
-  "library_bytes": 171888,
+  "library_bytes": 2177204,
   "cockpit": {
     "mesh": "CP_TP_Cockpit_DM0_STM",
     "bone": "Cockpit",

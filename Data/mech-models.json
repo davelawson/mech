@@ -666,6 +666,12 @@
     "variant": "ARC-2R",
     "prefix": "ARC",
     "glass_section": 0,
+    "hardpoint_overrides": {
+      "Torso_MH1": {
+        "location": "CenterTorso",
+        "bone": "Torso_Pitch"
+      }
+    },
     "displayed_height": 3.34,
     "model_scale": 1.25,
     "weapons": [

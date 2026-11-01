@@ -11,16 +11,32 @@
     "Body/WLF_TP_Cockpit_DM0_STM.gltf": "06246f6cfca59f5c719fb7204d36f00c44bf85bf6eea3bf90514615d9ab97960",
     "Body/Wolfhound_SKM.bin": "bc86d3c90defd5e75edb0ae9bc70a83a1919102792d8768a73e18f40bbb217c1",
     "Body/Wolfhound_SKM.gltf": "cea067d9d32b6b302bffc0a689eebda99fd01e46ecb1f4abacf2646d9f5ff9cb",
+    "Weapons/Weapon_Mech_WLF_Forearm_Right_EH1_Flamer_SKM.bin": "91e2906951b753127e7901f1026fadf09f9912ee495d1ec26dee5a3ba7d33afd",
+    "Weapons/Weapon_Mech_WLF_Forearm_Right_EH1_Flamer_SKM.gltf": "953c8810dc2f9a0f618ff2cf8a34fda845d9943fb07d38eca2e9ab09127e84c8",
     "Weapons/Weapon_Mech_WLF_Forearm_Right_EH1_Laser_SKM.bin": "e8041bdb65d439c9ba4c89867ee36bb9732b3c7a8ce73acc8ed0fe0133f54246",
     "Weapons/Weapon_Mech_WLF_Forearm_Right_EH1_Laser_SKM.gltf": "79cf40aee1d86474a23b257bbc9d57cd51da15ebe717bb3b4e7dac2722cd9c8b",
+    "Weapons/Weapon_Mech_WLF_Forearm_Right_EH1_PPC_SKM.bin": "3e1d47f677f476f11fc7816bb183e7e82fb2920bf19b5c6ee1ac86d0caf5154f",
+    "Weapons/Weapon_Mech_WLF_Forearm_Right_EH1_PPC_SKM.gltf": "e23e72a07fa7195b88c4e2dac88157755bb8448c17ee62ce8e9c9ff627dc9fa1",
+    "Weapons/Weapon_Mech_WLF_Torso_Center_EH1_Flamer_SKM.bin": "8cf54bf5ca83030e353c654c940860654b536db910a667ee296b166c38d7a63f",
+    "Weapons/Weapon_Mech_WLF_Torso_Center_EH1_Flamer_SKM.gltf": "a072b658009938897244935652f0e30655c772fbd89393753153ffb56802d2b1",
     "Weapons/Weapon_Mech_WLF_Torso_Center_EH1_Laser_SKM.bin": "ab4cc6ac16ef4cb1223cd25cc0123fd79f42685d9d6f58a1b57adcea3f3f2295",
     "Weapons/Weapon_Mech_WLF_Torso_Center_EH1_Laser_SKM.gltf": "3e0b374b1f14c4d6f01c55fb1b4285594a17934c93d88196da7702f41a445b97",
+    "Weapons/Weapon_Mech_WLF_Torso_Center_EH2_Flamer_SKM.bin": "f00fd45acf31c3486369b2a53382aab28b706a7589deb1e87a1d1f82aed34e6d",
+    "Weapons/Weapon_Mech_WLF_Torso_Center_EH2_Flamer_SKM.gltf": "fcdd4f6168affee047910d7e3c38e7a3fedc85289d8ffb36d8c1c9d9b9247cc7",
     "Weapons/Weapon_Mech_WLF_Torso_Center_EH2_Laser_SKM.bin": "03a6ccac5cfb96eb16fcfe3d363c4ce18a92a7fc316f4f39a4ba825fc86e53d2",
     "Weapons/Weapon_Mech_WLF_Torso_Center_EH2_Laser_SKM.gltf": "57b207e02a1ef62215dd0702dafe1ca169a4a9fa98dd8179cc0cc90c921a2837",
+    "Weapons/Weapon_Mech_WLF_Torso_Left_EH1_Flamer_SKM.bin": "4e6a0b7bb43f2f77148cad9393ccf1314ec7f594e70b21bed6eb9f1b6df6f85e",
+    "Weapons/Weapon_Mech_WLF_Torso_Left_EH1_Flamer_SKM.gltf": "093df3e093c9f0e259557e2ccbd9febbe4aac2449f69a9c59f56dc2cc4195dd7",
     "Weapons/Weapon_Mech_WLF_Torso_Left_EH1_Laser_SKM.bin": "faed141f690edfb461f659c89f25aa07e21288f13592b48a229da1c5d2195759",
     "Weapons/Weapon_Mech_WLF_Torso_Left_EH1_Laser_SKM.gltf": "d7dfbd5b2f79bc9f0ee665426bbbecfff53e5a4663d00ccba90ea32bec0b6d73",
+    "Weapons/Weapon_Mech_WLF_Torso_Left_EH1_PPC_SKM.bin": "0d9fc9e10838e0b51fe33e0877b9d69c554498bc7473a399fc214b1e4587b08a",
+    "Weapons/Weapon_Mech_WLF_Torso_Left_EH1_PPC_SKM.gltf": "155f5a143efbc0fe7d71d3d626f00f15b68abb32ffd884f2b3a175b5b2b23014",
+    "Weapons/Weapon_Mech_WLF_Torso_Right_EH1_Flamer_SKM.bin": "bf9e6f06a482137b155a54b70bce9d84eae405dbf0269a26d1515c3fdbc467b1",
+    "Weapons/Weapon_Mech_WLF_Torso_Right_EH1_Flamer_SKM.gltf": "3f57feb29cb5269ba8b2c89a8401251b34e19cf35663e5cac58a77e6ad286b38",
     "Weapons/Weapon_Mech_WLF_Torso_Right_EH1_Laser_SKM.bin": "aad1ae530c775ec381b1845ed646fa1d2c67449cd844b791ae51ea906b771ed1",
-    "Weapons/Weapon_Mech_WLF_Torso_Right_EH1_Laser_SKM.gltf": "51f240a52b5d3abb4ee4f365911f7dd6f4125c5159c57d3d12abebe5d47d32f9"
+    "Weapons/Weapon_Mech_WLF_Torso_Right_EH1_Laser_SKM.gltf": "51f240a52b5d3abb4ee4f365911f7dd6f4125c5159c57d3d12abebe5d47d32f9",
+    "Weapons/Weapon_Mech_WLF_Torso_Right_EH1_PPC_SKM.bin": "83e3a23de696a9119c919d1d4167cd481ee6c70eeb76add3f8b8edb91aa77609",
+    "Weapons/Weapon_Mech_WLF_Torso_Right_EH1_PPC_SKM.gltf": "5e22f8d23736b7728138b56fa5114d08b15596088799143852e8c858e7e0f855"
   },
   "runtime_triangles": 22306,
   "render_meshes": 22,
@@ -120,8 +136,16 @@
       "location": "RightArm",
       "bone": "Forearm_Right",
       "visuals": {
+        "Flamer": {
+          "triangles": 274,
+          "markers": 1
+        },
         "Laser": {
           "triangles": 290,
+          "markers": 1
+        },
+        "PPC": {
+          "triangles": 680,
           "markers": 1
         }
       },
@@ -136,6 +160,10 @@
       "location": "CenterTorso",
       "bone": "Torso_Pitch",
       "visuals": {
+        "Flamer": {
+          "triangles": 214,
+          "markers": 1
+        },
         "Laser": {
           "triangles": 230,
           "markers": 1
@@ -152,6 +180,10 @@
       "location": "CenterTorso",
       "bone": "Torso_Pitch",
       "visuals": {
+        "Flamer": {
+          "triangles": 214,
+          "markers": 1
+        },
         "Laser": {
           "triangles": 230,
           "markers": 1
@@ -168,8 +200,16 @@
       "location": "LeftTorso",
       "bone": "Torso_Pitch",
       "visuals": {
+        "Flamer": {
+          "triangles": 214,
+          "markers": 1
+        },
         "Laser": {
           "triangles": 230,
+          "markers": 1
+        },
+        "PPC": {
+          "triangles": 618,
           "markers": 1
         }
       },
@@ -184,8 +224,16 @@
       "location": "RightTorso",
       "bone": "Torso_Pitch",
       "visuals": {
+        "Flamer": {
+          "triangles": 214,
+          "markers": 1
+        },
         "Laser": {
           "triangles": 230,
+          "markers": 1
+        },
+        "PPC": {
+          "triangles": 618,
           "markers": 1
         }
       },
@@ -196,7 +244,7 @@
       "stock": "Laser"
     }
   },
-  "library_bytes": 65560,
+  "library_bytes": 243900,
   "cockpit": {
     "mesh": "WLF_TP_Cockpit_DM0_STM",
     "bone": "Cockpit",
