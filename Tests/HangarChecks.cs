@@ -64,14 +64,181 @@ internal static class HangarChecks
             catch (ArgumentException) { rejected = true; }
             check(rejected, $"storage restore rejects an {reason}");
         }
+        LoadoutChecks(check);
         check(StorageCatalog.Describe(StorageCatalog.JumpJetId(55))!.Tons == .5f && StorageCatalog.Describe(StorageCatalog.JumpJetId(60))!.Tons == 1
             && StorageCatalog.Describe(StorageCatalog.JumpJetId(90))!.Tons == 2 && StorageCatalog.Describe(StorageCatalog.HeatSinkId(HeatSinkKind.Double))!.Slots == 3,
             "jump jet mass follows mech weight; double heat sinks take three slots");
+    }
+
+    /// <summary>Individual heat sinks and jump jets, removal, storage on apply, scrapping, suspect items and saved loadouts.</summary>
+    private static void LoadoutChecks(Action<bool, string> check)
+    {
+        check(DraftCatalog.AllMechs.All(mech => mech.Components.All(c => c.Kind switch
+            {
+                ComponentKind.HeatSink => c.HeatSinkCount == 1 && c.Slots == EquipmentRules.HeatSinkSlots(mech.HeatSinkType),
+                ComponentKind.JumpJet => c.Slots == 1, _ => true
+            }) && EquipmentRules.JumpJets(mech) == mech.Jump),
+            "every slotted heat sink and jump jet is its own item");
+        var wolverine = DraftCatalog.Mech("wolverine");
+        check(CriticalLayout.For(wolverine).Values.SelectMany(blocks => blocks).Count(block => block.Kind == SlotKind.JumpJet) == wolverine.Jump,
+            "Wolverine shows each of its jump jets as a separate slot");
+
+        ForceRoster Company() => ForceRoster.Create("Loadout Test", [wolverine, wolverine], DraftCatalog.Warriors.Take(2));
+        var roster = Company(); var mech = roster.Mechs[0]; var stock = mech.Spec;
+        int Count(string id) => roster.Storage.SingleOrDefault(item => item.Id == id)?.Count ?? 0;
+        var weapon = stock.Weapons.First(item => item.AmmoKind is not null);
+        var jet = stock.Components.First(item => item.Kind == ComponentKind.JumpJet);
+        var sink = stock.Components.FirstOrDefault(item => item.Kind == ComponentKind.HeatSink);
+        var removed = new[] { weapon.Id, jet.Id }.Concat(sink is null ? [] : [sink.Id]).ToHashSet();
+        var preview = mech.WithRemoved(removed);
+        check(preview.Spec.Weapons.Length == stock.Weapons.Length - 1 && preview.Spec.Jump == stock.Jump - 1
+            && preview.Spec.HeatSinks == stock.HeatSinks - (sink is null ? 0 : 1) && preview.Equipment.All(item => !removed.Contains(item.Id))
+            && mech.Spec == stock && mech.Removed.IsEmpty, "a pending loadout previews removals without changing the owned mech");
+        var mass = EquipmentRules.Tons(weapon.Kind) + EquipmentRules.JumpJetTons(stock.Tonnage) + (sink is null ? 0 : 1);
+        check(Mathf.IsEqualApprox(preview.Tons, stock.Tonnage - mass) && HangarScreen.TonnageSummary(mech) == $"{stock.Tonnage} / {stock.Tonnage} t",
+            "current tonnage is the rating less the mass of removed items");
+        var before = (Weapon: Count(StorageCatalog.WeaponId(weapon.Kind)), Jet: Count(StorageCatalog.JumpJetId(stock.Tonnage)));
+        roster.ApplyLoadout(mech.Id, removed);
+        check(mech.Removed.SetEquals(removed) && mech.Spec.Jump == stock.Jump - 1 && Count(StorageCatalog.WeaponId(weapon.Kind)) == before.Weapon + 1
+            && Count(StorageCatalog.JumpJetId(stock.Tonnage)) == before.Jet + 1, "applying a loadout moves the removed items into storage");
+        var restored = ForceRoster.Restore(roster.Snapshot(), Campaign.StartDate);
+        check(restored.Mechs[0].Removed.SetEquals(removed) && restored.Mechs[0].Spec.Weapons.Length == stock.Weapons.Length - 1
+            && restored.Storage.SequenceEqual(roster.Storage), "a removed loadout survives save and restore");
+        var rejected = false;
+        try { roster.ApplyLoadout(mech.Id, removed.Append(stock.Components.First(item => item.Kind == ComponentKind.Gyro).Id).ToHashSet()); }
+        catch (ArgumentException) { rejected = true; }
+        check(rejected && mech.Removed.SetEquals(removed), "fixed systems cannot be removed");
+        rejected = false;
+        try { ForceRoster.Restore(roster.Snapshot() with { Mechs = [roster.Snapshot().Mechs[0] with { Removed = ["component-1"] }, .. roster.Snapshot().Mechs[1..]] }, Campaign.StartDate); }
+        catch (ArgumentException) { rejected = true; }
+        check(rejected, "restore rejects a loadout that removes a fixed system");
+
+        // A destroyed item is scrapped rather than stored.
+        var fresh = Company(); var target = fresh.Mechs[1];
+        var save = fresh.Snapshot();
+        var broken = save with { Mechs = [.. save.Mechs.Select(item => item.Id != target.Id ? item : item with
+            { Equipment = [.. item.Equipment.Select(e => e.Id == weapon.Id ? e with { Condition = ComponentCondition.Destroyed } : e)] })] };
+        fresh = ForceRoster.Restore(broken, Campaign.StartDate);
+        var stored = fresh.Storage.Single(item => item.Id == StorageCatalog.WeaponId(weapon.Kind)).Count;
+        fresh.ApplyLoadout(target.Id, new HashSet<string> { weapon.Id });
+        check(fresh.Storage.Single(item => item.Id == StorageCatalog.WeaponId(weapon.Kind)).Count == stored && fresh.Mechs[1].Removed.Contains(weapon.Id),
+            "a destroyed item is scrapped when removed");
+
+        // Saves from before individual items record one condition per group.
+        var grouped = fresh.Snapshot();
+        var legacy = grouped with { Mechs = [.. grouped.Mechs.Select(item => item with { Equipment = [.. item.Equipment
+            .Select(e => e with { Id = e.Id.Contains('.') ? e.Id[..e.Id.IndexOf('.')] : e.Id }).DistinctBy(e => e.Id)] })] };
+        check(ForceRoster.Restore(legacy, Campaign.StartDate).Mechs.All(item => item.Equipment.Count == item.Spec.Weapons.Length + item.Spec.Components.Length + item.Spec.Ammo.Length),
+            "older saves give each heat sink and jump jet its group's condition");
+
+        // Suspect items: a weapon with no compatible bin aboard, and a bin no weapon fires.
+        var bins = stock.Ammo.Where(bin => bin.AmmoKind == weapon.AmmoKind).Select(bin => bin.Id).ToHashSet();
+        check(Loadout.Suspect(stock).IsEmpty && Loadout.Suspect(Loadout.Strip(stock, bins)).SetEquals(stock.Weapons.Where(item => item.AmmoKind == weapon.AmmoKind).Select(item => item.Id))
+            && Loadout.Suspect(Loadout.Strip(stock, stock.Weapons.Where(item => item.AmmoKind == weapon.AmmoKind).Select(item => item.Id).ToHashSet())).SetEquals(bins),
+            "weapons without ammunition and ammunition without weapons are suspect");
     }
 }
 
 public partial class SmokeTests
 {
+    /// <summary>A point on the blueprint board clear of every location panel, where a right click goes back.</summary>
+    private static Vector2 BoardBackground(HangarScreen hangar)
+    {
+        var board = hangar.Board.GetGlobalRect();
+        for (var y = board.Position.Y + 4; y < board.End.Y; y += 8)
+            for (var x = board.Position.X + 4; x < board.End.X; x += 8)
+                if (hangar.LocationPanels.Values.All(panel => !panel.GetGlobalRect().Grow(2).HasPoint(new(x, y)))) return new(x, y);
+        throw new InvalidOperationException("The hangar board has no background clear of its location panels.");
+    }
+
+    private static Vector2 BlockCentre(HangarLocationPanel panel, CriticalBlock block) =>
+        panel.GetGlobalTransformWithCanvas() * panel.BlockRect(block).GetCenter();
+    private static (HangarLocationPanel Panel, CriticalBlock Block) FindBlock(HangarScreen hangar, Func<CriticalBlock, bool> match) =>
+        hangar.LocationPanels.Values.SelectMany(panel => panel.Blocks.Select(block => (panel, block))).First(item => match(item.block));
+    private static int StorageCount(HangarScreen hangar, string name) => hangar.StorageList.GetChildren().OfType<Label>()
+        .Select(label => label.Text).Where(text => text.StartsWith(name + " ×", StringComparison.Ordinal))
+        .Select(text => int.Parse(text[(name.Length + 2)..])).SingleOrDefault();
+
+    /// <summary>Right-click removal, pending loadouts per mech, Apply and Reset, the ⚠ confirmation, the leave warning and simulations.</summary>
+    private async Task TestHangarLoadout()
+    {
+        var hangar = _app.Hangar; var roster = _app.State.Roster!;
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        var index = roster.Mechs.ToList().FindIndex(mech => mech.Spec.Weapons.Any(item => item.AmmoKind is not null));
+        hangar.Select(index); await Frames();
+        var mech = hangar.SelectedMech; var stock = mech.Spec;
+        Check(hangar.ApplyButton.Disabled && hangar.ResetButton.Disabled && hangar.TonnageText.Text == $"{stock.Tonnage} / {stock.Tonnage} t",
+            "a stock mech shows full tonnage, with Apply and Reset disabled");
+
+        // A fixed system ignores the right click and does not leave the hangar.
+        var (fixedPanel, fixedBlock) = FindBlock(hangar, block => block.Kind is SlotKind.Engine or SlotKind.Actuator);
+        await RightClick(BlockCentre(fixedPanel, fixedBlock));
+        Check(hangar.Visible && !hangar.HasPendingChanges, "right-clicking a fixed system neither removes it nor leaves the hangar");
+
+        var weapon = stock.Weapons.First(item => item.AmmoKind is null);
+        var (panel, block) = FindBlock(hangar, item => item.ItemId == weapon.Id);
+        var stored = StorageCount(hangar, weapon.Name);
+        Check(panel._GetTooltip(panel.BlockRect(block).GetCenter()).Contains("Right-click to remove"), "removable items say how to remove them");
+        await RightClick(BlockCentre(panel, block));
+        Check(hangar.Visible && hangar.SelectedHasPendingChanges && panel.Blocks.All(item => item.ItemId != weapon.Id)
+            && panel.Blocks.Sum(item => item.Length) == EquipmentRules.Capacity(panel.Location), "right-clicking a weapon removes it and frees its slots");
+        Check(hangar.TonnageText.Text == HangarScreen.TonnageSummary(hangar.DisplayedMech) && hangar.DisplayedMech.Tons == stock.Tonnage - EquipmentRules.Tons(weapon.Kind)
+            && StorageCount(hangar, weapon.Name) == stored + 1, "removal lowers the tonnage and shows the item in storage");
+        Check(!hangar.ApplyButton.Disabled && !hangar.ResetButton.Disabled && hangar.RosterButtons[index].Text.EndsWith(" •", StringComparison.Ordinal)
+            && mech.Spec == stock, "pending changes enable Apply and Reset, mark the mech button and leave the owned mech alone");
+
+        // Pending changes stay with their mech while another is selected.
+        var other = (index + 1) % roster.Mechs.Count;
+        await Click(hangar.RosterButtons[other]);
+        Check(hangar.ApplyButton.Disabled && hangar.ResetButton.Disabled && hangar.HasPendingChanges, "another mech's buttons follow its own pending state");
+        await Click(hangar.RosterButtons[index]);
+        Check(hangar.SelectedHasPendingChanges && hangar.DisplayedMech.Spec.Weapons.All(item => item.Id != weapon.Id), "returning to a mech keeps its pending changes");
+        await Click(hangar.ResetButton);
+        Check(!hangar.HasPendingChanges && hangar.ApplyButton.Disabled && StorageCount(hangar, weapon.Name) == stored
+            && hangar.LocationPanels.Values.Any(item => item.Blocks.Any(b => b.ItemId == weapon.Id)), "Reset restores the stock loadout and storage");
+
+        // A simulated deployment uses the pending loadout and keeps it pending.
+        hangar.Remove(weapon.Id); await Frames();
+        await Click(hangar.DeploymentButton);
+        Check(_app.Navigation.CurrentScreen == CommandScreen.Tactical && _app.Tactical.Roster.Mechs[index].Removed.Contains(weapon.Id)
+            && !ReferenceEquals(_app.Tactical.Roster, roster), "a simulated deployment fields the pending loadout without warning");
+        await Click(_app.Tactical.BackButton);
+        Check(_app.Navigation.CurrentScreen == CommandScreen.Hangar && hangar.SelectedHasPendingChanges, "pending changes survive a simulated deployment");
+
+        // Apply commits to the company.
+        await Click(hangar.ApplyButton);
+        Check(mech.Removed.Contains(weapon.Id) && !hangar.HasPendingChanges && hangar.ApplyButton.Disabled
+            && roster.Storage.Single(item => item.Id == StorageCatalog.WeaponId(weapon.Kind)).Count == stored + 1 && _app.HasUnsavedChanges,
+            "Apply commits the loadout and storage to the company");
+
+        // Removing every bin a weapon uses marks it ⚠ and Apply asks first.
+        var gun = stock.Weapons.First(item => item.AmmoKind is not null);
+        foreach (var bin in stock.Ammo.Where(item => item.AmmoKind == gun.AmmoKind)) hangar.Remove(bin.Id);
+        await Frames();
+        var (gunPanel, gunBlock) = FindBlock(hangar, item => item.ItemId == gun.Id);
+        Check(gunPanel.Suspect.Contains(gun.Id) && gunPanel._GetTooltip(gunPanel.BlockRect(gunBlock).GetCenter()).Contains("No compatible ammunition"),
+            "a weapon without ammunition is marked ⚠");
+        await Capture("hangar-loadout-suspect");
+        await Click(hangar.ApplyButton);
+        Check(_app.Dialog.Visible && _app.Dialog.Heading == "Apply loadout?", "applying a loadout with ⚠ items asks first");
+        await Click(DialogButton("Cancel"));
+        Check(!_app.Dialog.Visible && hangar.SelectedHasPendingChanges, "cancelling keeps the changes pending");
+        await Click(hangar.ApplyButton); await Click(DialogButton("Apply anyway"));
+        Check(!hangar.HasPendingChanges && mech.Spec.Ammo.All(item => item.AmmoKind != gun.AmmoKind), "Apply anyway commits the loadout");
+
+        // Leaving with pending changes warns; staying keeps them, abandoning discards them.
+        hangar.Remove(gun.Id); await Frames();
+        await Click(hangar.BackButton);
+        Check(_app.Dialog.Visible && _app.Dialog.Heading == "Unapplied changes" && hangar.Visible, "leaving with pending changes warns");
+        await Click(DialogButton("Stay in hangar"));
+        Check(_app.Navigation.CurrentScreen == CommandScreen.Hangar && hangar.SelectedHasPendingChanges, "staying keeps the pending changes");
+        await PressKey(Key.Escape);
+        Check(_app.Dialog.Visible && _app.Dialog.Heading == "Unapplied changes", "Escape warns too");
+        await Click(DialogButton("Abandon changes and leave"));
+        Check(_app.Office.Visible && !hangar.HasPendingChanges && mech.Spec.Weapons.Any(item => item.Id == gun.Id), "abandoning leaves without changing the mech");
+        await Click(_app.Office.HangarButton);
+    }
+
     /// <summary>Hangar layout, location panels, storage list and the blueprint's right-drag spin.</summary>
     private async Task TestHangarScreen()
     {
@@ -138,7 +305,7 @@ public partial class SmokeTests
         Check(model.Rotation.Y > 0 && model.Rotation.Y < Mathf.DegToRad(20), "released blueprint eases back toward the front");
         hangar.Preview._Process(.25);
         Check(model.Rotation.Y == 0 && hangar.Preview.Yaw == 0, "blueprint is front-on again within 0.3 seconds");
-        await RightClick(at + new Vector2(2, 0));
+        await RightClick(BoardBackground(hangar));
         Check(_app.Office.Visible && !hangar.Visible, "a still right click returns to the office");
         await Click(_app.Office.HangarButton);
 

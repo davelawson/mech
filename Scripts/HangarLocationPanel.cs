@@ -21,14 +21,16 @@ public partial class HangarLocationPanel : Control
     public float RowHeight { get; set; } = 15;
     private OwnedMech? _mech;
     private static readonly Color Fill = new(.035f, .07f, .085f, .84f), Edge = new("3f7f92");
-    private static readonly Color Damaged = new("e8a33c"), Destroyed = new("d04a3c");
+    public static readonly Color Damaged = new("e8a33c"), Destroyed = new("d04a3c"), Warning = new("f2d02c");
+    /// <summary>Weapons with no compatible ammunition aboard and bins no weapon fires, marked ⚠.</summary>
+    public ImmutableHashSet<string> Suspect { get; private set; } = [];
 
     public HangarLocationPanel(MechLocation location) { Location = location; MouseFilter = MouseFilterEnum.Pass; }
     public static float HeightFor(MechLocation location, float row) => HeaderHeight + EquipmentRules.Capacity(location) * row + Padding;
 
     public void Display(OwnedMech mech, ImmutableArray<CriticalBlock> blocks)
     {
-        _mech = mech; Blocks = blocks;
+        _mech = mech; Blocks = blocks; Suspect = Loadout.Suspect(mech.Spec);
         var spec = mech.Spec.Locations.Single(item => item.Location == Location);
         var state = mech.Locations.Single(item => item.Location == Location);
         ArmorText = $"Armor {state.Armor}/{spec.Armor}";
@@ -51,19 +53,12 @@ public partial class HangarLocationPanel : Control
     public override string _GetTooltip(Vector2 atPosition)
     {
         if (BlockAt(atPosition) is not { ItemId: { } id } block || _mech is null) return DraftCatalog.LocationName(Location);
-        var spec = _mech.Spec;
-        var tons = spec.Weapons.FirstOrDefault(item => item.Id == id) is { } weapon ? EquipmentRules.Tons(weapon.Kind)
-            : spec.Ammo.Any(item => item.Id == id) ? 1
-            : spec.Components.FirstOrDefault(item => item.Id == id) is { } component ? component.Kind switch
-            {
-                ComponentKind.HeatSink => component.HeatSinkCount,
-                ComponentKind.JumpJet => component.Slots * EquipmentRules.JumpJetTons(spec.Tonnage),
-                _ => -1
-            } : -1;
         var split = block.Length < block.ItemSlots ? $" ({block.Length} here)" : "";
-        var mass = tons >= 0 ? $"{tons:0.#} t · " : "";
-        var ammo = _mech.Ammo.FirstOrDefault(item => item.Id == id) is { } bin ? $"\n{bin.Shots}/{spec.Ammo.Single(item => item.Id == id).Shots} shots" : "";
-        return $"{block.Name}\n{mass}{block.ItemSlots} {(block.ItemSlots == 1 ? "slot" : "slots")}{split}\n{Condition(block)}{ammo}";
+        var mass = Loadout.Tons(_mech.Spec, id) is { } tons ? $"{tons:0.#} t · " : "";
+        var condition = Condition(block);
+        var warning = !Suspect.Contains(id) ? "" : block.Kind == SlotKind.Ammo ? "\n⚠ No weapon uses this ammunition" : "\n⚠ No compatible ammunition installed";
+        var remove = !Loadout.Removable(block.Kind) ? "" : condition == ComponentCondition.Destroyed ? "\nRight-click to scrap" : "\nRight-click to remove";
+        return $"{block.Name}\n{mass}{block.ItemSlots} {(block.ItemSlots == 1 ? "slot" : "slots")}{split}\n{condition}{warning}{remove}";
     }
 
     public static Color KindColor(SlotKind kind) => kind switch
@@ -72,6 +67,14 @@ public partial class HangarLocationPanel : Control
         SlotKind.JumpJet => new("9a86d8"), SlotKind.Engine => new("d86a6a"), SlotKind.Gyro => new("c58fd0"),
         SlotKind.Actuator => new("7fae84"), SlotKind.Cockpit => new("8fc3c0"), _ => new("4a5552")
     };
+
+    /// <summary>A yellow warning triangle with an exclamation mark, its top-left corner at the given point.</summary>
+    private void DrawWarning(Vector2 at, float size)
+    {
+        DrawColoredPolygon([at + new Vector2(size / 2, 0), at + new Vector2(size, size), at + new Vector2(0, size)], Warning);
+        DrawLine(at + new Vector2(size / 2, size * .3f), at + new Vector2(size / 2, size * .68f), Fill, 1.5f);
+        DrawRect(new Rect2(at + new Vector2(size / 2 - .75f, size * .76f), new Vector2(1.5f, 1.5f)), Fill);
+    }
 
     public override void _Draw()
     {
@@ -101,8 +104,15 @@ public partial class HangarLocationPanel : Control
             var size = RowHeight >= 14 ? 10 : 9;
             var text = block.Length < block.ItemSlots ? $"{block.Name} ({block.Length}/{block.ItemSlots})" : block.Name;
             var baseline = rect.Position.Y + Math.Min(rect.Size.Y, RowHeight) / 2 + size * .38f;
-            DrawString(font, new(rect.Position.X + 3, baseline), text, HorizontalAlignment.Left, rect.Size.X - 6, size,
+            var suspect = block.ItemId is { } id && Suspect.Contains(id);
+            var marker = suspect ? size + 4 : 0;
+            DrawString(font, new(rect.Position.X + 3, baseline), text, HorizontalAlignment.Left, rect.Size.X - 6 - marker, size,
                 block.Kind == SlotKind.Empty ? Ui.Muted : condition == ComponentCondition.Operational ? Ui.Text : color);
+            if (suspect)
+            {
+                var x = rect.Position.X + 3 + Math.Min(font.GetStringSize(text, fontSize: size).X, rect.Size.X - 6 - marker) + 3;
+                DrawWarning(new(x, baseline - size * .85f), size);
+            }
             if (condition == ComponentCondition.Destroyed)
                 DrawLine(new(rect.Position.X + 2, baseline - size * .35f), new(rect.End.X - 2, baseline - size * .35f), Destroyed, 1.5f);
         }

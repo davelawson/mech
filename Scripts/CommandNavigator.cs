@@ -12,7 +12,7 @@ public enum CommandScreen { MainMenu, Office, Map, Hangar, Draft, Tactical, Rolo
 public sealed class CommandNavigator(Control host, Action pause)
 {
     private sealed record Surface(Control View, string? Title, bool Overlay,
-        Func<Control?> Focus, Action? Back, Action<float>? RightDrag, Action? RightDragEnded);
+        Func<Control?> Focus, Action? Back, Action<float>? RightDrag, Action? RightDragEnded, Func<Vector2, bool>? RightClick);
     /// <summary>A right press that moves farther than this before release drags instead of going back.</summary>
     public const float RightDragThreshold = 5;
     private sealed record Entry(CommandScreen Screen, Control? ReturnFocus);
@@ -32,8 +32,9 @@ public sealed class CommandNavigator(Control host, Action pause)
     public bool Contains(CommandScreen screen) => _route.Any(entry => entry.Screen == screen);
 
     public void Register(CommandScreen screen, Control view, string? title, bool overlay,
-        Func<Control?> focus, Action? back = null, Action<float>? rightDrag = null, Action? rightDragEnded = null) =>
-        _surfaces.Add(screen, new(view, title, overlay, focus, back, rightDrag, rightDragEnded));
+        Func<Control?> focus, Action? back = null, Action<float>? rightDrag = null, Action? rightDragEnded = null,
+        Func<Vector2, bool>? rightClick = null) =>
+        _surfaces.Add(screen, new(view, title, overlay, focus, back, rightDrag, rightDragEnded, rightClick));
 
     public void RegisterPopup(PopupMenu popup)
     {
@@ -151,8 +152,9 @@ public sealed class CommandNavigator(Control host, Action pause)
             }
             if (input is InputEventMouseButton { Pressed: false, ButtonIndex: MouseButton.Right })
             {
-                var dragged = _rightDragging; EndRightDrag();
-                if (!dragged) Back();
+                var dragged = _rightDragging; var click = _surfaces[CurrentScreen].RightClick; EndRightDrag();
+                // A surface may claim a still right click (a hangar slot) instead of going back.
+                if (!dragged && click?.Invoke(origin) != true) Back();
                 return true;
             }
         }

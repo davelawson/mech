@@ -76,7 +76,8 @@ public partial class CommandApp : Control
                 State.Missions.Abandon(); Missions.Refresh(); RefreshCampaign();
                 Navigation.Close(CommandScreen.Dialog, Missions.MissionButtons.First());
             }, CloseDialog, "Abandon Mission");
-        Hangar.BackRequested += ShowOffice;
+        Hangar.BackRequested += LeaveHangar;
+        Hangar.ApplyRequested += ApplyLoadout;
         Hangar.WarriorDetailsRequested += ShowWarriors;
         Hangar.AssignmentRequested += AssignWarrior;
         Hangar.DeploymentRequested += ShowDeployment;
@@ -116,8 +117,8 @@ public partial class CommandApp : Control
             () => MainMenu.ResumeButton.Visible ? MainMenu.ResumeButton : MainMenu.NewButton, ResumeCampaign);
         Navigation.Register(CommandScreen.Office, Office, "Mech · Command", false, () => Office.Hotspot, ShowMainMenu);
         Navigation.Register(CommandScreen.Map, StarMap, "Mech · Inner Sphere", false, () => StarMap.Viewport, ShowOffice);
-        Navigation.Register(CommandScreen.Hangar, Hangar, "Mech · Mech Hangar", false, () => Hangar.BackButton, ShowOffice,
-            Hangar.Preview.Spin, Hangar.Preview.ReleaseSpin);
+        Navigation.Register(CommandScreen.Hangar, Hangar, "Mech · Mech Hangar", false, () => Hangar.BackButton, LeaveHangar,
+            Hangar.Preview.Spin, Hangar.Preview.ReleaseSpin, Hangar.RightClick);
         Navigation.Register(CommandScreen.Draft, Drafting, "Mech · Establish Company", false, () => Drafting.NameInput, Drafting.HandleEscape);
         Navigation.Register(CommandScreen.Tactical, Tactical, "Mech · Simulated Deployment", false, () => Tactical.Battlefield);
         Navigation.Register(CommandScreen.Rolodex, Rolodex, null, true, () => Rolodex.Section, CloseWarriors);
@@ -421,7 +422,36 @@ public partial class CommandApp : Control
     {
         if (State.RequiresDraft || Navigation.CurrentScreen != CommandScreen.Hangar) return;
         Navigation.Push(CommandScreen.Tactical, Hangar.DeploymentButton);
-        Tactical.Open(State.Roster!, Hangar.SelectedMech.Id);
+        // Simulations deploy pending loadouts; the hangar keeps them pending for the return.
+        Tactical.Open(Hangar.HasPendingChanges ? Hangar.PendingRoster() : State.Roster!, Hangar.SelectedMech.Id);
+    }
+
+    /// <summary>Leaving with unapplied loadout changes asks first; staying keeps them.</summary>
+    private void LeaveHangar()
+    {
+        if (Navigation.CurrentScreen != CommandScreen.Hangar) return;
+        if (!Hangar.HasPendingChanges) { ShowOffice(); return; }
+        var count = Hangar.PendingMechCount;
+        void Stay() { CloseDialog(); Navigation.RestoreFocus(Hangar.BackButton); }
+        OpenDialog("Unapplied changes", $"{count} {(count == 1 ? "mech has" : "mechs have")} unapplied loadout changes. Leaving the hangar abandons them.", Stay,
+            new DialogAction("Stay in hangar", Stay),
+            new DialogAction("Abandon changes and leave", () => { Hangar.AbandonPending(); CloseDialog(); ShowOffice(); }));
+    }
+
+    /// <summary>Applies the selected mech's pending loadout to the company, confirming first when it has items marked ⚠.</summary>
+    private void ApplyLoadout()
+    {
+        if (Navigation.CurrentScreen != CommandScreen.Hangar || !Hangar.SelectedHasPendingChanges) return;
+        void Commit()
+        {
+            State.Roster!.ApplyLoadout(Hangar.SelectedMech.Id, Hangar.SelectedRemoved); Hangar.CommitSelected();
+            if (Navigation.CurrentScreen == CommandScreen.Dialog) CloseDialog();
+            Navigation.RestoreFocus(Hangar.BackButton);
+        }
+        if (Loadout.Suspect(Hangar.DisplayedMech.Spec).Count == 0) { Commit(); return; }
+        void Cancel() { CloseDialog(); Navigation.RestoreFocus(Hangar.ApplyButton); }
+        OpenDialog("Apply loadout?", "This loadout has items marked ⚠. Apply anyway?", Cancel,
+            new DialogAction("Cancel", Cancel), new DialogAction("Apply anyway", Commit));
     }
 
     private void AssignWarrior(string mechId, string? warriorId)

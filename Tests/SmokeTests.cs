@@ -35,7 +35,7 @@ public partial class SmokeTests : Node
             await TestStarMapUi(); await TestShipLocatorUi(); await TestTravelUi();
         }),
         new("roster", Setup.Drafted, async () => { RosterChecks.Run(Check); await TestRosterUi(); }),
-        new("hangar", Setup.Drafted, async () => { HangarChecks.Run(Check); await TestHangarAssignmentsUi(); await TestHangarScreen(); }),
+        new("hangar", Setup.Drafted, async () => { HangarChecks.Run(Check); await TestHangarAssignmentsUi(); await TestHangarScreen(); await TestHangarLoadout(); }),
         new("missions", Setup.Menu, async () => { MissionChecks.Run(Check); await TestMissionsUi(); }),
         new("finance", Setup.Menu, async () => { CampaignChecks.Run(Check); await TestCampaignUi(); }),
         new("catalog", Setup.None, () => { CatalogChecks.Run(Check); return Task.CompletedTask; }),

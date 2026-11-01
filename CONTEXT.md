@@ -28,6 +28,12 @@ Spare weapons, ammunition, heat sinks and jump jets held by the mercenary force 
 **Critical slot**:
 One of the fixed equipment spaces in a BattleMech location: six in the head and each leg, twelve in each torso and arm.
 
+**Loadout**:
+The equipment installed in a particular owned BattleMech: its stock design less any weapons, ammunition, heat sinks and jump jets removed in the hangar.
+
+**Pending changes**:
+Loadout changes made in the hangar but not yet applied to the BattleMech. They are kept per BattleMech until applied, reset, or abandoned on leaving the hangar.
+
 **Ready MechWarrior**:
 A healthy MechWarrior available for immediate deployment, whether currently assigned to a BattleMech or unassigned.
 

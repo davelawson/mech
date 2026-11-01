@@ -47,7 +47,8 @@ internal static class CatalogChecks
                     Structure = l.Structure / scale }),
                 Weapons = m.Weapons.Select(w => new { w.Id, w.Name, Location = w.Location.ToString(), w.Rear, w.Heat,
                     Damage = DefinitionText.Damage(w.DamageProfile with { PerProjectile = StockPerProjectile(w) }), w.Minimum, w.Short, w.Medium, w.Long, AmmoType = AmmoText(w.AmmoKind) }),
-                Components = m.Components.Select(c => new { c.Id, c.Name, Location = c.Location.ToString(), c.Slots }),
+                // The loader splits grouped heat sinks and jump jets into `.1`, `.2`, … items; regroup them against the source.
+                Components = m.Components.GroupBy(c => c.Id.Split('.')[0]).Select(g => new { Id = g.Key, g.First().Name, Location = g.First().Location.ToString(), Slots = g.Sum(c => c.Slots) }),
                 Ammo = m.Ammo.Select(a => new { a.Id, a.Name, Location = a.Location.ToString(), AmmoType = AmmoText(a.AmmoKind), a.Shots }),
                 m.Source
             });
@@ -227,6 +228,20 @@ internal static class CatalogChecks
             foreach (var location in expected["Roster"]!["Mechs"]!.AsArray().SelectMany(m => m!["Locations"]!.AsArray()))
                 foreach (var field in new[] { "Armor", "RearArmor", "Structure" })
                     location![field] = location[field]!.GetValue<int>() * CombatRules.DamageScale;
+            // Grouped heat sink and jump jet conditions become one per item, and stock mechs record no removed items.
+            foreach (var saved in expected["Roster"]!["Mechs"]!.AsArray())
+            {
+                var definition = DraftCatalog.Mech(saved!["DefinitionId"]!.GetValue<string>());
+                var equipment = new JsonArray();
+                foreach (var item in saved["Equipment"]!.AsArray())
+                {
+                    var id = item!["Id"]!.GetValue<string>();
+                    var parts = definition.Components.Where(c => c.Id.StartsWith(id + ".", StringComparison.Ordinal)).Select(c => c.Id).ToArray();
+                    foreach (var part in parts.Length == 0 ? [id] : parts)
+                    { var copy = item.DeepClone(); copy["Id"] = part; equipment.Add(copy); }
+                }
+                saved["Equipment"] = equipment; saved["Removed"] = null;
+            }
             // Older saves gain the company's spare equipment, stocked once from its mechs.
             expected["Roster"]!["Storage"] = System.Text.Json.JsonSerializer.SerializeToNode(StorageCatalog.Stock(campaign.Roster.Mechs.Select(m => m.Spec)).ToArray());
             check(JsonNode.DeepEquals(expected, JsonNode.Parse(File.ReadAllText(path))),

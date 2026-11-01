@@ -115,10 +115,23 @@ internal static class CatalogLoader
                 Require(m.Ammo.Any(a => a.AmmoKind == w.AmmoKind), path + $".{w.Id}.AmmoKind", "no compatible bin");
             mechs.Add(new(m.Id, m.Chassis, m.Variant, m.Tonnage, m.WeightClass, m.Introduced, m.Role!, m.Walk, m.Run,
                 m.Jump, m.HeatSinks, m.Engine, m.Locations.ToImmutableArray(), m.Weapons.ToImmutableArray(),
-                m.Components.ToImmutableArray(), m.Ammo.ToImmutableArray(), m.Source!, m.HeatSinkType));
+                Individual(m.Components, m.HeatSinkType, path), m.Ammo.ToImmutableArray(), m.Source!, m.HeatSinkType));
         }
         return new(new(file.SchemaVersion, file.Source, file.Revision, file.License, file.Attribution, file.LicenseUrl), mechs.ToImmutable());
     }
+
+    /// <summary>Splits grouped heat sink and jump jet entries into one item per sink or jet, ids suffixed `.1`, `.2`, ….</summary>
+    private static ImmutableArray<ComponentSpec> Individual(IEnumerable<ComponentSpec> components, HeatSinkKind sinks, string path) =>
+        components.SelectMany(c =>
+        {
+            var count = c.Kind switch { ComponentKind.HeatSink => c.HeatSinkCount, ComponentKind.JumpJet => c.Slots, _ => 1 };
+            if (count == 1) return [c];
+            var slots = c.Kind == ComponentKind.HeatSink ? EquipmentRules.HeatSinkSlots(sinks) : 1;
+            Require(c.Slots == count * slots, path + $".{c.Id}.Slots", "does not divide into individual items");
+            return Enumerable.Range(1, count).Select(index => c with
+                { Id = GroupedId(c.Id, index), Slots = slots, HeatSinkCount = c.Kind == ComponentKind.HeatSink ? 1 : 0 });
+        }).ToImmutableArray();
+    internal static string GroupedId(string group, int index) => $"{group}.{index}";
 
     private static AmmoKind? ExpectedAmmo(WeaponKind kind) => kind switch
     {

@@ -110,6 +110,55 @@ public static class CriticalLayout
     };
 }
 
+/// <summary>An owned mech's installed equipment: its stock design less the items removed in the hangar.</summary>
+public static class Loadout
+{
+    public static bool Removable(SlotKind kind) => kind is SlotKind.Weapon or SlotKind.Ammo or SlotKind.HeatSink or SlotKind.JumpJet;
+    /// <summary>Whether a stock item of this design is a weapon, bin, heat sink or jump jet that the hangar may remove.</summary>
+    public static bool Removable(MechSpec stock, string id) => stock.Weapons.Any(item => item.Id == id) || stock.Ammo.Any(item => item.Id == id)
+        || stock.Components.Any(item => item.Id == id && item.Kind is ComponentKind.HeatSink or ComponentKind.JumpJet);
+
+    /// <summary>The design with these stock items removed: one heat sink fewer per removed sink and one jump MP fewer per removed jet.</summary>
+    public static MechSpec Strip(MechSpec stock, IReadOnlySet<string> removed)
+    {
+        if (removed.Count == 0) return stock;
+        var components = stock.Components.Where(item => removed.Contains(item.Id)).ToArray();
+        return stock with
+        {
+            Weapons = stock.Weapons.Where(item => !removed.Contains(item.Id)).ToImmutableArray(),
+            Components = stock.Components.Where(item => !removed.Contains(item.Id)).ToImmutableArray(),
+            Ammo = stock.Ammo.Where(item => !removed.Contains(item.Id)).ToImmutableArray(),
+            HeatSinks = stock.HeatSinks - components.Sum(item => item.HeatSinkCount),
+            Jump = Math.Max(0, stock.Jump - components.Where(item => item.Kind == ComponentKind.JumpJet).Sum(item => item.Slots))
+        };
+    }
+
+    /// <summary>Mass of one installed weapon, bin, heat sink or jump jet, or null for fixed systems.</summary>
+    public static float? Tons(MechSpec spec, string id) =>
+        spec.Weapons.FirstOrDefault(item => item.Id == id) is { } weapon ? EquipmentRules.Tons(weapon.Kind)
+        : spec.Ammo.Any(item => item.Id == id) ? 1
+        : spec.Components.FirstOrDefault(item => item.Id == id) is { } component ? component.Kind switch
+        {
+            ComponentKind.HeatSink => component.HeatSinkCount,
+            ComponentKind.JumpJet => component.Slots * EquipmentRules.JumpJetTons(spec.Tonnage),
+            _ => null
+        } : null;
+
+    /// <summary>The storage line a removed item joins.</summary>
+    public static string StorageId(MechSpec spec, string id) =>
+        spec.Weapons.FirstOrDefault(item => item.Id == id) is { } weapon ? StorageCatalog.WeaponId(weapon.Kind)
+        : spec.Ammo.FirstOrDefault(item => item.Id == id) is { } bin ? StorageCatalog.AmmoId(bin.AmmoKind)
+        : spec.Components.FirstOrDefault(item => item.Id == id) is { Kind: ComponentKind.HeatSink } ? StorageCatalog.HeatSinkId(spec.HeatSinkType)
+        : spec.Components.FirstOrDefault(item => item.Id == id) is { Kind: ComponentKind.JumpJet } ? StorageCatalog.JumpJetId(spec.Tonnage)
+        : throw new ArgumentException($"{id} cannot be stored.");
+
+    /// <summary>Weapons with no bin of their ammunition anywhere on the mech, and bins no weapon fires, regardless of location or damage.</summary>
+    public static ImmutableHashSet<string> Suspect(MechSpec spec) =>
+        spec.Weapons.Where(item => item.AmmoKind is { } kind && spec.Ammo.All(bin => bin.AmmoKind != kind)).Select(item => item.Id)
+            .Concat(spec.Ammo.Where(bin => spec.Weapons.All(item => item.AmmoKind != bin.AmmoKind)).Select(bin => bin.Id))
+            .ToImmutableHashSet(StringComparer.Ordinal);
+}
+
 public sealed record StorageItem(string Id, string Name, StorageGroup Group, float Tons, int Slots, int Heat);
 public sealed record StorageEntry(string Id, int Count);
 

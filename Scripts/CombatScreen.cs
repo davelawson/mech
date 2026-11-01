@@ -31,6 +31,8 @@ public partial class CombatScreen : Control
     public IReadOnlyList<string> Selected => _selected;
     public bool SettingPriority { get; private set; }
     private ForceRoster _roster = null!;
+    /// <summary>The roster this deployment was opened with: pending hangar loadouts included.</summary>
+    public ForceRoster Roster => _roster;
     private readonly List<string> _selected = [];
     private readonly List<string> _forceIds = [];
     private readonly List<(CombatWeapon Weapon, CheckButton Control)> _weaponControls = [];
