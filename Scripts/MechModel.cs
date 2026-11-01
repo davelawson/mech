@@ -7,6 +7,8 @@ public partial class MechModel : Node3D
 {
     public IReadOnlyDictionary<MechLocation, Node3D> Locations => _locations;
     public string ChassisId { get; private set; } = "";
+    /// <summary>The hardpoint visuals this model was built with.</summary>
+    public MountMap Mounts { get; private set; } = MountMap.Empty;
     public bool IsAwesome => ChassisId == "awesome";
     public Aabb RestBounds { get; private set; }
     public float Height { get; private set; }
@@ -26,9 +28,15 @@ public partial class MechModel : Node3D
     /// <summary>World metres per authored model unit; prepared models stand roughly 36–55 metres tall.</summary>
     public const float MetresPerModelUnit = 15;
 
-    public static MechModel Create(MechSpec spec, CombatSide side)
+    /// <summary>A chassis's hardpoints; empty for generic geometry.</summary>
+    public static IReadOnlyList<Hardpoint> Hardpoints(string chassisId) =>
+        PreparedModels.TryGetValue(chassisId, out var prepared) ? prepared.Hardpoints : [];
+
+    /// <summary>Builds the chassis with its weapons' visuals, resolved from the spec unless a mount map is given.</summary>
+    public static MechModel Create(MechSpec spec, CombatSide side, MountMap? mounts = null)
     {
         var model = new MechModel { Name = "MechModel", ChassisId = spec.Id };
+        model.Mounts = mounts ?? WeaponMounts.Resolve(spec);
         model.Scale = Vector3.One * (.9f + spec.Tonnage / 200f) * MetresPerModelUnit;
         // A pixel-sized inverted hull remains legible at combat zoom without tinting the armor.
         model._outline = new ShaderMaterial { Shader = new Shader { Code = """
@@ -58,11 +66,11 @@ public partial class MechModel : Node3D
         }
         if (prepared is not null)
         {
-            model.BuildPreparedModel(prepared.Chassis);
+            model.BuildPreparedModel(prepared.Chassis, prepared.Hardpoints);
             model.BuildLocomotionRig(prepared.Rig);
         }
         else model.BuildGeneric(side);
-        model.BindFiringMarkers(spec);
+        model.BindFiringMarkers(spec, model.MountedMarkers(prepared?.Hardpoints ?? []));
         model.RestBounds = model.MeasureBounds() ?? new Aabb(Vector3.Zero, Vector3.One);
         model.Height = model.RestBounds.End.Y * model.Scale.Y;
         return model;
@@ -146,7 +154,22 @@ public partial class MechModel : Node3D
 
     // Indexed markers (`WeaponMuzzle_Weapon<i>_*`) name their catalog weapon directly. Otherwise each location's
     // weapons share its markers of the matching kind in catalog order: one beam each, launcher tubes split evenly.
-    private void BindFiringMarkers(MechSpec spec)
+    // Weapons the mount map places bind straight to their hardpoint's markers: library markers for a swapped visual,
+    // the stock part's markers otherwise. Stock maps and markerless hardpoints use the shared heuristics below.
+    private Dictionary<string, Node3D[]> MountedMarkers(IReadOnlyList<Hardpoint> hardpoints)
+    {
+        var markers = new Dictionary<string, Node3D[]>();
+        foreach (var (weapon, id) in Mounts.WeaponHardpoints)
+        {
+            var hardpoint = hardpoints.Single(item => item.Id == id);
+            var own = _swappedMarkers.TryGetValue(id, out var swapped) ? swapped
+                : (hardpoint.StockMarkers ?? []).Select(name => _locations[hardpoint.Location].FindChild(name, true, false)).OfType<Node3D>().ToArray();
+            if (own.Length > 0) markers[weapon] = own;
+        }
+        return markers;
+    }
+
+    private void BindFiringMarkers(MechSpec spec, IReadOnlyDictionary<string, Node3D[]> mounted)
     {
         static (string Stem, int Number) Order(Node3D node)
         {
@@ -160,6 +183,8 @@ public partial class MechModel : Node3D
         var pending = new List<WeaponSpec>();
         for (var index = 0; index < spec.Weapons.Length; index++)
         {
+            if (mounted.TryGetValue(spec.Weapons[index].Id, out var direct))
+            { _firingMarkers[spec.Weapons[index].Id] = direct; claimed.UnionWith(direct); continue; }
             var own = all.Where(node => node.Name.ToString().StartsWith($"WeaponMuzzle_Weapon{index}_", StringComparison.Ordinal)).ToArray();
             if (own.Length > 0) { _firingMarkers[spec.Weapons[index].Id] = own; claimed.UnionWith(own); }
             else pending.Add(spec.Weapons[index]);

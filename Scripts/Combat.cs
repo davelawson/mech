@@ -30,7 +30,7 @@ public static partial class CombatRules
     public const float UnitRadius = 9.75f;
     public const float FollowDistance = 90;
     /// <summary>Metres per second per stock movement point.</summary>
-    public const float MovementScale = 5.4f;
+    public const float MovementScale = 2.7f;
     public const int AimModifier = 3;
     public const double StepSeconds = .05;
     // Shared by combat, hangar previews and future chassis; catalog MP remain stock.

@@ -102,7 +102,7 @@ public partial class SmokeTests
                 if (frame is 15 or 35 or 55) await Capture($"awesome-{(gait == 1 ? "walk" : "run")}-{frame}");
             }
             Check(articulated && grounded, $"Awesome gait {gait} articulates legs with ground clearance and a planted support foot");
-            TestLongStride(model, (PreviewGait)gait, gait == 1 ? .33f : .45f);
+            TestLongStride(model, (PreviewGait)gait);
             Check(gait == 1 ? model.RunBlend < .01f : model.RunBlend > .99f, "actual preview speed selects the expected walk/run blend");
         }
         var walk = CombatRules.MovementSpeed(roster.Mechs[0].Spec, MovementMode.Walk);

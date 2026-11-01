@@ -44,6 +44,8 @@ public partial class HangarScreen : Control
     private ScrollContainer _rosterScroll = null!;
     private readonly Dictionary<MechLocation, HangarLocationPanel> _locations = [];
     private readonly List<string> _pilotIds = [];
+    private int _debugHardpoint;
+    private Label? _debugMount;
 
     public override void _Ready()
     {
@@ -52,6 +54,11 @@ public partial class HangarScreen : Control
         var tint = new ColorRect { Color = new Color(0, .02f, .04f, .62f), MouseFilter = MouseFilterEnum.Ignore };
         tint.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(tint);
         Preview = new MechPreview { Blueprint = true }; AddChild(Preview);
+        if (OS.IsDebugBuild())
+        {
+            _debugMount = new Label { Position = new(12, 12), MouseFilter = MouseFilterEnum.Ignore, Visible = false };
+            _debugMount.AddThemeColorOverride("font_color", Ui.Gold); Preview.AddChild(_debugMount);
+        }
         Board = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass };
         AddChild(Board);
         _boardContent = new Control { MouseFilter = MouseFilterEnum.Pass }; Board.AddChild(_boardContent);
@@ -101,7 +108,7 @@ public partial class HangarScreen : Control
     public void Open(ForceRoster roster)
     {
         if (!ReferenceEquals(_roster, roster)) _selected = 0;
-        _roster = roster; _selected = Math.Clamp(_selected, 0, roster.Mechs.Count - 1); Show();
+        _roster = roster; _selected = Math.Clamp(_selected, 0, roster.Mechs.Count - 1); Board.Visible = true; Show();
         RosterUi.Clear(_rosterButtons); RosterButtons.Clear();
         for (var i = 0; i < roster.Mechs.Count; i++)
         {
@@ -117,8 +124,49 @@ public partial class HangarScreen : Control
     {
         if (_roster is not null) { ShowStorage(); Select(_selected); }
     }
+    /// <summary>Space shows or hides the location panels over the mech preview; Tab cycles the preview
+    /// gait still → walking → running.</summary>
+    public bool HandleKey(InputEvent input)
+    {
+        if (input is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Space or Key.Tab } key) return false;
+        if (key.Keycode == Key.Tab) Preview.Gait = (PreviewGait)(((int)Preview.Gait + 1) % 3);
+        else Board.Visible = !Board.Visible;
+        return true;
+    }
+    public override void _UnhandledKeyInput(InputEvent @event)
+    {
+        if (!OS.IsDebugBuild() || !IsVisibleInTree() || _roster is null
+            || @event is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.F6 or Key.F7 } key) return;
+        CycleDebugMount(key.Keycode == Key.F7);
+        GetViewport().SetInputAsHandled();
+    }
+    /// <summary>Debug builds: F6 selects the previewed mech's next hardpoint, F7 cycles that hardpoint's visual
+    /// (including empty). The preview alone changes; the owned mech and save are untouched.</summary>
+    public void CycleDebugMount(bool visual)
+    {
+        var hardpoints = MechModel.Hardpoints(SelectedMech.Spec.Id);
+        if (hardpoints.Count == 0 || Preview.Model is not { } model) return;
+        var showing = _debugMount is { Visible: true };
+        if (!visual) _debugHardpoint = showing ? (_debugHardpoint + 1) % hardpoints.Count : 0;
+        var hardpoint = hardpoints[_debugHardpoint % hardpoints.Count];
+        var current = model.Mounts.Visuals.GetValueOrDefault(hardpoint.Id);
+        if (visual)
+        {
+            var options = hardpoint.Visuals.Append(null).ToList();
+            var next = options[(options.IndexOf(current) + 1) % options.Count];
+            var visuals = next is null ? model.Mounts.Visuals.Remove(hardpoint.Id) : model.Mounts.Visuals.SetItem(hardpoint.Id, next);
+            Preview.ShowMounts(model.Mounts with { Visuals = visuals, Stock = false });
+            current = next;
+        }
+        if (_debugMount is not null)
+        {
+            _debugMount.Text = $"{hardpoint.Id} ({hardpoint.Location}): {current ?? "empty"}   F6 next mount · F7 next visual";
+            _debugMount.Visible = true;
+        }
+    }
     public void Select(int index)
     {
+        if (index != _selected) { _debugHardpoint = 0; if (_debugMount is not null) _debugMount.Visible = false; }
         _selected = index; var mech = SelectedMech; var spec = mech.Spec; var warrior = _roster.Pilot(mech);
         Preview.Display(mech);
         var layout = CriticalLayout.For(spec);

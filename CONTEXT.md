@@ -105,3 +105,12 @@ A BattleMech unable to continue fighting because it has lost both legs or all us
 
 **Destroyed BattleMech**:
 A BattleMech whose head or center torso has been destroyed, distinct from a disabled BattleMech. If recovered from a mission, it is a wreck.
+
+**Hardpoint**:
+A weapon mount slot on a chassis model, named after its MW5 socket (`Forearm_Right_BH1`): ballistic, energy, missile or AMS, in one damage location.
+
+**Weapon visual**:
+One mesh a hardpoint can show, such as `Laser`, `AC10`, `Missile6`, or a `Blank` cover for an emptied mount.
+
+**Mount map**:
+The hardpoint → weapon visual assignment a mech model is built from, resolved from its weapons.

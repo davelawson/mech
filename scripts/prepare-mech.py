@@ -36,4 +36,5 @@ for model in selected:
                                      "source skeleton sockets and exterior cockpit.")
     prepare(model["chassis"], model["prefix"], model["displayed_height"], model["model_scale"],
             [tuple(item[:4]) for item in model["weapons"]], model.get("missile_tubes", 0), evidence,
-            args.source or default_source(model["chassis"], source_tree), glass_section=model["glass_section"])
+            args.source or default_source(model["chassis"], source_tree), glass_section=model["glass_section"],
+            hardpoint_overrides=model.get("hardpoint_overrides"))

@@ -114,6 +114,106 @@
       "local_transform": "identity"
     }
   ],
+  "hardpoints": {
+    "Forearm_Left_EH1": {
+      "class": "Energy",
+      "location": "LeftArm",
+      "bone": "Forearm_Left",
+      "visuals": {
+        "Laser": {
+          "triangles": 410,
+          "markers": 1
+        }
+      },
+      "part": "Weapon4",
+      "markers": [
+        "WeaponMuzzle_Weapon4_00"
+      ],
+      "stock": "Laser"
+    },
+    "Forearm_Right_EH1": {
+      "class": "Energy",
+      "location": "RightArm",
+      "bone": "Forearm_Right",
+      "visuals": {
+        "Laser": {
+          "triangles": 410,
+          "markers": 1
+        }
+      },
+      "part": "Weapon3",
+      "markers": [
+        "WeaponMuzzle_Weapon3_00"
+      ],
+      "stock": "Laser"
+    },
+    "Torso_Left_MH1": {
+      "class": "Missile",
+      "location": "LeftTorso",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "Missile15": {
+          "triangles": 1869,
+          "markers": 15
+        }
+      },
+      "part": "Weapon0",
+      "markers": [
+        "WeaponMuzzle_Weapon0_00",
+        "WeaponMuzzle_Weapon0_01",
+        "WeaponMuzzle_Weapon0_02",
+        "WeaponMuzzle_Weapon0_03",
+        "WeaponMuzzle_Weapon0_04",
+        "WeaponMuzzle_Weapon0_05",
+        "WeaponMuzzle_Weapon0_06",
+        "WeaponMuzzle_Weapon0_07",
+        "WeaponMuzzle_Weapon0_08",
+        "WeaponMuzzle_Weapon0_09",
+        "WeaponMuzzle_Weapon0_10",
+        "WeaponMuzzle_Weapon0_11",
+        "WeaponMuzzle_Weapon0_12",
+        "WeaponMuzzle_Weapon0_13",
+        "WeaponMuzzle_Weapon0_14"
+      ],
+      "stock": "Missile15"
+    },
+    "Torso_Left_MH2": {
+      "class": "Missile",
+      "location": "LeftTorso",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "Missile4": {
+          "triangles": 779,
+          "markers": 4
+        }
+      },
+      "part": "Weapon1",
+      "markers": [
+        "WeaponMuzzle_Weapon1_00",
+        "WeaponMuzzle_Weapon1_01",
+        "WeaponMuzzle_Weapon1_02",
+        "WeaponMuzzle_Weapon1_03"
+      ],
+      "stock": "Missile4"
+    },
+    "Torso_Right_BH1": {
+      "class": "Ballistic",
+      "location": "RightTorso",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "AC10": {
+          "triangles": 1158,
+          "markers": 1
+        }
+      },
+      "part": "Weapon2",
+      "markers": [
+        "WeaponMuzzle_Weapon2_00"
+      ],
+      "stock": "AC10"
+    }
+  },
+  "library_bytes": 217096,
   "cockpit": {
     "mesh": "ON1_TP_Cockpit_DM0_STM",
     "bone": "Cockpit",

@@ -77,16 +77,25 @@ public partial class MechPreview : Control
         Yaw = Mathf.Wrap(Yaw, -Mathf.Pi, Mathf.Pi); _springFrom = Yaw; _springTime = 0;
         if (Yaw == 0) _springTime = -1;
     }
+    /// <summary>A preview-only mount map (the debug hardpoint cycle); null shows the mech's resolved loadout.</summary>
+    public MountMap? MountOverride { get; private set; }
     public void Display(OwnedMech mech)
     {
-        if (!ReferenceEquals(_owned, mech))
-        {
-            if (Model is not null) { _world.RemoveChild(Model); Model.QueueFree(); }
-            Model = MechModel.Create(mech.Spec, CombatSide.Friendly); _world.AddChild(Model); _owned = mech;
-        }
+        if (!ReferenceEquals(_owned, mech)) { _owned = mech; MountOverride = null; Rebuild(); }
         Model!.SetCondition(mech.LocationIntact);
         if (Blueprint) { Yaw = 0; _springTime = -1; Model.Rotation = Vector3.Zero; Tint(mech); }
         FrameModel();
+    }
+    /// <summary>Rebuilds the current mech with different hardpoint visuals, without touching its owned state.</summary>
+    public void ShowMounts(MountMap? mounts)
+    {
+        if (_owned is null) return;
+        MountOverride = mounts; Rebuild(); Display(_owned);
+    }
+    private void Rebuild()
+    {
+        if (Model is not null) { _world.RemoveChild(Model); Model.QueueFree(); }
+        Model = MechModel.Create(_owned!.Spec, CombatSide.Friendly, MountOverride); _world.AddChild(Model);
     }
     private void Tint(OwnedMech mech)
     {

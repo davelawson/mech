@@ -28,7 +28,7 @@ The direct equivalent is `godot --headless --path . --scene res://Tests/SmokeTes
 | `combat-sim` | Combat simulation (weapons, heat, twisting, sensors, following, log) and terrain | `Combat`, `Heat`, `TorsoTwisting`, `BattlefieldTerrain`, `CircleUnion`, `CombatLog`, `MechLocomotion` |
 | `combat-ui` | Combat layouts, picking, detection overlay, shot effects, tactical screen | `CombatScreen`, `CombatViewport`, `CombatPaperdoll`, `CombatLogPanel`, `BattlefieldTerrainView` |
 | `combat-layout` | Combat layout subset of `combat-ui` (freeze regression); not in the full run | as `combat-ui`, for a quick check |
-| `mech-visuals` | Imported models, gaits, damage hiding, blueprint framing | `MechModel`, `PreparedMechModels`, `PreparedModelLoader`, `Assets/` models, `Data/mech-models.json` |
+| `mech-visuals` | Imported models, gaits, damage hiding, blueprint framing, weapon hardpoints | `MechModel`, `PreparedMechModels`, `PreparedModelLoader`, `WeaponMounts`, `Assets/` models and weapon libraries, `Data/mech-models.json` |
 | `layout` | Window scaling and office hotspots at several window sizes | `Ui`, `NativeViewportContainer` |
 
 A test file under `Tests/` belongs to the group that calls it. When you change a test, run that group.

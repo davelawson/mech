@@ -318,7 +318,7 @@ internal static partial class CombatChecks
         sim.Move(ids, new Vector2(0, 450)); sim.Paused = false;
         var separated = true;
         var startDepth = friends[0].Position.Y;
-        for (var tick = 0; tick < 400; tick++)
+        for (var tick = 0; tick < 800; tick++)
         {
             sim.Advance(.1);
             separated &= sim.Units.All(item => CombatRules.Clamp(item.Position).DistanceTo(item.Position) < .03)

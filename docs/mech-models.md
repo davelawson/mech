@@ -79,7 +79,7 @@ The project retains the prepared GLB, four required Godot companion textures and
 
 ## Imported Atlas
 
-`Assets/Models/Atlas.glb` supplies the AS7-D model, at a 60-metre displayed height with 50,045 triangles in 24 rigid render meshes. It uses the source skull cockpit, amber eyes, stock weapon meshes, olive paint and source normal detail. Its articulated rig uses the shared longer stride and movement speed. The preparation manifest records source files, hashes and joint pivots.
+`Assets/Models/Atlas.glb` supplies the AS7-D model, at a 60-metre displayed height with 50,045 triangles in 24 rigid render meshes. It uses the source skull cockpit, amber eyes, stock weapon meshes, olive paint and source normal detail. Its articulated rig uses the shared speed-proportional stride and movement speed. The preparation manifest records source files, hashes and joint pivots.
 
 MW5's AS7-D source loadout and hardpoint mappings place the AC/20 on the right torso, LRM 20 and SRM 6 on the left torso, one laser on each arm and two on the center torso. The LRM 20 uses MW5's ten-position missile visual; the SRM retains six positions. The tabletop stock catalog records the two center-torso lasers as rear-facing. Existing combat rules do not yet enforce weapon firing arcs, so their rear-facing status is currently informational.
 
@@ -87,7 +87,7 @@ Atlas is eligible in the assault draft pool and uses its 3D model in draft previ
 
 ## Imported Panther, Shadow Hawk and Griffin
 
-The existing draft candidates PNT-9R, SHD-2H and GRF-1N use prepared MW5 source models in the hangar and combat, retaining their existing tabletop statistics and draft entries. Their displayed heights are 37.2, 45 and 45 metres respectively. The models contain 40,503, 29,896 and 24,401 triangles, with source cockpit geometry, weapons, masks and normals. Source joints drive the same shared faster movement and longer strides as the other imports.
+The existing draft candidates PNT-9R, SHD-2H and GRF-1N use prepared MW5 source models in the hangar and combat, retaining their existing tabletop statistics and draft entries. Their displayed heights are 37.2, 45 and 45 metres respectively. The models contain 40,503, 29,896 and 24,401 triangles, with source cockpit geometry, weapons, masks and normals. Source joints drive the same shared faster movement and speed-proportional strides as the other imports.
 
 The MW5 loadouts and hardpoint visual mappings select the stock weapons; Shadow Hawk's right-arm laser blueprint references `Arm_Right_EH1_Laser_SKM`. Its head SRM, left torso AC/5 and right torso LRM stay with their corresponding damage roots. Panther has four SRM firing markers and Griffin has ten LRM markers; Shadow Hawk has two SRM and five LRM markers. The Panther and Shadow Hawk source bodies have a few cross-bone torso seam faces; each intact triangle is assigned to its predominant torso region.
 
@@ -101,7 +101,7 @@ The MW5 CRD-3R source locates both SRM 6 visuals on the torso; the tabletop cata
 
 The 36 remaining exported base-game chassis are eligible in the initial draft according to weight class; existing companies are unchanged. Their selected variants are listed below. `Data/additional-mechs.json` records the pinned stock-data paths, while their entries in `Data/mech-models.json` record the installed game's source hardpoints and weapon blueprints. Each prepared GLB has a manifest with source hashes, rig pivots, geometry counts and the number of source seam or weighted faces assigned to their predominant damage region.
 
-All additional rigs inherit the shared movement and stride scaling. The Mauler has an XL engine, double heat sinks and ER lasers; the catalog retains those facts and the UI displays double heat-sink dissipation. The current simplified combat rules do not model XL-engine vulnerability, heat accumulation or other advanced equipment effects. Its missing unweighted Cockpit export uses the equivalent source Torso_Head transform. The Rifleman's wear and default masks have different dimensions, so the default mask is resampled to preserve the larger wear texture during baking.
+All additional rigs inherit the shared movement speed and speed-proportional strides. The Mauler has an XL engine, double heat sinks and ER lasers; the catalog retains those facts and the UI displays double heat-sink dissipation. The current simplified combat rules do not model XL-engine vulnerability, heat accumulation or other advanced equipment effects. Its missing unweighted Cockpit export uses the equivalent source Torso_Head transform. The Rifleman's wear and default masks have different dimensions, so the default mask is resampled to preserve the larger wear texture during baking.
 
 | Chassis | Selected variant |
 | --- | --- |
@@ -142,6 +142,29 @@ All additional rigs inherit the shared movement and stride scaling. The Mauler h
 | Warhammer | WHM-6R |
 | Wolfhound | WLF-1 |
 
+## Weapon hardpoints
+
+A model shows the visuals for its spec's weapons, not just its stock loadout. MW5 exports every weapon visual a chassis's hardpoints accept, and preparation keeps those alongside the stock model.
+
+- **Library.** Each `prepare-mech.py` run also writes `Assets/Models/<Chassis>Weapons.glb`. The library is built in the same model space, scale and ground as `<Chassis>.glb`, which stays byte-identical. The library has one node per hardpoint, holding `<Hardpoint>_<Visual>` meshes and `<Hardpoint>_<Visual>_Fire<nn>` firing markers. Godot makes imported node names unique scene-wide, which is why every name carries its hardpoint. The library carries no textures: at runtime its placeholder `<Chassis>VariantOlive` material is replaced by the model's own same-named weapon paint and team outline. The library is loaded lazily, the first time a model needs a non-stock visual.
+- **Hardpoints.** A file `Weapon_Mech_<PREFIX>_<Bone>_<Class>H<n>_<Visual>_SKM` adds a visual to hardpoint `<Bone>_<Class>H<n>`. Classes are `B` ballistic, `E` energy, `M` missile and `A` AMS.
+  - **Blank covers:** a `<Bone>_<Class>B<n>` file is a blank cover for the matching hardpoint (visual `Blank`). Generic `GB` covers and covers without a weapon hardpoint are dropped.
+  - **Location:** `Torso_Left/Right/Center` belong to that torso and `Head` to Head; `Forearm_`, `Upperarm_`, `Clavicle_` and `Arm_` hardpoints belong to their side's arm.
+  - **Socket bone:** torso and head hardpoints attach to `Torso_Pitch`; `Arm_<side>` uses `Forearm_<side>`; other hardpoints use their own bone. A stock entry's recorded location and bone take precedence, and an optional `hardpoint_overrides` map in `Data/mech-models.json` can correct either.
+  - **Library contents:** only visuals that game weapons can use are kept: Laser, PPC, Flamer, MG, AC2/5/10/20, Missile<n> and Blank.
+- **Manifest and table.** Each manifest records a `hardpoints` block (class, location, bone, visuals with triangle and marker counts, and the stock visual, part and markers) plus `library_bytes`. `generate-mech-rigs.py` turns it into the hardpoint table in `Scripts/PreparedMechModels.cs`.
+- **Resolver.** `WeaponMounts.Resolve` (`Scripts/WeaponMounts.cs`) turns a spec into a mount map.
+  - **Kind → visual:** lasers map to `Laser`, PPC to `PPC`, Flamer to `Flamer`, machine guns to `MG`, autocannons to `AC<n>`, and SRM and LRM racks to `Missile<n>`. Sized families use the largest visual no bigger than the weapon, else the smallest larger one.
+  - **Stock identity:** a spec whose weapons match the catalog by location, kind and facing returns the stock map, which builds exactly the prepared model.
+  - **Other loadouts:**
+    1. Each weapon first keeps a stock hardpoint in its location. It does so if that hardpoint's stock visual is the one the weapon would choose, or if it's of the same family while the stock weapon is still fitted (Atlas's LRM 20 keeps its ten-tube rack).
+    2. A weapon then takes the first free compatible hardpoint in its location, stock-filled hardpoints first.
+    3. Finally, a weapon takes an unused stock hardpoint elsewhere showing its stock visual. This keeps the Crusader's catalog leg SRMs on their torso racks.
+  - **Empty and unmounted:** emptied stock hardpoints show their blank cover where one exists. Weapons left over are unmounted and have no visual.
+- **Model.** `MechModel.Create(spec, side, mounts)` resolves the spec unless given a map. Swapped hardpoints drop the stock part and its markers and add the library visual under the location root before the rig is built, so arm visuals ride the shoulder pivot and damage hiding applies unchanged. With a non-stock map, each mounted weapon fires from its hardpoint's markers: the library markers for a swapped visual, the stock part's markers otherwise. Stock maps, unmounted weapons and markerless hardpoints use the shared marker heuristics.
+- **Coverage.** Atlas, Awesome, Catapult, Crusader, Firestarter, Griffin, Jenner, Panther, Shadow Hawk, Thunderbolt, Victor, Wolverine and Zeus have full weapon exports, with 1.1–7.4 MB libraries. The 36 batch imports exported only their stock visuals, so they can only show stock visuals or blank covers until their `Weapons/` folders are re-exported from UE Viewer and `prepare-mech.py` rerun.
+- **Debug preview.** In debug builds, F6 in the hangar selects the previewed mech's next hardpoint and F7 cycles its visual, including empty. The current hardpoint and visual are labelled on the blueprint. This changes the preview only; owned mechs and saves are untouched, and selecting another mech clears it.
+
 ## Chassis presentation
 
 MW5 geometry defines all 49 catalog chassis silhouettes; the existing hangar illustrations guide the shared palette. Catalog specifications determine visible weapon counts and damage-location ownership. The illustrations remain unchanged.
@@ -170,21 +193,13 @@ In the current visual scale the Jenner is about 36 metres tall, Wolverine 44.1 a
 
 The grounded gait uses chassis-specific steps, overlapping stance phases, restrained shoulder movement and subtle body sway. Two-link leg articulation derives segment lengths and rest angles from each rig, lifts swing feet and keeps support feet at ground level. Cadence follows signed actual travel speed and model scale. Speeds above walking speed blend into the running stride; reversing plays walking backward. Stationary rotation produces alternating pivot steps. Stopping eases back to the neutral pose. Combat pause freezes the animation while leaving camera controls available.
 
-Every current and future articulated chassis receives **50% longer walking/running strides** through the shared `StrideScale = 1.5` in `MechLocomotion`. Combat and hangar movement speeds also increase by 50% through `CombatRules.MovementSpeed`, preserving each chassis's stepping cadence. Author new gait profiles using baseline stride values; the controller applies the shared multiplier once. Wolverine's profile is rebased to its original stride values so its accepted motion stays unchanged.
+Stride length is proportional to gait speed. `StrideAmplitude` in `MechLocomotion` gives each foot a stride amplitude of `StrideSeconds = 0.4383` metres per m/s of walking or running speed. This is the Marauder's walk, about 4.7 m at 10.8 m/s, and gives every chassis the same step rate: about 0.74 cycles per second walking and 0.68 running, since the stance share drops from 0.65 to 0.60. Combat passes each unit's current walking and running speeds, so heat- or damage-slowed mechs take proportionally shorter steps at the same rate. Combat and hangar movement speeds come from `CombatRules.MovementSpeed` at 2.7 metres per second per MP. Gait profiles no longer set stride.
 
-| Chassis | Effective walk stride amplitude | Effective run stride amplitude |
-| --- | --- | --- |
-| Firestarter, Crusader, Thunderbolt, Victor, Zeus | 0.165 | 0.225 |
-| Panther, Shadow Hawk, Griffin | 0.165 | 0.225 |
-| Atlas | 0.165 | 0.225 |
-| Awesome | 0.165 | 0.225 |
-| Jenner | 0.225 | 0.285 |
-| Wolverine | 0.240 | 0.315 |
-| Catapult | 0.210 | 0.255 |
+Each rig caps its stride at leg reach. `BuildLocomotionRig` computes the longest walking and running amplitude for which every stance pose keeps the hip-to-ankle distance within thigh plus shin, given that gait's body drop and bob. A capped chassis keeps its feet planted and steps faster instead. Fast light and medium chassis reach the cap: walking and running for Jenner, Wolverine, Cicada, Commando, Locust, Spider, Assassin, Firestarter, Javelin and Griffin, and running only for Panther, Shadow Hawk, Thunderbolt, Kintaro, Phoenix Hawk, Trebuchet and Wolfhound. Jenner is the extreme case, at about 1.7 cycles per second walking and 2.0 running.
 
-Reverse shares the longer walking stride. Stationary pivot-step lengths, foot lift, arm swing, sway and lean retain each chassis's settings. Source leg reach determines small grounding adjustments: Wolverine's moving body remains 0.005 local units lower walking and 0.015 lower running than before the stride increase; Jenner runs 0.005 lower. Awesome and Catapult fit the longer stride with their existing body offsets. Validate full stride excursion and support-foot contact when importing another rig.
+Reverse uses the walking stride. Stationary pivot-step lengths, foot lift, arm swing, sway, lean and body drop retain each chassis's settings in `Data/mech-gaits.json`. When importing another rig, check that full stride excursion is twice `StrideAmplitude` and that a support foot stays in contact.
 
-Generic chassis receive the shared speed increase immediately and retain their static geometry until imported. New imported models inherit the longer strides through `BuildLocomotionRig` without a chassis-specific speed or stride exception.
+Generic chassis receive the shared movement speed immediately and retain their static geometry until imported. New imported models inherit speed-proportional strides and their leg-reach cap through `BuildLocomotionRig` without a chassis-specific speed or stride exception.
 
 ## Shared paperdoll
 
@@ -205,4 +220,4 @@ This follows the MWO visual language described in the [community Mech Manual](ht
 
 ## Verification
 
-`Tests/LocomotionChecks.cs` verifies actual faster travel for every catalog chassis and the default speed for an unfamiliar future chassis ID. `Tests/ChassisVisualChecks.cs` verifies stock weapon counts and anatomical ownership, damage hiding, relative proportions, articulated walking/running/reversing/pivoting, stable weapon carriage, neutral settling, pause behavior, front blueprint framing at both window sizes, and the shared combat/hangar factory. `Tests/ImportedChassisVisualChecks.cs`, `Tests/CatapultVisualChecks.cs` and `Tests/WolverineVisualChecks.cs` check the imported geometry budgets, preserved heights, exterior canopies, source texture detail, firing positions inside extracted weapons, shared meshes and independent outlines. Wolverine checks also verify the forward-facing right-arm cannon and unarmed left fist. `Tests/MechVisualChecks.cs` measures the Awesome triangle budget, render-mesh limit and front blueprint framing. Both visual suites measure the full 50% longer foot excursion and planted support at fine time resolution for every imported walk/run gait. They also exercise owned damage, condition colors and enemy information parity. These run in the `mech-visuals` group (`scripts/mech test mech-visuals`); see [testing](testing.md). `scripts/mech capture mech-visuals` exercises rendered Compatibility materials and writes idle/walk/run hangar captures and mixed-chassis combat captures, alongside AWESOME front/rear hangar and combat captures at 1440×900 and 900×500 to `TestResults/`.
+`Tests/LocomotionChecks.cs` verifies actual faster travel for every catalog chassis and the default speed for an unfamiliar future chassis ID. `Tests/ChassisVisualChecks.cs` verifies stock weapon counts and anatomical ownership, damage hiding, relative proportions, articulated walking/running/reversing/pivoting, stable weapon carriage, neutral settling, pause behavior, front blueprint framing at both window sizes, and the shared combat/hangar factory. `Tests/ImportedChassisVisualChecks.cs`, `Tests/CatapultVisualChecks.cs` and `Tests/WolverineVisualChecks.cs` check the imported geometry budgets, preserved heights, exterior canopies, source texture detail, firing positions inside extracted weapons, shared meshes and independent outlines. Wolverine checks also verify the forward-facing right-arm cannon and unarmed left fist. `Tests/WeaponMountChecks.cs` verifies every library against its hardpoint table, stock resolution for all chassis, swapped visuals and markers, shoulder-pivot carriage, damage hiding, blank covers, unmounted weapons and the Atlas and Crusader resolver cases. Capture runs add `weapon-mounts-*` hangar renders of a stock and AC/10 Wolverine, a Jenner arm PPC and a covered Jenner SRM rack. `Tests/MechVisualChecks.cs` measures the Awesome triangle budget, render-mesh limit and front blueprint framing. Both visual suites measure the full 50% longer foot excursion and planted support at fine time resolution for every imported walk/run gait. They also exercise owned damage, condition colors and enemy information parity. These run in the `mech-visuals` group (`scripts/mech test mech-visuals`); see [testing](testing.md). `scripts/mech capture mech-visuals` exercises rendered Compatibility materials and writes idle/walk/run hangar captures and mixed-chassis combat captures, alongside AWESOME front/rear hangar and combat captures at 1440×900 and 900×500 to `TestResults/`.

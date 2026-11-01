@@ -195,6 +195,12 @@ public partial class CommandApp : Control
             if (Tactical.HandleKey(@event)) GetViewport().SetInputAsHandled();
             return;
         }
+        // Before GUI input, so Space toggles the panels instead of pressing the focused button.
+        if (Navigation.CurrentScreen == CommandScreen.Hangar && Hangar.HandleKey(@event))
+        {
+            GetViewport().SetInputAsHandled();
+            return;
+        }
         if (!IsAdvancing || @event is not InputEventMouseButton { Pressed: true } mouse
             || mouse.ButtonIndex is not (MouseButton.Left or MouseButton.Right or MouseButton.Middle)) return;
         StopAdvancing();

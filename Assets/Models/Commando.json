@@ -93,6 +93,65 @@
       "local_transform": "identity"
     }
   ],
+  "hardpoints": {
+    "Forearm_Left_EH1": {
+      "class": "Energy",
+      "location": "LeftArm",
+      "bone": "Forearm_Left",
+      "visuals": {
+        "Laser": {
+          "triangles": 426,
+          "markers": 1
+        }
+      },
+      "part": "Weapon2",
+      "markers": [
+        "WeaponMuzzle_Weapon2_00"
+      ],
+      "stock": "Laser"
+    },
+    "Forearm_Right_MH1": {
+      "class": "Missile",
+      "location": "RightArm",
+      "bone": "Forearm_Right",
+      "visuals": {
+        "Missile4": {
+          "triangles": 684,
+          "markers": 4
+        }
+      },
+      "part": "Weapon1",
+      "markers": [
+        "WeaponMuzzle_Weapon1_00",
+        "WeaponMuzzle_Weapon1_01",
+        "WeaponMuzzle_Weapon1_02",
+        "WeaponMuzzle_Weapon1_03"
+      ],
+      "stock": "Missile4"
+    },
+    "Torso_Center_MH1": {
+      "class": "Missile",
+      "location": "CenterTorso",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "Missile6": {
+          "triangles": 486,
+          "markers": 6
+        }
+      },
+      "part": "Weapon0",
+      "markers": [
+        "WeaponMuzzle_Weapon0_00",
+        "WeaponMuzzle_Weapon0_01",
+        "WeaponMuzzle_Weapon0_02",
+        "WeaponMuzzle_Weapon0_03",
+        "WeaponMuzzle_Weapon0_04",
+        "WeaponMuzzle_Weapon0_05"
+      ],
+      "stock": "Missile6"
+    }
+  },
+  "library_bytes": 76656,
   "cockpit": {
     "mesh": "COM_TP_Cockpit_DM0_STM",
     "bone": "Cockpit",

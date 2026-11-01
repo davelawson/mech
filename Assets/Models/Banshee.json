@@ -94,6 +94,57 @@
       "local_transform": "identity"
     }
   ],
+  "hardpoints": {
+    "Head_EH1": {
+      "class": "Energy",
+      "location": "Head",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "Laser": {
+          "triangles": 332,
+          "markers": 1
+        }
+      },
+      "part": "Weapon0",
+      "markers": [
+        "WeaponMuzzle_Weapon0_00"
+      ],
+      "stock": "Laser"
+    },
+    "Torso_Left_BH1": {
+      "class": "Ballistic",
+      "location": "LeftTorso",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "AC5": {
+          "triangles": 1632,
+          "markers": 1
+        }
+      },
+      "part": "Weapon1",
+      "markers": [
+        "WeaponMuzzle_Weapon1_00"
+      ],
+      "stock": "AC5"
+    },
+    "Torso_Right_EH1": {
+      "class": "Energy",
+      "location": "RightTorso",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "PPC": {
+          "triangles": 1002,
+          "markers": 1
+        }
+      },
+      "part": "Weapon2",
+      "markers": [
+        "WeaponMuzzle_Weapon2_00"
+      ],
+      "stock": "PPC"
+    }
+  },
+  "library_bytes": 142812,
   "cockpit": {
     "mesh": "BNC_TP_Cockpit_DM0_STM",
     "bone": "Cockpit",

@@ -33,9 +33,9 @@ internal static class HangarChecks
         var arm = DraftCatalog.Mech("wolverine").Locations.Single(item => item.Location == MechLocation.LeftArm);
         check(EquipmentRules.ArmorLimit(head) == head.Structure * 3 && EquipmentRules.ArmorLimit(arm) == arm.Structure * 2,
             "armor limits are three times head structure and twice elsewhere");
-        check(HangarScreen.KilometresPerHour(4) == 78 && HangarScreen.KilometresPerHour(6) == 117, "4/6 movement reads 78/117 km/h");
+        check(HangarScreen.KilometresPerHour(4) == 39 && HangarScreen.KilometresPerHour(6) == 58, "4/6 movement reads 39/58 km/h");
         var spec = DraftCatalog.Mech("wolverine");
-        check(HangarScreen.SpeedSummary(spec) == "Walk 97 km/h (5 MP)\nRun 156 km/h (8 MP)\nJump 97 km/h (5 MP)", "summary lists walk, run and jump speeds");
+        check(HangarScreen.SpeedSummary(spec) == "Walk 49 km/h (5 MP)\nRun 78 km/h (8 MP)\nJump 49 km/h (5 MP)", "summary lists walk, run and jump speeds");
         check(HangarScreen.HeatSummary(spec) == $"12 single sinks  ·  −12/turn  ·  alpha {spec.Weapons.Sum(item => item.Heat)}", "summary lists sinks, dissipation and alpha heat");
         check(!HangarScreen.SpeedSummary(DraftCatalog.Mech("victor") with { Jump = 0 }).Contains("Jump"), "mechs without jump jets show no jump speed");
 
@@ -141,5 +141,41 @@ public partial class SmokeTests
         await RightClick(at + new Vector2(2, 0));
         Check(_app.Office.Visible && !hangar.Visible, "a still right click returns to the office");
         await Click(_app.Office.HangarButton);
+
+        // Space hides the location panels to show the model, without pressing the focused Back button.
+        hangar.BackButton.GrabFocus(); await Frames();
+        await PressKey(Key.Space);
+        Check(hangar.Visible && !hangar.Board.Visible && hangar.Preview.IsVisibleInTree(), "Space hides the location panels and keeps the hangar open");
+        await PressKey(Key.Space);
+        Check(hangar.Board.Visible, "Space shows the location panels again");
+        await PressKey(Key.Space); await Click(hangar.BackButton); await Click(_app.Office.HangarButton);
+        Check(hangar.Board.Visible, "reopening the hangar shows the location panels");
+
+        // Tab cycles the preview gait still → walking → running → still, without moving button focus.
+        hangar.Preview.Gait = PreviewGait.Idle; hangar.BackButton.GrabFocus(); await Frames();
+        foreach (var expected in new[] { PreviewGait.Walk, PreviewGait.Run, PreviewGait.Idle })
+        {
+            await PressKey(Key.Tab);
+            Check(hangar.Preview.Gait == expected, $"Tab switches the hangar preview to {expected}");
+        }
+        Check(hangar.BackButton.HasFocus(), "Tab keeps focus on the focused hangar button");
+
+        // Debug builds: F6 picks a hardpoint, F7 cycles its visual on the preview only.
+        hangar.Select(0); await Frames();
+        var owned = hangar.SelectedMech; var stock = hangar.Preview.Model!;
+        var first = MechModel.Hardpoints(owned.Spec.Id)[0];
+        await PressKey(Key.F6);
+        Check(ReferenceEquals(stock, hangar.Preview.Model), "F6 selects a hardpoint without rebuilding the preview");
+        await PressKey(Key.F7);
+        var cycled = hangar.Preview.Model!;
+        Check(!ReferenceEquals(stock, cycled) && !cycled.Mounts.Stock
+            && cycled.Mounts.Visuals.GetValueOrDefault(first.Id) != stock.Mounts.Visuals.GetValueOrDefault(first.Id),
+            "F7 rebuilds the preview with the selected hardpoint's next visual");
+        Check(ReferenceEquals(owned, hangar.SelectedMech) && owned.Spec == DraftCatalog.Mech(owned.Spec.Id) && hangar.Preview.MountOverride is not null,
+            "the debug mount cycle leaves the owned mech untouched");
+        hangar.Refresh();
+        Check(ReferenceEquals(cycled, hangar.Preview.Model), "refresh keeps the debug preview");
+        hangar.Select(1); hangar.Select(0);
+        Check(hangar.Preview.MountOverride is null && hangar.Preview.Model!.Mounts.Stock, "selecting another mech clears the debug preview");
     }
 }

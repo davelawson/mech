@@ -48,7 +48,7 @@ public partial class SmokeTests : Node
         }),
         new("mech-visuals", Setup.None, async () =>
         {
-            await TestMechVisuals(); await TestChassisVisuals(); await TestAdditionalChassis(); await TestFinalChassis(); await TestAdditionalBatch();
+            await TestMechVisuals(); await TestChassisVisuals(); await TestAdditionalChassis(); await TestFinalChassis(); await TestAdditionalBatch(); await TestWeaponMounts();
         }),
         new("layout", Setup.Drafted, TestResizing),
     ];

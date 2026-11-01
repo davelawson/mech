@@ -144,6 +144,137 @@
       "local_transform": "identity"
     }
   ],
+  "hardpoints": {
+    "Forearm_Left_EH1": {
+      "class": "Energy",
+      "location": "LeftArm",
+      "bone": "Forearm_Left",
+      "visuals": {
+        "Laser": {
+          "triangles": 558,
+          "markers": 1
+        }
+      },
+      "part": "Weapon7",
+      "markers": [
+        "WeaponMuzzle_Weapon7_00"
+      ],
+      "stock": "Laser"
+    },
+    "Forearm_Right_EH1": {
+      "class": "Energy",
+      "location": "RightArm",
+      "bone": "Forearm_Right",
+      "visuals": {
+        "Laser": {
+          "triangles": 558,
+          "markers": 1
+        }
+      },
+      "part": "Weapon6",
+      "markers": [
+        "WeaponMuzzle_Weapon6_00"
+      ],
+      "stock": "Laser"
+    },
+    "Forearm_Right_EH2": {
+      "class": "Energy",
+      "location": "RightArm",
+      "bone": "Forearm_Right",
+      "visuals": {
+        "PPC": {
+          "triangles": 1436,
+          "markers": 1
+        }
+      },
+      "part": "Weapon5",
+      "markers": [
+        "WeaponMuzzle_Weapon5_00"
+      ],
+      "stock": "PPC"
+    },
+    "Head_EH1": {
+      "class": "Energy",
+      "location": "Head",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "Laser": {
+          "triangles": 606,
+          "markers": 1
+        }
+      },
+      "part": "Weapon0",
+      "markers": [
+        "WeaponMuzzle_Weapon0_00"
+      ],
+      "stock": "Laser"
+    },
+    "Torso_Left_EH1": {
+      "class": "Energy",
+      "location": "LeftTorso",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "Laser": {
+          "triangles": 230,
+          "markers": 1
+        }
+      },
+      "part": "Weapon2",
+      "markers": [
+        "WeaponMuzzle_Weapon2_00"
+      ],
+      "stock": "Laser"
+    },
+    "Torso_Left_EH2": {
+      "class": "Energy",
+      "location": "LeftTorso",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "Laser": {
+          "triangles": 230,
+          "markers": 1
+        }
+      },
+      "part": "Weapon1",
+      "markers": [
+        "WeaponMuzzle_Weapon1_00"
+      ],
+      "stock": "Laser"
+    },
+    "Torso_Right_EH1": {
+      "class": "Energy",
+      "location": "RightTorso",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "Laser": {
+          "triangles": 230,
+          "markers": 1
+        }
+      },
+      "part": "Weapon4",
+      "markers": [
+        "WeaponMuzzle_Weapon4_00"
+      ],
+      "stock": "Laser"
+    },
+    "Torso_Right_EH2": {
+      "class": "Energy",
+      "location": "RightTorso",
+      "bone": "Torso_Pitch",
+      "visuals": {
+        "Laser": {
+          "triangles": 230,
+          "markers": 1
+        }
+      },
+      "part": "Weapon3",
+      "markers": [
+        "WeaponMuzzle_Weapon3_00"
+      ],
+      "stock": "Laser"
+    }
+  },
+  "library_bytes": 197268,
   "cockpit": {
     "mesh": "BL_TP_Cockpit_DM0_STM",
     "bone": "Cockpit",

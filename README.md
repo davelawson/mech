@@ -57,6 +57,9 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | **Hangar** | |
 | Click a mech along the bottom | Select it |
 | Right-drag the mech | Spin it; it springs back to front-on on release |
+| Space | Hide or show the location panels over the mech |
+| Tab | Cycle the mech preview: still, walking, running |
+| F6 / F7 (debug builds) | Select the previewed mech's next hardpoint / cycle its weapon visual |
 | Hover a critical slot | Item mass, slots and condition |
 | **Simulate Deployment** | Choose Randomized enemy or Mirror match, then 1–4 mechs and a terrain seed |
 | **Combat** | |

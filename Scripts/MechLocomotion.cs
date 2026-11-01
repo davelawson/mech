@@ -4,10 +4,9 @@ namespace Mech;
 
 public partial class MechModel
 {
-    // Author profiles at their baseline stride; every present and future rig gets this scale once.
-    private const float StrideScale = 1.5f;
-    private sealed record GaitProfile(float WalkStride = .11f, float RunStride = .15f,
-        float WalkLift = .075f, float RunLift = .11f, float BodyDrop = .035f, float RunDrop = .012f,
+    // Stride amplitude in metres per m/s of gait speed, so every chassis shares the Marauder's step rate.
+    private const float StrideSeconds = .4383f;
+    private sealed record GaitProfile(float WalkLift = .075f, float RunLift = .11f, float BodyDrop = .035f, float RunDrop = .012f,
         float Bob = .010f, float Sway = .016f, float Lean = .035f, float Roll = .008f,
         float LeftArmSwing = .045f, float RightArmSwing = .045f);
     // Joint positions are model-local, on the anatomical right; the left side mirrors X.
@@ -27,6 +26,8 @@ public partial class MechModel
     private RigProfile? _rig;
     public bool HasLocomotion => _rig is not null;
     private double _stridePhase;
+    // Longest stride amplitude (local units) whose stance poses stay within leg reach.
+    private float _walkReach, _runReach;
     private float _motionBlend;
     public float RunBlend { get; private set; }
 
@@ -57,7 +58,18 @@ public partial class MechModel
             var arm = _locations[sign < 0 ? MechLocation.LeftArm : MechLocation.RightArm];
             _shoulders.Add(Pivot(arm, "ShoulderPivot", Mirror(rig.Shoulder)));
         }
+        var thigh = rig.Knee - rig.Hip; var shin = rig.Ankle - rig.Knee;
+        var length = new Vector2(thigh.Y, thigh.Z).Length() + new Vector2(shin.Y, shin.Z).Length() - .002f;
+        float Reach(float drop)
+        {
+            var height = Math.Abs(thigh.Y + shin.Y) - drop + rig.Gait.Bob;
+            return Mathf.Sqrt(Math.Max(0, length * length - height * height)) - Math.Abs(thigh.Z + shin.Z);
+        }
+        _walkReach = Reach(rig.Gait.BodyDrop); _runReach = Reach(rig.Gait.BodyDrop + rig.Gait.RunDrop);
     }
+    /// <summary>Stride amplitude in local units: proportional to gait speed, capped at leg reach.</summary>
+    internal float StrideAmplitude(float speed, bool running) =>
+        Math.Min(StrideSeconds * speed / Scale.X, running ? _runReach : _walkReach);
 
     /// <summary>Shared hangar/combat pose. Speed is signed world units/sec; turning is radians/sec.
     /// Foot cadence follows distance, with overlapping planted phases and two-link leg articulation.</summary>
@@ -73,7 +85,7 @@ public partial class MechModel
         var smoothing = 1 - Mathf.Exp(-delta * 10);
         _motionBlend = Mathf.Lerp(_motionBlend, targetBlend, smoothing);
         RunBlend = Mathf.Lerp(RunBlend, Math.Clamp((Math.Abs(speed) - walk) / Math.Max(.001f, runningSpeed - walk), 0, 1), smoothing);
-        var stride = Mathf.Lerp(gait.WalkStride, gait.RunStride, RunBlend) * StrideScale;
+        var stride = Mathf.Lerp(StrideAmplitude(walk, false), StrideAmplitude(Math.Max(walk, runningSpeed), true), RunBlend);
         var stance = Mathf.Lerp(.65f, .60f, RunBlend); // Always at least one planted foot.
         var cycles = speed / (2 * stride * Scale.X / stance);
         if (!moving) cycles = pivoting * .5f;

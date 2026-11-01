@@ -24,13 +24,13 @@ internal static partial class CombatChecks
         check(f.CurrentSpeed > 0 && f.CurrentSpeed < f.Speed && f.Position.Y < 0,
             "aligned movement accelerates from rest instead of snapping to maximum speed");
         sim.Advance(2.95);
-        check(Math.Abs(f.CurrentSpeed - 27) < .03f && Math.Abs(f.Position.Y + 40.5f) < .06f,
+        check(Math.Abs(f.CurrentSpeed - 13.5f) < .03f && Math.Abs(f.Position.Y + 20.25f) < .06f,
             "Awesome reaches full run in three seconds with integrated acceleration distance");
         var start = f.Position; sim.Hold([f.Id]); sim.Advance(.05);
-        check(f.Order == CombatOrder.Hold && f.CurrentSpeed > 0 && f.CurrentSpeed < 27 && f.Position.Y < start.Y,
+        check(f.Order == CombatOrder.Hold && f.CurrentSpeed > 0 && f.CurrentSpeed < 13.5f && f.Position.Y < start.Y,
             "Stop clears the order immediately but brakes existing momentum");
         sim.Advance(1.45);
-        check(Math.Abs(f.CurrentSpeed) < .03f && Math.Abs(f.Position.DistanceTo(start) - 20.25f) < .06f,
+        check(Math.Abs(f.CurrentSpeed) < .03f && Math.Abs(f.Position.DistanceTo(start) - 10.125f) < .06f,
             "Awesome brakes from full run in 1.5 seconds without excessive coasting");
         start = f.Position; sim.Advance(2);
         check(f.Position.IsEqualApprox(start) && !f.Moving, "a completed stop remains stationary");
@@ -143,7 +143,7 @@ internal static partial class CombatChecks
         sim.Move([f.Id], new(0, -900)); sim.Advance(3);
         var leg = f.Locations[MechLocation.LeftLeg]; f.ApplyDamage(MechLocation.LeftLeg, leg.Armor + leg.Structure);
         sim.Advance(4);
-        check(f.Active && Math.Abs(f.CurrentSpeed - 13.5f) < .03f, "losing one leg reduces actual running speed to half");
+        check(f.Active && Math.Abs(f.CurrentSpeed - 6.75f) < .03f, "losing one leg reduces actual running speed to half");
         leg = f.Locations[MechLocation.RightLeg]; f.ApplyDamage(MechLocation.RightLeg, leg.Armor + leg.Structure);
         position = f.Position; sim.Advance(.05);
         check(!f.Active && f.CurrentSpeed == 0 && f.AngularVelocity == 0 && f.Position == position,
@@ -160,25 +160,25 @@ internal static partial class CombatChecks
         foreach (var mode in new[] { MovementMode.Walk, MovementMode.Run })
         {
             var sim = MovementBattle("wolverine"); var unit = Friendly(sim);
-            check(sim.Units.All(item => Math.Abs(item.WalkingSpeed - 27) < .003f
-                    && Math.Abs(item.RunningSpeed - 43.2f) < .003f),
-                $"Wolverine {mode} uses 50% faster walk/run limits on both sides");
+            check(sim.Units.All(item => Math.Abs(item.WalkingSpeed - 13.5f) < .003f
+                    && Math.Abs(item.RunningSpeed - 21.6f) < .003f),
+                $"Wolverine {mode} uses 13.5/21.6 m/s walk/run limits on both sides");
             unit.Movement = mode; sim.Move([unit.Id], new(0, -900)); sim.Advance(4);
             var before = unit.Position; sim.Advance(1);
-            var expected = mode == MovementMode.Walk ? 27 : 43.2f;
+            var expected = mode == MovementMode.Walk ? 13.5f : 21.6f;
             check(Math.Abs(unit.CurrentSpeed - expected) < .03f
                 && Math.Abs(unit.Position.DistanceTo(before) - expected) < .03f,
-                $"Wolverine {mode} actually travels 50% farther each second at full speed");
+                $"Wolverine {mode} actually travels its limit each second at full speed");
         }
         var retreat = MovementBattle("wolverine"); var friendly = Friendly(retreat); var enemy = Enemy(retreat);
         enemy.Position = new(0, -120); friendly.PreferredDistance = 300; friendly.Movement = MovementMode.Run;
         retreat.RefreshDetection(); retreat.Attack([friendly.Id], enemy.Id); retreat.Advance(3);
-        check(Math.Abs(friendly.CurrentSpeed + 27) < .03f,
-            "Wolverine reverse travel uses its increased walking limit");
+        check(Math.Abs(friendly.CurrentSpeed + 13.5f) < .03f,
+            "Wolverine reverse travel uses its walking limit");
         var leg = friendly.Locations[MechLocation.LeftLeg];
         friendly.ApplyDamage(MechLocation.LeftLeg, leg.Armor + leg.Structure);
-        check(Math.Abs(friendly.WalkingSpeed - 13.5f) < .003f && Math.Abs(friendly.RunningSpeed - 21.6f) < .003f,
-            "Wolverine leg damage still halves both increased speed limits");
+        check(Math.Abs(friendly.WalkingSpeed - 6.75f) < .003f && Math.Abs(friendly.RunningSpeed - 10.8f) < .003f,
+            "Wolverine leg damage still halves both speed limits");
         check(DraftCatalog.Mech("wolverine") is { Walk: 5, Run: 8 },
             "Wolverine retains its stock catalog movement points");
     }
@@ -190,14 +190,14 @@ internal static partial class CombatChecks
             foreach (var mode in new[] { MovementMode.Walk, MovementMode.Run })
             {
                 var sim = MovementBattle(spec.Id); var unit = Friendly(sim);
-                var expected = (mode == MovementMode.Walk ? spec.Walk : spec.Run) * 3.6f * 1.5f;
+                var expected = (mode == MovementMode.Walk ? spec.Walk : spec.Run) * CombatRules.MovementScale;
                 check(sim.Units.All(item => Math.Abs((mode == MovementMode.Walk ? item.WalkingSpeed : item.RunningSpeed) - expected) < .003f),
-                    $"{spec.Id} {mode} has 50% faster movement limits on both sides");
+                    $"{spec.Id} {mode} has MP × movement scale limits on both sides");
                 unit.Movement = mode; sim.Move([unit.Id], new(0, -900)); sim.Advance(9d / spec.Walk + 1);
                 var before = unit.Position; sim.Advance(1);
                 check(Math.Abs(unit.CurrentSpeed - expected) < .03f
                     && Math.Abs(unit.Position.DistanceTo(before) - expected) < .03f,
-                    $"{spec.Id} {mode} actually covers 50% more ground at full speed");
+                    $"{spec.Id} {mode} actually covers its limit each second at full speed");
             }
         }
         // An unfamiliar chassis ID must receive the same default without an allowlist update.
@@ -205,8 +205,8 @@ internal static partial class CombatChecks
         var future = new CombatUnit("future", source.Spec with { Id = "future-import" }, source.Warrior, source.Side,
             source.Locations.Values.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)),
             source.Equipment.Select(item => new EquipmentCondition(item.Key, item.Value)), source.Ammo, Vector2.Zero);
-        check(Math.Abs(future.WalkingSpeed - 37.8f) < .003f && Math.Abs(future.RunningSpeed - 59.4f) < .003f,
-            "future imported chassis inherit faster travel without a chassis-specific override");
+        check(Math.Abs(future.WalkingSpeed - 18.9f) < .003f && Math.Abs(future.RunningSpeed - 29.7f) < .003f,
+            "future imported chassis inherit the shared movement scale without a chassis-specific override");
     }
 
 }

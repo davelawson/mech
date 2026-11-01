@@ -78,14 +78,7 @@ public partial class SmokeTests
                     }
                 }
                 Check(grounded && articulated, $"{spec.Chassis} {gait} articulates both legs, clears the floor and maintains foot support");
-                var excursion = (spec.Id, gait) switch
-                {
-                    ("jenner", PreviewGait.Walk) => .45f, ("jenner", _) => .57f,
-                    ("atlas", PreviewGait.Walk) => .33f, ("atlas", _) => .45f,
-                    ("wolverine", PreviewGait.Walk) => .48f, ("wolverine", _) => .63f,
-                    (_, PreviewGait.Walk) => .42f, _ => .51f
-                };
-                TestLongStride(model, gait, excursion);
+                TestLongStride(model, gait);
                 Check(gait == PreviewGait.Walk ? model.RunBlend < .01f : model.RunBlend > .99f,
                     $"{spec.Chassis} actual speed selects the {gait} gait");
                 Check(hangar.Preview.Gait == gait, $"{spec.Chassis} preview control selects {gait}");
@@ -192,8 +185,28 @@ public partial class SmokeTests
             "combat side-torso loss removes attached new-chassis weapons and arms");
         await Capture("chassis-combat-damaged");
         stage.QueueFree(); await Frames();
+        TestStrideProportions();
     }
-    private void TestLongStride(MechModel model, PreviewGait gait, float excursion)
+    // Strides scale with gait speed at the Marauder's step rate; fast lights stop at leg reach.
+    private void TestStrideProportions()
+    {
+        foreach (var id in new[] { "marauder", "annihilator", "jenner" })
+        {
+            var spec = DraftCatalog.Mech(id);
+            var model = MechModel.Create(spec, CombatSide.Friendly);
+            foreach (var mode in new[] { MovementMode.Walk, MovementMode.Run })
+            {
+                var speed = CombatRules.MovementSpeed(spec, mode);
+                var metres = model.StrideAmplitude(speed, mode == MovementMode.Run) * model.Scale.X;
+                if (id == "jenner")
+                    Check(metres < .4383f * speed - .1f, $"Jenner {mode} stride is capped at leg reach");
+                else
+                    Check(Math.Abs(metres - .4383f * speed) < .01f, $"{spec.Chassis} {mode} stride is proportional to its speed");
+            }
+            model.Free();
+        }
+    }
+    private void TestLongStride(MechModel model, PreviewGait gait)
     {
         var ankles = new[] { MechLocation.LeftLeg, MechLocation.RightLeg }
             .Select(location => (Node3D)model.Locations[location].FindChild("AnklePivot", true, false)).ToArray();
@@ -217,10 +230,11 @@ public partial class SmokeTests
                 maximumZ[leg] = Math.Max(maximumZ[leg], z);
             }
         }
+        var excursion = 2 * model.StrideAmplitude(gait == PreviewGait.Walk ? walk : run, gait == PreviewGait.Run);
         GD.Print($"{model.ChassisId} {gait} foot travel: {maximumZ[0] - minimumZ[0]:F4}, {maximumZ[1] - minimumZ[1]:F4}; support contact: {supportContact}");
         Check(Enumerable.Range(0, 2).All(leg => Math.Abs(maximumZ[leg] - minimumZ[leg] - excursion) < .002f),
-            $"{model.ChassisId} {gait} feet cover the requested 50% longer stride");
-        Check(supportContact, $"{model.ChassisId} {gait} keeps a support foot planted throughout its longer stride");
+            $"{model.ChassisId} {gait} feet cover the speed-proportional stride");
+        Check(supportContact, $"{model.ChassisId} {gait} keeps a support foot planted throughout its stride");
     }
 
 }

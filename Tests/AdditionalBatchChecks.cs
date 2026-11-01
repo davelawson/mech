@@ -49,7 +49,7 @@ public partial class SmokeTests
                         minimum[leg] = Math.Min(minimum[leg], z); maximum[leg] = Math.Max(maximum[leg], z);
                     }
                 }
-                var expected = gait == PreviewGait.Walk ? .33f : .45f;
+                var expected = 2 * model.StrideAmplitude(speed, gait == PreviewGait.Run);
                 if (!grounded || Enumerable.Range(0, 2).Any(leg => Math.Abs(maximum[leg] - minimum[leg] - expected) >= .003f))
                     failures.Add($"{spec.Id}: {gait} travel={maximum[0]-minimum[0]:F3}/{maximum[1]-minimum[1]:F3} support={grounded}");
             }
@@ -111,7 +111,7 @@ public partial class SmokeTests
             field.QueueFree(); await Frames();
         }
         GD.Print("Additional model audit: " + (failures.Count == 0 ? "all pass" : string.Join("; ", failures)));
-        Check(failures.Count == 0, "all additional models retain damage ownership and grounded longer strides: " + string.Join("; ", failures));
+        Check(failures.Count == 0, "all additional models retain damage ownership and grounded speed-proportional strides: " + string.Join("; ", failures));
         stage.QueueFree(); await Frames();
     }
 }

@@ -44,7 +44,7 @@ public partial class SmokeTests
             {
                 hangar.Preview.Gait = gait;
                 for (var frame = 0; frame < 180; frame++) hangar.Preview._Process(1d / 60);
-                TestLongStride(model, gait, gait == PreviewGait.Walk ? .33f : .45f);
+                TestLongStride(model, gait);
                 model.Rotation = new(0, .32f, 0);
                 await Capture($"{spec.Id}-{gait.ToString().ToLowerInvariant()}-imported");
                 model.Rotation = Vector3.Zero;
