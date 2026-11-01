@@ -20,9 +20,6 @@ public partial class CommandApp : Control
     public bool HasUnsavedChanges => !State.RequiresDraft && (_savedSnapshot is null || CampaignData() != _savedSnapshot);
     [Export] public string SavePath { get; set; } = "user://campaign.json";
     public event Action<CampaignEvent>? EventReached;
-    private ColorRect _header = null!;
-    private Label _date = null!;
-    private Button _menuButton = null!;
     private CampaignStore _store = null!;
     private double _dayElapsed;
     private bool _untilEvent;
@@ -49,14 +46,6 @@ public partial class CommandApp : Control
         StarMap.TextureChanged += Office.SetWallMap;
         Office.SetWallMap(StarMap.Viewport.Texture);
         _store = new CampaignStore(ProjectSettings.GlobalizePath(SavePath));
-        _header = new ColorRect { Color = Ui.Panel, MouseFilter = MouseFilterEnum.Ignore };
-        AddChild(_header);
-        var brand = Ui.Label(_header, "◇  M E C H    |    MERCENARY COMMAND", 16, Ui.Gold);
-        Ui.Place(brand, 36, 0, 480, 72);
-        _date = Ui.Label(_header, "", 13, Ui.Gold);
-        _date.HorizontalAlignment = HorizontalAlignment.Right;
-        _menuButton = Ui.Button(_header, "Main menu");
-        _menuButton.Pressed += ShowMainMenu;
         Hangar = new HangarScreen { Name = "Hangar" }; AddChild(Hangar);
         Tactical = new CombatScreen { Name = "Tactical" }; AddChild(Tactical);
         Drafting = new DraftScreen { Name = "InitialDraft" }; AddChild(Drafting);
@@ -73,6 +62,7 @@ public partial class CommandApp : Control
         MainMenu.LoadRequested += RequestLoad;
         MainMenu.QuitRequested += RequestQuit;
         MainMenu.ResumeRequested += ResumeCampaign;
+        Office.MenuRequested += ShowMainMenu;
         Office.WarriorsRequested += ShowWarriors;
         Office.HangarRequested += ShowHangar;
         Rolodex.Closed += CloseWarriors;
@@ -114,35 +104,28 @@ public partial class CommandApp : Control
 
     private void Layout()
     {
-        if (_header is null) return;
-        Ui.Place(_header, 0, 0, Size.X, 72);
-        Ui.Place(_date, Size.X - 210, 0, 174, 72);
-        Ui.Place(_menuButton, Size.X - 350, 16, 124, 40);
-        Ui.Place(Office, 0, 72, Size.X, Size.Y - 72);
-        Ui.Place(StarMap, 0, 72, Size.X, Size.Y - 72);
-        Ui.Place(Hangar, 0, 72, Size.X, Size.Y - 72);
-        Ui.Place(Tactical, 0, 0, Size.X, Size.Y);
-        Ui.Place(Drafting, 0, 0, Size.X, Size.Y);
-        Ui.Place(MainMenu, 0, 0, Size.X, Size.Y);
+        if (MainMenu is null) return;
+        foreach (var screen in new Control[] { Office, StarMap, Hangar, Tactical, Drafting, MainMenu })
+            Ui.Place(screen, 0, 0, Size.X, Size.Y);
     }
 
     private void CreateNavigator()
     {
-        Navigation = new CommandNavigator(this, _header, () => { StopAdvancing(); StarMap.Viewport.EndDrag(); });
-        Navigation.Register(CommandScreen.MainMenu, MainMenu, "Mech · Mercenary Command", false, false,
-            () => MainMenu.ResumeButton.Visible ? MainMenu.ResumeButton : MainMenu.NewButton);
-        Navigation.Register(CommandScreen.Office, Office, "Mech · Command", false, true, () => Office.Hotspot, ShowMainMenu);
-        Navigation.Register(CommandScreen.Map, StarMap, "Mech · Inner Sphere", false, true, () => StarMap.Viewport, ShowOffice);
-        Navigation.Register(CommandScreen.Hangar, Hangar, "Mech · Mech Hangar", false, true, () => Hangar.BackButton, ShowOffice,
+        Navigation = new CommandNavigator(this, () => { StopAdvancing(); StarMap.Viewport.EndDrag(); });
+        Navigation.Register(CommandScreen.MainMenu, MainMenu, "Mech · Mercenary Command", false,
+            () => MainMenu.ResumeButton.Visible ? MainMenu.ResumeButton : MainMenu.NewButton, ResumeCampaign);
+        Navigation.Register(CommandScreen.Office, Office, "Mech · Command", false, () => Office.Hotspot, ShowMainMenu);
+        Navigation.Register(CommandScreen.Map, StarMap, "Mech · Inner Sphere", false, () => StarMap.Viewport, ShowOffice);
+        Navigation.Register(CommandScreen.Hangar, Hangar, "Mech · Mech Hangar", false, () => Hangar.BackButton, ShowOffice,
             Hangar.Preview.Spin, Hangar.Preview.ReleaseSpin);
-        Navigation.Register(CommandScreen.Draft, Drafting, "Mech · Establish Company", false, false, () => Drafting.NameInput, Drafting.HandleEscape);
-        Navigation.Register(CommandScreen.Tactical, Tactical, "Mech · Simulated Deployment", false, false, () => Tactical.Battlefield);
-        Navigation.Register(CommandScreen.Rolodex, Rolodex, null, true, true, () => Rolodex.Section, CloseWarriors);
-        Navigation.Register(CommandScreen.Missions, Missions, null, true, true, () => Missions.CloseButton, ShowOffice);
+        Navigation.Register(CommandScreen.Draft, Drafting, "Mech · Establish Company", false, () => Drafting.NameInput, Drafting.HandleEscape);
+        Navigation.Register(CommandScreen.Tactical, Tactical, "Mech · Simulated Deployment", false, () => Tactical.Battlefield);
+        Navigation.Register(CommandScreen.Rolodex, Rolodex, null, true, () => Rolodex.Section, CloseWarriors);
+        Navigation.Register(CommandScreen.Missions, Missions, null, true, () => Missions.CloseButton, ShowOffice);
         Control? DialogFocus(CampaignDialog dialog) => dialog.FindChildren("*", "Button", true, false)
             .OfType<Button>().FirstOrDefault(button => !button.Disabled);
-        Navigation.Register(CommandScreen.Dialog, Dialog, null, true, true, () => DialogFocus(Dialog), Dialog.RequestBack);
-        Navigation.Register(CommandScreen.UnsavedDialog, UnsavedDialog, null, true, false, () => DialogFocus(UnsavedDialog), UnsavedDialog.RequestBack);
+        Navigation.Register(CommandScreen.Dialog, Dialog, null, true, () => DialogFocus(Dialog), Dialog.RequestBack);
+        Navigation.Register(CommandScreen.UnsavedDialog, UnsavedDialog, null, true, () => DialogFocus(UnsavedDialog), UnsavedDialog.RequestBack);
     }
 
     public void ShowMap()
@@ -235,7 +218,6 @@ public partial class CommandApp : Control
 
     private void RefreshCampaign()
     {
-        _date.Text = $"●   {State.DateText}";
         Office.RefreshCampaign(State);
         StarMap.SetCampaign(State);
     }

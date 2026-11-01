@@ -9,9 +9,9 @@ public enum CommandScreen { MainMenu, Office, Map, Hangar, Draft, Tactical, Rolo
 /// Suspending a route retains the actual controls, their contents, back actions and focus.
 /// Campaign state and persistence deliberately stay outside this class.
 /// </summary>
-public sealed class CommandNavigator(Control host, Control header, Action pause)
+public sealed class CommandNavigator(Control host, Action pause)
 {
-    private sealed record Surface(Control View, string? Title, bool Overlay, bool Header,
+    private sealed record Surface(Control View, string? Title, bool Overlay,
         Func<Control?> Focus, Action? Back, Action<float>? RightDrag, Action? RightDragEnded);
     /// <summary>A right press that moves farther than this before release drags instead of going back.</summary>
     public const float RightDragThreshold = 5;
@@ -32,8 +32,8 @@ public sealed class CommandNavigator(Control host, Control header, Action pause)
     public bool Contains(CommandScreen screen) => _route.Any(entry => entry.Screen == screen);
 
     public void Register(CommandScreen screen, Control view, string? title, bool overlay,
-        bool showHeader, Func<Control?> focus, Action? back = null, Action<float>? rightDrag = null, Action? rightDragEnded = null) =>
-        _surfaces.Add(screen, new(view, title, overlay, showHeader, focus, back, rightDrag, rightDragEnded));
+        Func<Control?> focus, Action? back = null, Action<float>? rightDrag = null, Action? rightDragEnded = null) =>
+        _surfaces.Add(screen, new(view, title, overlay, focus, back, rightDrag, rightDragEnded));
 
     public void RegisterPopup(PopupMenu popup)
     {
@@ -222,7 +222,6 @@ public sealed class CommandNavigator(Control host, Control header, Action pause)
         var visible = _route.Skip(first).Select(entry => entry.Screen).ToHashSet();
         foreach (var (screen, surface) in _surfaces) surface.View.Visible = visible.Contains(screen);
         var root = _surfaces[_route[first].Screen];
-        header.Visible = root.Header;
         DisplayServer.WindowSetTitle(root.Title ?? "Mech · Command");
     }
 }

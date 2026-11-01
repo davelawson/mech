@@ -44,9 +44,11 @@ public partial class SmokeTests
         _app.ShowHangar(); await Frames();
         _app.Hangar.Select(2);
         var selected = _app.Hangar.SelectedMech;
-        var menuButton = _app.FindChildren("*", "Button", true, false).OfType<Button>().Single(button => button.Text == "Main menu");
-        await Click(menuButton);
-        Check(_app.MainMenu.Visible && !_app.Dialog.Visible, "header Main menu opens immediately");
+        _app.ShowMainMenu(); await Frames();
+        await PressKey(Key.Escape);
+        Check(_app.Hangar.Visible && !_app.MainMenu.Visible && !_app.Office.Visible && _app.Hangar.SelectedMech == selected,
+            "Escape in the main menu restores the hangar mech without rebuilding controls");
+        _app.ShowMainMenu(); await Frames();
         await Click(_app.MainMenu.ResumeButton);
         Check(_app.Hangar.Visible && !_app.Office.Visible && _app.Hangar.SelectedMech == selected,
             "Resume restores hangar mech without rebuilding controls");

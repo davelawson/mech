@@ -11,7 +11,8 @@
 # First interface slice
 
 - Open at a main menu with New Company, Load Game, and Quit. New companies enter a painted captain’s office aboard a worn mercenary DropShip.
-- Standalone Windows 11 x64, Linux x64, and macOS (Apple Silicon and Intel) applications are the initial targets, built with Godot and C#. Resizing keeps the complete office image and wall-map hotspot aligned.
+- Standalone Windows 11 x64, Linux x64, and macOS (Apple Silicon and Intel) applications are the initial targets, built with Godot and C#. Resizing keeps the complete office image and its hotspots aligned. Strategic screens have no header bar; the date shows on the office calendar.
+- Every office hotspot (wall chart, calendar, safe, filing cabinet, rolodex, phone, hangar porthole and jacket) responds only within a polygon traced around its painted object, and hover or keyboard focus outlines that shape in gold. The jacket on the wall opens the main menu.
 - The painted wall chart is the clickable wall map, with no persistent marker. Click it, or focus it with Tab and press Enter/Space. Hover or keyboard focus outlines the painted frame in gold, with the tooltip “Open star map”. Its miniature always shows the complete reference chart, independently of the opened map’s zoom and pan.
 - The wall map opens a separate screen displaying the official 3025 map of the entire Inner Sphere, with pan, zoom, and “Back to office”.
 - The default window is 1440 × 900, with a 900 × 500 minimum. The interface is laid out at a 1440 × 900 base and scales up uniformly with larger windows (by the smaller of the width and height ratios), with the longer direction gaining extra layout space rather than letterboxing. It never scales below full size, so smaller windows keep full-size text and use their compact layouts. 3D views render at the window’s pixel density, so they stay sharp.
@@ -95,7 +96,7 @@
 
 - Time advances only through explicit player action, with next-day and next-event controls.
 - The far-wall calendar displays the date and days to the next quarter. Clicking it advances one day; clicking its attached “Reminder...” post-it advances to the next event. Tick visibly through individual days at 100 ms per day.
-- The painted calendar display reads “bills due in XX days” (or “day” when one remains) and stays synchronized with the header on both screens. Hover the calendar for its date and countdown in small windows.
+- The painted calendar display reads “bills due in XX days” (or “day” when one remains) and stays synchronized with campaign time. Hover the calendar for its date and countdown in small windows.
 - Any click stops advancement and activates the clicked object, except calendar and post-it clicks, which only stop advancement. Clicking empty space also stops advancement.
 - Stop at arrivals, repair completions, mission results, contract deadlines, and quarterly payments.
 - Quarterly payments always guarantee an upcoming event. Other event producers will connect to the scheduling foundation as their systems are implemented.
@@ -147,7 +148,7 @@ A new company enters the office and immediately opens the shared initial draft b
 
 The company name and all eight choices remain editable until **Establish Company** commits the complete roster. Escape from an unfinished draft asks to abandon it and return to the main menu. Unfinished drafts cannot be saved, and established drafts cannot reopen. Existing finance-only saves require this same draft while retaining their date, cash, obligations and scheduled events; loading or drafting does not overwrite the manual save.
 
-Opening roster interfaces pauses time. Escape from the hangar, map, or office rolodex returns to the office; Escape in the office opens the main menu. The header’s **Main menu** button opens it immediately. The main menu offers **Resume** when an established, solvent company remains in memory, except while a battle is in progress. Resume restores the previous strategic screen, panels, selections and focus, preserving unsaved company state while leaving time paused. It retains the session only while the app is open and does not write a save. Starting or loading another company asks before replacing a live company only when it has unsaved changes, as described under Calendar and persistence. The original single-slot manual-save policy remains in force.
+Opening roster interfaces pauses time. Escape from the hangar, map, or office rolodex returns to the office; Escape in the office opens the main menu. Clicking the jacket on the office wall opens it immediately. Escape or right-click in the main menu acts as **Resume** when it is available, and otherwise does nothing. The main menu offers **Resume** when an established, solvent company remains in memory, except while a battle is in progress. Resume restores the previous strategic screen, panels, selections and focus, preserving unsaved company state while leaving time paused. It retains the session only while the app is open and does not write a save. Starting or loading another company asks before replacing a live company only when it has unsaved changes, as described under Calendar and persistence. The original single-slot manual-save policy remains in force.
 
 
 ## Star travel (confirmed October 25, 2026)
@@ -165,7 +166,7 @@ Find a system with the destination search as an alternative to clicking it. Drag
 
 ## Back navigation and DropShip visibility
 
-Outside tactical combat, right-click closes the topmost popup, confirmation, or subscreen and returns one level toward the office. Tactical combat uses right-click for movement and attack commands, with Escape opening the combat menu. Reuse the existing cancel/back action, restore focus, and consume both press and release. Right-click in the unobstructed office stops time and opens the main menu; it does not navigate from the main menu. Draft abandonment and bankruptcy retain their existing confirmation and dismissal rules. Personnel opened from the hangar returns to the same hangar selection; its visible Back action and Escape follow that parent too.
+Outside tactical combat, right-click closes the topmost popup, confirmation, or subscreen and returns one level toward the office. Tactical combat uses right-click for movement and attack commands, with Escape opening the combat menu. Reuse the existing cancel/back action, restore focus, and consume both press and release. Right-click in the unobstructed office stops time and opens the main menu; in the main menu it resumes the suspended screen, if any. Draft abandonment and bankruptcy retain their existing confirmation and dismissal rules. Personnel opened from the hangar returns to the same hangar selection; its visible Back action and Escape follow that parent too.
 
 A fixed-size gold DropShip silhouette, dark backing, halo, and permanent location label identify the current orbit or interpolated position in transit on the chart. Offscreen position is indicated by a clickable direction arrow. The arrow and Find DropShip button center the current position at the existing zoom, within map bounds, without changing candidate or embarked journeys. Preserve the chosen camera view when reopening the chart. Keep the marker label and locator clear of the zoom controls and usable at 900 × 500.
 

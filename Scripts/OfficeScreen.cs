@@ -12,35 +12,50 @@ public partial class OfficeScreen : Control
     [Signal] public delegate void FinancesRequestedEventHandler();
     [Signal] public delegate void FilingRequestedEventHandler();
     [Signal] public delegate void MissionsRequestedEventHandler();
+    [Signal] public delegate void MenuRequestedEventHandler();
     [Export(PropertyHint.File, "*.png")] public string ArtworkPath { get; set; } = "res://Assets/dropship-office-missions.png";
-    public Button PhoneButton { get; private set; } = null!;
+    public ArtworkHotspot PhoneButton { get; private set; } = null!;
     public ColorRect PhoneLight { get; private set; } = null!;
     public bool PhoneFlashing { get; private set; }
-    public Button RolodexButton { get; private set; } = null!;
-    public Button HangarButton { get; private set; } = null!;
+    public ArtworkHotspot RolodexButton { get; private set; } = null!;
+    public ArtworkHotspot HangarButton { get; private set; } = null!;
     public Label ReadyCount { get; private set; } = null!;
-    public Button Hotspot { get; private set; } = null!;
-    public Button CalendarButton { get; private set; } = null!;
-    public Button ReminderButton { get; private set; } = null!;
-    public Button SafeButton { get; private set; } = null!;
-    public Button FilingButton { get; private set; } = null!;
+    public ArtworkHotspot Hotspot { get; private set; } = null!;
+    public ArtworkHotspot CalendarButton { get; private set; } = null!;
+    public ArtworkHotspot ReminderButton { get; private set; } = null!;
+    public ArtworkHotspot SafeButton { get; private set; } = null!;
+    public ArtworkHotspot FilingButton { get; private set; } = null!;
+    public ArtworkHotspot JacketButton { get; private set; } = null!;
     public Label CalendarDate { get; private set; } = null!;
     public Label QuarterText { get; private set; } = null!;
     public Label SafeReadout => _safeReadout;
     public TextureRect WallMap { get; private set; } = null!;
     public Rect2 ArtworkRect { get; private set; }
     public bool ArtworkLoaded => _image.Texture is not null;
-    // Regions are measured in source-art pixels; all controls use the artwork scale.
+    // Shapes are traced in source-art pixels; regions are their bounds, and all controls use the artwork scale.
     public static readonly Vector2 ArtworkSize = new(1672, 940);
     public static readonly Rect2 MapRegion = new(347, 112, 288, 288f * 6 / 7);
-    public static readonly Rect2 ChartRegion = new(330, 84, 322, 308);
-    public static readonly Rect2 CalendarRegion = new(722, 168, 190, 102);
-    public static readonly Rect2 ReminderRegion = new(767, 271, 95, 40);
-    public static readonly Rect2 SafeRegion = new(324, 447, 273, 234);
-    public static readonly Rect2 FilingRegion = new(4, 329, 155, 477);
-    public static readonly Rect2 RolodexRegion = new(695, 552, 124, 104);
-    public static readonly Rect2 PhoneRegion = new(1116, 558, 129, 83);
-    public static readonly Rect2 HangarRegion = new(1470, 70, 202, 390);
+    public static readonly Vector2[] ChartShape = [new(328, 84), new(652, 84), new(652, 390), new(598, 390), new(598, 410), new(576, 410), new(576, 390), new(328, 390)];
+    public static readonly Vector2[] CalendarShape = [new(730, 166), new(904, 166), new(912, 174), new(912, 292), new(904, 300), new(730, 300), new(722, 292), new(722, 174)];
+    public static readonly Vector2[] ReminderShape = [new(767, 271), new(862, 271), new(862, 311), new(767, 311)];
+    public static readonly Vector2[] SafeShape = [new(326, 446), new(598, 446), new(598, 680), new(326, 680)];
+    public static readonly Vector2[] FilingShape = [new(0, 330), new(150, 330), new(190, 345), new(190, 790), new(150, 806), new(0, 806)];
+    public static readonly Vector2[] RolodexShape = [new(702, 575), new(720, 560), new(745, 553), new(795, 553), new(812, 565), new(818, 585),
+        new(815, 650), new(705, 650), new(700, 600)];
+    public static readonly Vector2[] PhoneShape = [new(1125, 600), new(1120, 575), new(1140, 560), new(1200, 557), new(1235, 565), new(1240, 580),
+        new(1240, 630), new(1230, 640), new(1145, 640), new(1135, 620)];
+    public static readonly Vector2[] HangarShape = ArtworkHotspot.Ellipse(new(1720, 265), new(180, 185), ArtworkSize.X);
+    public static readonly Vector2[] JacketShape = [new(1340, 168), new(1322, 180), new(1298, 198), new(1288, 240), new(1282, 300), new(1280, 416),
+        new(1396, 416), new(1392, 300), new(1386, 240), new(1380, 198), new(1358, 180)];
+    public static readonly Rect2 ChartRegion = ArtworkHotspot.Bounds(ChartShape);
+    public static readonly Rect2 CalendarRegion = ArtworkHotspot.Bounds(CalendarShape);
+    public static readonly Rect2 ReminderRegion = ArtworkHotspot.Bounds(ReminderShape);
+    public static readonly Rect2 SafeRegion = ArtworkHotspot.Bounds(SafeShape);
+    public static readonly Rect2 FilingRegion = ArtworkHotspot.Bounds(FilingShape);
+    public static readonly Rect2 RolodexRegion = ArtworkHotspot.Bounds(RolodexShape);
+    public static readonly Rect2 PhoneRegion = ArtworkHotspot.Bounds(PhoneShape);
+    public static readonly Rect2 HangarRegion = ArtworkHotspot.Bounds(HangarShape);
+    public static readonly Rect2 JacketRegion = ArtworkHotspot.Bounds(JacketShape);
     private Panel _frame = null!;
     private TextureRect _image = null!;
     private Label _error = null!;
@@ -77,61 +92,54 @@ public partial class OfficeScreen : Control
             TextureFilter = TextureFilterEnum.LinearWithMipmaps
         };
         _frame.AddChild(WallMap);
-        Hotspot = Ui.Button(_frame, "");
-        Hotspot.Name = "StarMapHotspot";
+        Hotspot = AddHotspot("StarMapHotspot", ChartShape);
         Hotspot.TooltipText = "Open star map";
-        StyleHotspot(Hotspot);
         Hotspot.Pressed += () => EmitSignal(SignalName.MapRequested);
         _error = Ui.Label(_frame, "Office artwork could not load. The star map is still available.", 16, Ui.Gold);
         _error.HorizontalAlignment = HorizontalAlignment.Center;
         CreateCampaignControls();
-        PhoneButton = Ui.Button(_frame, ""); PhoneButton.Name = "MissionPhone"; StyleHotspot(PhoneButton);
+        PhoneButton = AddHotspot("MissionPhone", PhoneShape);
         PhoneButton.Pressed += () => EmitSignal(SignalName.MissionsRequested);
         PhoneLight = new ColorRect { Color = new Color("ffbd54"), MouseFilter = MouseFilterEnum.Ignore };
-        PhoneButton.AddChild(PhoneLight); Ui.Place(PhoneLight, 85, 49, 8, 6); PhoneLight.Hide();
-        RolodexButton = Ui.Button(_frame, ""); RolodexButton.Name = "Rolodex"; StyleHotspot(RolodexButton);
+        PhoneButton.AddChild(PhoneLight); Ui.Place(PhoneLight, 81, 50, 8, 6); PhoneLight.Hide();
+        RolodexButton = AddHotspot("Rolodex", RolodexShape);
         RolodexButton.Pressed += () => EmitSignal(SignalName.WarriorsRequested);
         ReadyCount = Ui.Label(RolodexButton, "0", 16, new Color("e4d5ae")); ReadyCount.HorizontalAlignment = HorizontalAlignment.Center;
-        Ui.Place(ReadyCount, 52, 68, 48, 24);
-        HangarButton = Ui.Button(_frame, ""); HangarButton.Name = "HangarPorthole"; HangarButton.TooltipText = "Porthole · Open mech hangar"; StyleHotspot(HangarButton);
+        Ui.Place(ReadyCount, 47, 67, 48, 24);
+        HangarButton = AddHotspot("HangarPorthole", HangarShape); HangarButton.TooltipText = "Porthole · Open mech hangar";
         HangarButton.Pressed += () => EmitSignal(SignalName.HangarRequested);
-        _hint = Ui.Label(this, "Phone: missions · Rolodex: MechWarriors · Porthole: hangar · Calendar: next day · Reminder: next event · Safe: finances · Cabinet: save / load", 12, Ui.Muted);
+        JacketButton = AddHotspot("Jacket", JacketShape); JacketButton.TooltipText = "Jacket · Main menu";
+        JacketButton.Pressed += () => EmitSignal(SignalName.MenuRequested);
+        _hint = Ui.Label(this, "Phone: missions · Rolodex: MechWarriors · Porthole: hangar · Calendar: next day · Reminder: next event · Safe: finances · Cabinet: save / load · Jacket: main menu", 12, Ui.Muted);
         _hint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         Resized += Layout;
         SetArtwork(ArtworkPath);
     }
 
-    private static void StyleHotspot(Button button)
+    private ArtworkHotspot AddHotspot(string name, Vector2[] shape)
     {
-        button.MouseDefaultCursorShape = CursorShape.PointingHand;
-        foreach (var state in new[] { "normal", "disabled" })
-            button.AddThemeStyleboxOverride(state, Ui.Box(Colors.Transparent, Colors.Transparent));
-        button.AddThemeStyleboxOverride("hover", Ui.Box(new Color(1, .9f, .65f, .04f), Ui.Gold));
-        button.AddThemeStyleboxOverride("pressed", Ui.Box(new Color(1, .9f, .65f, .08f), Ui.Gold));
-        button.AddThemeStyleboxOverride("focus", Ui.Box(Colors.Transparent, Ui.Gold));
+        var hotspot = new ArtworkHotspot(shape) { Name = name };
+        _frame.AddChild(hotspot);
+        return hotspot;
     }
 
     public void SetWallMap(Texture2D? texture) => WallMap.Texture = texture;
 
     private void CreateCampaignControls()
     {
-        CalendarButton = Ui.Button(_frame, "");
-        CalendarButton.Name = "Calendar";
+        CalendarButton = AddHotspot("Calendar", CalendarShape);
         CalendarButton.TooltipText = "Advance one day · Click again to stop";
-        StyleHotspot(CalendarButton);
         CalendarButton.Pressed += () => EmitSignal(SignalName.DayRequested);
         CalendarDate = Ui.Label(CalendarButton, "", 16, new Color("b6d4b1"));
         CalendarDate.HorizontalAlignment = HorizontalAlignment.Center;
         CalendarDate.ClipText = true;
-        Ui.Place(CalendarDate, 27, 26, 120, 31);
+        Ui.Place(CalendarDate, 27, 28, 120, 31);
         QuarterText = Ui.Label(CalendarButton, "", 11, Ui.Gold);
         QuarterText.HorizontalAlignment = HorizontalAlignment.Center;
         QuarterText.ClipText = true;
-        Ui.Place(QuarterText, 27, 62, 120, 29);
+        Ui.Place(QuarterText, 27, 64, 120, 29);
 
-        ReminderButton = Ui.Button(_frame, "");
-        ReminderButton.Name = "Reminder";
-        StyleHotspot(ReminderButton);
+        ReminderButton = AddHotspot("Reminder", ReminderShape);
         var reminderText = Ui.Label(ReminderButton, "Reminder...", 14, new Color("3d3520"));
         reminderText.HorizontalAlignment = HorizontalAlignment.Center;
         reminderText.ClipText = true;
@@ -139,20 +147,16 @@ public partial class OfficeScreen : Control
         ReminderButton.TooltipText = "Advance to the next event · Click anywhere to stop";
         ReminderButton.Pressed += () => EmitSignal(SignalName.EventRequested);
 
-        SafeButton = Ui.Button(_frame, "");
-        SafeButton.Name = "CompanySafe";
+        SafeButton = AddHotspot("CompanySafe", SafeShape);
         SafeButton.TooltipText = "Company safe · Quarterly finances";
-        StyleHotspot(SafeButton);
         _safeReadout = Ui.Label(SafeButton, "", 20, new Color("b6d4b1"));
         _safeReadout.HorizontalAlignment = HorizontalAlignment.Center;
         _safeReadout.ClipText = true;
-        Ui.Place(_safeReadout, 58, 29, 157, 34);
+        Ui.Place(_safeReadout, 56, 30, 157, 34);
         SafeButton.Pressed += () => EmitSignal(SignalName.FinancesRequested);
 
-        FilingButton = Ui.Button(_frame, "");
-        FilingButton.Name = "FilingCabinet";
+        FilingButton = AddHotspot("FilingCabinet", FilingShape);
         FilingButton.TooltipText = "Filing cabinet · Save / load game";
-        StyleHotspot(FilingButton);
         FilingButton.Pressed += () => EmitSignal(SignalName.FilingRequested);
     }
 
@@ -219,15 +223,9 @@ public partial class OfficeScreen : Control
         _image.Position = ArtworkRect.Position;
         _image.Size = ArtworkRect.Size;
         Ui.Place(_error, 12, _frame.Size.Y / 2 + 60, _frame.Size.X - 24, 50);
-        PlaceArtworkControl(PhoneButton, PhoneRegion, scale);
-        PlaceArtworkControl(RolodexButton, RolodexRegion, scale);
-        PlaceArtworkControl(HangarButton, HangarRegion, scale);
         PlaceArtworkControl(WallMap, MapRegion, scale);
-        PlaceArtworkControl(Hotspot, ChartRegion, scale);
-        PlaceArtworkControl(CalendarButton, CalendarRegion, scale);
-        PlaceArtworkControl(ReminderButton, ReminderRegion, scale);
-        PlaceArtworkControl(SafeButton, SafeRegion, scale);
-        PlaceArtworkControl(FilingButton, FilingRegion, scale);
+        foreach (var hotspot in new[] { Hotspot, CalendarButton, ReminderButton, SafeButton, FilingButton, RolodexButton, PhoneButton, HangarButton, JacketButton })
+            PlaceArtworkControl(hotspot, hotspot.Region, scale);
     }
 
     private void PlaceArtworkControl(Control control, Rect2 region, float scale)

@@ -83,6 +83,8 @@ public partial class SmokeTests : Node
             }
             Check(_app.MainMenu.Visible && !_app.Office.Visible && !_app.StarMap.Visible, "starts in the main menu");
             Check(_app.MainMenu.LoadButton.Disabled, "load disabled before first manual save");
+            await PressKey(Key.Escape); await RightClick(new Vector2(20, 20));
+            Check(_app.MainMenu.Visible && !_app.Office.Visible, "main menu back gestures do nothing without a company to resume");
             await Capture("main-menu");
             await PressKey(Key.Enter);
             await TestDraftUi();
@@ -233,7 +235,8 @@ public partial class SmokeTests : Node
                 (hotspot, OfficeScreen.ChartRegion), (office.CalendarButton, OfficeScreen.CalendarRegion),
                 (office.ReminderButton, OfficeScreen.ReminderRegion), (office.SafeButton, OfficeScreen.SafeRegion),
                 (office.FilingButton, OfficeScreen.FilingRegion), (office.WallMap, OfficeScreen.MapRegion),
-                (office.PhoneButton, OfficeScreen.PhoneRegion), (office.RolodexButton, OfficeScreen.RolodexRegion), (office.HangarButton, OfficeScreen.HangarRegion)
+                (office.PhoneButton, OfficeScreen.PhoneRegion), (office.RolodexButton, OfficeScreen.RolodexRegion), (office.HangarButton, OfficeScreen.HangarRegion),
+                (office.JacketButton, OfficeScreen.JacketRegion)
             })
             {
                 Check(((control.Position - art.Position) / scale).DistanceTo(region.Position) < .1f
@@ -244,6 +247,15 @@ public partial class SmokeTests : Node
                 && office.SafeButton.TooltipText.Contains("₡ 2,500,000"), $"small-window tooltips include date and balance at {size}");
             Check(office.CalendarButton.GetGlobalRect().Encloses(office.CalendarDate.GetGlobalRect())
                 && office.SafeButton.GetGlobalRect().Encloses(office.SafeReadout.GetGlobalRect()), $"readouts stay inside painted objects at {size}");
+            Check(office.GetGlobalRect().Position == Vector2.Zero && _app.FindChildren("*", "Button", true, false).OfType<Button>()
+                .All(button => button.Text != "Main menu"), $"office fills the window without a header bar at {size}");
+            Vector2 ArtPoint(Vector2 source) => hotspot.GetParent<Control>().GetGlobalTransform() * (art.Position + source * scale);
+            Check(office.HangarButton.ContainsGlobal(ArtPoint(new(1600, 248)))
+                && !office.HangarButton.ContainsGlobal(ArtPoint(OfficeScreen.HangarRegion.Position + new Vector2(4, 4)))
+                && office.JacketButton.ContainsGlobal(ArtPoint(new(1340, 300)))
+                && !office.JacketButton.ContainsGlobal(ArtPoint(OfficeScreen.JacketRegion.Position + new Vector2(4, 4)))
+                && !office.RolodexButton.ContainsGlobal(ArtPoint(new(702, 556))),
+                $"office hotspots follow painted outlines, not their bounding boxes, at {size}");
             await Capture($"office-{size.X}x{size.Y}");
             await Click(office.PhoneButton);
             Check(_app.Missions.Visible && _app.Missions.GetGlobalRect().Encloses(_app.Missions.CloseButton.GetGlobalRect())
@@ -395,9 +407,11 @@ public partial class SmokeTests : Node
         await RightClick(DialogButton("Close").GetGlobalRect().GetCenter());
         Check(!_app.Dialog.Visible && _app.Office.FilingButton.HasFocus(), "another right-click closes filing and restores cabinet focus");
         System.IO.File.Delete(_saveFile);
-        _app.ShowMainMenu(); await Frames(); await RightClick(new Vector2(20, 20));
-        Check(_app.MainMenu.Visible && !_app.Office.Visible, "main menu right-click has no navigation action");
-        _app.ShowOffice(); await Frames();
+        await Click(_app.Office.JacketButton);
+        Check(_app.MainMenu.Visible && !_app.Office.Visible, "jacket opens the main menu");
+        await RightClick(new Vector2(20, 20));
+        Check(!_app.MainMenu.Visible && _app.Office.Visible && _app.Office.JacketButton.HasFocus(),
+            "main menu right-click returns to the office and restores jacket focus");
     }
 
     private async Task TestShipLocatorUi()
