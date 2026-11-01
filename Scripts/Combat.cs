@@ -80,8 +80,11 @@ public static partial class CombatRules
     public static double SrmFlightSeconds(float distance) =>
         (-SrmLaunchSpeed + Math.Sqrt(SrmLaunchSpeed * SrmLaunchSpeed + 2 * SrmAcceleration * distance)) / SrmAcceleration;
     public static bool IsPpc(WeaponKind kind) => kind is WeaponKind.PPC;
-    /// <summary>A PPC bolt reaches its target in the same time at every range, inside its beam's half second.</summary>
-    public const double PpcFlightSeconds = .4;
+    /// <summary>A PPC bolt reaches a target at its long range in this time, inside its beam's half second;
+    /// that fixes its speed, so nearer targets are struck sooner.</summary>
+    public const double PpcLongRangeSeconds = .4;
+    public static float PpcSpeed(WeaponSpec weapon) => weapon.Long * WeaponRangeScale / (float)PpcLongRangeSeconds;
+    public static double PpcFlightSeconds(float distance, WeaponSpec weapon) => distance / PpcSpeed(weapon);
     /// <summary>A PPC hit also deals half its damage, rounded down, shared at random among the adjacent locations except the head.</summary>
     public static int PpcSplash(int damage) => damage / 2;
     /// <summary>Splash is rolled one stock point at a time; any remainder is rolled last.</summary>
@@ -589,7 +592,7 @@ public sealed partial class CombatSimulation
                 {
                     Chance = chance, Roll = roll, WeaponId = weapon.Spec.Id, Mount = DraftCatalog.Abbreviation(weapon.Spec.Location) + (weapon.Spec.Rear ? " rear" : ""),
                     Sequence = ++_sequence, SecondLocation = second, SecondDamage = laser ? weapon.Damage - damage : 0,
-                    FlightSeconds = shell ? CombatRules.ShellFlightSeconds(distance) : bullets ? CombatRules.BulletFlightSeconds(distance) : ppc ? CombatRules.PpcFlightSeconds : CombatRules.IsSrm(weapon.Spec.Kind) ? CombatRules.SrmFlightSeconds(distance)
+                    FlightSeconds = shell ? CombatRules.ShellFlightSeconds(distance) : bullets ? CombatRules.BulletFlightSeconds(distance) : ppc ? CombatRules.PpcFlightSeconds(distance, weapon.Spec) : CombatRules.IsSrm(weapon.Spec.Kind) ? CombatRules.SrmFlightSeconds(distance)
                         : salvo ? CombatRules.MissileFlightSeconds(distance) : 0,
                     Missiles = missiles, MissileDamage = salvo ? weapon.Spec.DamageProfile.PerProjectile : 0,
                     Indirect = spotter is not null, SpotterId = spotter?.Id, Splashes = ppc && hit ? RollSplash(location, CombatRules.PpcSplash(weapon.Damage)) : []

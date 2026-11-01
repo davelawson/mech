@@ -11,6 +11,8 @@ public partial class SmokeTests
         var roster = ForceRoster.Create("Picking checks", [DraftCatalog.Mech("jenner"), DraftCatalog.Mech("atlas")], DraftCatalog.Warriors.Take(2));
         for (var i = 0; i < 2; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var field = new CombatViewport { Position = new Vector2(40, 40), Size = new Vector2(900, 650) };
+        // The group's app sits at the office, where right-click means Back; keep it from consuming this field's clicks.
+        _app.SetProcessInput(false);
         AddChild(field); await Frames();
         if (_screenshots) { GetWindow().GrabFocus(); await Frames(); }
         void MovePointer(Vector2 at)
@@ -135,6 +137,7 @@ public partial class SmokeTests
         finally
         {
             field.CancelDrag(); RemoveChild(field); field.QueueFree();
+            _app.SetProcessInput(true);
             GetWindow().Size = originalSize; await Frames();
         }
     }

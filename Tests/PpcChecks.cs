@@ -41,18 +41,20 @@ internal static partial class CombatChecks
                 && spread.Any(shot => shot.Splashes.Select(splash => splash.Location).Distinct().Count() > 1)
                 && spread.Where(shot => shot.Location == MechLocation.CenterTorso).SelectMany(shot => shot.Splashes).Select(splash => splash.Location).Distinct().Count() > 1,
             "PPC splash shares five 10-point chunks at random among adjacent non-head locations");
-        check(Math.Abs(CombatRules.PpcFlightSeconds - .4) < 1e-9, "a PPC bolt takes 0.4 seconds at any range");
+        var stock = DraftCatalog.Mech("awesome").Weapons.First(item => item.Kind == WeaponKind.PPC);
+        check(Math.Abs(CombatRules.PpcFlightSeconds(1620, stock) - .4) < 1e-6 && Math.Abs(CombatRules.PpcFlightSeconds(810, stock) - .2) < 1e-6,
+            "a PPC bolt flies at the speed that reaches its 1620 m long range in 0.4 seconds");
 
         var sim = PpcFixture(); var friendly = Friendly(sim); var enemy = Enemy(sim);
         var weapon = enemy.Weapons[0];
         var clear = CombatSimulation.HitChance(enemy, friendly, weapon);
         Steps(sim, 1);
         var discharge = sim.History.Single().Shot;
-        check(discharge.Hit && discharge.InFlight && Math.Abs(discharge.FlightSeconds - .4) < 1e-6 && discharge.Splash == 50
+        check(discharge.Hit && discharge.InFlight && Math.Abs(discharge.FlightSeconds - CombatRules.PpcFlightSeconds(900, weapon.Spec)) < 1e-4 && discharge.Splash == 50
                 && enemy.ArmorLost + enemy.StructureLost == 0 && enemy.InterferenceRemaining == 0,
             "a PPC hit is rolled at discharge and deals nothing while the bolt flies");
         check(sim.History[0].DebugText.Contains("dmg 100 + 50 splash on impact"), "the discharge entry reports the splash");
-        Steps(sim, 8);
+        Steps(sim, (int)Math.Ceiling(discharge.FlightSeconds / CombatRules.StepSeconds));
         var impact = sim.History[^1].Shot;
         int Lost(MechLocation location) => impact.DamageApplied.Where(part => part.Location == location).Sum(part => part.Armor + part.RearArmor + part.Structure);
         int Splashed(MechLocation location) => discharge.Splashes.Where(splash => splash.Location == location).Sum(splash => splash.Damage);

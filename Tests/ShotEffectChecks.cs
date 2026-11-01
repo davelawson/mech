@@ -45,9 +45,9 @@ public partial class SmokeTests
         {
             CombatSimulation sim = null!; var shots = new List<CombatShot>(); MechModel[] models = [];
             // Later weapon checks start from a fresh deployment rather than wherever an earlier fight left off.
-            void Deploy(bool atlasFires = false)
+            void Deploy(bool atlasFires = false, BattlefieldTerrain? terrain = null)
             {
-                sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(unit => unit.Id), BattlefieldTerrain.Flat);
+                sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(unit => unit.Id), terrain ?? BattlefieldTerrain.Flat);
                 var friendly = sim.Units.First(unit => unit.Side == CombatSide.Friendly);
                 friendly.Position = Vector2.Zero; friendly.Facing = Vector2.Up;
                 var spread = 0;
@@ -138,6 +138,66 @@ public partial class SmokeTests
             var early = MissOffset(); sim.Advance(.7); field._Process(0);
             // Both models may move; the miss stays the same distance beside its location rather than sweeping.
             Check(Math.Abs(MissOffset().Length() - early.Length()) < 1e-2f, "a laser miss keeps its aim for the whole burn");
+            // The miss carries on past its aim: solid to long range, then fading out by 1.5 times long range,
+            // unless the ground stops it first.
+            float ShaderValue(MeshInstance3D mesh, string name) => (float)((ShaderMaterial)mesh.MaterialOverride).GetShaderParameter(name);
+            (Vector3 From, Vector3 Aim, float Range, float End, float? Ground) MissBeam(CombatShot shot)
+            {
+                var path = field.ShotPaths().Single(item => item.Shot == shot);
+                var range = sim.Unit(shot.AttackerId).Spec.Weapons.Single(weapon => weapon.Id == shot.WeaponId).Long * CombatRules.WeaponRangeScale;
+                var aim = (path.To - path.From).Normalized();
+                var ground = sim.Terrain.RayDistance(path.From, aim, range * CombatViewport.LaserMissReach);
+                return (path.From, aim, range, Math.Min(ground ?? float.MaxValue, range * CombatViewport.LaserMissReach), ground);
+            }
+            bool MissDrawn(CombatShot shot)
+            {
+                var beam = MissBeam(shot);
+                var (_, halo, _) = field.Beams().Single(item => item.Shot == shot);
+                var (_, tailHalo, tailCore) = field.LaserTails().Single(item => item.Shot == shot);
+                var solid = halo.GlobalTransform.Basis.Y; var tail = tailHalo.GlobalTransform.Basis.Y;
+                var solidOk = halo.Visible && Math.Abs(solid.Length() - Math.Min(beam.End, beam.Range)) < .05f
+                    && (halo.GlobalPosition - solid / 2).DistanceTo(beam.From) < .05f && solid.Normalized().Dot(beam.Aim) > .9999f;
+                if (beam.End <= beam.Range) return solidOk && !tailHalo.Visible && !tailCore.Visible;
+                return solidOk && tailHalo.Visible && tailCore.Visible
+                    && (tailHalo.GlobalPosition - tail / 2).DistanceTo(beam.From + beam.Aim * beam.Range) < .05f
+                    && (tailHalo.GlobalPosition + tail / 2).DistanceTo(beam.From + beam.Aim * beam.End) < .05f
+                    && tail.Normalized().Dot(beam.Aim) > .9999f
+                    && Math.Abs(ShaderValue(tailHalo, "end_alpha") - (1 - (beam.End - beam.Range) / (beam.Range * (CombatViewport.LaserMissReach - 1)))) < 1e-3f;
+            }
+            Check(MissDrawn(miss!), "a laser miss stays solid to long range, then fades along its aim until 1.5 times long range or the ground");
+
+            Check(!field.LaserTails().Any(tail => tail.Shot.Hit), "laser hits have no fading continuation");
+
+            // Behind each mech a hill catches missed beams that clear the flat ground; either scorches where the beam strikes.
+            Deploy(terrain: new BattlefieldTerrain(0, [], [new TerrainHill(new Vector2(0, 700), 250, 300), new TerrainHill(new Vector2(0, -1060), 250, 300)]));
+            var scorching = Fresh(shot => !shot.Hit);
+            Check(scorching is not null, "the hill exchange produced a visible laser miss");
+            foreach (var unit in sim.Units) foreach (var weapon in unit.Weapons) weapon.Enabled = false;
+            sim.Advance(.2); field._Process(0);
+            var hillMiss = MissBeam(scorching!);
+            Check(hillMiss.Ground is not null && MissDrawn(scorching!), "a laser miss stops where it strikes the ground or hill");
+            var groundPoint = hillMiss.From + hillMiss.Aim * hillMiss.Ground!.Value;
+            var scorchKind = sim.Unit(scorching!.AttackerId).Spec.Weapons.Single(weapon => weapon.Id == scorching.WeaponId).Kind;
+            (Vector3 Position, float Alpha, bool Released, float Radius)? Scorch(Vector3 near) =>
+                field.BurnMarks().Where(mark => mark.Position.DistanceTo(near) < 2).Cast<(Vector3, float, bool, float)?>().FirstOrDefault();
+            Check(Scorch(groundPoint) is { Alpha: 1, Released: false } burning1
+                    && Math.Abs(burning1.Radius - CombatViewport.LaserRadius(scorchKind) * CombatViewport.BurnMarkScale) < 1e-3f,
+                "the beam scorches the ground where it strikes while it burns");
+            var (cameraTransform, cameraSize) = (field.Camera.GlobalTransform, field.Camera.Size);
+            field.Camera.Size = 90; field.Camera.Position = groundPoint + new Vector3(-600, 450, 300); field.Camera.LookAt(groundPoint);
+            await Capture("laser-burn-mark");
+            (field.Camera.GlobalTransform, field.Camera.Size) = (cameraTransform, cameraSize);
+            sim.Advance(CombatRules.LaserBurnSeconds + .2); field._Process(0);
+            var left = field.BurnMarks().Where(mark => mark.Released).OrderBy(mark => mark.Position.DistanceTo(groundPoint)).First();
+            Check(!field.Beams().Any(beam => beam.Shot == scorching) && left.Position.DistanceTo(groundPoint) < 10 && left.Alpha == 1,
+                "the scorch stays at full strength where the beam left it when the beam ends");
+            sim.Advance(2.5); field._Process(0);
+            Check(Scorch(left.Position) is { } fading && Math.Abs(fading.Alpha - (left.Alpha - .5f)) < .01f, "the scorch fades linearly over five seconds");
+            sim.Paused = true; sim.Advance(1); field._Process(0);
+            Check(Scorch(left.Position) is { } frozenScorch && Math.Abs(frozenScorch.Alpha - (left.Alpha - .5f)) < .01f, "pausing freezes the scorch");
+            sim.Paused = false; sim.Advance(2.6); field._Process(0);
+            Check(Scorch(left.Position) is null, "the scorch is gone five seconds after the beam");
+            Deploy();
 
             burning = Fresh(shot => shot.Hit);
             var beams = field.Beams().Count();

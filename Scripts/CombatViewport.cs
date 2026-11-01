@@ -28,6 +28,36 @@ public partial class CombatViewport : Control
     private const float BeamReach = .1f;
     private const float BeamFade = .15f;
     private static readonly CylinderMesh BeamMesh = new() { TopRadius = 1, BottomRadius = 1, Height = 1, RadialSegments = 10, Rings = 1 };
+    // A missed laser stays solid to long range, then loses coherence until it vanishes at this multiple of it.
+    internal const float LaserMissReach = 1.5f;
+    // The fading continuation's alpha runs linearly along the beam from 1 at its base to end_alpha at its tip,
+    // so terrain can cut it short at its true partial intensity.
+    private static readonly Shader TailShader = new() { Code = """
+        shader_type spatial;
+        render_mode unshaded, blend_add, cull_disabled, shadows_disabled;
+        uniform vec4 albedo : source_color;
+        uniform float end_alpha = 0.0;
+        varying float along;
+        void vertex() { along = VERTEX.y + 0.5; }
+        void fragment() { ALBEDO = albedo.rgb; ALPHA = albedo.a * mix(1.0, end_alpha, along); }
+        """ };
+    // Where a missed laser strikes the ground it scorches a mark that fades after the burn.
+    internal const float BurnMarkFadeSeconds = 5;
+    internal const float BurnMarkScale = 6;
+    private const float BurnMarkLift = .3f;
+    private static readonly Color BurnMarkColor = new(.08f, .06f, .05f);
+    private static readonly PlaneMesh BurnMarkMesh = new() { Size = new Vector2(2, 2) };
+    private static readonly GradientTexture2D BurnMarkTexture = new()
+    {
+        Fill = GradientTexture2D.FillEnum.Radial, FillFrom = new Vector2(.5f, .5f), FillTo = new Vector2(1, .5f), Width = 64, Height = 64,
+        Gradient = new Gradient { Colors = [new Color(1, 1, 1, .85f), new Color(1, 1, 1, .6f), new Color(1, 1, 1, 0)], Offsets = [0, .5f, 1] }
+    };
+    private sealed class BurnMark(MeshInstance3D mesh)
+    {
+        public MeshInstance3D Mesh { get; } = mesh;
+        public double? Released { get; set; }
+    }
+    private readonly List<BurnMark> _burnMarks = [];
     private static readonly SphereMesh BlastMesh = new() { Radius = 1, Height = 2, RadialSegments = 16, Rings = 8 };
     private const float MuzzleFlash = .1f;
     private const float ShellFade = .1f;
@@ -50,8 +80,8 @@ public partial class CombatViewport : Control
     private static readonly Color PpcColor = new(.6f, .4f, 1);
     private static readonly Color PpcWhite = Colors.White.Lerp(PpcColor, .3f);
     internal const float PpcBeamRadius = .3f;
-    /// <summary>The beam holds until the bolt lands, then fades out over the rest of its half second.</summary>
-    internal const float PpcBeamHold = (float)CombatRules.PpcFlightSeconds;
+    /// <summary>The beam holds for the long-range flight time, past the bolt landing at any range, then fades out over the rest of its half second.</summary>
+    internal const float PpcBeamHold = (float)CombatRules.PpcLongRangeSeconds;
     internal const float PpcBeamSeconds = .5f;
     internal const float PpcBoltRadius = 2.7f;
     internal const float PpcBurstRadius = 13.5f;
@@ -116,6 +146,10 @@ public partial class CombatViewport : Control
         public double? BurnLanded { get; set; }
         public MeshInstance3D? Halo { get; set; }
         public MeshInstance3D? Core { get; set; }
+        // A miss's fading continuation beyond long range, and its scorch where it meets the ground.
+        public MeshInstance3D? TailHalo { get; set; }
+        public MeshInstance3D? TailCore { get; set; }
+        public BurnMark? Scorch { get; set; }
         // A shell leaves from where it was fired. A miss flies on to the ground or fades beyond long range.
         public Vector3 Launch { get; set; }
         public Vector3 MissEnd { get; set; }
@@ -263,6 +297,8 @@ public partial class CombatViewport : Control
         foreach (var model in _models.Values) { _world.RemoveChild(model); model.QueueFree(); }
         for (var i = _effects.Count - 1; i >= 0; i--) RemoveEffect(i);
         for (var i = _destructions.Count - 1; i >= 0; i--) RemoveDestruction(i);
+        foreach (var mark in _burnMarks) mark.Mesh.QueueFree();
+        _burnMarks.Clear();
         _models.Clear(); _pickBounds.Clear();
         Simulation = simulation; Simulation.ShotFired += OnShot; InspectedEnemy = null; Selection = Array.Empty<string>();
         if (_terrainView is not null) { _world.RemoveChild(_terrainView); _terrainView.QueueFree(); }
@@ -294,6 +330,10 @@ public partial class CombatViewport : Control
         {
             var color = LaserColor(kind);
             created.Halo = Beam(color); created.Core = Beam(color.Lerp(Colors.White, LaserCoreWhite));
+            if (!shot.Hit && weapon is not null)
+            {
+                created.TailHalo = TailBeam(color); created.TailCore = TailBeam(color.Lerp(Colors.White, LaserCoreWhite));
+            }
         }
         if (shell is not null) LaunchShell(created, weapon!);
         if (created.Ppc) LaunchPpc(created, weapon!);
@@ -302,6 +342,14 @@ public partial class CombatViewport : Control
         _effects.Add(created);
     }
     // Unshaded additive cylinders read as a glowing beam from any camera angle without post-processing.
+    private MeshInstance3D TailBeam(Color color)
+    {
+        var material = new ShaderMaterial { Shader = TailShader };
+        material.SetShaderParameter("albedo", color);
+        var beam = new MeshInstance3D { Mesh = BeamMesh, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off, MaterialOverride = material, Visible = false };
+        _world.AddChild(beam);
+        return beam;
+    }
     private MeshInstance3D Beam(Color color, Mesh? mesh = null)
     {
         var beam = new MeshInstance3D
@@ -386,9 +434,8 @@ public partial class CombatViewport : Control
     }
     private void LaunchPpc(ShotEffect effect, WeaponSpec weapon)
     {
-        // A miss keeps the speed a hit would have had, flying on past the target.
-        var (from, to, _) = ShotPath(effect);
-        AimProjectile(effect, weapon, Math.Max(from.DistanceTo(to), 1e-3f) / (float)CombatRules.PpcFlightSeconds);
+        // Every bolt flies at the weapon's one speed; a miss flies on past the target.
+        AimProjectile(effect, weapon, CombatRules.PpcSpeed(weapon));
         effect.SplashLocations = effect.Shot.Splashes.Select(splash => splash.Location).Distinct().ToArray();
         var arcs = (PpcRadialArcs + effect.SplashLocations.Length) * PpcArcSegments;
         // Beam halo and core, bolt halo and core, burst glow and flash, then the arc segments.
@@ -737,7 +784,8 @@ public partial class CombatViewport : Control
     private void RemoveEffect(int index)
     {
         var effect = _effects[index];
-        effect.Halo?.QueueFree(); effect.Core?.QueueFree();
+        effect.Halo?.QueueFree(); effect.Core?.QueueFree(); effect.TailHalo?.QueueFree(); effect.TailCore?.QueueFree();
+        if (effect.Scorch is { } scorch) scorch.Released = Simulation?.Clock ?? 0;
         effect.Slug?.QueueFree(); effect.Flash?.QueueFree(); effect.Blast?.QueueFree(); effect.Burst?.QueueFree();
         foreach (var mesh in effect.PpcMeshes) mesh.QueueFree();
         foreach (var missile in effect.Salvo ?? [])
@@ -907,6 +955,7 @@ public partial class CombatViewport : Control
                 || _effects[i].Laser is not null && Simulation.Unit(_effects[i].Shot.AttackerId).Status == CombatStatus.Destroyed)
                 RemoveEffect(i);
         foreach (var effect in _effects) { UpdateBeam(effect); UpdateShell(effect); UpdatePpc(effect); UpdateSalvo(effect); UpdateBurst(effect); }
+        UpdateBurnMarks();
         for (var i = _destructions.Count - 1; i >= 0; i--)
             if (Age(_destructions[i]) >= DestructionSeconds) RemoveDestruction(i);
         foreach (var destruction in _destructions) UpdateDestruction(destruction);
@@ -941,27 +990,92 @@ public partial class CombatViewport : Control
         => _effects.Select(effect => { var (from, to, location) = ShotPath(effect); return (effect.Shot, from, to, location); });
     internal IEnumerable<(CombatShot Shot, MeshInstance3D Halo, MeshInstance3D Core)> Beams() =>
         _effects.Where(effect => effect.Halo is not null).Select(effect => (effect.Shot, effect.Halo!, effect.Core!));
+    internal IEnumerable<(CombatShot Shot, MeshInstance3D Halo, MeshInstance3D Core)> LaserTails() =>
+        _effects.Where(effect => effect.TailHalo is not null).Select(effect => (effect.Shot, effect.TailHalo!, effect.TailCore!));
     private void UpdateBeam(ShotEffect effect)
     {
         if (effect.Laser is not { } kind) return;
         var (from, to, _) = ShotPath(effect);
-        // The beam's front travels from the muzzle and reaches its full length after BeamReach.
-        to = from.Lerp(to, Math.Clamp(Age(effect) / BeamReach, 0, 1));
+        var growth = Math.Clamp(Age(effect) / BeamReach, 0, 1);
         var alpha = Math.Clamp((effect.Duration - Age(effect)) / BeamFade, 0, 1);
-        var axis = to - from;
-        var visible = axis.LengthSquared() > 1e-6f && alpha > 0;
-        foreach (var (beam, scale) in new[] { (effect.Halo!, 1f), (effect.Core!, .4f) })
+        void Draw(MeshInstance3D halo, MeshInstance3D core, Vector3 start, Vector3 end, float endAlpha = 1)
         {
-            beam.Visible = visible;
-            if (!visible) continue;
-            var radius = LaserRadius(kind) * scale;
-            var across = axis.Cross(Math.Abs(axis.Normalized().Y) > .9f ? Vector3.Right : Vector3.Up).Normalized();
-            var depth = axis.Cross(across).Normalized();
-            beam.GlobalTransform = new Transform3D(new Basis(across * radius, axis, depth * radius), (from + to) / 2);
-            var material = (StandardMaterial3D)beam.MaterialOverride;
-            material.AlbedoColor = new Color(material.AlbedoColor, alpha);
+            var axis = end - start;
+            var visible = axis.LengthSquared() > 1e-6f && alpha > 0;
+            foreach (var (beam, scale) in new[] { (halo, 1f), (core, .4f) })
+            {
+                beam.Visible = visible;
+                if (!visible) continue;
+                var radius = LaserRadius(kind) * scale;
+                var across = axis.Cross(Math.Abs(axis.Normalized().Y) > .9f ? Vector3.Right : Vector3.Up).Normalized();
+                var depth = axis.Cross(across).Normalized();
+                beam.GlobalTransform = new Transform3D(new Basis(across * radius, axis, depth * radius), (start + end) / 2);
+                if (beam.MaterialOverride is ShaderMaterial tail)
+                {
+                    tail.SetShaderParameter("albedo", new Color((Color)tail.GetShaderParameter("albedo"), alpha));
+                    tail.SetShaderParameter("end_alpha", endAlpha);
+                }
+                else
+                {
+                    var material = (StandardMaterial3D)beam.MaterialOverride;
+                    material.AlbedoColor = new Color(material.AlbedoColor, alpha);
+                }
+            }
+        }
+        // The beam's front travels from the muzzle and reaches its full length after BeamReach.
+        if (effect.TailHalo is null) { Draw(effect.Halo!, effect.Core!, from, from.Lerp(to, growth)); return; }
+        // A miss carries on past its aim point: solid to long range, then fading out over the tail, unless terrain stops it.
+        var direction = (to - from).Normalized();
+        var range = effect.Weapon!.Long * CombatRules.WeaponRangeScale;
+        var reach = range * LaserMissReach;
+        var ground = Simulation!.Terrain.RayDistance(from, direction, reach);
+        var front = reach * growth;
+        var end = Math.Min(front, ground ?? reach);
+        Draw(effect.Halo!, effect.Core!, from, from + direction * Math.Min(end, range));
+        Draw(effect.TailHalo, effect.TailCore!, from + direction * range, from + direction * Math.Max(end, range),
+            1 - Math.Max(0, end - range) / (reach - range));
+        if (ground is { } distance && distance <= front && alpha > 0) Scorch(effect, kind, from + direction * distance, direction);
+    }
+    // The scorch follows the beam's ground point while it burns, then stays where the beam left it.
+    private void Scorch(ShotEffect effect, WeaponKind kind, Vector3 at, Vector3 direction)
+    {
+        if (effect.Scorch is null)
+        {
+            var material = new StandardMaterial3D
+            {
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+                AlbedoColor = BurnMarkColor, AlbedoTexture = BurnMarkTexture, CullMode = BaseMaterial3D.CullModeEnum.Disabled
+            };
+            var mesh = new MeshInstance3D { Mesh = BurnMarkMesh, MaterialOverride = material, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+            _world.AddChild(mesh);
+            effect.Scorch = new BurnMark(mesh); _burnMarks.Add(effect.Scorch);
+        }
+        var terrain = Simulation!.Terrain;
+        var point = new Vector2(at.X, at.Z);
+        // A rock face is struck above the ground surface; the mark then faces back along the beam.
+        var normal = at.Y > terrain.HeightAt(point) + 1 ? -direction
+            : new Vector3(terrain.HeightAt(point - new Vector2(1, 0)) - terrain.HeightAt(point + new Vector2(1, 0)), 2,
+                terrain.HeightAt(point - new Vector2(0, 1)) - terrain.HeightAt(point + new Vector2(0, 1))).Normalized();
+        var tangent = normal.Cross(Math.Abs(normal.Y) > .9f ? Vector3.Forward : Vector3.Up).Normalized();
+        var radius = LaserRadius(kind) * BurnMarkScale;
+        effect.Scorch.Mesh.GlobalTransform = new Transform3D(
+            new Basis(tangent * radius, normal, normal.Cross(tangent) * radius), at + normal * BurnMarkLift);
+    }
+    private float BurnMarkAlpha(BurnMark mark) =>
+        mark.Released is { } released ? Math.Clamp(1 - (float)((Simulation?.Clock ?? released) - released) / BurnMarkFadeSeconds, 0, 1) : 1;
+    private void UpdateBurnMarks()
+    {
+        for (var i = _burnMarks.Count - 1; i >= 0; i--)
+        {
+            var mark = _burnMarks[i]; var alpha = BurnMarkAlpha(mark);
+            if (alpha <= 0) { mark.Mesh.QueueFree(); _burnMarks.RemoveAt(i); continue; }
+            var material = (StandardMaterial3D)mark.Mesh.MaterialOverride;
+            material.AlbedoColor = new Color(BurnMarkColor, alpha);
         }
     }
+    internal IEnumerable<(Vector3 Position, float Alpha, bool Released, float Radius)> BurnMarks() =>
+        _burnMarks.Select(mark => (mark.Mesh.GlobalPosition, BurnMarkAlpha(mark), mark.Released is not null, mark.Mesh.GlobalTransform.Basis.X.Length()));
+
     // One camera ray drives hover, selection, inspection, attack, priority targeting and Follow.
     internal CombatUnit? PickMech(Vector2 at)
     {
@@ -1119,11 +1233,9 @@ public partial class CombatViewport : Control
                 DrawRangeUnion(ranges.Select(range => new CircleUnion.Circle(range.Observer.Position, range.Detail!.Value)).ToArray(), Ui.Gold);
             DrawString(font, new Vector2(12, 50), RangeText(ranges), HorizontalAlignment.Left, -1, 11, Ui.Text);
         }
-        var friendlyIndex = 0;
         foreach (var unit in Simulation.Units)
         {
             var friendly = unit.Side == CombatSide.Friendly;
-            if (friendly) friendlyIndex++;
             if (!friendly && !Simulation.Detected(CombatSide.Friendly, unit.Id)) continue;
             var at = ScreenPoint(unit.Position);
             var color = MechModel.TeamColor(unit.Side);
@@ -1148,7 +1260,8 @@ public partial class CombatViewport : Control
             DrawLine(at, torso, Ui.Gold, 2, true);
             DrawCircle(torso, 2.5f, Ui.Gold);
             var label = ScreenPoint(unit.Position, _models[unit.Id].Height + 4.5f);
-            var text = friendly ? Selection.Count == 1 && Selection.Contains(unit.Id) ? $"{friendlyIndex} · {unit.Warrior.Callsign}" : friendlyIndex.ToString()
+            // Friendlies show only their callsign over a heat bar; enemies show their chassis.
+            var text = friendly ? unit.Warrior.Callsign
                 : InspectedEnemy == unit.Id && Simulation.DetailsVisible(CombatSide.Friendly, unit.Id) ? unit.Spec.DisplayName : unit.Spec.Chassis;
             var labelOffset = new Vector2(-font.GetStringSize(text, fontSize: 12).X / 2, -4);
             DrawStringOutline(font, label + labelOffset, text, HorizontalAlignment.Left, -1, 12, 4, new Color("101820"));
@@ -1157,12 +1270,8 @@ public partial class CombatViewport : Control
             {
                 var heatColor = unit.Shutdown ? new Color("ed735e") : unit.Heat >= CombatRules.HotHeat
                     ? new Color("e7a185") : unit.Heat >= CombatRules.WarmHeat ? Ui.Gold : Ui.Muted;
-                var heatLabel = $"H {unit.Heat:0.0}";
-                var heatAt = label + new Vector2(-font.GetStringSize(heatLabel, fontSize: 11).X / 2, 10);
-                DrawStringOutline(font, heatAt, heatLabel, HorizontalAlignment.Left, -1, 11, 4, new Color("101820"));
-                DrawString(font, heatAt, heatLabel, HorizontalAlignment.Left, -1, 11, heatColor);
-                DrawRect(new Rect2(label + new Vector2(-15, 13), new Vector2(30, 3)), new Color("101820"));
-                DrawRect(new Rect2(label + new Vector2(-15, 13), new Vector2(30 * (float)Math.Clamp(unit.Heat / CombatRules.ShutdownHeat, 0, 1), 3)), heatColor);
+                DrawRect(new Rect2(label + new Vector2(-15, 1), new Vector2(30, 3)), new Color("101820"));
+                DrawRect(new Rect2(label + new Vector2(-15, 1), new Vector2(30 * (float)Math.Clamp(unit.Heat / CombatRules.ShutdownHeat, 0, 1), 3)), heatColor);
             }
         }
         foreach (var contact in Simulation.Contacts(CombatSide.Friendly).Values.Where(item => !item.Detected))
