@@ -29,7 +29,7 @@ Spare weapons, ammunition, heat sinks and jump jets held by the mercenary force 
 One of the fixed equipment spaces in a BattleMech location: six in the head and each leg, twelve in each torso and arm.
 
 **Loadout**:
-The equipment installed in a particular owned BattleMech: its stock design less any weapons, ammunition, heat sinks and jump jets removed in the hangar.
+The equipment installed in a particular owned BattleMech: its stock design less any weapons, ammunition, heat sinks and jump jets removed in the hangar, plus any spares installed there from storage.
 
 **Pending changes**:
 Loadout changes made in the hangar but not yet applied to the BattleMech. They are kept per BattleMech until applied, reset, or abandoned on leaving the hangar.

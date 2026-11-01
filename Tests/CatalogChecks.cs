@@ -228,7 +228,7 @@ internal static class CatalogChecks
             foreach (var location in expected["Roster"]!["Mechs"]!.AsArray().SelectMany(m => m!["Locations"]!.AsArray()))
                 foreach (var field in new[] { "Armor", "RearArmor", "Structure" })
                     location![field] = location[field]!.GetValue<int>() * CombatRules.DamageScale;
-            // Grouped heat sink and jump jet conditions become one per item, and stock mechs record no removed items.
+            // Grouped heat sink and jump jet conditions become one per item, and stock mechs record no removed or installed items.
             foreach (var saved in expected["Roster"]!["Mechs"]!.AsArray())
             {
                 var definition = DraftCatalog.Mech(saved!["DefinitionId"]!.GetValue<string>());
@@ -240,7 +240,7 @@ internal static class CatalogChecks
                     foreach (var part in parts.Length == 0 ? [id] : parts)
                     { var copy = item.DeepClone(); copy["Id"] = part; equipment.Add(copy); }
                 }
-                saved["Equipment"] = equipment; saved["Removed"] = null;
+                saved["Equipment"] = equipment; saved["Removed"] = null; saved["Installed"] = null;
             }
             // Older saves gain the company's spare equipment, stocked once from its mechs.
             expected["Roster"]!["Storage"] = System.Text.Json.JsonSerializer.SerializeToNode(StorageCatalog.Stock(campaign.Roster.Mechs.Select(m => m.Spec)).ToArray());

@@ -24,6 +24,12 @@ public partial class HangarLocationPanel : Control
     public static readonly Color Damaged = new("e8a33c"), Destroyed = new("d04a3c"), Warning = new("f2d02c");
     /// <summary>Weapons with no compatible ammunition aboard and bins no weapon fires, marked ⚠.</summary>
     public ImmutableHashSet<string> Suspect { get; private set; } = [];
+    /// <summary>A storage item dropped here, to be installed.</summary>
+    public event Action<string>? Dropped;
+    /// <summary>The spare being dragged, if any, and why it cannot go here (null when it can).</summary>
+    public string? DragItem { get; private set; }
+    public string? DropProblem { get; private set; }
+    private static readonly Color Valid = new("6fcf6a");
 
     public HangarLocationPanel(MechLocation location) { Location = location; MouseFilter = MouseFilterEnum.Pass; }
     public static float HeightFor(MechLocation location, float row) => HeaderHeight + EquipmentRules.Capacity(location) * row + Padding;
@@ -41,6 +47,10 @@ public partial class HangarLocationPanel : Control
         TooltipText = DraftCatalog.LocationName(Location);
         QueueRedraw();
     }
+
+    public void ShowDrop(string? item, string? problem) { DragItem = item; DropProblem = problem; QueueRedraw(); }
+    public override bool _CanDropData(Vector2 atPosition, Variant data) => DragItem is not null && DropProblem is null && data.Obj is string id && id == DragItem;
+    public override void _DropData(Vector2 atPosition, Variant data) => Dropped?.Invoke((string)data);
 
     public ComponentCondition Condition(CriticalBlock block) => block.ItemId is null || _mech is null
         ? ComponentCondition.Operational : _mech.Condition(block.ItemId);
@@ -116,5 +126,17 @@ public partial class HangarLocationPanel : Control
             if (condition == ComponentCondition.Destroyed)
                 DrawLine(new(rect.Position.X + 2, baseline - size * .35f), new(rect.End.X - 2, baseline - size * .35f), Destroyed, 1.5f);
         }
+        if (DragItem is null) return;
+        // While a spare is dragged, empty slots show green where it can go and red where it cannot, with the reason.
+        var tint = DropProblem is null ? Valid : Destroyed;
+        foreach (var block in Blocks.Where(block => block.Kind == SlotKind.Empty)) DrawRect(BlockRect(block), new Color(tint, .3f));
+        if (DropProblem is null) return;
+        var empty = Blocks.Where(block => block.Kind == SlotKind.Empty).ToArray();
+        var area = empty.Length > 0 ? BlockRect(empty[0]).Merge(BlockRect(empty[^1]))
+            : new Rect2(Padding, Size.Y - Padding - RowHeight, Size.X - Padding * 2, RowHeight - 1);
+        if (empty.Length == 0) DrawRect(area, new Color(Destroyed, .3f));
+        var fontSize = RowHeight >= 14 ? 10 : 9;
+        DrawString(font, new(area.Position.X, area.Position.Y + Math.Min(area.Size.Y, RowHeight) / 2 + fontSize * .38f), DropProblem,
+            HorizontalAlignment.Center, area.Size.X, fontSize, Ui.Text);
     }
 }

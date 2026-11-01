@@ -49,7 +49,8 @@ public static class EquipmentRules
     public static int JumpJets(MechSpec spec) => spec.Components.Where(item => item.Kind == ComponentKind.JumpJet).Sum(item => item.Slots);
 }
 
-/// <summary>Places a variant's equipment into critical slots: fixed systems first, then weapons, heat sinks and jump jets, then ammunition.</summary>
+/// <summary>Places a variant's equipment into critical slots: fixed systems first, then weapons, heat sinks and jump jets, then ammunition,
+/// then items installed in the hangar in installation order. Empty slots are always last.</summary>
 public static class CriticalLayout
 {
     private sealed record Item(SlotKind Kind, string Id, string Name, int Slots);
@@ -57,12 +58,18 @@ public static class CriticalLayout
     public static ImmutableDictionary<MechLocation, ImmutableArray<CriticalBlock>> For(MechSpec spec)
     {
         var items = Enum.GetValues<MechLocation>().ToDictionary(location => location, _ => new List<Item>());
+        static bool Stock(string id) => !Loadout.Installed(id);
         foreach (var c in spec.Components.Where(c => c.Kind is not (ComponentKind.HeatSink or ComponentKind.JumpJet)))
             items[c.Location].Add(new(Kind(c.Kind), c.Id, c.Name, c.Slots));
-        foreach (var w in spec.Weapons) items[w.Location].Add(new(SlotKind.Weapon, w.Id, w.Rear ? $"{w.Name} (R)" : w.Name, EquipmentRules.Slots(w.Kind)));
-        foreach (var c in spec.Components.Where(c => c.Kind is ComponentKind.HeatSink or ComponentKind.JumpJet))
+        Item Weapon(WeaponSpec w) => new(SlotKind.Weapon, w.Id, w.Rear ? $"{w.Name} (R)" : w.Name, EquipmentRules.Slots(w.Kind));
+        foreach (var w in spec.Weapons.Where(w => Stock(w.Id))) items[w.Location].Add(Weapon(w));
+        foreach (var c in spec.Components.Where(c => c.Kind is ComponentKind.HeatSink or ComponentKind.JumpJet && Stock(c.Id)))
             items[c.Location].Add(new(Kind(c.Kind), c.Id, c.Name, c.Slots));
-        foreach (var a in spec.Ammo) items[a.Location].Add(new(SlotKind.Ammo, a.Id, a.Name, 1));
+        foreach (var a in spec.Ammo.Where(a => Stock(a.Id))) items[a.Location].Add(new(SlotKind.Ammo, a.Id, a.Name, 1));
+        var installed = spec.Weapons.Where(w => !Stock(w.Id)).Select(w => (w.Location, Item: Weapon(w)))
+            .Concat(spec.Components.Where(c => !Stock(c.Id)).Select(c => (c.Location, Item: new Item(Kind(c.Kind), c.Id, c.Name, c.Slots))))
+            .Concat(spec.Ammo.Where(a => !Stock(a.Id)).Select(a => (a.Location, Item: new Item(SlotKind.Ammo, a.Id, a.Name, 1))));
+        foreach (var (location, item) in installed.OrderBy(entry => Loadout.InstallOrder(entry.Item.Id))) items[location].Add(item);
 
         // Stock designs may split one large weapon between neighbouring locations (the King Crab's AC/20s, for example).
         var blocks = items.Keys.ToDictionary(location => location, _ => new List<CriticalBlock>());
@@ -110,9 +117,26 @@ public static class CriticalLayout
     };
 }
 
-/// <summary>An owned mech's installed equipment: its stock design less the items removed in the hangar.</summary>
+/// <summary>A spare from storage installed on a mech in the hangar. Ids are `fit:1`, `fit:2`, … in installation order.</summary>
+public sealed record InstalledItem(string Id, string StorageId, MechLocation Location);
+
+/// <summary>A mech's loadout as the stock items removed and the storage items installed, in installation order.</summary>
+public sealed record LoadoutPlan(ImmutableHashSet<string> Removed, ImmutableArray<InstalledItem> Installed)
+{
+    public static LoadoutPlan Removing(IEnumerable<string> removed) => new(removed.ToImmutableHashSet(StringComparer.Ordinal), []);
+    public bool SameAs(LoadoutPlan other) => Removed.SetEquals(other.Removed) && Installed.SequenceEqual(other.Installed);
+}
+
+/// <summary>An owned mech's installed equipment: its stock design less the items removed in the hangar, plus the items installed there.</summary>
 public static class Loadout
 {
+    private const string InstalledPrefix = "fit:";
+    public static bool Installed(string id) => id.StartsWith(InstalledPrefix, StringComparison.Ordinal);
+    public static int InstallOrder(string id) =>
+        Installed(id) && int.TryParse(id.AsSpan(InstalledPrefix.Length), System.Globalization.NumberStyles.None, null, out var order) && order > 0 ? order : -1;
+    /// <summary>The id for the next installed item, after every id these items have ever used.</summary>
+    public static string NextId(IEnumerable<InstalledItem> used) => InstalledPrefix + (used.Select(item => InstallOrder(item.Id)).DefaultIfEmpty(0).Max() + 1);
+
     public static bool Removable(SlotKind kind) => kind is SlotKind.Weapon or SlotKind.Ammo or SlotKind.HeatSink or SlotKind.JumpJet;
     /// <summary>Whether a stock item of this design is a weapon, bin, heat sink or jump jet that the hangar may remove.</summary>
     public static bool Removable(MechSpec stock, string id) => stock.Weapons.Any(item => item.Id == id) || stock.Ammo.Any(item => item.Id == id)
@@ -131,6 +155,70 @@ public static class Loadout
             HeatSinks = stock.HeatSinks - components.Sum(item => item.HeatSinkCount),
             Jump = Math.Max(0, stock.Jump - components.Where(item => item.Kind == ComponentKind.JumpJet).Sum(item => item.Slots))
         };
+    }
+
+    /// <summary>The design with these stock items removed and these storage items installed: each installed heat sink adds one
+    /// sink's cooling and each jump jet one jump MP. Installed weapons face forward; installed bins hold the catalog's full load.</summary>
+    public static MechSpec Build(MechSpec stock, IReadOnlySet<string> removed, IReadOnlyList<InstalledItem> installed)
+    {
+        var spec = Strip(stock, removed);
+        if (installed.Count == 0) return spec;
+        var weapons = spec.Weapons.ToBuilder(); var components = spec.Components.ToBuilder(); var ammo = spec.Ammo.ToBuilder();
+        var sinks = 0; var jets = 0;
+        foreach (var item in installed)
+        {
+            var parts = item.StorageId.Split(':');
+            switch (parts[0])
+            {
+                case "weapon":
+                    weapons.Add(StorageCatalog.Weapon(Enum.Parse<WeaponKind>(parts[1]))! with { Id = item.Id, Location = item.Location, Rear = false }); break;
+                case "ammo":
+                    ammo.Add(StorageCatalog.Bin(Enum.Parse<AmmoKind>(parts[1]))! with { Id = item.Id, Location = item.Location }); break;
+                case "heat-sink":
+                    var kind = Enum.Parse<HeatSinkKind>(parts[1]);
+                    components.Add(new(item.Id, StorageCatalog.Describe(item.StorageId)!.Name, item.Location, EquipmentRules.HeatSinkSlots(kind), ComponentKind.HeatSink, 1));
+                    sinks++; break;
+                case "jump-jet":
+                    components.Add(new(item.Id, "Jump Jet", item.Location, 1, ComponentKind.JumpJet, 0)); jets++; break;
+                default: throw new ArgumentException($"{item.StorageId} cannot be installed.");
+            }
+        }
+        return spec with
+        {
+            Weapons = weapons.ToImmutable(), Components = components.ToImmutable(), Ammo = ammo.ToImmutable(),
+            HeatSinks = spec.HeatSinks + sinks, Jump = spec.Jump + jets
+        };
+    }
+
+    /// <summary>Hardpoints of a class in a location not taken by its installed weapons of that class. Stock weapons beyond the
+    /// hardpoints (or in a location with none) are kept, but leave no free mount.</summary>
+    public static int FreeMounts(MechSpec spec, MechLocation location, HardpointClass type) =>
+        MechModel.Hardpoints(spec.Id).Count(item => item.Location == location && item.Class == type)
+        - spec.Weapons.Count(item => item.Location == location && WeaponMounts.ClassOf(item.Kind) == type);
+
+    /// <summary>Why this storage item cannot be installed in a location of the mech as shown, or null when it can. Mass is no
+    /// obstacle here: an overweight loadout can be built but not applied.</summary>
+    public static string? InstallProblem(OwnedMech mech, string storageId, MechLocation location)
+    {
+        if (StorageCatalog.Describe(storageId) is not { } item) return "Cannot be installed";
+        var spec = mech.Spec;
+        if (!mech.LocationIntact(location)) return "Location destroyed";
+        switch (storageId.Split(':')[0])
+        {
+            case "weapon":
+                var type = WeaponMounts.ClassOf(Enum.Parse<WeaponKind>(storageId.Split(':')[1]));
+                if (FreeMounts(spec, location, type) <= 0) return $"No free {type.ToString().ToLowerInvariant()} mount";
+                break;
+            case "heat-sink" when storageId != StorageCatalog.HeatSinkId(spec.HeatSinkType):
+                return $"Takes {DefinitionText.HeatSinks(spec.HeatSinkType)} heat sinks only";
+            case "jump-jet":
+                if (location is MechLocation.Head or MechLocation.LeftArm or MechLocation.RightArm) return "Jump jets: torso or legs only";
+                if (storageId != StorageCatalog.JumpJetId(spec.Tonnage)) return $"Wrong jump jets for {spec.Tonnage} t";
+                if (spec.Jump >= spec.Walk) return "Jump MP cannot exceed walking MP";
+                break;
+        }
+        var free = EquipmentRules.Capacity(location) - CriticalLayout.Used(CriticalLayout.For(spec)[location]);
+        return item.Slots > free ? $"Needs {item.Slots} free {(item.Slots == 1 ? "slot" : "slots")}" : null;
     }
 
     /// <summary>Mass of one installed weapon, bin, heat sink or jump jet, or null for fixed systems.</summary>
@@ -170,6 +258,11 @@ public static class StorageCatalog
     public static string HeatSinkId(HeatSinkKind kind) => $"heat-sink:{kind}";
     public static string JumpJetId(int mechTonnage) => $"jump-jet:{EquipmentRules.JumpJetTons(mechTonnage).ToString(System.Globalization.CultureInfo.InvariantCulture)}";
 
+    /// <summary>The catalog's first weapon of this kind, the pattern for spares of it.</summary>
+    public static WeaponSpec? Weapon(WeaponKind kind) => DraftCatalog.AllMechs.SelectMany(mech => mech.Weapons).FirstOrDefault(item => item.Kind == kind);
+    /// <summary>The catalog's first bin of this ammunition, the pattern for spares of it.</summary>
+    public static AmmoSpec? Bin(AmmoKind kind) => DraftCatalog.AllMechs.SelectMany(mech => mech.Ammo).FirstOrDefault(item => item.AmmoKind == kind);
+
     public static StorageItem? Describe(string id)
     {
         var parts = id.Split(':');
@@ -177,10 +270,10 @@ public static class StorageCatalog
         switch (parts[0])
         {
             case "weapon" when Enum.TryParse<WeaponKind>(parts[1], out var kind) && Enum.IsDefined(kind) && parts[1] == kind.ToString():
-                var weapon = DraftCatalog.AllMechs.SelectMany(mech => mech.Weapons).FirstOrDefault(item => item.Kind == kind);
+                var weapon = Weapon(kind);
                 return weapon is null ? null : new(id, weapon.Name, EquipmentRules.Group(kind), EquipmentRules.Tons(kind), EquipmentRules.Slots(kind), weapon.Heat);
             case "ammo" when Enum.TryParse<AmmoKind>(parts[1], out var ammo) && Enum.IsDefined(ammo) && parts[1] == ammo.ToString():
-                var bin = DraftCatalog.AllMechs.SelectMany(mech => mech.Ammo).FirstOrDefault(item => item.AmmoKind == ammo);
+                var bin = Bin(ammo);
                 return bin is null ? null : new(id, $"{bin.Name} ({bin.Shots})", StorageGroup.Ammo, 1, 1, 0);
             case "heat-sink" when Enum.TryParse<HeatSinkKind>(parts[1], out var sink) && Enum.IsDefined(sink) && parts[1] == sink.ToString():
                 return new(id, sink == HeatSinkKind.Double ? "Double Heat Sink" : "Heat Sink", StorageGroup.Equipment, 1, EquipmentRules.HeatSinkSlots(sink), 0);

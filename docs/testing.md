@@ -21,7 +21,7 @@ The direct equivalent is `godot --headless --path . --scene res://Tests/SmokeTes
 | `office` | Office artwork, wall chart, missing artwork | `OfficeScreen`, `ArtworkHotspot` |
 | `map` | Map transform, star map zoom/pan/mouse, DropShip locator, travel UI and model | `MapScreen`, `MapViewport`, `MapTransform`, `StarChart`, `Travel` |
 | `roster` | Roster model, rolodex, injured and memorial records | `RolodexPanel`, `RosterUi`, `Roster` |
-| `hangar` | Hangar model, assignments and swaps, hangar board and location panels, loadout removal, Apply/Reset and pending changes | `HangarScreen`, `HangarLocationPanel`, `MechPreview`, `Equipment` |
+| `hangar` | Hangar model, assignments and swaps, hangar board and location panels, loadout removal and installation (drag and drop), over-tonnage, Apply/Reset and pending changes | `HangarScreen`, `HangarLocationPanel`, `HangarStorageLine`, `MechPreview`, `Equipment` |
 | `missions` | Mission board model and phone overlay | `MissionsPanel`, `Missions` |
 | `finance` | Campaign model, calendar, quarterly payments, save/load, bankruptcy | `Campaign` (time and money) |
 | `catalog` | Mech and weapon definitions | `CatalogLoader`, `GameDefinitions`, `DefinitionText`, `Data/` |

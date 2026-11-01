@@ -185,7 +185,7 @@ public partial class CommandApp : Control
     public override void _Input(InputEvent @event)
     {
         // Route Escape before GUI input: LineEdit otherwise consumes it in draft/search fields.
-        if (Navigation.HandleBackInput(@event))
+        if (Navigation.CurrentScreen == CommandScreen.Hangar && Hangar.CancelDrag(@event) || Navigation.HandleBackInput(@event))
         {
             GetViewport().SetInputAsHandled();
             return;
@@ -441,10 +441,10 @@ public partial class CommandApp : Control
     /// <summary>Applies the selected mech's pending loadout to the company, confirming first when it has items marked ⚠.</summary>
     private void ApplyLoadout()
     {
-        if (Navigation.CurrentScreen != CommandScreen.Hangar || !Hangar.SelectedHasPendingChanges) return;
+        if (Navigation.CurrentScreen != CommandScreen.Hangar || !Hangar.SelectedHasPendingChanges || Hangar.SelectedOverTonnage) return;
         void Commit()
         {
-            State.Roster!.ApplyLoadout(Hangar.SelectedMech.Id, Hangar.SelectedRemoved); Hangar.CommitSelected();
+            State.Roster!.ApplyLoadout(Hangar.SelectedMech.Id, Hangar.SelectedPlan); Hangar.CommitSelected();
             if (Navigation.CurrentScreen == CommandScreen.Dialog) CloseDialog();
             Navigation.RestoreFocus(Hangar.BackButton);
         }

@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Globalization;
 using Godot;
 
@@ -28,8 +27,9 @@ public partial class HangarScreen : Control
     public bool HasPendingChanges => _pending.Count > 0;
     public int PendingMechCount => _pending.Count;
     public bool SelectedHasPendingChanges => _pending.ContainsKey(SelectedMech.Id);
-    /// <summary>The selected mech's full set of removed stock items, applied and pending.</summary>
-    public ImmutableHashSet<string> SelectedRemoved => _pending.GetValueOrDefault(SelectedMech.Id) ?? SelectedMech.Removed;
+    /// <summary>The selected mech's whole loadout, applied and pending.</summary>
+    public LoadoutPlan SelectedPlan => _pending.GetValueOrDefault(SelectedMech.Id) ?? SelectedMech.Plan;
+    public bool SelectedOverTonnage => DisplayedMech.OverTonnage;
     public MechPreview Preview { get; private set; } = null!;
     public bool ArtworkLoaded => _background.Texture is not null;
     public IReadOnlyDictionary<MechLocation, HangarLocationPanel> LocationPanels => _locations;
@@ -41,6 +41,8 @@ public partial class HangarScreen : Control
     public Label ProtectionText { get; private set; } = null!;
     public Label HeatText { get; private set; } = null!;
     public Label TonnageText { get; private set; } = null!;
+    /// <summary>"⚠ Over Tonnage" above the blueprint while the selected mech is overweight.</summary>
+    public Label OverTonnageText { get; private set; } = null!;
     public bool Compact => Size.X < CompactWidth;
     private ForceRoster _roster = null!;
     private int _selected;
@@ -56,8 +58,8 @@ public partial class HangarScreen : Control
     private ScrollContainer _rosterScroll = null!;
     private readonly Dictionary<MechLocation, HangarLocationPanel> _locations = [];
     private readonly List<string> _pilotIds = [];
-    // Pending loadouts by mech id (the full removed set), with the preview mech each one displays.
-    private readonly Dictionary<string, ImmutableHashSet<string>> _pending = [];
+    // Pending loadouts by mech id, with the preview mech each one displays.
+    private readonly Dictionary<string, LoadoutPlan> _pending = [];
     private readonly Dictionary<string, OwnedMech> _previews = [];
     private int _debugHardpoint;
     private Label? _debugMount;
@@ -78,7 +80,13 @@ public partial class HangarScreen : Control
         AddChild(Board);
         _boardContent = new Control { MouseFilter = MouseFilterEnum.Pass }; Board.AddChild(_boardContent);
         foreach (var location in Enum.GetValues<MechLocation>())
-        { var panel = new HangarLocationPanel(location); _boardContent.AddChild(panel); _locations[location] = panel; }
+        {
+            var panel = new HangarLocationPanel(location); _boardContent.AddChild(panel); _locations[location] = panel;
+            panel.Dropped += id => Install(id, location);
+        }
+        OverTonnageText = new Label { Text = "⚠ Over Tonnage", HorizontalAlignment = HorizontalAlignment.Center, Visible = false, MouseFilter = MouseFilterEnum.Ignore };
+        OverTonnageText.AddThemeColorOverride("font_color", HangarLocationPanel.Warning); OverTonnageText.AddThemeFontSizeOverride("font_size", 16);
+        AddChild(OverTonnageText);
         BackButton = Ui.Button(this, "Back to office"); BackButton.Pressed += () => BackRequested?.Invoke();
 
         StoragePanel = Panel();
@@ -116,7 +124,7 @@ public partial class HangarScreen : Control
         DeploymentButton = Ui.Button(this, "Simulate Deployment");
         DeploymentButton.Pressed += () => DeploymentRequested?.Invoke();
         ResetButton = Ui.Button(this, "Reset"); ResetButton.Pressed += ResetSelected;
-        ApplyButton = Ui.Button(this, "Apply"); ApplyButton.Pressed += () => { if (SelectedHasPendingChanges) ApplyRequested?.Invoke(); };
+        ApplyButton = Ui.Button(this, "Apply"); ApplyButton.Pressed += () => { if (SelectedHasPendingChanges && !SelectedOverTonnage) ApplyRequested?.Invoke(); };
         _rosterScroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Auto, VerticalScrollMode = ScrollContainer.ScrollMode.Disabled };
         AddChild(_rosterScroll); _rosterButtons = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; _rosterButtons.AddThemeConstantOverride("separation", 8); _rosterScroll.AddChild(_rosterButtons);
         Resized += Layout; Layout(); Hide();
@@ -140,19 +148,46 @@ public partial class HangarScreen : Control
     }
     private OwnedMech Displayed(OwnedMech mech)
     {
-        if (!_pending.TryGetValue(mech.Id, out var removed)) return mech;
-        if (!_previews.TryGetValue(mech.Id, out var preview)) _previews[mech.Id] = preview = mech.WithRemoved(removed);
+        if (!_pending.TryGetValue(mech.Id, out var plan)) return mech;
+        if (!_previews.TryGetValue(mech.Id, out var preview)) _previews[mech.Id] = preview = mech.WithLoadout(plan);
         return preview;
     }
     /// <summary>The roster as the hangar shows it, pending loadouts included, detached from the company.</summary>
     public ForceRoster PendingRoster() => _roster.WithLoadouts(_pending);
-    /// <summary>Takes a removable item out of the selected mech's pending loadout; other slots are left alone.</summary>
+    /// <summary>Takes a removable item out of the selected mech's pending loadout; the items below it in its location move up.</summary>
     public bool Remove(string itemId)
     {
+        var plan = SelectedPlan;
+        if (plan.Installed.FirstOrDefault(item => item.Id == itemId) is { } installed) Change(plan with { Installed = plan.Installed.Remove(installed) });
+        else if (Loadout.Removable(SelectedMech.Definition, itemId) && !plan.Removed.Contains(itemId)) Change(plan with { Removed = plan.Removed.Add(itemId) });
+        else return false;
+        return true;
+    }
+    /// <summary>Installs a spare from storage in the first empty slots of a location of the selected mech, as a pending change.</summary>
+    public bool Install(string storageId, MechLocation location)
+    {
+        if (InstallProblem(storageId, location) is not null) return false;
+        var plan = SelectedPlan;
+        Change(plan with { Installed = plan.Installed.Add(new(Loadout.NextId(SelectedMech.Installed.Concat(plan.Installed)), storageId, location)) });
+        return true;
+    }
+    /// <summary>Why a spare cannot go in a location of the selected mech as shown, or null when it can.</summary>
+    public string? InstallProblem(string storageId, MechLocation location) =>
+        StorageCounts().GetValueOrDefault(storageId) <= 0 ? "None in storage" : Loadout.InstallProblem(DisplayedMech, storageId, location);
+    private void Change(LoadoutPlan plan)
+    {
         var mech = SelectedMech;
-        if (!Loadout.Removable(mech.Definition, itemId) || SelectedRemoved.Contains(itemId)) return false;
-        _pending[mech.Id] = SelectedRemoved.Add(itemId); _previews.Remove(mech.Id);
-        Refresh(); return true;
+        if (plan.SameAs(mech.Plan)) _pending.Remove(mech.Id); else _pending[mech.Id] = plan;
+        _previews.Remove(mech.Id); Refresh();
+    }
+    /// <summary>Storage as the hangar shows it: items taken out in pending loadouts are in it, and items pending installation,
+    /// on any mech, are already out of it.</summary>
+    public Dictionary<string, int> StorageCounts()
+    {
+        var counts = _roster.Storage.ToDictionary(entry => entry.Id, entry => entry.Count, StringComparer.Ordinal);
+        foreach (var (id, plan) in _pending)
+            foreach (var (stored, count) in _roster.Mechs.Single(mech => mech.Id == id).StorageChange(plan)) counts[stored] = counts.GetValueOrDefault(stored) + count;
+        return counts;
     }
     /// <summary>A right click over a location panel's slots removes the item there when it is removable. Returns
     /// whether the click landed on a slot, so it does not also go back.</summary>
@@ -191,6 +226,26 @@ public partial class HangarScreen : Control
         if (key.Keycode == Key.Tab) Preview.Gait = (PreviewGait)(((int)Preview.Gait + 1) % 3);
         else Board.Visible = !Board.Visible;
         return true;
+    }
+    /// <summary>Escape or a right click while dragging a spare cancels the drag and nothing else.</summary>
+    public bool CancelDrag(InputEvent input)
+    {
+        if (!IsVisibleInTree() || !GetViewport().GuiIsDragging() || input is not (InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }
+            or InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right })) return false;
+        GetViewport().GuiCancelDrag();
+        return true;
+    }
+    /// <summary>Dragging a spare shows the location panels, each marked with whether it can take the spare and why not.</summary>
+    public override void _Notification(int what)
+    {
+        if (what == NotificationDragBegin && IsVisibleInTree() && _roster is not null
+            && GetViewport().GuiGetDragData().Obj is string id && StorageCatalog.Describe(id) is not null)
+        {
+            Board.Visible = true;
+            foreach (var (location, panel) in _locations) panel.ShowDrop(id, InstallProblem(id, location));
+        }
+        else if (what == NotificationDragEnd)
+            foreach (var panel in _locations.Values) panel.ShowDrop(null, null);
     }
     public override void _UnhandledKeyInput(InputEvent @event)
     {
@@ -232,7 +287,8 @@ public partial class HangarScreen : Control
         foreach (var (location, panel) in _locations) panel.Display(mech, layout[location]);
         _mechName.Text = spec.DisplayName;
         TonnageText.Text = TonnageSummary(mech);
-        TonnageText.AddThemeColorOverride("font_color", mech.Tons < spec.Tonnage ? HangarLocationPanel.Damaged : Ui.Text);
+        TonnageText.AddThemeColorOverride("font_color", mech.OverTonnage ? HangarLocationPanel.Destroyed : mech.Tons < mech.Definition.Tonnage ? HangarLocationPanel.Damaged : Ui.Text);
+        OverTonnageText.Visible = mech.OverTonnage;
         _mechClass.Text = $"{DefinitionText.WeightClass(spec.WeightClass).ToUpperInvariant()}  ·  {spec.Role}\n{spec.Engine}";
         _mechStatus.Text = mech.Status;
         SpeedText.Text = SpeedSummary(spec);
@@ -253,10 +309,12 @@ public partial class HangarScreen : Control
         var current = warrior is null ? _pilotIds.FindIndex(id => _roster.Assignment(id) is null) : _pilotIds.IndexOf(warrior.Id);
         PilotPicker.Select(current >= 0 ? current : _pilotIds.Count > 0 ? 0 : -1);
         PilotPicker.Disabled = _pilotIds.Count == 0; UpdateAssignmentAction();
-        var pending = SelectedHasPendingChanges;
-        ResetButton.Disabled = ApplyButton.Disabled = !pending;
-        ResetButton.FocusMode = ApplyButton.FocusMode = pending ? FocusModeEnum.All : FocusModeEnum.None;
-        if (pending) ApplyButton.AddThemeStyleboxOverride("normal", Ui.Box(new Color("344431"), Ui.Gold));
+        var pending = SelectedHasPendingChanges; var applicable = pending && !mech.OverTonnage;
+        ResetButton.Disabled = !pending; ApplyButton.Disabled = !applicable;
+        ResetButton.FocusMode = pending ? FocusModeEnum.All : FocusModeEnum.None;
+        ApplyButton.FocusMode = applicable ? FocusModeEnum.All : FocusModeEnum.None;
+        ApplyButton.TooltipText = mech.OverTonnage ? $"Over tonnage by {(mech.Tons - mech.Definition.Tonnage).ToString("0.#", CultureInfo.InvariantCulture)} t" : "";
+        if (applicable) ApplyButton.AddThemeStyleboxOverride("normal", Ui.Box(new Color("344431"), Ui.Gold));
         else ApplyButton.RemoveThemeStyleboxOverride("normal");
         for (var i = 0; i < RosterButtons.Count; i++)
         {
@@ -283,10 +341,7 @@ public partial class HangarScreen : Control
     private void ShowStorage()
     {
         RosterUi.Clear(StorageList);
-        // Items removed in pending loadouts show in storage straight away.
-        var counts = _roster.Storage.ToDictionary(entry => entry.Id, entry => entry.Count, StringComparer.Ordinal);
-        foreach (var (id, removed) in _pending)
-            foreach (var stored in _roster.Mechs.Single(mech => mech.Id == id).Stored(removed)) counts[stored] = counts.GetValueOrDefault(stored) + 1;
+        var counts = StorageCounts();
         var items = counts.Select(pair => (Entry: new StorageEntry(pair.Key, pair.Value), Item: StorageCatalog.Describe(pair.Key)!)).ToArray();
         if (items.Length == 0) RosterUi.Text(StorageList, "No spare equipment", 12, Ui.Muted);
         foreach (var group in items.GroupBy(item => item.Item.Group).OrderBy(group => group.Key))
@@ -295,10 +350,7 @@ public partial class HangarScreen : Control
             heading.CustomMinimumSize = new Vector2(0, 22); heading.VerticalAlignment = VerticalAlignment.Bottom;
             foreach (var (entry, item) in group.OrderBy(item => item.Item.Name, StringComparer.Ordinal))
             {
-                var line = RosterUi.Text(StorageList, $"{item.Name} ×{entry.Count}", 13);
-                line.Name = $"Storage {item.Id}";
-                var heat = item.Heat > 0 ? $" · {item.Heat} heat" : "";
-                RosterUi.Text(StorageList, $"{item.Tons.ToString("0.#", CultureInfo.InvariantCulture)} t · {item.Slots} {(item.Slots == 1 ? "slot" : "slots")}{heat}", 11, Ui.Muted);
+                StorageList.AddChild(new HangarStorageLine(item, entry.Count) { Name = $"Storage {item.Id}" });
             }
         }
     }
@@ -316,6 +368,7 @@ public partial class HangarScreen : Control
         var compact = Compact;
         var leftWidth = compact ? 190 : 280; var rightWidth = compact ? 230 : 310;
         var top = 24f; var bottom = Size.Y - 78; var gap = compact ? 10 : 16;
+        Ui.Place(OverTonnageText, 24 + leftWidth + gap, 0, Size.X - 48 - leftWidth - rightWidth - gap * 2, top);
         Ui.Place(StoragePanel, 24, top, leftWidth, bottom - top - 8);
         Ui.Place(SummaryPanel, Size.X - rightWidth - 24, top, rightWidth, bottom - top - 8);
         var centreX = 24 + leftWidth + gap; var centreWidth = Size.X - 48 - leftWidth - rightWidth - gap * 2;

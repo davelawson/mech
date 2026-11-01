@@ -65,9 +65,95 @@ internal static class HangarChecks
             check(rejected, $"storage restore rejects an {reason}");
         }
         LoadoutChecks(check);
+        InstallChecks(check);
         check(StorageCatalog.Describe(StorageCatalog.JumpJetId(55))!.Tons == .5f && StorageCatalog.Describe(StorageCatalog.JumpJetId(60))!.Tons == 1
             && StorageCatalog.Describe(StorageCatalog.JumpJetId(90))!.Tons == 2 && StorageCatalog.Describe(StorageCatalog.HeatSinkId(HeatSinkKind.Double))!.Slots == 3,
             "jump jet mass follows mech weight; double heat sinks take three slots");
+    }
+
+    /// <summary>Installing spares: placement after the stock items, mounts, location and compatibility rules, storage, tonnage and saves.</summary>
+    private static void InstallChecks(Action<bool, string> check)
+    {
+        var wolverine = DraftCatalog.Mech("wolverine");
+        var roster = ForceRoster.Create("Install Test", [wolverine, wolverine], DraftCatalog.Warriors.Take(2));
+        var mech = roster.Mechs[0]; var stock = mech.Spec;
+        int Count(string id) => roster.Storage.SingleOrDefault(item => item.Id == id)?.Count ?? 0;
+        int Free(OwnedMech owned, MechLocation location) => EquipmentRules.Capacity(location) - CriticalLayout.Used(CriticalLayout.For(owned.Spec)[location]);
+        check(Loadout.NextId([new("fit:1", "ammo:AC5", MechLocation.LeftTorso), new("fit:3", "ammo:AC5", MechLocation.LeftTorso)]) == "fit:4",
+            "installed item ids are never reused");
+
+        // A removed weapon frees its mount for a spare, which goes after everything else in the location.
+        var weapon = stock.Weapons.First(item => EquipmentRules.Slots(item.Kind) <= EquipmentRules.Capacity(item.Location)
+            && Loadout.FreeMounts(Loadout.Strip(stock, new HashSet<string> { item.Id }), item.Location, WeaponMounts.ClassOf(item.Kind)) > 0);
+        var weaponId = StorageCatalog.WeaponId(weapon.Kind);
+        var unmounted = Enum.GetValues<MechLocation>().First(location => Loadout.FreeMounts(stock, location, WeaponMounts.ClassOf(weapon.Kind)) <= 0
+            && Free(mech, location) >= EquipmentRules.Slots(weapon.Kind));
+        check(Loadout.InstallProblem(mech, weaponId, unmounted) == $"No free {WeaponMounts.ClassOf(weapon.Kind).ToString().ToLowerInvariant()} mount",
+            "a weapon needs a free mount of its class in the location");
+        var removed = LoadoutPlan.Removing([weapon.Id]);
+        check(Loadout.InstallProblem(mech.WithLoadout(removed), weaponId, weapon.Location) is null, "removing a weapon frees its mount");
+        var spare = new InstalledItem("fit:1", weaponId, weapon.Location);
+        var plan = removed with { Installed = [spare] };
+        var fitted = mech.WithLoadout(plan);
+        var blocks = CriticalLayout.For(fitted.Spec)[weapon.Location];
+        check(blocks.Last(block => block.Kind != SlotKind.Empty).ItemId == spare.Id
+            && blocks.SkipWhile(block => block.Kind != SlotKind.Empty).All(block => block.Kind == SlotKind.Empty)
+            && fitted.Tons == stock.Tonnage && fitted.Condition(spare.Id) == ComponentCondition.Operational
+            && fitted.Spec.Weapons.Single(item => item.Id == spare.Id) is { Rear: false } installed && installed.Kind == weapon.Kind && mech.Spec == stock,
+            "an installed spare takes the first empty slots after the rest, operational and facing forward");
+
+        // Applying moves spares out of storage, and taking an installed item out returns it.
+        var before = Count(weaponId);
+        roster.ApplyLoadout(mech.Id, plan);
+        check(Count(weaponId) == before && mech.Installed.Single() == spare && mech.Spec.Weapons.Length == stock.Weapons.Length,
+            "applying swaps the removed weapon into storage and the spare out of it");
+        var restored = ForceRoster.Restore(roster.Snapshot(), Campaign.StartDate);
+        check(restored.Mechs[0].Installed.SequenceEqual(mech.Installed) && restored.Mechs[0].Spec.Weapons.Any(item => item.Id == spare.Id),
+            "installed items survive save and restore");
+        roster.ApplyLoadout(mech.Id, mech.Plan with { Installed = [] });
+        check(Count(weaponId) == before + 1 && mech.Installed.IsEmpty && mech.Spec.Weapons.All(item => item.Id != spare.Id),
+            "taking an installed item out returns it to storage");
+
+        // Heat sinks add cooling and mass; an overweight loadout cannot be applied.
+        var sinkId = StorageCatalog.HeatSinkId(stock.HeatSinkType);
+        var full = roster.Mechs[1];
+        var room = Enum.GetValues<MechLocation>().First(location => Free(full, location) >= EquipmentRules.HeatSinkSlots(stock.HeatSinkType));
+        var heavy = full.WithLoadout(full.Plan with { Installed = [new(Loadout.NextId(full.Installed), sinkId, room)] });
+        check(heavy.Spec.HeatSinks == stock.HeatSinks + 1 && heavy.Tons == stock.Tonnage + 1 && heavy.OverTonnage, "a heat sink adds cooling and a ton");
+        var refused = false;
+        try { roster.ApplyLoadout(full.Id, heavy.Plan); }
+        catch (ArgumentException) { refused = true; }
+        check(refused && full.Installed.IsEmpty, "an overweight loadout cannot be applied");
+        var other = stock.HeatSinkType == HeatSinkKind.Single ? HeatSinkKind.Double : HeatSinkKind.Single;
+        check(Loadout.InstallProblem(mech, StorageCatalog.HeatSinkId(other), room) == $"Takes {DefinitionText.HeatSinks(stock.HeatSinkType)} heat sinks only",
+            "heat sinks must match the mech's type");
+
+        // Jump jets: torsos and legs only, the mech's own mass class, and no more jump than walking MP.
+        var jetId = StorageCatalog.JumpJetId(stock.Tonnage);
+        check(Loadout.InstallProblem(mech, jetId, MechLocation.LeftArm) == "Jump jets: torso or legs only"
+            && Loadout.InstallProblem(mech, StorageCatalog.JumpJetId(100), MechLocation.CenterTorso) == $"Wrong jump jets for {stock.Tonnage} t",
+            "jump jets go in torsos and legs and match the mech's mass class");
+        var jet = stock.Components.First(item => item.Kind == ComponentKind.JumpJet);
+        var grounded = mech.WithLoadout(mech.Plan with { Removed = mech.Removed.Add(jet.Id) });
+        check(stock.Jump == stock.Walk ? Loadout.InstallProblem(mech, jetId, jet.Location) == "Jump MP cannot exceed walking MP"
+                && Loadout.InstallProblem(grounded, jetId, jet.Location) is null
+            : Loadout.InstallProblem(mech, jetId, jet.Location) is null,
+            "jump jets cannot raise jump MP above walking MP");
+
+        // Full and destroyed locations take nothing.
+        var bin = StorageCatalog.AmmoId(stock.Ammo[0].AmmoKind);
+        var free = Free(mech, room);
+        var packed = mech.WithLoadout(mech.Plan with { Installed = [.. Enumerable.Range(1, free).Select(n => new InstalledItem($"fit:{n}", bin, room))] });
+        check(Free(packed, room) == 0 && Loadout.InstallProblem(packed, bin, room) == "Needs 1 free slot", "a full location takes nothing more");
+        var save = roster.Snapshot();
+        var wrecked = ForceRoster.Restore(save with { Mechs = [save.Mechs[0] with { Locations = [.. save.Mechs[0].Locations
+            .Select(item => item.Location == room ? item with { Armor = 0, RearArmor = 0, Structure = 0 } : item)] }, .. save.Mechs[1..]] }, Campaign.StartDate);
+        check(Loadout.InstallProblem(wrecked.Mechs[0], bin, room) == "Location destroyed", "a destroyed location takes nothing");
+
+        refused = false;
+        try { ForceRoster.Restore(save with { Mechs = [save.Mechs[0] with { Installed = [new("fit:1", "weapon:Railgun", room)] }, .. save.Mechs[1..]] }, Campaign.StartDate); }
+        catch (ArgumentException) { refused = true; }
+        check(refused, "restore rejects an unknown installed item");
     }
 
     /// <summary>Individual heat sinks and jump jets, removal, storage on apply, scrapping, suspect items and saved loadouts.</summary>
@@ -90,7 +176,7 @@ internal static class HangarChecks
         var jet = stock.Components.First(item => item.Kind == ComponentKind.JumpJet);
         var sink = stock.Components.FirstOrDefault(item => item.Kind == ComponentKind.HeatSink);
         var removed = new[] { weapon.Id, jet.Id }.Concat(sink is null ? [] : [sink.Id]).ToHashSet();
-        var preview = mech.WithRemoved(removed);
+        var preview = mech.WithLoadout(LoadoutPlan.Removing(removed));
         check(preview.Spec.Weapons.Length == stock.Weapons.Length - 1 && preview.Spec.Jump == stock.Jump - 1
             && preview.Spec.HeatSinks == stock.HeatSinks - (sink is null ? 0 : 1) && preview.Equipment.All(item => !removed.Contains(item.Id))
             && mech.Spec == stock && mech.Removed.IsEmpty, "a pending loadout previews removals without changing the owned mech");
@@ -98,14 +184,14 @@ internal static class HangarChecks
         check(Mathf.IsEqualApprox(preview.Tons, stock.Tonnage - mass) && HangarScreen.TonnageSummary(mech) == $"{stock.Tonnage} / {stock.Tonnage} t",
             "current tonnage is the rating less the mass of removed items");
         var before = (Weapon: Count(StorageCatalog.WeaponId(weapon.Kind)), Jet: Count(StorageCatalog.JumpJetId(stock.Tonnage)));
-        roster.ApplyLoadout(mech.Id, removed);
+        roster.ApplyLoadout(mech.Id, LoadoutPlan.Removing(removed));
         check(mech.Removed.SetEquals(removed) && mech.Spec.Jump == stock.Jump - 1 && Count(StorageCatalog.WeaponId(weapon.Kind)) == before.Weapon + 1
             && Count(StorageCatalog.JumpJetId(stock.Tonnage)) == before.Jet + 1, "applying a loadout moves the removed items into storage");
         var restored = ForceRoster.Restore(roster.Snapshot(), Campaign.StartDate);
         check(restored.Mechs[0].Removed.SetEquals(removed) && restored.Mechs[0].Spec.Weapons.Length == stock.Weapons.Length - 1
             && restored.Storage.SequenceEqual(roster.Storage), "a removed loadout survives save and restore");
         var rejected = false;
-        try { roster.ApplyLoadout(mech.Id, removed.Append(stock.Components.First(item => item.Kind == ComponentKind.Gyro).Id).ToHashSet()); }
+        try { roster.ApplyLoadout(mech.Id, LoadoutPlan.Removing(removed.Append(stock.Components.First(item => item.Kind == ComponentKind.Gyro).Id))); }
         catch (ArgumentException) { rejected = true; }
         check(rejected && mech.Removed.SetEquals(removed), "fixed systems cannot be removed");
         rejected = false;
@@ -120,7 +206,7 @@ internal static class HangarChecks
             { Equipment = [.. item.Equipment.Select(e => e.Id == weapon.Id ? e with { Condition = ComponentCondition.Destroyed } : e)] })] };
         fresh = ForceRoster.Restore(broken, Campaign.StartDate);
         var stored = fresh.Storage.Single(item => item.Id == StorageCatalog.WeaponId(weapon.Kind)).Count;
-        fresh.ApplyLoadout(target.Id, new HashSet<string> { weapon.Id });
+        fresh.ApplyLoadout(target.Id, LoadoutPlan.Removing([weapon.Id]));
         check(fresh.Storage.Single(item => item.Id == StorageCatalog.WeaponId(weapon.Kind)).Count == stored && fresh.Mechs[1].Removed.Contains(weapon.Id),
             "a destroyed item is scrapped when removed");
 
@@ -155,8 +241,9 @@ public partial class SmokeTests
         panel.GetGlobalTransformWithCanvas() * panel.BlockRect(block).GetCenter();
     private static (HangarLocationPanel Panel, CriticalBlock Block) FindBlock(HangarScreen hangar, Func<CriticalBlock, bool> match) =>
         hangar.LocationPanels.Values.SelectMany(panel => panel.Blocks.Select(block => (panel, block))).First(item => match(item.block));
-    private static int StorageCount(HangarScreen hangar, string name) => hangar.StorageList.GetChildren().OfType<Label>()
-        .Select(label => label.Text).Where(text => text.StartsWith(name + " ×", StringComparison.Ordinal))
+    private static IEnumerable<string> StorageTexts(HangarScreen hangar) =>
+        hangar.StorageList.FindChildren("*", "Label", true, false).OfType<Label>().Select(label => label.Text);
+    private static int StorageCount(HangarScreen hangar, string name) => StorageTexts(hangar).Where(text => text.StartsWith(name + " ×", StringComparison.Ordinal))
         .Select(text => int.Parse(text[(name.Length + 2)..])).SingleOrDefault();
 
     /// <summary>Right-click removal, pending loadouts per mech, Apply and Reset, the ⚠ confirmation, the leave warning and simulations.</summary>
@@ -164,7 +251,7 @@ public partial class SmokeTests
     {
         var hangar = _app.Hangar; var roster = _app.State.Roster!;
         GetWindow().Size = new Vector2I(1440, 900); await Frames();
-        var index = roster.Mechs.ToList().FindIndex(mech => mech.Spec.Weapons.Any(item => item.AmmoKind is not null));
+        var index = roster.Mechs.ToList().FindIndex(mech => mech.Spec.Weapons.Any(item => item.AmmoKind is not null) && mech.Spec.Weapons.Any(item => item.AmmoKind is null));
         hangar.Select(index); await Frames();
         var mech = hangar.SelectedMech; var stock = mech.Spec;
         Check(hangar.ApplyButton.Disabled && hangar.ResetButton.Disabled && hangar.TonnageText.Text == $"{stock.Tonnage} / {stock.Tonnage} t",
@@ -239,6 +326,74 @@ public partial class SmokeTests
         await Click(_app.Office.HangarButton);
     }
 
+    /// <summary>Starts dragging a storage line with the mouse, leaving the button held over the given point.</summary>
+    private async Task<HangarStorageLine> StartStorageDrag(HangarScreen hangar, string storageId, Vector2 over)
+    {
+        var line = hangar.StorageList.GetChildren().OfType<HangarStorageLine>().Single(item => item.Item.Id == storageId);
+        Node scroll = line;
+        while (scroll is not ScrollContainer) scroll = scroll.GetParent();
+        ((ScrollContainer)scroll).EnsureControlVisible(line); await Frames();
+        var from = line.GetGlobalRect().GetCenter();
+        MouseMotion(from, Vector2.Zero); MouseButton(from, Godot.MouseButton.Left, true); await Frames();
+        MouseMotion(from + new Vector2(20, 0), new Vector2(20, 0)); await Frames();
+        MouseMotion(over, over - from - new Vector2(20, 0)); await Frames();
+        return line;
+    }
+
+    /// <summary>Dragging spares from storage onto location panels, drop feedback, cancelling, and the over-tonnage warning.</summary>
+    private async Task TestHangarInstall()
+    {
+        var hangar = _app.Hangar; var roster = _app.State.Roster!;
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        var index = roster.Mechs.ToList().FindIndex(mech => mech.Removed.IsEmpty && mech.Spec.Weapons.Any(item => EquipmentRules.Slots(item.Kind) <= EquipmentRules.Capacity(item.Location)
+            && Loadout.FreeMounts(Loadout.Strip(mech.Spec, new HashSet<string> { item.Id }), item.Location, WeaponMounts.ClassOf(item.Kind)) > 0));
+        hangar.Select(index); await Frames();
+        var stock = hangar.SelectedMech.Spec;
+        var weapon = stock.Weapons.First(item => EquipmentRules.Slots(item.Kind) <= EquipmentRules.Capacity(item.Location)
+            && Loadout.FreeMounts(Loadout.Strip(stock, new HashSet<string> { item.Id }), item.Location, WeaponMounts.ClassOf(item.Kind)) > 0);
+        var storageId = StorageCatalog.WeaponId(weapon.Kind);
+        hangar.Remove(weapon.Id); await Frames();
+        var stored = StorageCount(hangar, weapon.Name);
+        var target = hangar.LocationPanels[weapon.Location];
+
+        // Escape cancels the drag without leaving the hangar; hidden panels reappear while dragging.
+        await PressKey(Key.Space);
+        Check(!hangar.Board.Visible, "Space hides the panels before the drag");
+        await StartStorageDrag(hangar, storageId, hangar.Board.GetGlobalRect().GetCenter());
+        Check(GetViewport().GuiIsDragging() && hangar.Board.Visible && target.DragItem == storageId && target.DropProblem is null
+            && hangar.LocationPanels.Values.Any(panel => panel.DropProblem is not null), "dragging a spare shows the panels, marking where it can go and why not");
+        await Capture("hangar-install-drag");
+        await PressKey(Key.Escape);
+        MouseButton(target.GetGlobalRect().GetCenter(), Godot.MouseButton.Left, false); await Frames();
+        Check(!GetViewport().GuiIsDragging() && _app.Navigation.CurrentScreen == CommandScreen.Hangar && !_app.Dialog.Visible
+            && StorageCount(hangar, weapon.Name) == stored && target.DragItem is null, "Escape cancels the drag and stays in the hangar");
+
+        // Dropping on a panel installs the spare in its first empty slots.
+        await StartStorageDrag(hangar, storageId, target.GetGlobalRect().GetCenter());
+        MouseButton(target.GetGlobalRect().GetCenter(), Godot.MouseButton.Left, false); await Frames();
+        var installed = hangar.SelectedPlan.Installed.SingleOrDefault();
+        Check(installed is not null && installed.StorageId == storageId && installed.Location == weapon.Location
+            && target.Blocks.Last(block => block.Kind != SlotKind.Empty).ItemId == installed.Id && StorageCount(hangar, weapon.Name) == stored - 1
+            && hangar.SelectedHasPendingChanges, "dropping a spare on a panel installs it as a pending change");
+
+        // Taking a pending spare out returns it to storage.
+        var (panel, block) = FindBlock(hangar, item => item.ItemId == installed!.Id);
+        await RightClick(BlockCentre(panel, block));
+        Check(hangar.SelectedPlan.Installed.IsEmpty && StorageCount(hangar, weapon.Name) == stored, "right-clicking a pending spare returns it to storage");
+        await Click(hangar.ResetButton);
+
+        // Going over tonnage warns and disables Apply until something comes out.
+        var bin = roster.Storage.Select(item => item.Id).First(id => id.StartsWith("ammo:", StringComparison.Ordinal));
+        var room = hangar.LocationPanels.First(pair => hangar.InstallProblem(bin, pair.Key) is null).Key;
+        Check(!hangar.OverTonnageText.Visible && hangar.Install(bin, room), "a bin installs in a location with room");
+        await Frames();
+        Check(hangar.OverTonnageText.Visible && hangar.SelectedOverTonnage && hangar.ApplyButton.Disabled && !hangar.ResetButton.Disabled
+            && hangar.ApplyButton.TooltipText == "Over tonnage by 1 t", "an overweight mech shows Over Tonnage and cannot apply");
+        await Capture("hangar-over-tonnage");
+        await Click(hangar.ResetButton);
+        Check(!hangar.OverTonnageText.Visible && !hangar.HasPendingChanges, "Reset clears the over-tonnage warning");
+    }
+
     /// <summary>Hangar layout, location panels, storage list and the blueprint's right-drag spin.</summary>
     private async Task TestHangarScreen()
     {
@@ -286,7 +441,7 @@ public partial class SmokeTests
             "hovering a slot names the item with its mass, slots and condition");
         Check(hangar.SpeedText.Text == HangarScreen.SpeedSummary(mech.Spec) && hangar.HeatText.Text == HangarScreen.HeatSummary(mech.Spec)
             && hangar.ProtectionText.Text.StartsWith("Armor ", StringComparison.Ordinal), "summary shows speeds, protection and heat");
-        var lines = hangar.StorageList.GetChildren().OfType<Label>().Select(label => label.Text).ToArray();
+        var lines = StorageTexts(hangar).ToArray();
         Check(lines.Contains("ENERGY") && lines.Contains("AMMO") && lines.Contains("EQUIPMENT")
             && lines.Any(line => line.StartsWith("Heat Sink ×", StringComparison.Ordinal)), "storage lists grouped spare equipment");
 

@@ -62,6 +62,7 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | F6 / F7 (debug builds) | Select the previewed mech's next hardpoint / cycle its weapon visual |
 | Hover a critical slot | Item mass, slots and condition |
 | Right-click a weapon, ammo bin, heat sink or jump jet | Remove it (pending until applied) |
+| Drag a storage line onto a location panel | Install the spare there (pending until applied); Escape or right-click cancels the drag |
 | **Apply** / **Reset** | Commit / discard the selected mech's pending loadout changes |
 | **Simulate Deployment** | Choose Randomized enemy or Mirror match, then 1–4 mechs and a terrain seed |
 | **Combat** | |

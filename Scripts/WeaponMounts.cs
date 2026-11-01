@@ -44,6 +44,8 @@ public static class WeaponMounts
         _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
 
+    public static HardpointClass ClassOf(WeaponKind kind) => Want(kind).Class;
+
     private static int? Size(string visual, string family) =>
         visual.StartsWith(family, StringComparison.Ordinal) && int.TryParse(visual[family.Length..], out var size) ? size : null;
 
