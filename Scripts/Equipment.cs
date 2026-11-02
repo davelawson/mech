@@ -117,8 +117,67 @@ public static class CriticalLayout
     };
 }
 
-/// <summary>A spare from storage installed on a mech in the hangar. Ids are `fit:1`, `fit:2`, … in installation order.</summary>
-public sealed record InstalledItem(string Id, string StorageId, MechLocation Location);
+/// <summary>A location's weapon mounts as the hangar shows them: the free ones (Ballistic, then Energy, then Missile) and, by item,
+/// the ones other items cover.</summary>
+public sealed record LocationMounts(ImmutableArray<HardpointClass> Free, ImmutableDictionary<string, ImmutableArray<HardpointClass>> Covered)
+{
+    public static readonly LocationMounts None = new([], ImmutableDictionary<string, ImmutableArray<HardpointClass>>.Empty);
+}
+
+/// <summary>Weapon mounts are critical slots. A location's mount slots are its hardpoints; the rest are regular slots. Each weapon
+/// takes one mount of its class while one is left. An installed item dropped on a mount slot covers that mount. Every other
+/// slot fills regular slots first, then covers free mounts from the bottom up: Missile, then Energy, then Ballistic.</summary>
+public static class MountLayout
+{
+    public static readonly ImmutableArray<HardpointClass> Classes = [HardpointClass.Ballistic, HardpointClass.Energy, HardpointClass.Missile];
+
+    public static ImmutableDictionary<MechLocation, LocationMounts> For(MechSpec spec, IReadOnlyList<InstalledItem> installed) =>
+        For(spec, installed, CriticalLayout.For(spec));
+
+    public static ImmutableDictionary<MechLocation, LocationMounts> For(MechSpec spec, IReadOnlyList<InstalledItem> installed,
+        ImmutableDictionary<MechLocation, ImmutableArray<CriticalBlock>> layout)
+    {
+        var hardpoints = MechModel.Hardpoints(spec.Id);
+        var chosen = installed.Where(item => item.Mount is not null).ToDictionary(item => item.Id, item => item.Mount!.Value, StringComparer.Ordinal);
+        return layout.ToImmutableDictionary(pair => pair.Key, pair => Location(spec, pair.Key, pair.Value, hardpoints, chosen));
+    }
+
+    private static LocationMounts Location(MechSpec spec, MechLocation location, ImmutableArray<CriticalBlock> blocks,
+        IReadOnlyList<Hardpoint> hardpoints, IReadOnlyDictionary<string, HardpointClass> chosen)
+    {
+        var free = Classes.ToDictionary(type => type, type => hardpoints.Count(item => item.Location == location && item.Class == type));
+        var regular = Math.Max(0, EquipmentRules.Capacity(location) - free.Values.Sum());
+        var items = blocks.Where(block => block.ItemId is not null).ToArray();
+        var own = new HashSet<string>(StringComparer.Ordinal);
+        var covered = new Dictionary<string, List<HardpointClass>>(StringComparer.Ordinal);
+        bool Take(HardpointClass type) { if (free.GetValueOrDefault(type) <= 0) return false; free[type]--; return true; }
+        // Weapons claim their mounts before anything may cover them. A split weapon's far half has no mount of its own.
+        var weapons = spec.Weapons.Where(item => item.Location == location).ToDictionary(item => item.Id, StringComparer.Ordinal);
+        foreach (var block in items)
+            if (weapons.TryGetValue(block.ItemId!, out var weapon) && Take(WeaponMounts.ClassOf(weapon.Kind))) own.Add(block.ItemId!);
+        foreach (var block in items)
+            if (!own.Contains(block.ItemId!) && chosen.TryGetValue(block.ItemId!, out var mount) && Take(mount))
+            { own.Add(block.ItemId!); covered[block.ItemId!] = [mount]; }
+
+        var overflow = Math.Max(0, items.Sum(block => block.Length - (own.Contains(block.ItemId!) ? 1 : 0)) - regular);
+        var taken = new Queue<HardpointClass>();
+        foreach (var type in Classes.Reverse())
+            while (overflow > 0 && Take(type)) { taken.Enqueue(type); overflow--; }
+        // The covered mounts go to the bottom-most items.
+        foreach (var block in items.AsEnumerable().Reverse())
+            for (var slot = own.Contains(block.ItemId!) ? 1 : 0; slot < block.Length && taken.Count > 0; slot++)
+            {
+                if (!covered.TryGetValue(block.ItemId!, out var list)) covered[block.ItemId!] = list = [];
+                list.Add(taken.Dequeue());
+            }
+        return new([.. Classes.SelectMany(type => Enumerable.Repeat(type, free[type]))],
+            covered.ToImmutableDictionary(pair => pair.Key, pair => pair.Value.ToImmutableArray(), StringComparer.Ordinal));
+    }
+}
+
+/// <summary>A spare from storage installed on a mech in the hangar. Ids are `fit:1`, `fit:2`, … in installation order. Mount is the
+/// weapon mount a non-weapon was dropped on, which it covers.</summary>
+public sealed record InstalledItem(string Id, string StorageId, MechLocation Location, HardpointClass? Mount = null);
 
 /// <summary>A mech's loadout as the stock items removed and the storage items installed, in installation order.</summary>
 public sealed record LoadoutPlan(ImmutableHashSet<string> Removed, ImmutableArray<InstalledItem> Installed)
@@ -190,11 +249,10 @@ public static class Loadout
         };
     }
 
-    /// <summary>Hardpoints of a class in a location not taken by its installed weapons of that class. Stock weapons beyond the
-    /// hardpoints (or in a location with none) are kept, but leave no free mount.</summary>
-    public static int FreeMounts(MechSpec spec, MechLocation location, HardpointClass type) =>
-        MechModel.Hardpoints(spec.Id).Count(item => item.Location == location && item.Class == type)
-        - spec.Weapons.Count(item => item.Location == location && WeaponMounts.ClassOf(item.Kind) == type);
+    /// <summary>Hardpoints of a class in a location neither taken by its weapons of that class nor covered by other items (see
+    /// <see cref="MountLayout"/>). Stock weapons beyond the hardpoints (or in a location with none) are kept, but leave no free mount.</summary>
+    public static int FreeMounts(MechSpec spec, MechLocation location, HardpointClass type, IReadOnlyList<InstalledItem>? installed = null) =>
+        MountLayout.For(spec, installed ?? [])[location].Free.Count(item => item == type);
 
     /// <summary>Why this storage item cannot be installed in a location of the mech as shown, or null when it can. Mass is no
     /// obstacle here: an overweight loadout can be built but not applied.</summary>
@@ -207,7 +265,7 @@ public static class Loadout
         {
             case "weapon":
                 var type = WeaponMounts.ClassOf(Enum.Parse<WeaponKind>(storageId.Split(':')[1]));
-                if (FreeMounts(spec, location, type) <= 0) return $"No free {type.ToString().ToLowerInvariant()} mount";
+                if (FreeMounts(spec, location, type, mech.Installed) <= 0) return $"No free {type.ToString().ToLowerInvariant()} mount";
                 break;
             case "heat-sink" when storageId != StorageCatalog.HeatSinkId(spec.HeatSinkType):
                 return $"Takes {DefinitionText.HeatSinks(spec.HeatSinkType)} heat sinks only";

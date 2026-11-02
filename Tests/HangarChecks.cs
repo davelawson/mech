@@ -93,7 +93,7 @@ internal static class HangarChecks
         var removed = LoadoutPlan.Removing([weapon.Id]);
         check(Loadout.InstallProblem(mech.WithLoadout(removed), weaponId, weapon.Location) is null, "removing a weapon frees its mount");
         var spare = new InstalledItem("fit:1", weaponId, weapon.Location);
-        var plan = removed with { Installed = [spare] };
+        var plan = removed with { Installed = [spare] }; var refused = false;
         var fitted = mech.WithLoadout(plan);
         var blocks = CriticalLayout.For(fitted.Spec)[weapon.Location];
         check(blocks.Last(block => block.Kind != SlotKind.Empty).ItemId == spare.Id
@@ -114,13 +114,44 @@ internal static class HangarChecks
         check(Count(weaponId) == before + 1 && mech.Installed.IsEmpty && mech.Spec.Weapons.All(item => item.Id != spare.Id),
             "taking an installed item out returns it to storage");
 
+        // Mount slots: other items fill regular slots first, then cover mounts bottom-up, or the mount they were dropped on.
+        var binId = StorageCatalog.AmmoId(stock.Ammo[0].AmmoKind);
+        var opened = mech.WithLoadout(removed);
+        var mounts = MountLayout.For(opened.Spec, opened.Installed)[weapon.Location];
+        var empty = Free(opened, weapon.Location); var regular = empty - mounts.Free.Length;
+        InstalledItem[] Bins(int count, HardpointClass? mount = null) => [.. Enumerable.Range(1, count).Select(n => new InstalledItem($"fit:{n}", binId, weapon.Location, n == 1 ? mount : null))];
+        LocationMounts MountsWith(InstalledItem[] items) => MountLayout.For(Loadout.Build(stock, removed.Removed, items), items)[weapon.Location];
+        check(mounts.Free.Contains(WeaponMounts.ClassOf(weapon.Kind)) && regular >= 0 && mounts.Free.SequenceEqual(mounts.Free.Order()),
+            "a location lists its free mounts Ballistic, Energy then Missile");
+        var filled = MountsWith(Bins(regular));
+        check(filled.Free.SequenceEqual(mounts.Free) && filled.Covered.IsEmpty, "other items fill regular slots before weapon mounts");
+        var spilled = MountsWith(Bins(regular + 1));
+        check(spilled.Free.SequenceEqual(mounts.Free.Take(mounts.Free.Length - 1)) && spilled.Covered.Count == 1
+            && spilled.Covered[$"fit:{regular + 1}"].SequenceEqual([mounts.Free[^1]]), "an item with no regular slot left covers the bottom-most free mount");
+        var chosen = MountsWith(Bins(1, mounts.Free[0]));
+        check(chosen.Covered["fit:1"].SequenceEqual([mounts.Free[0]]) && chosen.Free.SequenceEqual(mounts.Free.Skip(1)),
+            "an item dropped on a mount covers that mount even with regular slots free");
+        var type = WeaponMounts.ClassOf(weapon.Kind); var ofType = mounts.Free.Count(item => item == type);
+        var blocking = Enumerable.Range(1, ofType).Select(n => new InstalledItem($"fit:{n}", binId, weapon.Location, type)).ToArray();
+        check(Loadout.InstallProblem(mech.WithLoadout(removed with { Installed = [.. blocking] }), weaponId, weapon.Location) == $"No free {type.ToString().ToLowerInvariant()} mount",
+            "a weapon cannot use a mount another item covers");
+        var coveredSave = roster.Snapshot();
+        coveredSave = coveredSave with { Mechs = [coveredSave.Mechs[0] with { Removed = [weapon.Id], Installed = Bins(1, mounts.Free[0]),
+            Equipment = [.. coveredSave.Mechs[0].Equipment.Where(item => item.Id != weapon.Id), new("fit:1", ComponentCondition.Operational)],
+            Ammo = [.. coveredSave.Mechs[0].Ammo, new("fit:1", stock.Ammo[0].Shots)] }, .. coveredSave.Mechs[1..]] };
+        check(ForceRoster.Restore(coveredSave, Campaign.StartDate).Mechs[0].Installed.Single().Mount == mounts.Free[0], "a covered mount survives save and restore");
+        refused = false;
+        try { ForceRoster.Restore(coveredSave with { Mechs = [coveredSave.Mechs[0] with { Installed = [new("fit:1", binId, weapon.Location, HardpointClass.Ams)] }, .. coveredSave.Mechs[1..]] }, Campaign.StartDate); }
+        catch (ArgumentException) { refused = true; }
+        check(refused, "restore rejects an item covering an unknown mount class");
+
         // Heat sinks add cooling and mass; an overweight loadout cannot be applied.
         var sinkId = StorageCatalog.HeatSinkId(stock.HeatSinkType);
         var full = roster.Mechs[1];
         var room = Enum.GetValues<MechLocation>().First(location => Free(full, location) >= EquipmentRules.HeatSinkSlots(stock.HeatSinkType));
         var heavy = full.WithLoadout(full.Plan with { Installed = [new(Loadout.NextId(full.Installed), sinkId, room)] });
         check(heavy.Spec.HeatSinks == stock.HeatSinks + 1 && heavy.Tons == stock.Tonnage + 1 && heavy.OverTonnage, "a heat sink adds cooling and a ton");
-        var refused = false;
+        refused = false;
         try { roster.ApplyLoadout(full.Id, heavy.Plan); }
         catch (ArgumentException) { refused = true; }
         check(refused && full.Installed.IsEmpty, "an overweight loadout cannot be applied");
@@ -380,6 +411,21 @@ public partial class SmokeTests
         var (panel, block) = FindBlock(hangar, item => item.ItemId == installed!.Id);
         await RightClick(BlockCentre(panel, block));
         Check(hangar.SelectedPlan.Installed.IsEmpty && StorageCount(hangar, weapon.Name) == stored, "right-clicking a pending spare returns it to storage");
+
+        // The freed mount is labelled on an empty slot; a bin dropped on it covers that mount.
+        var mountSlot = target.Blocks.First(item => target.MountAt(item) is not null);
+        var type = target.MountAt(mountSlot)!.Value;
+        Check(target.MountAt(target.Blocks.First(item => item.Kind == SlotKind.Empty)) == target.Mounts.Free[0]
+            && target._GetTooltip(target.BlockRect(mountSlot).GetCenter()).StartsWith($"{type} mount\nFree mounts here: ", StringComparison.Ordinal),
+            "empty slots are labelled with the location's free weapon mounts");
+        var cover = roster.Storage.Select(item => item.Id).First(id => id.StartsWith("ammo:", StringComparison.Ordinal));
+        // Rendered runs place drops at the real cursor rather than the injected one, so drop straight onto the slot.
+        target._DropData(target.BlockRect(mountSlot).GetCenter(), cover); await Frames();
+        var covering = hangar.SelectedPlan.Installed.SingleOrDefault();
+        Check(covering is not null && covering.Mount == type && target.Mounts.Covered[covering.Id].Contains(type)
+            && target._GetTooltip(target.BlockRect(target.Blocks.Single(item => item.ItemId == covering.Id)).GetCenter()).Contains($"Covering a"),
+            "a bin dropped on a mount slot covers that mount");
+        await Capture("hangar-covered-mount");
         await Click(hangar.ResetButton);
 
         // Going over tonnage warns and disables Apply until something comes out.

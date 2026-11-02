@@ -24,8 +24,10 @@ public partial class HangarLocationPanel : Control
     public static readonly Color Damaged = new("e8a33c"), Destroyed = new("d04a3c"), Warning = new("f2d02c");
     /// <summary>Weapons with no compatible ammunition aboard and bins no weapon fires, marked ⚠.</summary>
     public ImmutableHashSet<string> Suspect { get; private set; } = [];
-    /// <summary>A storage item dropped here, to be installed.</summary>
-    public event Action<string>? Dropped;
+    /// <summary>Free weapon mounts, labelled on the first empty slots, and the mounts other items cover. None while destroyed.</summary>
+    public LocationMounts Mounts { get; private set; } = LocationMounts.None;
+    /// <summary>A storage item dropped here, to be installed, with the weapon mount it was dropped on, if any.</summary>
+    public event Action<string, HardpointClass?>? Dropped;
     /// <summary>The spare being dragged, if any, and why it cannot go here (null when it can).</summary>
     public string? DragItem { get; private set; }
     public string? DropProblem { get; private set; }
@@ -34,9 +36,10 @@ public partial class HangarLocationPanel : Control
     public HangarLocationPanel(MechLocation location) { Location = location; MouseFilter = MouseFilterEnum.Pass; }
     public static float HeightFor(MechLocation location, float row) => HeaderHeight + EquipmentRules.Capacity(location) * row + Padding;
 
-    public void Display(OwnedMech mech, ImmutableArray<CriticalBlock> blocks)
+    public void Display(OwnedMech mech, ImmutableArray<CriticalBlock> blocks, LocationMounts mounts)
     {
         _mech = mech; Blocks = blocks; Suspect = Loadout.Suspect(mech.Spec);
+        Mounts = mech.LocationIntact(Location) ? mounts : LocationMounts.None;
         var spec = mech.Spec.Locations.Single(item => item.Location == Location);
         var state = mech.Locations.Single(item => item.Location == Location);
         ArmorText = $"Armor {state.Armor}/{spec.Armor}";
@@ -50,7 +53,23 @@ public partial class HangarLocationPanel : Control
 
     public void ShowDrop(string? item, string? problem) { DragItem = item; DropProblem = problem; QueueRedraw(); }
     public override bool _CanDropData(Vector2 atPosition, Variant data) => DragItem is not null && DropProblem is null && data.Obj is string id && id == DragItem;
-    public override void _DropData(Vector2 atPosition, Variant data) => Dropped?.Invoke((string)data);
+    public override void _DropData(Vector2 atPosition, Variant data) =>
+        Dropped?.Invoke((string)data, BlockAt(atPosition) is { } block ? MountAt(block) : null);
+
+    /// <summary>The free weapon mount an empty slot stands for, or null for a regular or occupied slot.</summary>
+    public HardpointClass? MountAt(CriticalBlock block)
+    {
+        if (block.Kind != SlotKind.Empty) return null;
+        var index = Blocks.Where(item => item.Kind == SlotKind.Empty).ToList().IndexOf(block);
+        return index >= 0 && index < Mounts.Free.Length ? Mounts.Free[index] : null;
+    }
+    public static string MountName(HardpointClass type) => type.ToString();
+    public static Color MountColor(HardpointClass type) => type switch
+    {
+        HardpointClass.Ballistic => new("e6dc82"), HardpointClass.Energy => new("5fd3b0"), _ => new("e07a5a")
+    };
+    private static string MountCount(HardpointClass type, int count) =>
+        count == 1 ? $"{(type == HardpointClass.Energy ? "an" : "a")} {MountName(type)} mount" : $"{count} {MountName(type)} mounts";
 
     public ComponentCondition Condition(CriticalBlock block) => block.ItemId is null || _mech is null
         ? ComponentCondition.Operational : _mech.Condition(block.ItemId);
@@ -62,13 +81,20 @@ public partial class HangarLocationPanel : Control
 
     public override string _GetTooltip(Vector2 atPosition)
     {
+        if (BlockAt(atPosition) is { Kind: SlotKind.Empty } empty && Mounts.Free.Length > 0)
+        {
+            var counts = string.Join(", ", Mounts.Free.GroupBy(type => type).Select(group => $"{group.Count()} {MountName(group.Key).ToLowerInvariant()}"));
+            return $"{(MountAt(empty) is { } mount ? $"{MountName(mount)} mount" : "Empty slot")}\nFree mounts here: {counts}\nDrag a weapon from storage to install";
+        }
         if (BlockAt(atPosition) is not { ItemId: { } id } block || _mech is null) return DraftCatalog.LocationName(Location);
         var split = block.Length < block.ItemSlots ? $" ({block.Length} here)" : "";
         var mass = Loadout.Tons(_mech.Spec, id) is { } tons ? $"{tons:0.#} t · " : "";
         var condition = Condition(block);
         var warning = !Suspect.Contains(id) ? "" : block.Kind == SlotKind.Ammo ? "\n⚠ No weapon uses this ammunition" : "\n⚠ No compatible ammunition installed";
         var remove = !Loadout.Removable(block.Kind) ? "" : condition == ComponentCondition.Destroyed ? "\nRight-click to scrap" : "\nRight-click to remove";
-        return $"{block.Name}\n{mass}{block.ItemSlots} {(block.ItemSlots == 1 ? "slot" : "slots")}{split}\n{condition}{warning}{remove}";
+        var covering = !Mounts.Covered.TryGetValue(id, out var covers) ? ""
+            : string.Concat(covers.GroupBy(type => type).Select(group => $"\nCovering {MountCount(group.Key, group.Count())}"));
+        return $"{block.Name}\n{mass}{block.ItemSlots} {(block.ItemSlots == 1 ? "slot" : "slots")}{split}\n{condition}{covering}{warning}{remove}";
     }
 
     public static Color KindColor(SlotKind kind) => kind switch
@@ -107,20 +133,32 @@ public partial class HangarLocationPanel : Control
         DrawRect(bar with { Size = new(width * ArmorCurrent / limit, bar.Size.Y) }, new Color("6fd0ea"));
         foreach (var block in Blocks)
         {
-            var rect = BlockRect(block); var condition = Condition(block);
-            var color = condition switch { ComponentCondition.Destroyed => Destroyed, ComponentCondition.Damaged => Damaged, _ => KindColor(block.Kind) };
+            var rect = BlockRect(block); var condition = Condition(block); var mount = MountAt(block);
+            var color = condition switch
+            {
+                ComponentCondition.Destroyed => Destroyed, ComponentCondition.Damaged => Damaged,
+                _ => mount is { } type ? MountColor(type) : KindColor(block.Kind)
+            };
             DrawRect(rect, new Color(color, block.Kind == SlotKind.Empty ? .12f : .26f));
             DrawRect(rect, new Color(color, .7f), false, 1);
+            // A bar down the left edge for each weapon mount the item covers, one row tall.
+            var inset = 0f;
+            if (block.ItemId is { } covering && Mounts.Covered.TryGetValue(covering, out var covers))
+            {
+                for (var row = 0; row < Math.Min(covers.Length, block.Length); row++)
+                    DrawRect(new Rect2(rect.Position.X, rect.Position.Y + row * RowHeight, 3, RowHeight - 1), MountColor(covers[row]));
+                inset = 3;
+            }
             var size = RowHeight >= 14 ? 10 : 9;
-            var text = block.Length < block.ItemSlots ? $"{block.Name} ({block.Length}/{block.ItemSlots})" : block.Name;
+            var text = mount is { } free ? MountName(free) : block.Length < block.ItemSlots ? $"{block.Name} ({block.Length}/{block.ItemSlots})" : block.Name;
             var baseline = rect.Position.Y + Math.Min(rect.Size.Y, RowHeight) / 2 + size * .38f;
             var suspect = block.ItemId is { } id && Suspect.Contains(id);
             var marker = suspect ? size + 4 : 0;
-            DrawString(font, new(rect.Position.X + 3, baseline), text, HorizontalAlignment.Left, rect.Size.X - 6 - marker, size,
-                block.Kind == SlotKind.Empty ? Ui.Muted : condition == ComponentCondition.Operational ? Ui.Text : color);
+            DrawString(font, new(rect.Position.X + 3 + inset, baseline), text, HorizontalAlignment.Left, rect.Size.X - 6 - inset - marker, size,
+                mount is not null ? color : block.Kind == SlotKind.Empty ? Ui.Muted : condition == ComponentCondition.Operational ? Ui.Text : color);
             if (suspect)
             {
-                var x = rect.Position.X + 3 + Math.Min(font.GetStringSize(text, fontSize: size).X, rect.Size.X - 6 - marker) + 3;
+                var x = rect.Position.X + 3 + inset + Math.Min(font.GetStringSize(text, fontSize: size).X, rect.Size.X - 6 - inset - marker) + 3;
                 DrawWarning(new(x, baseline - size * .85f), size);
             }
             if (condition == ComponentCondition.Destroyed)

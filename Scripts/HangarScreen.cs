@@ -82,7 +82,7 @@ public partial class HangarScreen : Control
         foreach (var location in Enum.GetValues<MechLocation>())
         {
             var panel = new HangarLocationPanel(location); _boardContent.AddChild(panel); _locations[location] = panel;
-            panel.Dropped += id => Install(id, location);
+            panel.Dropped += (id, mount) => Install(id, location, mount);
         }
         OverTonnageText = new Label { Text = "⚠ Over Tonnage", HorizontalAlignment = HorizontalAlignment.Center, Visible = false, MouseFilter = MouseFilterEnum.Ignore };
         OverTonnageText.AddThemeColorOverride("font_color", HangarLocationPanel.Warning); OverTonnageText.AddThemeFontSizeOverride("font_size", 16);
@@ -163,12 +163,14 @@ public partial class HangarScreen : Control
         else return false;
         return true;
     }
-    /// <summary>Installs a spare from storage in the first empty slots of a location of the selected mech, as a pending change.</summary>
-    public bool Install(string storageId, MechLocation location)
+    /// <summary>Installs a spare from storage in the first empty slots of a location of the selected mech, as a pending change. A
+    /// non-weapon dropped on a weapon mount covers it; weapons always take a mount of their own class.</summary>
+    public bool Install(string storageId, MechLocation location, HardpointClass? mount = null)
     {
         if (InstallProblem(storageId, location) is not null) return false;
         var plan = SelectedPlan;
-        Change(plan with { Installed = plan.Installed.Add(new(Loadout.NextId(SelectedMech.Installed.Concat(plan.Installed)), storageId, location)) });
+        if (storageId.StartsWith("weapon:", StringComparison.Ordinal)) mount = null;
+        Change(plan with { Installed = plan.Installed.Add(new(Loadout.NextId(SelectedMech.Installed.Concat(plan.Installed)), storageId, location, mount)) });
         return true;
     }
     /// <summary>Why a spare cannot go in a location of the selected mech as shown, or null when it can.</summary>
@@ -283,8 +285,8 @@ public partial class HangarScreen : Control
         if (index != _selected) { _debugHardpoint = 0; if (_debugMount is not null) _debugMount.Visible = false; }
         _selected = index; var mech = DisplayedMech; var spec = mech.Spec; var warrior = _roster.Pilot(mech);
         Preview.Display(mech);
-        var layout = CriticalLayout.For(spec);
-        foreach (var (location, panel) in _locations) panel.Display(mech, layout[location]);
+        var layout = CriticalLayout.For(spec); var mounts = MountLayout.For(spec, mech.Installed, layout);
+        foreach (var (location, panel) in _locations) panel.Display(mech, layout[location], mounts[location]);
         _mechName.Text = spec.DisplayName;
         TonnageText.Text = TonnageSummary(mech);
         TonnageText.AddThemeColorOverride("font_color", mech.OverTonnage ? HangarLocationPanel.Destroyed : mech.Tons < mech.Definition.Tonnage ? HangarLocationPanel.Damaged : Ui.Text);

@@ -358,7 +358,8 @@ public sealed class ForceRoster
             if (mech.Removed is { } removed && (removed.Length == 0 || removed.Any(id => id is null || !Loadout.Removable(stock, id))
                 || removed.Distinct(StringComparer.Ordinal).Count() != removed.Length)) throw new ArgumentException("Invalid loadout.");
             if (mech.Installed is { } installed && (installed.Length == 0 || installed.Any(item => item is null || Loadout.InstallOrder(item.Id) <= 0
-                || StorageCatalog.Describe(item.StorageId) is null || !Enum.IsDefined(item.Location))
+                || StorageCatalog.Describe(item.StorageId) is null || !Enum.IsDefined(item.Location)
+                || item.Mount is { } mount && (!MountLayout.Classes.Contains(mount) || item.StorageId.StartsWith("weapon:", StringComparison.Ordinal)))
                 || installed.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != installed.Length)) throw new ArgumentException("Invalid loadout.");
             var spec = Loadout.Build(stock, (mech.Removed ?? []).ToHashSet(StringComparer.Ordinal), mech.Installed ?? []);
             var layout = CriticalLayout.For(spec);
