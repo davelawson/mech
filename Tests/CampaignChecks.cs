@@ -38,6 +38,17 @@ internal static class CampaignChecks
             campaign.PayNow();
         }
 
+        var buyer = NewCompany(); var buyerMech = buyer.Roster!.Mechs.First(item => item.Spec.Ammo.Length > 0); var buyerBin = buyerMech.Spec.Ammo[0];
+        var swap = buyerMech.Plan with { Removed = buyerMech.Removed.Add(buyerBin.Id), Installed = [new(Loadout.NextId([]), StorageCatalog.AmmoId(buyerBin.AmmoKind), buyerBin.Location)] };
+        var broke = Campaign.Restore(buyer.Snapshot() with { Cash = 0 }); var brokeStorage = broke.Roster!.Storage.ToArray();
+        Throws(() => broke.ApplyLoadout(buyerMech.Id, swap, [StorageCatalog.AmmoId(buyerBin.AmmoKind)]), check, "reject an unaffordable purchase");
+        check(broke.Roster.Storage.SequenceEqual(brokeStorage) && broke.Roster.Mechs.First(item => item.Id == buyerMech.Id).Installed.IsEmpty,
+            "a refused purchase changes nothing");
+        var binStored = buyer.Roster.Storage.Single(item => item.Id == StorageCatalog.AmmoId(buyerBin.AmmoKind)).Count;
+        buyer.ApplyLoadout(buyerMech.Id, swap, [StorageCatalog.AmmoId(buyerBin.AmmoKind)]);
+        check(buyer.Cash == Campaign.StartingCash - EquipmentMarket.NominalPrice && buyerMech.Installed.Length == 1
+            && buyer.Roster.Storage.Single(item => item.Id == StorageCatalog.AmmoId(buyerBin.AmmoKind)).Count == binStored + 1,
+            "applying a loadout pays for its purchases, which install without drawing on storage");
         var insolvent = Campaign.Restore(NewCompany().Snapshot() with { Cash = 99_999 });
         AdvanceTo(insolvent, new DateOnly(3025, 4, 1));
         check(!insolvent.CanPay && insolvent.CanDefer && !insolvent.Bankrupt, "first shortfall permits grace");

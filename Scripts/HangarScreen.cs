@@ -1,9 +1,10 @@
+using System.Collections.Immutable;
 using System.Globalization;
 using Godot;
 
 namespace Mech;
 
-/// <summary>Storage on the left, the selected mech as a blueprint with one panel per body part, and the pilot and summary on the right.</summary>
+/// <summary>Inventory and market tabs on the left, the selected mech as a blueprint with one panel per body part, and the pilot and summary on the right.</summary>
 public partial class HangarScreen : Control
 {
     public const float CompactWidth = 1100;
@@ -30,16 +31,33 @@ public partial class HangarScreen : Control
     /// <summary>The selected mech's whole loadout, applied and pending.</summary>
     public LoadoutPlan SelectedPlan => _pending.GetValueOrDefault(SelectedMech.Id) ?? SelectedMech.Plan;
     public bool SelectedOverTonnage => DisplayedMech.OverTonnage;
+    /// <summary>Company cash, against which pending purchases are checked; nothing is paid until a loadout is applied.</summary>
+    public long Cash { get; set; }
+    /// <summary>The system whose market is open, or null while the DropShip is in transit.</summary>
+    public string? MarketSystemId { get; private set; }
+    /// <summary>Storage ids of the items the selected mech's pending loadout buys from the market.</summary>
+    public IReadOnlyList<string> SelectedPurchases => Purchases(SelectedMech.Id);
+    public long SelectedPurchaseCost => SelectedPurchases.Sum(EquipmentMarket.Price);
+    public long PendingPurchaseCost => _purchases.Keys.Sum(id => Purchases(id).Sum(EquipmentMarket.Price));
+    public bool SelectedAffordable => SelectedPurchaseCost <= Cash;
+    public bool SelectedCanApply => SelectedHasPendingChanges && !SelectedOverTonnage && SelectedAffordable;
     public MechPreview Preview { get; private set; } = null!;
     public bool ArtworkLoaded => _background.Texture is not null;
     public IReadOnlyDictionary<MechLocation, HangarLocationPanel> LocationPanels => _locations;
     public PanelContainer StoragePanel { get; private set; } = null!;
+    /// <summary>The left column's Inventory and Market tabs.</summary>
+    public TabContainer StorageTabs { get; private set; } = null!;
+    public VBoxContainer MarketList { get; private set; } = null!;
+    /// <summary>Cash and pending purchases, above the market lines.</summary>
+    public Label MarketText { get; private set; } = null!;
     public PanelContainer SummaryPanel { get; private set; } = null!;
     public ScrollContainer Board { get; private set; } = null!;
     public VBoxContainer StorageList { get; private set; } = null!;
     public Label SpeedText { get; private set; } = null!;
-    public Label ProtectionText { get; private set; } = null!;
-    public Label HeatText { get; private set; } = null!;
+    public HangarConditionBar ArmorBar { get; private set; } = null!;
+    public HangarConditionBar StructureBar { get; private set; } = null!;
+    /// <summary>Heat sunk over the most heat the mech can generate, both per second.</summary>
+    public HangarConditionBar CoolingBar { get; private set; } = null!;
     public Label TonnageText { get; private set; } = null!;
     /// <summary>"⚠ Over Tonnage" above the blueprint while the selected mech is overweight.</summary>
     public Label OverTonnageText { get; private set; } = null!;
@@ -51,7 +69,6 @@ public partial class HangarScreen : Control
     private Label _mechClass = null!;
     private Label _mechStatus = null!;
     private Label _pilot = null!;
-    private Label _readiness = null!;
     private TextureRect _portrait = null!;
     private Control _boardContent = null!;
     private HBoxContainer _rosterButtons = null!;
@@ -61,6 +78,8 @@ public partial class HangarScreen : Control
     // Pending loadouts by mech id, with the preview mech each one displays.
     private readonly Dictionary<string, LoadoutPlan> _pending = [];
     private readonly Dictionary<string, OwnedMech> _previews = [];
+    // Installed item ids in each pending loadout that are bought from the market rather than taken from storage.
+    private readonly Dictionary<string, ImmutableHashSet<string>> _purchases = [];
     private int _debugHardpoint;
     private Label? _debugMount;
 
@@ -82,7 +101,8 @@ public partial class HangarScreen : Control
         foreach (var location in Enum.GetValues<MechLocation>())
         {
             var panel = new HangarLocationPanel(location); _boardContent.AddChild(panel); _locations[location] = panel;
-            panel.Dropped += (id, mount) => Install(id, location, mount);
+            panel.Dropped += (id, purchase, mount) => Install(id, location, mount, purchase);
+            panel.ArmorChanged += (rear, points) => ChangeArmor(location, rear, points);
         }
         OverTonnageText = new Label { Text = "⚠ Over Tonnage", HorizontalAlignment = HorizontalAlignment.Center, Visible = false, MouseFilter = MouseFilterEnum.Ignore };
         OverTonnageText.AddThemeColorOverride("font_color", HangarLocationPanel.Warning); OverTonnageText.AddThemeFontSizeOverride("font_size", 16);
@@ -90,21 +110,23 @@ public partial class HangarScreen : Control
         BackButton = Ui.Button(this, "Back to office"); BackButton.Pressed += () => BackRequested?.Invoke();
 
         StoragePanel = Panel();
-        var storage = RosterUi.Scroll(StoragePanel);
+        StorageTabs = new TabContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; StoragePanel.AddChild(StorageTabs);
+        var storage = RosterUi.Scroll(StorageTabs); storage.GetParent<Control>().Name = "Inventory";
         storage.AddThemeConstantOverride("separation", 4);
-        RosterUi.Text(storage, "STORAGE", 13, Ui.Gold);
-        RosterUi.Text(storage, "Spare equipment, not installed", 11, Ui.Muted);
         StorageList = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         StorageList.AddThemeConstantOverride("separation", 2); storage.AddChild(StorageList);
+        var market = RosterUi.Scroll(StorageTabs); market.GetParent<Control>().Name = "Market";
+        market.AddThemeConstantOverride("separation", 4);
+        MarketText = RosterUi.Text(market, "", 12, Ui.Muted);
+        MarketList = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        MarketList.AddThemeConstantOverride("separation", 2); market.AddChild(MarketList);
 
         SummaryPanel = Panel();
         var summary = RosterUi.Scroll(SummaryPanel);
         summary.AddThemeConstantOverride("separation", 6);
-        RosterUi.Text(summary, "MECHWARRIOR", 13, Ui.Gold);
         var pilotRow = new HBoxContainer(); pilotRow.AddThemeConstantOverride("separation", 8); summary.AddChild(pilotRow);
         _portrait = RosterUi.Picture(pilotRow, "", new Vector2(72, 72));
         _pilot = RosterUi.Text(pilotRow, "", 13); _pilot.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-        _readiness = RosterUi.Text(summary, "", 11, Ui.Muted);
         PilotPicker = new OptionButton { ClipText = true, FitToLongestItem = false }; summary.AddChild(PilotPicker);
         PilotPicker.ItemSelected += _ => UpdateAssignmentAction();
         var actions = new HBoxContainer(); actions.AddThemeConstantOverride("separation", 6); summary.AddChild(actions);
@@ -117,24 +139,26 @@ public partial class HangarScreen : Control
         TonnageText = RosterUi.Text(summary, "", 20);
         _mechClass = RosterUi.Text(summary, "", 11, Ui.Muted);
         _mechStatus = RosterUi.Text(summary, "", 13, new Color("a5c4a5"));
-        RosterUi.Text(summary, "MOVEMENT", 11, Ui.Gold); SpeedText = RosterUi.Text(summary, "", 13);
-        RosterUi.Text(summary, "PROTECTION", 11, Ui.Gold); ProtectionText = RosterUi.Text(summary, "", 13);
-        RosterUi.Text(summary, "HEAT", 11, Ui.Gold); HeatText = RosterUi.Text(summary, "", 13);
+        SpeedText = RosterUi.Text(summary, "", 13);
+        ArmorBar = new HangarConditionBar(); summary.AddChild(ArmorBar);
+        StructureBar = new HangarConditionBar(); summary.AddChild(StructureBar);
+        CoolingBar = new HangarConditionBar(); summary.AddChild(CoolingBar);
 
         DeploymentButton = Ui.Button(this, "Simulate Deployment");
         DeploymentButton.Pressed += () => DeploymentRequested?.Invoke();
         ResetButton = Ui.Button(this, "Reset"); ResetButton.Pressed += ResetSelected;
-        ApplyButton = Ui.Button(this, "Apply"); ApplyButton.Pressed += () => { if (SelectedHasPendingChanges && !SelectedOverTonnage) ApplyRequested?.Invoke(); };
+        ApplyButton = Ui.Button(this, "Apply"); ApplyButton.Pressed += () => { if (SelectedCanApply) ApplyRequested?.Invoke(); };
         _rosterScroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Auto, VerticalScrollMode = ScrollContainer.ScrollMode.Disabled };
         AddChild(_rosterScroll); _rosterButtons = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; _rosterButtons.AddThemeConstantOverride("separation", 8); _rosterScroll.AddChild(_rosterButtons);
         Resized += Layout; Layout(); Hide();
     }
     private PanelContainer Panel()
     { var panel = new PanelContainer(); panel.AddThemeStyleboxOverride("panel", Ui.Box(new Color(.045f, .07f, .065f, .9f), Ui.Line)); AddChild(panel); return panel; }
-    public void Open(ForceRoster roster)
+    /// <summary>Opens the hangar on a roster, with the market of the system the DropShip orbits (none in transit) and the company's cash.</summary>
+    public void Open(ForceRoster roster, string? marketSystemId = null, long cash = 0)
     {
         if (!ReferenceEquals(_roster, roster)) { _selected = 0; AbandonPending(); }
-        _roster = roster; _selected = Math.Clamp(_selected, 0, roster.Mechs.Count - 1); Board.Visible = true; Show();
+        _roster = roster; MarketSystemId = marketSystemId; Cash = cash; _selected = Math.Clamp(_selected, 0, roster.Mechs.Count - 1); Board.Visible = true; Show();
         RosterUi.Clear(_rosterButtons); RosterButtons.Clear();
         for (var i = 0; i < roster.Mechs.Count; i++)
         {
@@ -143,7 +167,7 @@ public partial class HangarScreen : Control
             button.SizeFlagsHorizontal = SizeFlags.ExpandFill; button.CustomMinimumSize = new Vector2(150, 54);
             button.Pressed += () => Select(index); RosterButtons.Add(button);
         }
-        ShowStorage();
+        ShowStorage(); ShowMarket();
         Select(_selected); Layout(); BackButton.CallDeferred(Control.MethodName.GrabFocus);
     }
     private OwnedMech Displayed(OwnedMech mech)
@@ -154,7 +178,12 @@ public partial class HangarScreen : Control
     }
     /// <summary>The roster as the hangar shows it, pending loadouts included, detached from the company.</summary>
     public ForceRoster PendingRoster() => _roster.WithLoadouts(_pending);
-    /// <summary>Takes a removable item out of the selected mech's pending loadout; the items below it in its location move up.</summary>
+    /// <summary>Storage ids of the items a mech's pending loadout buys from the market.</summary>
+    private List<string> Purchases(string mechId) =>
+        _purchases.TryGetValue(mechId, out var bought) && _pending.TryGetValue(mechId, out var plan)
+            ? [.. plan.Installed.Where(item => bought.Contains(item.Id)).Select(item => item.StorageId)] : [];
+    /// <summary>Takes a removable item out of the selected mech's pending loadout; the items below it in its location move up. A
+    /// pending purchase taken out is simply not bought.</summary>
     public bool Remove(string itemId)
     {
         var plan = SelectedPlan;
@@ -163,32 +192,62 @@ public partial class HangarScreen : Control
         else return false;
         return true;
     }
-    /// <summary>Installs a spare from storage in the first empty slots of a location of the selected mech, as a pending change. A
-    /// non-weapon dropped on a weapon mount covers it; weapons always take a mount of their own class.</summary>
-    public bool Install(string storageId, MechLocation location, HardpointClass? mount = null)
+    /// <summary>Installs a spare from storage, or one bought from the market, in the first empty slots of a location of the selected
+    /// mech, as a pending change; a purchase is paid for when the loadout is applied. A non-weapon dropped on a weapon mount covers
+    /// it; weapons always take a mount of their own class.</summary>
+    public bool Install(string storageId, MechLocation location, HardpointClass? mount = null, bool purchase = false)
     {
-        if (InstallProblem(storageId, location) is not null) return false;
-        var plan = SelectedPlan;
+        if (InstallProblem(storageId, location, purchase) is not null) return false;
+        var plan = SelectedPlan; var id = Loadout.NextId(SelectedMech.Installed.Concat(plan.Installed));
         if (storageId.StartsWith("weapon:", StringComparison.Ordinal)) mount = null;
-        Change(plan with { Installed = plan.Installed.Add(new(Loadout.NextId(SelectedMech.Installed.Concat(plan.Installed)), storageId, location, mount)) });
+        if (purchase) _purchases[SelectedMech.Id] = _purchases.GetValueOrDefault(SelectedMech.Id, []).Add(id);
+        Change(plan with { Installed = plan.Installed.Add(new(id, storageId, location, mount)) });
         return true;
     }
-    /// <summary>Why a spare cannot go in a location of the selected mech as shown, or null when it can.</summary>
-    public string? InstallProblem(string storageId, MechLocation location) =>
-        StorageCounts().GetValueOrDefault(storageId) <= 0 ? "None in storage" : Loadout.InstallProblem(DisplayedMech, storageId, location);
+    /// <summary>Changes the installed front or rear armor of a location of the selected mech by whole stock points, as a pending
+    /// change, within zero and the location's armor limit. Returns whether the armor changed.</summary>
+    public bool ChangeArmor(MechLocation location, bool rear, int points)
+    {
+        var shown = DisplayedMech.Spec.Locations.Single(item => item.Location == location);
+        if (rear && !EquipmentRules.HasRearArmor(location)) return false;
+        var limit = EquipmentRules.ArmorLimit(shown);
+        var front = rear ? shown.Armor : Math.Clamp(shown.Armor + points * CombatRules.DamageScale, 0, limit - shown.RearArmor);
+        var back = rear ? Math.Clamp(shown.RearArmor + points * CombatRules.DamageScale, 0, limit - shown.Armor) : shown.RearArmor;
+        if (front == shown.Armor && back == shown.RearArmor) return false;
+        var stock = SelectedMech.Definition.Locations.Single(item => item.Location == location);
+        var plan = SelectedPlan; var fits = plan.Armor.Where(item => item.Location != location);
+        if (front != stock.Armor || back != stock.RearArmor) fits = fits.Append(new(location, front, back));
+        Change(plan with { Armor = [.. fits] });
+        return true;
+    }
+    /// <summary>Why a spare from storage, or an item bought from the market, cannot go in a location of the selected mech as shown,
+    /// or null when it can.</summary>
+    public string? InstallProblem(string storageId, MechLocation location, bool purchase = false) =>
+        purchase ? (MarketSystemId is not { } system || !EquipmentMarket.Offers(system).Any(item => item.Id == storageId) ? "Not for sale here"
+                : Loadout.InstallProblem(DisplayedMech, storageId, location))
+            : StorageCounts().GetValueOrDefault(storageId) <= 0 ? "None in storage" : Loadout.InstallProblem(DisplayedMech, storageId, location);
     private void Change(LoadoutPlan plan)
     {
         var mech = SelectedMech;
         if (plan.SameAs(mech.Plan)) _pending.Remove(mech.Id); else _pending[mech.Id] = plan;
+        // Purchases last only as long as their items stay in the pending loadout.
+        if (_purchases.TryGetValue(mech.Id, out var bought))
+        {
+            bought = bought.Intersect(_pending.TryGetValue(mech.Id, out var kept) ? kept.Installed.Select(item => item.Id) : []);
+            if (bought.IsEmpty) _purchases.Remove(mech.Id); else _purchases[mech.Id] = bought;
+        }
         _previews.Remove(mech.Id); Refresh();
     }
-    /// <summary>Storage as the hangar shows it: items taken out in pending loadouts are in it, and items pending installation,
-    /// on any mech, are already out of it.</summary>
+    /// <summary>Storage as the hangar shows it: items taken out in pending loadouts are in it, and items pending installation from
+    /// storage, on any mech, are already out of it. Pending purchases never touch it.</summary>
     public Dictionary<string, int> StorageCounts()
     {
         var counts = _roster.Storage.ToDictionary(entry => entry.Id, entry => entry.Count, StringComparer.Ordinal);
         foreach (var (id, plan) in _pending)
-            foreach (var (stored, count) in _roster.Mechs.Single(mech => mech.Id == id).StorageChange(plan)) counts[stored] = counts.GetValueOrDefault(stored) + count;
+            foreach (var (stored, count) in _roster.Mechs.Single(mech => mech.Id == id).StorageChange(plan).Concat(Purchases(id).Select(item => (item, 1))))
+                counts[stored] = counts.GetValueOrDefault(stored) + count;
+        foreach (var id in counts.Where(pair => pair.Value == 0 && _roster.Storage.All(entry => entry.Id != pair.Key)).Select(pair => pair.Key).ToArray())
+            counts.Remove(id);
         return counts;
     }
     /// <summary>A right click over a location panel's slots removes the item there when it is removable. Returns
@@ -208,17 +267,17 @@ public partial class HangarScreen : Control
     public void ResetSelected()
     {
         if (!_pending.Remove(SelectedMech.Id)) return;
-        _previews.Remove(SelectedMech.Id); Refresh();
+        _purchases.Remove(SelectedMech.Id); _previews.Remove(SelectedMech.Id); Refresh();
     }
     /// <summary>Called once the selected mech's pending loadout has been applied to the company.</summary>
     public void CommitSelected()
     {
-        _pending.Remove(SelectedMech.Id); _previews.Remove(SelectedMech.Id); Refresh();
+        _pending.Remove(SelectedMech.Id); _purchases.Remove(SelectedMech.Id); _previews.Remove(SelectedMech.Id); Refresh();
     }
-    public void AbandonPending() { _pending.Clear(); _previews.Clear(); }
+    public void AbandonPending() { _pending.Clear(); _purchases.Clear(); _previews.Clear(); }
     public void Refresh()
     {
-        if (_roster is not null) { ShowStorage(); Select(_selected); }
+        if (_roster is not null) { ShowStorage(); ShowMarket(); Select(_selected); }
     }
     /// <summary>Space shows or hides the location panels over the mech preview; Tab cycles the preview
     /// gait still → walking → running.</summary>
@@ -241,10 +300,10 @@ public partial class HangarScreen : Control
     public override void _Notification(int what)
     {
         if (what == NotificationDragBegin && IsVisibleInTree() && _roster is not null
-            && GetViewport().GuiGetDragData().Obj is string id && StorageCatalog.Describe(id) is not null)
+            && GetViewport().GuiGetDragData().Obj is HangarDragItem drag && StorageCatalog.Describe(drag.Id) is not null)
         {
             Board.Visible = true;
-            foreach (var (location, panel) in _locations) panel.ShowDrop(id, InstallProblem(id, location));
+            foreach (var (location, panel) in _locations) panel.ShowDrop(drag.Id, InstallProblem(drag.Id, location, drag.Purchase), drag.Purchase);
         }
         else if (what == NotificationDragEnd)
             foreach (var panel in _locations.Values) panel.ShowDrop(null, null);
@@ -286,7 +345,8 @@ public partial class HangarScreen : Control
         _selected = index; var mech = DisplayedMech; var spec = mech.Spec; var warrior = _roster.Pilot(mech);
         Preview.Display(mech);
         var layout = CriticalLayout.For(spec); var mounts = MountLayout.For(spec, mech.Installed, layout);
-        foreach (var (location, panel) in _locations) panel.Display(mech, layout[location], mounts[location]);
+        var purchased = _purchases.GetValueOrDefault(SelectedMech.Id, []);
+        foreach (var (location, panel) in _locations) panel.Display(mech, layout[location], mounts[location], purchased);
         _mechName.Text = spec.DisplayName;
         TonnageText.Text = TonnageSummary(mech);
         TonnageText.AddThemeColorOverride("font_color", mech.OverTonnage ? HangarLocationPanel.Destroyed : mech.Tons < mech.Definition.Tonnage ? HangarLocationPanel.Damaged : Ui.Text);
@@ -294,12 +354,15 @@ public partial class HangarScreen : Control
         _mechClass.Text = $"{DefinitionText.WeightClass(spec.WeightClass).ToUpperInvariant()}  ·  {spec.Role}\n{spec.Engine}";
         _mechStatus.Text = mech.Status;
         SpeedText.Text = SpeedSummary(spec);
-        ProtectionText.Text = $"Armor {mech.Locations.Sum(item => item.Armor + item.RearArmor):N0}/{spec.ArmorTotal:N0}  ·  Structure {mech.Locations.Sum(item => item.Structure):N0}/{spec.StructureTotal:N0}";
-        HeatText.Text = HeatSummary(spec);
+        var armor = mech.Locations.Sum(item => item.Armor + item.RearArmor); var structure = mech.Locations.Sum(item => item.Structure);
+        ArmorBar.Set(armor, spec.ArmorTotal, spec.Locations.Sum(EquipmentRules.ArmorLimit), "Armor");
+        StructureBar.Set(structure, spec.StructureTotal, spec.StructureTotal, "Structure");
+        var (generated, sunk) = CoolingRates(mech);
+        CoolingBar.SetRatio(sunk / generated, CoolingText(sunk / generated),
+            $"Heat generated {Rate(generated)}/s\nHeat sunk {Rate(sunk)}/s\nEvery weapon firing as soon as it is ready, while running");
         _portrait.Texture = warrior is null ? null : Ui.LoadTexture(warrior.Spec.Artwork);
         _pilot.Text = warrior is null ? "No pilot assigned" : $"“{warrior.Spec.Callsign}”\n{warrior.Spec.Name}\nG{warrior.Spec.Gunnery} / P{warrior.Spec.Piloting} / S{warrior.Spec.Sensors}";
         _pilot.TooltipText = warrior is null ? "" : RosterUi.SkillText(warrior.Spec);
-        _readiness.Text = warrior is null ? "Assign a MechWarrior to crew this BattleMech." : !warrior.Ready ? warrior.Status : mech.Operational ? "Ready for deployment" : "Pilot healthy · BattleMech not operational";
         UnassignButton.Disabled = warrior is null;
         PilotPicker.Clear(); _pilotIds.Clear();
         foreach (var candidate in _roster.Warriors.Where(item => item.Health != WarriorHealth.Dead))
@@ -311,11 +374,13 @@ public partial class HangarScreen : Control
         var current = warrior is null ? _pilotIds.FindIndex(id => _roster.Assignment(id) is null) : _pilotIds.IndexOf(warrior.Id);
         PilotPicker.Select(current >= 0 ? current : _pilotIds.Count > 0 ? 0 : -1);
         PilotPicker.Disabled = _pilotIds.Count == 0; UpdateAssignmentAction();
-        var pending = SelectedHasPendingChanges; var applicable = pending && !mech.OverTonnage;
+        var pending = SelectedHasPendingChanges; var applicable = SelectedCanApply;
         ResetButton.Disabled = !pending; ApplyButton.Disabled = !applicable;
         ResetButton.FocusMode = pending ? FocusModeEnum.All : FocusModeEnum.None;
         ApplyButton.FocusMode = applicable ? FocusModeEnum.All : FocusModeEnum.None;
-        ApplyButton.TooltipText = mech.OverTonnage ? $"Over tonnage by {(mech.Tons - mech.Definition.Tonnage).ToString("0.#", CultureInfo.InvariantCulture)} t" : "";
+        var bought = SelectedPurchases.Count; var cost = SelectedPurchaseCost;
+        ApplyButton.TooltipText = mech.OverTonnage ? $"Over tonnage by {(mech.Tons - mech.Definition.Tonnage).ToString("0.##", CultureInfo.InvariantCulture)} t"
+            : bought == 0 ? "" : $"{(SelectedAffordable ? "Buys" : "Not enough C-bills to buy")} {bought} {(bought == 1 ? "item" : "items")} · {Money(cost)}";
         if (applicable) ApplyButton.AddThemeStyleboxOverride("normal", Ui.Box(new Color("344431"), Ui.Gold));
         else ApplyButton.RemoveThemeStyleboxOverride("normal");
         for (var i = 0; i < RosterButtons.Count; i++)
@@ -330,30 +395,47 @@ public partial class HangarScreen : Control
     public static int KilometresPerHour(int movementPoints) => Mathf.RoundToInt(movementPoints * CombatRules.MovementScale * 3.6f);
     public static string SpeedSummary(MechSpec spec)
     {
-        string Speed(string name, int mp) => $"{name} {KilometresPerHour(mp)} km/h ({mp} MP)";
+        string Speed(string name, int mp) => $"{name} {KilometresPerHour(mp)} km/h";
         var lines = new List<string> { Speed("Walk", spec.Walk), Speed("Run", spec.Run) };
         if (spec.Jump > 0) lines.Add(Speed("Jump", spec.Jump));
         return string.Join("\n", lines);
     }
     public static string TonnageSummary(OwnedMech mech) =>
-        $"{mech.Tons.ToString("0.#", CultureInfo.InvariantCulture)} / {mech.Definition.Tonnage} t";
-    public static string HeatSummary(MechSpec spec) =>
-        $"{spec.HeatSinks} {DefinitionText.HeatSinks(spec.HeatSinkType)} sinks  ·  −{spec.HeatSinks * spec.CoolingPerSink}/turn  ·  alpha {spec.Weapons.Sum(item => item.Heat)}";
+        $"{mech.Tons.ToString("0.##", CultureInfo.InvariantCulture)} / {mech.Definition.Tonnage} t";
+    /// <summary>The most heat per second the mech can sustain (every usable weapon firing on cooldown, while running) and the
+    /// heat per second its working sinks remove.</summary>
+    public static (double Generated, double Sunk) CoolingRates(OwnedMech mech) =>
+        (mech.Spec.Weapons.Where(mech.WeaponUsable).Sum(weapon => weapon.Heat / (double)CombatRules.Cooldown(weapon)) + CombatRules.RunningHeatRate,
+            mech.EffectiveHeatSinks * mech.Spec.CoolingPerSink / CombatRules.HeatClockSeconds);
+    public static string CoolingText(double ratio) => $"Cooling {Mathf.RoundToInt(ratio * 100)}%";
+    public static string Money(long amount) => $"{amount.ToString("N0", CultureInfo.InvariantCulture)} C-bill{(amount == 1 ? "" : "s")}";
+    private static string Rate(double perSecond) => perSecond.ToString("0.##", CultureInfo.InvariantCulture);
 
     private void ShowStorage()
     {
         RosterUi.Clear(StorageList);
-        var counts = StorageCounts();
-        var items = counts.Select(pair => (Entry: new StorageEntry(pair.Key, pair.Value), Item: StorageCatalog.Describe(pair.Key)!)).ToArray();
-        if (items.Length == 0) RosterUi.Text(StorageList, "No spare equipment", 12, Ui.Muted);
-        foreach (var group in items.GroupBy(item => item.Item.Group).OrderBy(group => group.Key))
+        var lines = StorageCounts().Select(pair => new HangarStorageLine(StorageCatalog.Describe(pair.Key)!, pair.Value) { Name = $"Storage {pair.Key}" }).ToArray();
+        if (lines.Length == 0) RosterUi.Text(StorageList, "No spare equipment", 12, Ui.Muted);
+        ShowGrouped(StorageList, lines);
+    }
+    private void ShowMarket()
+    {
+        RosterUi.Clear(MarketList);
+        MarketText.Text = $"Cash {Money(Cash)}\nPending purchases {Money(PendingPurchaseCost)}";
+        if (MarketSystemId is not { } system) { RosterUi.Text(MarketList, "No market while in transit", 12, Ui.Muted); return; }
+        ShowGrouped(MarketList, EquipmentMarket.Offers(system).Select(item =>
         {
-            var heading = RosterUi.Text(StorageList, group.Key.ToString().ToUpperInvariant(), 11, Ui.Gold);
+            var line = HangarStorageLine.ForSale(item, EquipmentMarket.Price(item.Id)); line.Name = $"Market {item.Id}"; return line;
+        }));
+    }
+    /// <summary>Lines under a heading per group (Energy, Ballistic, Missile, Ammo, Equipment), by name within each.</summary>
+    private static void ShowGrouped(VBoxContainer list, IEnumerable<HangarStorageLine> lines)
+    {
+        foreach (var group in lines.GroupBy(line => line.Item.Group).OrderBy(group => group.Key))
+        {
+            var heading = RosterUi.Text(list, group.Key.ToString().ToUpperInvariant(), 11, Ui.Gold);
             heading.CustomMinimumSize = new Vector2(0, 22); heading.VerticalAlignment = VerticalAlignment.Bottom;
-            foreach (var (entry, item) in group.OrderBy(item => item.Item.Name, StringComparer.Ordinal))
-            {
-                StorageList.AddChild(new HangarStorageLine(item, entry.Count) { Name = $"Storage {item.Id}" });
-            }
+            foreach (var line in group.OrderBy(line => line.Item.Name, StringComparer.Ordinal)) list.AddChild(line);
         }
     }
     private void UpdateAssignmentAction()
@@ -390,7 +472,8 @@ public partial class HangarScreen : Control
         const float spacing = 6;
         if (!compact)
         {
-            var row = Math.Clamp((height - 3 * HangarLocationPanel.HeaderHeight - 2 * spacing - 40) / 24, 11, 16);
+            var headers = HangarLocationPanel.HeaderFor(MechLocation.Head) + HangarLocationPanel.HeaderFor(MechLocation.CenterTorso) + HangarLocationPanel.HeaderFor(MechLocation.LeftLeg);
+            var row = Math.Clamp((height - headers - 2 * spacing - 40) / 24, 11, 16);
             var column = Math.Min(170, (width - spacing * 4) / 5);
             var head = HangarLocationPanel.HeightFor(MechLocation.Head, row);
             var torso = HangarLocationPanel.HeightFor(MechLocation.CenterTorso, row);
@@ -410,16 +493,17 @@ public partial class HangarScreen : Control
             const float row = 13;
             var column = (width - spacing * 2 - 12) / 3;
             float X(int index) => index * (column + spacing);
+            var torso = HangarLocationPanel.HeightFor(MechLocation.RightTorso, row);
             var arm = HangarLocationPanel.HeightFor(MechLocation.RightArm, row);
             var head = HangarLocationPanel.HeightFor(MechLocation.Head, row);
             Place(MechLocation.RightTorso, X(0), 0, row, column);
-            Place(MechLocation.RightArm, X(0), arm + spacing, row, column);
-            Place(MechLocation.RightLeg, X(0), arm * 2 + spacing * 2, row, column);
+            Place(MechLocation.RightArm, X(0), torso + spacing, row, column);
+            Place(MechLocation.RightLeg, X(0), torso + arm + spacing * 2, row, column);
             Place(MechLocation.Head, X(1), 0, row, column);
             Place(MechLocation.CenterTorso, X(1), head + spacing, row, column);
             Place(MechLocation.LeftTorso, X(2), 0, row, column);
-            Place(MechLocation.LeftArm, X(2), arm + spacing, row, column);
-            Place(MechLocation.LeftLeg, X(2), arm * 2 + spacing * 2, row, column);
+            Place(MechLocation.LeftArm, X(2), torso + spacing, row, column);
+            Place(MechLocation.LeftLeg, X(2), torso + arm + spacing * 2, row, column);
         }
         var extent = _locations.Values.Aggregate(Vector2.Zero, (end, panel) => end.Max(panel.Position + panel.Size));
         _boardContent.CustomMinimumSize = new Vector2(0, extent.Y);

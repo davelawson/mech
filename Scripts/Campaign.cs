@@ -110,6 +110,17 @@ public sealed class Campaign
         return TakeDueEvents();
     }
 
+    /// <summary>Applies a mech's loadout, paying for the items it buys from the market. Nothing changes unless the purchase is
+    /// affordable and the roster accepts the loadout.</summary>
+    public void ApplyLoadout(string mechId, LoadoutPlan plan, IReadOnlyCollection<string> bought)
+    {
+        if (Roster is null) throw new InvalidOperationException("No company has been established.");
+        var cost = bought.Sum(EquipmentMarket.Price);
+        if (cost > Cash) throw new InvalidOperationException("The purchase must be affordable.");
+        Roster.ApplyLoadout(mechId, plan, bought);
+        Cash -= cost;
+    }
+
     public IReadOnlyList<CampaignEvent> DeferPayment()
     {
         if (!CanDefer) throw new InvalidOperationException("A deferred bill cannot be deferred again.");

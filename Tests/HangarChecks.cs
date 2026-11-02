@@ -35,14 +35,20 @@ internal static class HangarChecks
             "armor limits are three times head structure and twice elsewhere");
         check(HangarScreen.KilometresPerHour(4) == 39 && HangarScreen.KilometresPerHour(6) == 58, "4/6 movement reads 39/58 km/h");
         var spec = DraftCatalog.Mech("wolverine");
-        check(HangarScreen.SpeedSummary(spec) == "Walk 49 km/h (5 MP)\nRun 78 km/h (8 MP)\nJump 49 km/h (5 MP)", "summary lists walk, run and jump speeds");
-        check(HangarScreen.HeatSummary(spec) == $"12 single sinks  ·  −12/turn  ·  alpha {spec.Weapons.Sum(item => item.Heat)}", "summary lists sinks, dissipation and alpha heat");
+        check(HangarScreen.SpeedSummary(spec) == "Walk 49 km/h\nRun 78 km/h\nJump 49 km/h", "summary lists walk, run and jump speeds");
         check(!HangarScreen.SpeedSummary(DraftCatalog.Mech("victor") with { Jump = 0 }).Contains("Jump"), "mechs without jump jets show no jump speed");
 
         var draft = new InitialDraft { ForceName = "Storage Test" };
         for (var pool = 0; pool < 8; pool++) draft.Select(pool, 0);
         var roster = draft.Establish();
         int Count(string id) => roster.Storage.SingleOrDefault(item => item.Id == id)?.Count ?? 0;
+        // Cooling compares sink output with every weapon firing on cooldown while running, both per second.
+        var cooled = roster.Mechs[0]; var (generated, sunk) = HangarScreen.CoolingRates(cooled);
+        check(Math.Abs(generated - cooled.Spec.Weapons.Sum(item => item.Heat / (double)CombatRules.Cooldown(item)) - .2) < 1e-9
+            && Math.Abs(sunk - cooled.Spec.HeatSinks * cooled.Spec.CoolingPerSink / 10.0) < 1e-9, "cooling rates count weapon heat over cooldown, running heat and sinks");
+        var unarmed = cooled.WithLoadout(LoadoutPlan.Removing(cooled.Spec.Weapons.Select(item => item.Id)));
+        check(HangarScreen.CoolingRates(unarmed) == (CombatRules.RunningHeatRate, sunk) && HangarScreen.CoolingText(.5) == "Cooling 50%",
+            "an unarmed mech generates only running heat");
         var mechs = roster.Mechs.Select(item => item.Spec).ToArray();
         check(Enum.GetValues<WeaponKind>().All(kind => Count(StorageCatalog.WeaponId(kind)) == mechs.Sum(mech => mech.Weapons.Count(item => item.Kind == kind)))
             && Enum.GetValues<AmmoKind>().All(kind => Count(StorageCatalog.AmmoId(kind)) == mechs.Sum(mech => mech.Ammo.Count(item => item.AmmoKind == kind))),
@@ -230,6 +236,38 @@ internal static class HangarChecks
         catch (ArgumentException) { rejected = true; }
         check(rejected, "restore rejects a loadout that removes a fixed system");
 
+        // Armor: a stock point is ten units and 1/16 t. Added armor arrives intact; armor taken off keeps the damage.
+        var plated = Company(); var snapshot = plated.Snapshot();
+        var torsoStock = wolverine.Locations.Single(item => item.Location == MechLocation.CenterTorso);
+        var hurt = ForceRoster.Restore(snapshot with { Mechs = [snapshot.Mechs[0] with { Locations = [.. snapshot.Mechs[0].Locations
+            .Select(item => item.Location == MechLocation.CenterTorso ? item with { Armor = item.Armor - 50 } : item)] }, .. snapshot.Mechs[1..]] }, Campaign.StartDate);
+        var damaged = hurt.Mechs[0];
+        LocationCondition Torso(OwnedMech owned) => owned.Locations.Single(item => item.Location == MechLocation.CenterTorso);
+        var thicker = damaged.WithLoadout(damaged.Plan with { Armor = [new(MechLocation.CenterTorso, torsoStock.Armor + 10, torsoStock.RearArmor)] });
+        check(thicker.Spec.Locations.Single(item => item.Location == MechLocation.CenterTorso).Armor == torsoStock.Armor + 10
+            && Torso(thicker).Armor == torsoStock.Armor - 40 && Mathf.IsEqualApprox(thicker.Tons, wolverine.Tonnage + 1 / 16f),
+            "a point of armor adds ten units, arrives intact and weighs a sixteenth of a ton");
+        var thinner = damaged.WithLoadout(damaged.Plan with { Armor = [new(MechLocation.CenterTorso, torsoStock.Armor - 30, torsoStock.RearArmor)] });
+        check(Torso(thinner).Armor == torsoStock.Armor - 50 && Mathf.IsEqualApprox(thinner.Tons, wolverine.Tonnage - 3 / 16f),
+            "taking armor off keeps the damage while what remains fits");
+        var stripped = damaged.WithLoadout(damaged.Plan with { Armor = [new(MechLocation.CenterTorso, 10, torsoStock.RearArmor)] });
+        check(Torso(stripped).Armor == 10, "taking armor off clamps the current armor to the new installed armor");
+        var arm = wolverine.Locations.Single(item => item.Location == MechLocation.LeftArm);
+        check(Loadout.ArmorProblem(wolverine, [new(MechLocation.LeftArm, EquipmentRules.ArmorLimit(arm) + 10, 0)]) is not null
+            && Loadout.ArmorProblem(wolverine, [new(MechLocation.LeftArm, arm.Armor, 10)]) is not null
+            && Loadout.ArmorProblem(wolverine, [new(MechLocation.LeftArm, arm.Armor, arm.RearArmor)]) is not null
+            && Loadout.ArmorProblem(wolverine, [new(MechLocation.LeftArm, 0, 0)]) is null,
+            "armor stays within the location limit, rear armor only on torsos, and fits differ from stock");
+        var fit = new ArmorFit(MechLocation.LeftArm, arm.Armor - 20, 0);
+        plated.ApplyLoadout(plated.Mechs[0].Id, plated.Mechs[0].Plan with { Armor = [fit] });
+        var reloaded = ForceRoster.Restore(plated.Snapshot(), Campaign.StartDate).Mechs[0];
+        check(reloaded.Armor.SequenceEqual([fit]) && reloaded.Spec.Locations.Single(item => item.Location == MechLocation.LeftArm).Armor == arm.Armor - 20
+            && reloaded.Locations.Single(item => item.Location == MechLocation.LeftArm).Armor == arm.Armor - 20, "applied armor survives save and restore");
+        rejected = false;
+        try { ForceRoster.Restore(snapshot with { Mechs = [snapshot.Mechs[0] with { Armor = [new(MechLocation.LeftArm, arm.Armor, 10)] }, .. snapshot.Mechs[1..]] }, Campaign.StartDate); }
+        catch (ArgumentException) { rejected = true; }
+        check(rejected, "restore rejects invalid armor");
+
         // A destroyed item is scrapped rather than stored.
         var fresh = Company(); var target = fresh.Mechs[1];
         var save = fresh.Snapshot();
@@ -358,9 +396,9 @@ public partial class SmokeTests
     }
 
     /// <summary>Starts dragging a storage line with the mouse, leaving the button held over the given point.</summary>
-    private async Task<HangarStorageLine> StartStorageDrag(HangarScreen hangar, string storageId, Vector2 over)
+    private async Task<HangarStorageLine> StartStorageDrag(HangarScreen hangar, string storageId, Vector2 over, bool market = false)
     {
-        var line = hangar.StorageList.GetChildren().OfType<HangarStorageLine>().Single(item => item.Item.Id == storageId);
+        var line = (market ? hangar.MarketList : hangar.StorageList).GetChildren().OfType<HangarStorageLine>().Single(item => item.Item.Id == storageId);
         Node scroll = line;
         while (scroll is not ScrollContainer) scroll = scroll.GetParent();
         ((ScrollContainer)scroll).EnsureControlVisible(line); await Frames();
@@ -420,7 +458,7 @@ public partial class SmokeTests
             "empty slots are labelled with the location's free weapon mounts");
         var cover = roster.Storage.Select(item => item.Id).First(id => id.StartsWith("ammo:", StringComparison.Ordinal));
         // Rendered runs place drops at the real cursor rather than the injected one, so drop straight onto the slot.
-        target._DropData(target.BlockRect(mountSlot).GetCenter(), cover); await Frames();
+        target._DropData(target.BlockRect(mountSlot).GetCenter(), new HangarDragItem(cover, false)); await Frames();
         var covering = hangar.SelectedPlan.Installed.SingleOrDefault();
         Check(covering is not null && covering.Mount == type && target.Mounts.Covered[covering.Id].Contains(type)
             && target._GetTooltip(target.BlockRect(target.Blocks.Single(item => item.ItemId == covering.Id)).GetCenter()).Contains($"Covering a"),
@@ -438,6 +476,110 @@ public partial class SmokeTests
         await Capture("hangar-over-tonnage");
         await Click(hangar.ResetButton);
         Check(!hangar.OverTonnageText.Visible && !hangar.HasPendingChanges, "Reset clears the over-tonnage warning");
+    }
+
+    /// <summary>The Inventory and Market tabs, buying by dragging from the market, paying on Apply, and no market in transit.</summary>
+    private async Task TestHangarMarket()
+    {
+        var hangar = _app.Hangar; var roster = _app.State.Roster!;
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        Check(hangar.StorageTabs.GetTabTitle(0) == "Inventory" && hangar.StorageTabs.GetTabTitle(1) == "Market"
+            && !StorageTexts(hangar).Contains("STORAGE"), "the left column has Inventory and Market tabs");
+        var index = roster.Mechs.ToList().FindIndex(mech => mech.Removed.IsEmpty && mech.Installed.IsEmpty && mech.Spec.Ammo.Length > 0
+            && Loadout.Suspect(mech.Spec).Count == 0);
+        hangar.Select(index); hangar.StorageTabs.CurrentTab = 1; await Frames();
+        var market = hangar.MarketList.GetChildren().OfType<HangarStorageLine>().ToArray();
+        Check(market.Select(line => line.Item.Id).Order(StringComparer.Ordinal).SequenceEqual(StorageCatalog.All.Select(item => item.Id).Order(StringComparer.Ordinal))
+            && market.All(line => line.Price == EquipmentMarket.NominalPrice && line.TooltipText.EndsWith("Drag onto a location to buy and install", StringComparison.Ordinal)),
+            "the market offers every system for 1 C-bill");
+        var mech = hangar.SelectedMech; var stock = mech.Spec.Ammo[0]; var bin = StorageCatalog.AmmoId(stock.AmmoKind);
+        var name = StorageCatalog.Describe(bin)!.Name;
+        hangar.Remove(stock.Id); await Frames();
+        var stored = StorageCount(hangar, name); var cash = _app.State.Cash; var target = hangar.LocationPanels[stock.Location];
+        await StartStorageDrag(hangar, bin, target.GetGlobalRect().GetCenter(), market: true);
+        Check(target.DragItem == bin && target.DragPurchase && target.DropProblem is null, "dragging a market line marks where it can be bought");
+        MouseButton(target.GetGlobalRect().GetCenter(), Godot.MouseButton.Left, false); await Frames();
+        var bought = hangar.SelectedPlan.Installed.SingleOrDefault();
+        Check(bought is not null && hangar.SelectedPurchases.SequenceEqual([bin]) && StorageCount(hangar, name) == stored && _app.State.Cash == cash
+            && hangar.MarketText.Text.Contains("Pending purchases 1 C-bill") && hangar.ApplyButton.TooltipText == "Buys 1 item · 1 C-bill",
+            "dropping a market line installs it as a pending purchase without touching inventory or cash");
+        var (panel, block) = FindBlock(hangar, item => item.ItemId == bought!.Id);
+        Check(panel._GetTooltip(panel.BlockRect(block).GetCenter()).Contains("Pending purchase · 1 C-bill"), "a pending purchase says so");
+        await Capture("hangar-market");
+        await RightClick(BlockCentre(panel, block));
+        Check(hangar.SelectedPurchases.Count == 0 && StorageCount(hangar, name) == stored, "taking out a pending purchase cancels it");
+
+        Check(hangar.Install(bin, stock.Location, purchase: true), "a market item installs by code too");
+        hangar.Cash = 0; hangar.Refresh(); await Frames();
+        Check(hangar.ApplyButton.Disabled && hangar.ApplyButton.TooltipText.StartsWith("Not enough C-bills", StringComparison.Ordinal), "unaffordable purchases cannot be applied");
+        hangar.Cash = _app.State.Cash; hangar.Refresh(); await Frames();
+        var before = roster.Storage.SingleOrDefault(item => item.Id == bin)?.Count ?? 0;
+        await Click(hangar.ApplyButton);
+        Check(!hangar.HasPendingChanges && _app.State.Cash == cash - 1 && hangar.Cash == cash - 1 && mech.Installed.Length == 1
+            && roster.Storage.Single(item => item.Id == bin).Count == before + 1 && hangar.MarketText.Text.Contains("Pending purchases 0 C-bills"),
+            "Apply pays for the purchase; the removed bin joins storage and the bought one is installed");
+
+        hangar.Remove(mech.Installed[0].Id); hangar.Install(bin, stock.Location, purchase: true); await Frames();
+        await Click(hangar.ResetButton);
+        Check(!hangar.HasPendingChanges && hangar.SelectedPurchases.Count == 0 && _app.State.Cash == cash - 1, "Reset cancels purchases at no cost");
+
+        hangar.Open(roster, null, _app.State.Cash); await Frames();
+        Check(hangar.MarketList.GetChildren().OfType<HangarStorageLine>().Count() == 0
+            && hangar.MarketList.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text == "No market while in transit")
+            && hangar.InstallProblem(bin, stock.Location, purchase: true) == "Not for sale here", "there is no market in transit");
+        hangar.Open(roster, _app.State.Travel.OrbitSystemId, _app.State.Cash); hangar.StorageTabs.CurrentTab = 0; await Frames();
+    }
+
+    /// <summary>Armor −/+ buttons on every location's armor bars, Shift for ten points, and the torsos' rear armor bar.</summary>
+    private async Task TestHangarArmor()
+    {
+        var hangar = _app.Hangar;
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        hangar.Select(0); await Frames();
+        var torso = hangar.LocationPanels[MechLocation.CenterTorso]; var arm = hangar.LocationPanels[MechLocation.LeftArm];
+        Check(torso.HasRear && torso.Header == HangarLocationPanel.HeaderFor(MechLocation.CenterTorso) && torso.Header > arm.Header && !arm.HasRear
+            && torso.ArmorBar(true).Position.Y > torso.ArmorBar(false).Position.Y && torso.StructureBar.Position.Y > torso.ArmorBar(true).Position.Y,
+            "torsos show a rear armor bar beneath the front one; arms do not");
+        Check(arm._GetTooltip(arm.ArmorButton(false, true).GetCenter()).StartsWith("Add 1 armor point", StringComparison.Ordinal)
+            && torso._GetTooltip(torso.ArmorButton(true, false).GetCenter()).StartsWith("Remove 1 rear armor point", StringComparison.Ordinal),
+            "armor buttons say what they do");
+        int Front(MechLocation location) => hangar.DisplayedMech.Spec.Locations.Single(item => item.Location == location).Armor;
+        int Rear(MechLocation location) => hangar.DisplayedMech.Spec.Locations.Single(item => item.Location == location).RearArmor;
+        async Task Press(HangarLocationPanel panel, bool rear, bool plus, bool shift = false)
+        {
+            var at = panel.GetGlobalTransformWithCanvas() * panel.ArmorButton(rear, plus).GetCenter();
+            MouseMotion(at, Vector2.Zero);
+            foreach (var pressed in new[] { true, false })
+                Input.ParseInputEvent(new InputEventMouseButton { Position = ToWindow(at), GlobalPosition = ToWindow(at), ButtonIndex = Godot.MouseButton.Left, Pressed = pressed, ShiftPressed = shift });
+            await Frames();
+        }
+        var armStock = hangar.SelectedMech.Spec.Locations.Single(item => item.Location == MechLocation.LeftArm); var tons = hangar.SelectedMech.Tons;
+        await Press(arm, false, false);
+        Check(Front(MechLocation.LeftArm) == armStock.Armor - 10 && hangar.SelectedHasPendingChanges
+            && hangar.TonnageText.Text == HangarScreen.TonnageSummary(hangar.DisplayedMech) && Mathf.IsEqualApprox(hangar.DisplayedMech.Tons, tons - 1 / 16f),
+            "− takes off a point of armor and its mass, as a pending change");
+        await Press(arm, false, true);
+        Check(Front(MechLocation.LeftArm) == armStock.Armor && !hangar.SelectedHasPendingChanges, "+ puts the point back, and armor back at stock clears the pending change");
+        var torsoStock = hangar.SelectedMech.Spec.Locations.Single(item => item.Location == MechLocation.CenterTorso);
+        await Press(torso, false, false, shift: true);
+        Check(Front(MechLocation.CenterTorso) == Math.Max(0, torsoStock.Armor - 100), "Shift − takes off ten points");
+        await Press(torso, false, true, shift: true);
+        Check(Front(MechLocation.CenterTorso) == Math.Min(Math.Max(0, torsoStock.Armor - 100) + 100, EquipmentRules.ArmorLimit(torsoStock) - torsoStock.RearArmor),
+            "Shift + puts ten points on");
+        await Click(hangar.ResetButton);
+        await Press(torso, true, false);
+        Check(Rear(MechLocation.CenterTorso) == Math.Max(0, torsoStock.RearArmor - 10) && Front(MechLocation.CenterTorso) == torsoStock.Armor, "the rear bar's buttons change rear armor only");
+        var limit = EquipmentRules.ArmorLimit(torsoStock);
+        for (var i = 0; i < limit / 100 + 1; i++) await Press(torso, false, true, shift: true);
+        Check(Front(MechLocation.CenterTorso) + Rear(MechLocation.CenterTorso) == limit, "armor stops at the location's limit");
+        Check(torso.Blocks.Where(block => block.Kind == SlotKind.Weapon).All(block =>
+                torso.BlockColor(block) == HangarLocationPanel.MountColor(WeaponMounts.ClassOf(hangar.DisplayedMech.Spec.Weapons.Single(item => item.Id == block.ItemId).Kind)))
+            && hangar.StorageList.GetChildren().OfType<HangarStorageLine>().All(line => line.Color == HangarLocationPanel.StorageColor(line.Item)
+                && line.GetThemeStylebox("panel") is StyleBoxFlat box && box.BorderColor == new Color(line.Color, .7f)),
+            "weapons take their hardpoint colour and storage lines are drawn as coloured slots");
+        await Capture("hangar-armor-edit");
+        await Click(hangar.ResetButton);
+        Check(!hangar.HasPendingChanges && Front(MechLocation.CenterTorso) == torsoStock.Armor, "Reset restores the armor");
     }
 
     /// <summary>Hangar layout, location panels, storage list and the blueprint's right-drag spin.</summary>
@@ -477,7 +619,8 @@ public partial class SmokeTests
         var spec = mech.Spec.Locations.Single(item => item.Location == MechLocation.LeftTorso);
         Check(torso.ArmorText == $"Armor {state.Armor}/{spec.Armor}" && torso.RearText == $"Rear {state.RearArmor}/{spec.RearArmor}"
             && torso.StructureText == $"Structure {state.Structure}/{spec.Structure}" && torso.ArmorLimit == spec.Structure * 2
-            && torso.ArmorInstalled == spec.Armor + spec.RearArmor, "torso panel shows armor, rear armor, structure and the tonnage limit");
+            && torso.ArmorInstalled == spec.Armor + spec.RearArmor && torso.StructureCurrent == state.Structure && torso.StructureMax == spec.Structure,
+            "torso panel shows armor, rear armor, structure and the tonnage limit");
         Check(hangar.LocationPanels.All(pair => pair.Value.Blocks.Sum(block => block.Length) == EquipmentRules.Capacity(pair.Key)),
             "every location panel lists all of its critical slots");
         var weapon = torso.Blocks.Concat(hangar.LocationPanels.Values.SelectMany(panel => panel.Blocks)).First(block => block.Kind == SlotKind.Weapon);
@@ -485,11 +628,20 @@ public partial class SmokeTests
         var tooltip = owner._GetTooltip(owner.BlockRect(weapon).GetCenter());
         Check(tooltip.StartsWith(weapon.Name, StringComparison.Ordinal) && tooltip.Contains(" t · ") && tooltip.Contains("Operational"),
             "hovering a slot names the item with its mass, slots and condition");
-        Check(hangar.SpeedText.Text == HangarScreen.SpeedSummary(mech.Spec) && hangar.HeatText.Text == HangarScreen.HeatSummary(mech.Spec)
-            && hangar.ProtectionText.Text.StartsWith("Armor ", StringComparison.Ordinal), "summary shows speeds, protection and heat");
+        var (heat, cooling) = HangarScreen.CoolingRates(mech);
+        Check(hangar.SpeedText.Text == HangarScreen.SpeedSummary(mech.Spec)
+            && hangar.ArmorBar.Text == $"Armor {hangar.ArmorBar.Current:N0} / {mech.Spec.ArmorTotal:N0}" && hangar.StructureBar.Text.StartsWith("Structure ", StringComparison.Ordinal)
+            && new[] { hangar.ArmorBar, hangar.StructureBar, hangar.CoolingBar }.All(bar => bar.Size.Y >= HangarConditionBar.Height)
+            && hangar.CoolingBar.Text == HangarScreen.CoolingText(cooling / heat) && Mathf.IsEqualApprox(hangar.CoolingBar.Fraction, (float)Math.Min(1, cooling / heat))
+            && hangar.CoolingBar.Warning == cooling > heat && hangar.CoolingBar.TooltipText.Contains("Heat generated") && hangar.CoolingBar.TooltipText.Contains("Heat sunk")
+            && hangar.ArmorBar.Current == mech.Locations.Sum(item => item.Armor + item.RearArmor) && hangar.ArmorBar.Stock == mech.Spec.ArmorTotal
+            && hangar.ArmorBar.Maximum == mech.Spec.Locations.Sum(EquipmentRules.ArmorLimit)
+            && hangar.StructureBar.Current == mech.Locations.Sum(item => item.Structure) && hangar.StructureBar.Maximum == mech.Spec.StructureTotal,
+            "summary shows speeds, armor and structure bars against the tonnage maximum, and cooling");
         var lines = StorageTexts(hangar).ToArray();
         Check(lines.Contains("ENERGY") && lines.Contains("AMMO") && lines.Contains("EQUIPMENT")
-            && lines.Any(line => line.StartsWith("Heat Sink ×", StringComparison.Ordinal)), "storage lists grouped spare equipment");
+            && lines.Any(line => line.StartsWith("Heat Sink ×", StringComparison.Ordinal)) && !lines.Any(line => line.Contains(" t · ")),
+            "storage lists grouped spare equipment by name and count");
 
         // A right click that stays put goes back; a drag spins the blueprint and springs back to front-on.
         var model = hangar.Preview.Model!;

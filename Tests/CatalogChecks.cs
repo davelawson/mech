@@ -240,7 +240,7 @@ internal static class CatalogChecks
                     foreach (var part in parts.Length == 0 ? [id] : parts)
                     { var copy = item.DeepClone(); copy["Id"] = part; equipment.Add(copy); }
                 }
-                saved["Equipment"] = equipment; saved["Removed"] = null; saved["Installed"] = null;
+                saved["Equipment"] = equipment; saved["Removed"] = null; saved["Installed"] = null; saved["Armor"] = null;
             }
             // Older saves gain the company's spare equipment, stocked once from its mechs.
             expected["Roster"]!["Storage"] = System.Text.Json.JsonSerializer.SerializeToNode(StorageCatalog.Stock(campaign.Roster.Mechs.Select(m => m.Spec)).ToArray());

@@ -6,6 +6,8 @@ public static partial class CombatRules
 {
     public const double WarmHeat = 10, HotHeat = 20, ShutdownHeat = 30;
     public const double HeatClockSeconds = 10;
+    /// <summary>Heat per second from travelling at walking speed, and above the unheated walking limit.</summary>
+    public const double WalkingHeatRate = 1 / HeatClockSeconds, RunningHeatRate = 2 / HeatClockSeconds;
     public static double HeatLimit(HeatPolicy policy) => policy == HeatPolicy.Aggressive ? ShutdownHeat : HotHeat;
     public static int FlamerHeat(WeaponSpec weapon) => weapon.DamageProfile.TargetHeat;
 }
@@ -26,7 +28,7 @@ public sealed partial class CombatUnit
         .Sum(component => component.HeatSinkCount));
     public double CoolingRate => EffectiveHeatSinks * Spec.CoolingPerSink / CombatRules.HeatClockSeconds;
     public double MovementHeatRate => !Moving || !Active ? 0
-        : (CurrentSpeed > UnheatedWalkingSpeed + .00001f ? 2 : 1) / CombatRules.HeatClockSeconds;
+        : CurrentSpeed > UnheatedWalkingSpeed + .00001f ? CombatRules.RunningHeatRate : CombatRules.WalkingHeatRate;
 
     internal void AdvanceHeat(double delta) => AddHeat((MovementHeatRate - CoolingRate) * delta);
     internal void AddHeat(double amount)

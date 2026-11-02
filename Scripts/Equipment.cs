@@ -44,6 +44,9 @@ public static class EquipmentRules
         location is MechLocation.Head or MechLocation.LeftLeg or MechLocation.RightLeg ? 6 : 12;
     /// <summary>The most armor a location can carry: twice its structure, or three times for the head (9 stock points).</summary>
     public static int ArmorLimit(LocationSpec location) => location.Structure * (location.Location == MechLocation.Head ? 3 : 2);
+    /// <summary>Stock armor points per ton of standard armor.</summary>
+    public const int ArmorPointsPerTon = 16;
+    public static bool HasRearArmor(MechLocation location) => location is MechLocation.LeftTorso or MechLocation.CenterTorso or MechLocation.RightTorso;
     /// <summary>Heat sinks the engine holds without using critical slots.</summary>
     public static int EngineHeatSinks(MechSpec spec) => spec.HeatSinks - spec.Components.Sum(item => item.HeatSinkCount);
     public static int JumpJets(MechSpec spec) => spec.Components.Where(item => item.Kind == ComponentKind.JumpJet).Sum(item => item.Slots);
@@ -179,11 +182,17 @@ public static class MountLayout
 /// weapon mount a non-weapon was dropped on, which it covers.</summary>
 public sealed record InstalledItem(string Id, string StorageId, MechLocation Location, HardpointClass? Mount = null);
 
-/// <summary>A mech's loadout as the stock items removed and the storage items installed, in installation order.</summary>
+/// <summary>A location's installed armor, front and rear, where the hangar has changed it from stock (tenths of a stock point).</summary>
+public sealed record ArmorFit(MechLocation Location, int Armor, int RearArmor);
+
+/// <summary>A mech's loadout as the stock items removed, the storage items installed, in installation order, and the locations
+/// whose armor differs from stock.</summary>
 public sealed record LoadoutPlan(ImmutableHashSet<string> Removed, ImmutableArray<InstalledItem> Installed)
 {
+    public ImmutableArray<ArmorFit> Armor { get; init; } = [];
     public static LoadoutPlan Removing(IEnumerable<string> removed) => new(removed.ToImmutableHashSet(StringComparer.Ordinal), []);
-    public bool SameAs(LoadoutPlan other) => Removed.SetEquals(other.Removed) && Installed.SequenceEqual(other.Installed);
+    public bool SameAs(LoadoutPlan other) => Removed.SetEquals(other.Removed) && Installed.SequenceEqual(other.Installed)
+        && Armor.Length == other.Armor.Length && Armor.All(other.Armor.Contains);
 }
 
 /// <summary>An owned mech's installed equipment: its stock design less the items removed in the hangar, plus the items installed there.</summary>
@@ -218,9 +227,32 @@ public static class Loadout
 
     /// <summary>The design with these stock items removed and these storage items installed: each installed heat sink adds one
     /// sink's cooling and each jump jet one jump MP. Installed weapons face forward; installed bins hold the catalog's full load.</summary>
-    public static MechSpec Build(MechSpec stock, IReadOnlySet<string> removed, IReadOnlyList<InstalledItem> installed)
+    public static MechSpec Build(MechSpec stock, IReadOnlySet<string> removed, IReadOnlyList<InstalledItem> installed, IReadOnlyList<ArmorFit>? armor = null)
     {
-        var spec = Strip(stock, removed);
+        var spec = Install(Strip(stock, removed), installed);
+        if (armor is null || armor.Count == 0) return spec;
+        return spec with
+        {
+            Locations = [.. spec.Locations.Select(item => armor.FirstOrDefault(fit => fit.Location == item.Location) is { } fit
+                ? item with { Armor = fit.Armor, RearArmor = fit.RearArmor } : item)]
+        };
+    }
+    /// <summary>Why these armor fits are invalid for the design, or null: each names a distinct location, differs from stock,
+    /// is not negative, carries rear armor only on a torso and stays within the location's armor limit.</summary>
+    public static string? ArmorProblem(MechSpec stock, IReadOnlyList<ArmorFit> armor)
+    {
+        if (armor.Any(fit => fit is null || !Enum.IsDefined(fit.Location)) || armor.Select(fit => fit.Location).Distinct().Count() != armor.Count) return "Invalid armor locations";
+        foreach (var fit in armor)
+        {
+            var location = stock.Locations.Single(item => item.Location == fit.Location);
+            if (fit.Armor < 0 || fit.RearArmor < 0 || fit.RearArmor > 0 && !EquipmentRules.HasRearArmor(fit.Location)
+                || fit.Armor + fit.RearArmor > EquipmentRules.ArmorLimit(location)) return "Invalid armor";
+            if (fit.Armor == location.Armor && fit.RearArmor == location.RearArmor) return "Armor matches stock";
+        }
+        return null;
+    }
+    private static MechSpec Install(MechSpec spec, IReadOnlyList<InstalledItem> installed)
+    {
         if (installed.Count == 0) return spec;
         var weapons = spec.Weapons.ToBuilder(); var components = spec.Components.ToBuilder(); var ammo = spec.Ammo.ToBuilder();
         var sinks = 0; var jets = 0;
@@ -343,6 +375,11 @@ public static class StorageCatalog
         }
     }
 
+    /// <summary>Every item storage can hold: each weapon and ammunition the catalog carries, both heat sinks and every jump jet class.</summary>
+    public static readonly ImmutableArray<StorageItem> All = Enum.GetValues<WeaponKind>().Select(WeaponId)
+        .Concat(Enum.GetValues<AmmoKind>().Select(AmmoId)).Concat(Enum.GetValues<HeatSinkKind>().Select(HeatSinkId))
+        .Concat(["jump-jet:0.5", "jump-jet:1", "jump-jet:2"]).Select(Describe).OfType<StorageItem>().ToImmutableArray();
+
     /// <summary>One spare of every weapon, ammunition bin, heat sink (engine-held included) and jump jet mounted on these mechs.</summary>
     public static ImmutableArray<StorageEntry> Stock(IEnumerable<MechSpec> mechs)
     {
@@ -357,4 +394,12 @@ public static class StorageCatalog
         }
         return counts.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new StorageEntry(pair.Key, pair.Value)).ToImmutableArray();
     }
+}
+
+/// <summary>Equipment for sale where the DropShip is in orbit. For now every system can be bought anywhere for a nominal price.</summary>
+public static class EquipmentMarket
+{
+    public const long NominalPrice = 1;
+    public static ImmutableArray<StorageItem> Offers(string systemId) => StorageCatalog.All;
+    public static long Price(string storageId) => NominalPrice;
 }

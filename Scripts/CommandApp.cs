@@ -415,7 +415,7 @@ public partial class CommandApp : Control
     {
         if (State.RequiresDraft || Navigation.CurrentScreen is not (CommandScreen.Office or CommandScreen.Map or CommandScreen.Hangar)) return;
         Navigation.NavigateFromOffice(CommandScreen.Hangar, Office.HangarButton);
-        Hangar.Open(State.Roster!);
+        Hangar.Open(State.Roster!, State.Travel.InOrbit ? State.Travel.OrbitSystemId : null, State.Cash);
     }
 
     public void ShowDeployment()
@@ -433,18 +433,19 @@ public partial class CommandApp : Control
         if (!Hangar.HasPendingChanges) { ShowOffice(); return; }
         var count = Hangar.PendingMechCount;
         void Stay() { CloseDialog(); Navigation.RestoreFocus(Hangar.BackButton); }
-        OpenDialog("Unapplied changes", $"{count} {(count == 1 ? "mech has" : "mechs have")} unapplied loadout changes. Leaving the hangar abandons them.", Stay,
+        OpenDialog("Unapplied changes", $"{count} {(count == 1 ? "mech has" : "mechs have")} unapplied loadout changes. Leaving the hangar abandons them, and cancels any pending purchases.", Stay,
             new DialogAction("Stay in hangar", Stay),
             new DialogAction("Abandon changes and leave", () => { Hangar.AbandonPending(); CloseDialog(); ShowOffice(); }));
     }
 
-    /// <summary>Applies the selected mech's pending loadout to the company, confirming first when it has items marked ⚠.</summary>
+    /// <summary>Applies the selected mech's pending loadout to the company, paying for its pending purchases, confirming first when it has items marked ⚠.</summary>
     private void ApplyLoadout()
     {
-        if (Navigation.CurrentScreen != CommandScreen.Hangar || !Hangar.SelectedHasPendingChanges || Hangar.SelectedOverTonnage) return;
+        if (Navigation.CurrentScreen != CommandScreen.Hangar || !Hangar.SelectedCanApply) return;
         void Commit()
         {
-            State.Roster!.ApplyLoadout(Hangar.SelectedMech.Id, Hangar.SelectedPlan); Hangar.CommitSelected();
+            State.ApplyLoadout(Hangar.SelectedMech.Id, Hangar.SelectedPlan, Hangar.SelectedPurchases);
+            Hangar.Cash = State.Cash; Hangar.CommitSelected();
             if (Navigation.CurrentScreen == CommandScreen.Dialog) CloseDialog();
             Navigation.RestoreFocus(Hangar.BackButton);
         }

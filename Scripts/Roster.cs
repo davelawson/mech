@@ -143,10 +143,10 @@ public sealed class InitialDraft
 public sealed record LocationCondition(MechLocation Location, int Armor, int RearArmor, int Structure);
 public sealed record EquipmentCondition(string Id, ComponentCondition Condition);
 public sealed record AmmoCondition(string Id, int Shots);
-/// <summary>Removed lists the stock items taken out in the hangar and Installed the storage items put in, in installation order;
-/// each is null when empty.</summary>
+/// <summary>Removed lists the stock items taken out in the hangar, Installed the storage items put in, in installation order, and
+/// Armor the locations whose installed armor differs from stock; each is null when empty.</summary>
 public sealed record MechSnapshot(string Id, string DefinitionId, string? WarriorId, LocationCondition[] Locations,
-    EquipmentCondition[] Equipment, AmmoCondition[] Ammo, string[]? Removed = null, InstalledItem[]? Installed = null);
+    EquipmentCondition[] Equipment, AmmoCondition[] Ammo, string[]? Removed = null, InstalledItem[]? Installed = null, ArmorFit[]? Armor = null);
 public sealed record WarriorSnapshot(string DefinitionId, WarriorHealth Health, DateOnly? RecoveryDate);
 public sealed record RosterSnapshot(string ForceName, MechSnapshot[] Mechs, WarriorSnapshot[] Warriors, StorageEntry[]? Storage = null);
 
@@ -161,9 +161,11 @@ public sealed class OwnedMech
     public ImmutableHashSet<string> Removed { get; private set; }
     /// <summary>Spares from storage put in in the hangar, in installation order.</summary>
     public ImmutableArray<InstalledItem> Installed { get; private set; }
-    public LoadoutPlan Plan => new(Removed, Installed);
+    /// <summary>Locations whose installed armor was changed from stock in the hangar.</summary>
+    public ImmutableArray<ArmorFit> Armor { get; private set; }
+    public LoadoutPlan Plan => new(Removed, Installed) { Armor = Armor };
     public string? WarriorId { get; internal set; }
-    public IReadOnlyList<LocationCondition> Locations { get; }
+    public IReadOnlyList<LocationCondition> Locations { get; private set; }
     public IReadOnlyList<EquipmentCondition> Equipment { get; private set; }
     public IReadOnlyList<AmmoCondition> Ammo { get; private set; }
     internal OwnedMech(MechSnapshot save) : this(save, DraftCatalog.Mech(save.DefinitionId)) { }
@@ -171,12 +173,14 @@ public sealed class OwnedMech
     {
         if (definition.Id != save.DefinitionId) throw new ArgumentException("Definition identity does not match owned state.");
         Id = save.Id; Definition = definition; WarriorId = save.WarriorId;
-        Removed = (save.Removed ?? []).ToImmutableHashSet(StringComparer.Ordinal); Installed = [.. save.Installed ?? []];
-        Spec = Loadout.Build(definition, Removed, Installed);
+        Removed = (save.Removed ?? []).ToImmutableHashSet(StringComparer.Ordinal); Installed = [.. save.Installed ?? []]; Armor = [.. save.Armor ?? []];
+        Spec = Loadout.Build(definition, Removed, Installed, Armor);
         Locations = Array.AsReadOnly(save.Locations.ToArray()); Equipment = Array.AsReadOnly(save.Equipment.ToArray()); Ammo = Array.AsReadOnly(save.Ammo.ToArray());
     }
-    /// <summary>Rated tonnage less the mass of removed items plus that of installed ones; stock designs are taken to be exactly at their rating.</summary>
-    public float Tons => Definition.Tonnage - Removed.Sum(id => Loadout.Tons(Definition, id) ?? 0) + Installed.Sum(item => Loadout.Tons(Spec, item.Id) ?? 0);
+    /// <summary>Rated tonnage less the mass of removed items plus that of installed ones and of armor added (16 stock points a ton);
+    /// stock designs are taken to be exactly at their rating.</summary>
+    public float Tons => Definition.Tonnage - Removed.Sum(id => Loadout.Tons(Definition, id) ?? 0) + Installed.Sum(item => Loadout.Tons(Spec, item.Id) ?? 0)
+        + (Spec.ArmorTotal - Definition.ArmorTotal) / (float)(EquipmentRules.ArmorPointsPerTon * CombatRules.DamageScale);
     public bool OverTonnage => Tons > Definition.Tonnage;
     /// <summary>A detached copy with this loadout, for previewing pending hangar changes.</summary>
     public OwnedMech WithLoadout(LoadoutPlan plan)
@@ -196,7 +200,7 @@ public sealed class OwnedMech
         foreach (var item in plan.Installed.Where(item => !installed.Contains(item.Id))) yield return (item.StorageId, -1);
     }
     /// <summary>Changes to this loadout. Removed stock items stay removed; items already installed keep their place; new items
-    /// arrive operational, bins full.</summary>
+    /// arrive operational, bins full. Armor added arrives intact; armor taken off comes off what is left, so damage is kept.</summary>
     internal void Change(LoadoutPlan plan)
     {
         if (!Removed.IsSubsetOf(plan.Removed) || plan.Removed.Any(id => !Loadout.Removable(Definition, id)))
@@ -209,8 +213,20 @@ public sealed class OwnedMech
                 || !Enum.IsDefined(item.Location))
             || plan.Installed.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != plan.Installed.Length)
             throw new ArgumentException("Invalid installed equipment.");
+        if (Loadout.ArmorProblem(Definition, plan.Armor) is not null) throw new ArgumentException("Invalid armor.");
+        var before = Spec.Locations;
         var gone = Installed.Select(item => item.Id).Except(plan.Installed.Select(item => item.Id)).Concat(plan.Removed).ToHashSet(StringComparer.Ordinal);
-        Removed = plan.Removed; Installed = plan.Installed; Spec = Loadout.Build(Definition, Removed, Installed);
+        Removed = plan.Removed; Installed = plan.Installed; Armor = plan.Armor; Spec = Loadout.Build(Definition, Removed, Installed, Armor);
+        Locations = Array.AsReadOnly(Locations.Select(state =>
+        {
+            var old = before.Single(item => item.Location == state.Location); var now = Spec.Locations.Single(item => item.Location == state.Location);
+            return state with
+            {
+                Armor = Fitted(state.Armor, old.Armor, now.Armor), RearArmor = Fitted(state.RearArmor, old.RearArmor, now.RearArmor)
+            };
+        }).ToArray());
+        // Added armor arrives intact; armor taken off leaves what remains, at most the new installed amount.
+        static int Fitted(int current, int before, int after) => after > before ? current + after - before : Math.Min(current, after);
         Equipment = Array.AsReadOnly(Equipment.Where(item => !gone.Contains(item.Id))
             .Concat(added.Select(item => new EquipmentCondition(item.Id, ComponentCondition.Operational))).ToArray());
         Ammo = Array.AsReadOnly(Ammo.Where(item => !gone.Contains(item.Id))
@@ -220,6 +236,10 @@ public sealed class OwnedMech
     public bool LocationIntact(MechLocation location) => Locations.Single(item => item.Location == location).Structure > 0;
     private bool Functional(ComponentKind kind) => Spec.Components.Where(item => item.Kind == kind)
         .All(item => Condition(item.Id) != ComponentCondition.Destroyed && LocationIntact(item.Location));
+    /// <summary>Heat sinks still working: the stock count less grouped sinks destroyed or in a lost location, as in combat.</summary>
+    public int EffectiveHeatSinks => Math.Max(0, Spec.HeatSinks - Spec.Components
+        .Where(item => item.Kind == ComponentKind.HeatSink && (!LocationIntact(item.Location) || Condition(item.Id) == ComponentCondition.Destroyed))
+        .Sum(item => item.HeatSinkCount));
     public bool WeaponUsable(WeaponSpec weapon) => Condition(weapon.Id) != ComponentCondition.Destroyed && LocationIntact(weapon.Location)
         && (weapon.AmmoKind is null || Spec.Ammo.Any(bin => bin.AmmoKind == weapon.AmmoKind && LocationIntact(bin.Location)
             && Condition(bin.Id) != ComponentCondition.Destroyed && Ammo.Single(item => item.Id == bin.Id).Shots > 0));
@@ -230,7 +250,8 @@ public sealed class OwnedMech
         || Equipment.Any(item => item.Condition != ComponentCondition.Operational);
     public string Status => !Operational ? "Not operational" : Damaged ? "Operational · damaged" : "Operational";
     internal MechSnapshot Snapshot() => new(Id, Definition.Id, WarriorId, Locations.ToArray(), Equipment.ToArray(), Ammo.ToArray(),
-        Removed.Count == 0 ? null : Removed.Order(StringComparer.Ordinal).ToArray(), Installed.IsEmpty ? null : Installed.ToArray());
+        Removed.Count == 0 ? null : Removed.Order(StringComparer.Ordinal).ToArray(), Installed.IsEmpty ? null : Installed.ToArray(),
+        Armor.IsEmpty ? null : Armor.OrderBy(item => item.Location).ToArray());
 }
 
 public sealed class RosterWarrior
@@ -288,11 +309,13 @@ public sealed class ForceRoster
         new(ForceName, Mechs.Select(mech => plans.TryGetValue(mech.Id, out var plan) ? mech.WithLoadout(plan) : new OwnedMech(mech.Snapshot(), mech.Definition)),
             Warriors.Select(warrior => new RosterWarrior(warrior.Snapshot())), _storage);
     /// <summary>Commits a mech's loadout: items taken out join storage, except destroyed ones, which are scrapped, and newly
-    /// installed items leave it. An overweight loadout, or one needing spares storage lacks, is refused.</summary>
-    public void ApplyLoadout(string mechId, LoadoutPlan plan)
+    /// installed items leave it. Bought items join storage first, so they install like spares. An overweight loadout, or one
+    /// needing spares storage lacks, is refused.</summary>
+    public void ApplyLoadout(string mechId, LoadoutPlan plan, IEnumerable<string>? bought = null)
     {
         var mech = Mechs.SingleOrDefault(item => item.Id == mechId) ?? throw new ArgumentException("Unknown owned BattleMech.");
-        var changes = mech.StorageChange(plan).GroupBy(item => item.Id, StringComparer.Ordinal)
+        if (bought?.Any(id => StorageCatalog.Describe(id) is null) == true) throw new ArgumentException("Unknown equipment.");
+        var changes = mech.StorageChange(plan).Concat((bought ?? []).Select(id => (Id: id, Count: 1))).GroupBy(item => item.Id, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Sum(item => item.Count), StringComparer.Ordinal);
         if (changes.Any(pair => (_storage.SingleOrDefault(item => item.Id == pair.Key)?.Count ?? 0) + pair.Value < 0))
             throw new ArgumentException("Storage lacks the spares this loadout installs.");
@@ -361,7 +384,8 @@ public sealed class ForceRoster
                 || StorageCatalog.Describe(item.StorageId) is null || !Enum.IsDefined(item.Location)
                 || item.Mount is { } mount && (!MountLayout.Classes.Contains(mount) || item.StorageId.StartsWith("weapon:", StringComparison.Ordinal)))
                 || installed.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != installed.Length)) throw new ArgumentException("Invalid loadout.");
-            var spec = Loadout.Build(stock, (mech.Removed ?? []).ToHashSet(StringComparer.Ordinal), mech.Installed ?? []);
+            if (mech.Armor is { } armor && (armor.Length == 0 || Loadout.ArmorProblem(stock, armor) is not null)) throw new ArgumentException("Invalid loadout.");
+            var spec = Loadout.Build(stock, (mech.Removed ?? []).ToHashSet(StringComparer.Ordinal), mech.Installed ?? [], mech.Armor);
             var layout = CriticalLayout.For(spec);
             if ((mech.Installed ?? []).Any(item => CriticalLayout.Used(layout[item.Location]) > EquipmentRules.Capacity(item.Location)))
                 throw new ArgumentException("Invalid loadout.");

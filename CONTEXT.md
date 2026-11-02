@@ -25,6 +25,12 @@ The persistent pairing of one living MechWarrior with one owned BattleMech, inde
 **Storage**:
 Spare weapons, ammunition, heat sinks and jump jets held by the mercenary force and not installed on any BattleMech. Armor and fixed systems are never stored.
 
+**Market**:
+Equipment for sale where the DropShip is in orbit, bought from the hangar's Market tab. Bought items are installed directly on a BattleMech as pending purchases.
+
+**Pending purchase**:
+A market item installed in a pending loadout. It is paid for when that loadout is applied and cancelled, at no cost, if the item is taken out, the loadout is reset, or the changes are abandoned.
+
 **Critical slot**:
 One of the fixed equipment spaces in a BattleMech location: six in the head and each leg, twelve in each torso and arm.
 
@@ -32,7 +38,7 @@ One of the fixed equipment spaces in a BattleMech location: six in the head and 
 The equipment installed in a particular owned BattleMech: its stock design less any weapons, ammunition, heat sinks and jump jets removed in the hangar, plus any spares installed there from storage.
 
 **Pending changes**:
-Loadout changes made in the hangar but not yet applied to the BattleMech. They are kept per BattleMech until applied, reset, or abandoned on leaving the hangar.
+Loadout changes, including pending purchases, made in the hangar but not yet applied to the BattleMech. They are kept per BattleMech until applied, reset, or abandoned on leaving the hangar.
 
 **Ready MechWarrior**:
 A healthy MechWarrior available for immediate deployment, whether currently assigned to a BattleMech or unassigned.
