@@ -125,6 +125,7 @@ public partial class SmokeTests
         MouseButton(center, Godot.MouseButton.WheelUp, false); await Frames();
         Check(field.Camera.Size < oldSize, "battlefield wheel zoom works while paused");
         await TestCombatCamera();
+        await TestCombatShortcuts();
         await PressKey(Key.Home);
         await PressKey(Key.Space);
         await Delay(.15);

@@ -855,7 +855,8 @@ public sealed partial class CombatSimulation
             ? (int)Math.Ceiling((weapon.MinimumRange - distance) / CombatRules.WeaponRangeScale) : 0;
         var threshold = attacker.Warrior.Gunnery + CombatRules.AimModifier + range + minimum + terrainModifier + attacker.HeatAimModifier
             + attacker.InterferenceAimModifier
-            + (attacker.Moving ? attacker.Movement == MovementMode.Run ? 2 : 1 : 0)
+            // Reversing spoils the attacker's own aim as badly as running; as a target it still counts as walking.
+            + (attacker.Moving ? attacker.Movement == MovementMode.Run || attacker.CurrentSpeed < 0 ? 2 : 1 : 0)
             + (target.Moving ? target.Movement == MovementMode.Run ? 2 : 1 : 0);
         var successes = 0;
         for (var a = 1; a <= 6; a++) for (var b = 1; b <= 6; b++) if (a + b >= threshold) successes++;

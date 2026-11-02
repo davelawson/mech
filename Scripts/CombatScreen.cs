@@ -28,6 +28,9 @@ public partial class CombatScreen : Control
     public Button NormalHeatButton { get; private set; } = null!;
     public Button AggressiveHeatButton { get; private set; } = null!;
     public List<Button> UnitButtons { get; } = [];
+    /// <summary>The compact paperdoll on each unit card, in card order.</summary>
+    public List<CombatPaperdoll> UnitDolls { get; } = [];
+    private float _unitBarHeight;
     public IReadOnlyList<string> Selected => _selected;
     public bool SettingPriority { get; private set; }
     private ForceRoster _roster = null!;
@@ -102,7 +105,7 @@ public partial class CombatScreen : Control
         AggressiveHeatButton.TooltipText = "Allow heat below 30 for a stronger burst, accepting movement and accuracy penalties.";
         NormalHeatButton.Pressed += () => ChangeUnits(unit => unit.HeatPolicy = HeatPolicy.Normal);
         AggressiveHeatButton.Pressed += () => ChangeUnits(unit => unit.HeatPolicy = HeatPolicy.Aggressive);
-        Ui.Button(_settings, "Stop movement / clear order").Pressed += () => { Simulation?.Hold(_selected); RefreshDetails(); };
+        Ui.Button(_settings, "Stop movement / clear order [Z]").Pressed += StopUnits;
         RosterUi.Text(_settings, "Preferred engagement distance (m)", 12, Ui.Muted);
         _distance = new SpinBox { MinValue = CombatRules.MinimumPreferredDistance, MaxValue = CombatRules.MaximumPreferredDistance,
             Step = 15, AllowGreater = false, AllowLesser = false };
@@ -131,10 +134,15 @@ public partial class CombatScreen : Control
         Ui.Place(_top, 0, 0, Size.X, 66);
         Ui.Place(PauseButton, Size.X - 360, 14, 160, 38); Ui.Place(MenuButton, Size.X - 190, 14, 174, 38);
         var logWidth = BattleLog.Visible ? Math.Clamp(Size.X * .29f, 290, 420) : 0;
-        Ui.Place(BattleLog, 0, 66, logWidth, Math.Min(Size.Y - 172, 12 * 56 + 56));
-        Ui.Place(Battlefield, logWidth, 66, Size.X - sidebar - 8 - logWidth, Size.Y - 172);
-        Ui.Place(_sidebar, Size.X - sidebar, 66, sidebar - 12, Size.Y - 172);
-        Ui.Place(_unitBar, 16, Size.Y - 98, Size.X - 32, 52);
+        // Unit cards shrink on short windows so the battlefield keeps its height.
+        var unitBar = _unitBarHeight = Math.Clamp(Size.Y * .13f, 78, 124);
+        var field = Size.Y - 120 - unitBar;
+        Ui.Place(BattleLog, 0, 66, logWidth, Math.Min(field, 12 * 56 + 56));
+        Ui.Place(Battlefield, logWidth, 66, Size.X - sidebar - 8 - logWidth, field);
+        Ui.Place(_sidebar, Size.X - sidebar, 66, sidebar - 12, field);
+        // Shrink the cards first: a container never sizes below its children's current minimum.
+        LayoutUnitCards();
+        Ui.Place(_unitBar, 16, Size.Y - 46 - unitBar, Size.X - 32, unitBar);
         Ui.Place(_help, 16, Size.Y - 43, Size.X - 32, 40);
         var width = Math.Min(760, Size.X - 48); var height = Math.Min(650, Size.Y - 48);
         Ui.Place(_modalPanel, (Size.X - width) / 2, (Size.Y - height) / 2, width, height);
@@ -217,7 +225,7 @@ public partial class CombatScreen : Control
         Battlefield.Display(Simulation); _shade.Hide(); Modal = CombatModal.None; Battlefield.CommandsEnabled = true;
         BattleLog.Hide(); BattleLog.Display(Simulation); Layout();
         Battlefield.MouseFilter = MouseFilterEnum.Stop;
-        RosterUi.Clear(_unitBar); UnitButtons.Clear();
+        RosterUi.Clear(_unitBar); UnitButtons.Clear(); UnitDolls.Clear();
         var number = 0;
         foreach (var unit in Simulation.Units.Where(item => item.Side == CombatSide.Friendly))
         {
@@ -225,9 +233,14 @@ public partial class CombatScreen : Control
             var button = Ui.Button(_unitBar, $"{number} · {unit.Warrior.Callsign}\n{unit.Spec.DisplayName}");
             button.SizeFlagsHorizontal = SizeFlags.ExpandFill;
             button.ClipText = true; button.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
-            UnitButtons.Add(button);
+            // The doll sits below the names; clicks pass through it to the card.
+            var doll = new CombatPaperdoll { Compact = true };
+            button.AddChild(doll);
+            doll.SetAnchorsAndOffsetsPreset(LayoutPreset.BottomWide);
+            UnitButtons.Add(button); UnitDolls.Add(doll);
             button.Pressed += () => { Battlefield.InspectedEnemy = null; SelectUnits([unit.Id], Input.IsKeyPressed(Key.Shift)); Battlefield.GrabFocus(); };
         }
+        LayoutUnitCards();
         SelectUnits([Simulation.Units.First(item => item.Side == CombatSide.Friendly).Id], false);
         Battlefield.GrabFocus(); RefreshDetails();
     }
@@ -241,15 +254,18 @@ public partial class CombatScreen : Control
         }
         Battlefield.Selection = _selected; SettingPriority = false; RefreshDetails();
     }
-    private void IssueCommand(Vector2 ground, string? target)
+    public void IssueCommand(Vector2 ground, string? target, MovementMode? mode = null)
     {
         if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing) return;
         if (SettingPriority)
         {
             if (target is not null && Simulation.Unit(target) is { Side: CombatSide.Enemy, Defeated: false })
             { Simulation.SetPriority(_selected, target); SettingPriority = false; }
+            RefreshDetails(); return;
         }
-        else if (target is not null && Simulation.Unit(target).Side == CombatSide.Friendly) Simulation.Follow(_selected, target);
+        // Alt/Ctrl+right-click keeps the chosen mode, exactly as the Walk/Run buttons do.
+        if (mode is { } movement) ChangeUnits(unit => unit.Movement = movement);
+        if (target is not null && Simulation.Unit(target).Side == CombatSide.Friendly) Simulation.Follow(_selected, target);
         else if (target is not null) Simulation.Attack(_selected, target);
         else Simulation.Move(_selected, ground);
         RefreshDetails();
@@ -260,6 +276,26 @@ public partial class CombatScreen : Control
         foreach (var unit in _selected.Select(Simulation.Unit).Where(item => !item.Defeated)) change(unit);
         RefreshDetails();
     }
+    /// <summary>Two text lines at the card font, with the margins above and below them.</summary>
+    private float UnitCardTextHeight => UnitButtons.Count == 0 ? 0
+        : UnitButtons[0].GetThemeFont("font").GetHeight(UnitButtons[0].GetThemeFontSize("font_size")) * 2 + 10;
+    /// <summary>The compact paperdoll's height: whatever the card leaves beneath its names.</summary>
+    private float UnitDollHeight => Math.Max(16, _unitBarHeight - UnitCardTextHeight - 4);
+    private void LayoutUnitCards()
+    {
+        foreach (var doll in UnitDolls) { doll.OffsetTop = -UnitDollHeight - 4; doll.OffsetBottom = -4; doll.OffsetLeft = 6; doll.OffsetRight = -6; }
+        foreach (var button in UnitButtons)
+            foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed", "disabled" })
+                button.AddThemeStyleboxOverride(state, CardBox(button.GetThemeStylebox(state)));
+    }
+    /// <summary>A unit card style with its names clear of the compact paperdoll beneath them.</summary>
+    private StyleBox CardBox(StyleBox style)
+    {
+        var box = (StyleBox)style.Duplicate();
+        box.ContentMarginTop = 6; box.ContentMarginBottom = UnitDollHeight + 4;
+        return box;
+    }
+    private void StopUnits() { Simulation?.Hold(_selected); RefreshDetails(); }
     public void TogglePause()
     {
         if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing) return;
@@ -340,6 +376,19 @@ public partial class CombatScreen : Control
             }
             return true;
         }
+        if (Battlefield.HasFocus())
+        {
+            Action? order = code switch
+            {
+                Key.Z => StopUnits,
+                Key.X => () => ChangeUnits(unit => unit.Movement = MovementMode.Walk),
+                Key.C => () => ChangeUnits(unit => unit.Movement = MovementMode.Run),
+                Key.G => () => ChangeUnits(unit => unit.Firing = FiringMode.HoldFire),
+                Key.F => () => ChangeUnits(unit => unit.Firing = FiringMode.FireAtWill),
+                _ => null
+            };
+            if (order is not null) { order(); return true; }
+        }
         if (code == Key.Quoteleft || key.Keycode == Key.Asciitilde)
         {
             if (key.ShiftPressed || key.Keycode == Key.Asciitilde) ToggleBattleLog();
@@ -362,14 +411,15 @@ public partial class CombatScreen : Control
         _status.Text = $"{(Simulation.Paused ? "PAUSED · orders available" : "LIVE")}  |  {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}";
         PauseButton.Text = Simulation.Paused ? "Resume  [Space]" : "Pause  [Space]";
         _help.Text = SettingPriority ? "PRIORITY TARGET: right-click a detected enemy. This changes target preference without ordering pursuit. Escape cancels."
-            : "Click / drag / 1–4: select · Shift: toggle · Right-click: Move / Attack / Follow · Space: pause · WASD / arrows / middle-drag: pan · Wheel: zoom · Right-drag / Q/E: orbit · `: frame selection · ~: battle log · Home: arena";
+            : "Click / drag / 1–4: select · Shift: toggle · Right-click: Move / Attack / Follow (Alt: walk · Ctrl: run) · Z: stop · X/C: walk/run · G/F: hold/fire at will · Space: pause · WASD / arrows / middle-drag: pan (Shift: fast) · Wheel: zoom · Right-drag / Q/E: orbit · `: frame selection · ~: battle log · Home: arena";
         var friends = Simulation.Units.Where(item => item.Side == CombatSide.Friendly).ToArray();
         for (var i = 0; i < UnitButtons.Count; i++)
         {
             var friend = friends[i]; var button = UnitButtons[i];
             button.Text = $"{i + 1} · {friend.Warrior.Callsign} · {friend.Status}\n{friend.Spec.DisplayName} · H {friend.Heat:0.0}";
             button.TooltipText = $"{friend.Spec.DisplayName} · {friend.Status}\n{HeatReadout(friend)}";
-            button.AddThemeStyleboxOverride("normal", Ui.Box(_selected.Contains(friend.Id) ? new Color("344431") : Ui.Panel, _selected.Contains(friend.Id) ? Ui.Gold : Ui.Line));
+            button.AddThemeStyleboxOverride("normal", CardBox(Ui.Box(_selected.Contains(friend.Id) ? new Color("344431") : Ui.Panel, _selected.Contains(friend.Id) ? Ui.Gold : Ui.Line)));
+            UnitDolls[i].Display(friend);
         }
         var primary = _selected.FirstOrDefault(); var unit = primary is null ? null : Simulation.Unit(primary);
         var active = _selected.Select(Simulation.Unit).Where(item => !item.Defeated).ToArray();
@@ -424,10 +474,10 @@ public partial class CombatScreen : Control
                 + $"Movement: {(active.Select(item => item.Movement).Distinct().Count() > 1 ? "Mixed" : active[0].Movement)} · Fire: {(active.Select(item => item.Firing).Distinct().Count() > 1 ? "Mixed" : active[0].Firing == FiringMode.FireAtWill ? "At will" : "Hold")}\n"
                 + $"Distance: {(active.Select(item => item.PreferredDistance).Distinct().Count() > 1 ? "Mixed" : $"{active[0].PreferredDistance:0} m")}\n"
                 + $"Heat policy: {(active.Select(item => item.HeatPolicy).Distinct().Count() > 1 ? "Mixed" : active[0].HeatPolicy.ToString())}";
-            _walk.Text = active.All(item => item.Movement == MovementMode.Walk) ? "● Walk" : "Walk";
-            _run.Text = active.All(item => item.Movement == MovementMode.Run) ? "● Run" : "Run";
-            _fire.Text = active.All(item => item.Firing == FiringMode.FireAtWill) ? "● Fire at will" : "Fire at will";
-            _hold.Text = active.All(item => item.Firing == FiringMode.HoldFire) ? "● Hold fire" : "Hold fire";
+            _walk.Text = (active.All(item => item.Movement == MovementMode.Walk) ? "● Walk" : "Walk") + " [X]";
+            _run.Text = (active.All(item => item.Movement == MovementMode.Run) ? "● Run" : "Run") + " [C]";
+            _fire.Text = (active.All(item => item.Firing == FiringMode.FireAtWill) ? "● Fire at will" : "Fire at will") + " [F]";
+            _hold.Text = (active.All(item => item.Firing == FiringMode.HoldFire) ? "● Hold fire" : "Hold fire") + " [G]";
             NormalHeatButton.Text = active.All(item => item.HeatPolicy == HeatPolicy.Normal) ? "● Normal heat" : "Normal heat";
             AggressiveHeatButton.Text = active.All(item => item.HeatPolicy == HeatPolicy.Aggressive) ? "● Aggressive heat" : "Aggressive heat";
             _refreshing = true;

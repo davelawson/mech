@@ -269,6 +269,21 @@ Record one immutable event per weapon discharge, including misses and whole miss
 
 Debug exposes every event and all recorded fields. Combat captures sensor visibility when the shot happens: friendly information is always detailed; Identified enemies expose chassis and slot, while exact weapon identity, variant, condition, system losses, heat and enemy attack percentages require Detailed contact. Friendly shots and detected enemy shots appear. Hits on friendly units from hidden enemies appear as Unknown attacker, without enemy identity, source range or hidden details; hidden misses are omitted. Later detection never reveals old hidden information. Stable F1–F4 and E1–E4 labels distinguish mirrored names.
 
+
+## Order shortcuts and condition displays (confirmed November 1, 2026)
+
+With battlefield focus, Z stops the selected mechs exactly as Stop movement / clear order does, clearing Attack and Follow orders while keeping priority targets. X sets Walk, C sets Run, G sets Hold fire and F sets Fire at will. They work while paused, skip defeated units, and do nothing while a modal, a text field or another control has focus. The matching buttons and the help line show the keys.
+
+Alt+right-click and Ctrl+right-click issue the ordinary right-click order (Move, Attack or Follow) after setting the selected mechs to Walk or Run respectively. The mode persists, just as if the Walk or Run button had been pressed. A modified right-drag still orbits, and the modifier is ignored while choosing a priority target. Some Linux window managers reserve Alt+click for themselves, in which case Alt+right-click never reaches the game.
+
+Holding Shift pans the camera with WASD or the arrows at five times the normal speed. Rotation, zoom and mouse panning are unchanged.
+
+Hovering a location of the sidebar paperdoll lists every weapon, component and ammunition bin installed there. Front and rear torso regions list the same location. Identical systems in the same condition are grouped as a count, such as "3 x Medium Laser", and rear-mounted weapons are grouped separately. Each line is coloured by condition only: green when operational, yellow when damaged and red when destroyed. Everything in a lost location is red. Empty ammunition and weapons that are intact but cannot fire stay green. An inspected enemy shows the tooltip only at Detailed contact tier, when its paperdoll is visible.
+
+Each friendly unit card carries a compact paperdoll of its mech's current armor and structure, with no labels or tooltip, beneath the existing callsign, status, chassis and heat text. Destroyed and disabled mechs keep theirs.
+
+A mech travelling in reverse takes the running penalty on its own shots, whatever its selected mode. As a target it still counts as walking, unless it is set to Run. Reversing heat is unchanged.
+
 ## Metric distances and mech scale (confirmed October 31, 2026)
 
 Every combat distance, range, speed and size is expressed in metres, and one world unit is one metre. Earlier values convert at 30 metres per former distance unit, so ranges, speeds, sensors, the arena, terrain features and follow spacing play exactly as before. Each stock catalog range point becomes 90 metres in combat: the existing threefold [engagement spacing](#engagement-spacing-confirmed-october-29-2026) at a nominal 30 metres per point. Weapon readouts, the preferred-distance control, sensor and range overlays and the battle log all show metres.

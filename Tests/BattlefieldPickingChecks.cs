@@ -79,7 +79,7 @@ public partial class SmokeTests
             await Capture("combat-mech-hover");
             string? selected = null; string? commanded = null;
             field.SelectionRequested += (ids, _) => selected = ids.SingleOrDefault();
-            field.CommandRequested += (_, id) => commanded = id;
+            field.CommandRequested += (_, id, _) => commanded = id;
             MouseButton(field.GlobalPosition + overlap, Godot.MouseButton.Left, true);
             MouseButton(field.GlobalPosition + overlap, Godot.MouseButton.Left, false); await Frames();
             Check(selected == friendly.Id && field.InspectedEnemy == enemy.Id, "enemy click inspects the same frontmost mech previewed by hover");

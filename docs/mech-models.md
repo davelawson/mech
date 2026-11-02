@@ -205,6 +205,10 @@ Generic chassis receive the shared movement speed immediately and retain their s
 
 `Scripts/CombatPaperdoll.cs` draws the same simplified shape for every chassis. It appears directly below the primary selection's identity in the right sidebar, with a full front schematic and smaller rear-torso inset. Multiple selection follows the first selected mech. Detected enemy inspection uses the same data presentation as friendly selection; lost contacts expose no updating condition panel.
 
+Hovering a front or rear region shows a tooltip headed by the location name, listing its weapons, then components, then ammunition bins in mount order. Systems with the same name, rear mounting and condition are grouped as "N x Name". Lines are green `#6fcf6a` when operational, yellow `#f1d34c` when damaged and red `#e84c43` when destroyed or in a lost location. The doll passes wheel input through to the sidebar scroll.
+
+Each combat unit card shows a compact doll: the same regions and colours with the rear-torso strip moved 26 units left to sit beside the front view, and no labels, legend or tooltip. It is centred beneath the callsign and chassis lines, filling the card height the two text lines leave. The unit bar is 13% of the screen height, between 78 and 124 pixels, so short windows keep battlefield height; at the minimum the doll is about 24 pixels tall.
+
 An outer band represents armor and the inner core represents structure, independently. Each uses the stock maximum in `MechSpec.Locations`, including when a unit deploys already damaged. Deployment-time condition is not a maximum.
 
 | Remaining fraction | Color |

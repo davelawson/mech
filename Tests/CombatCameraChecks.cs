@@ -11,7 +11,7 @@ public partial class SmokeTests
         var at = field.GlobalPosition + field.Size / 2;
         var commands = 0;
         var lastGround = Vector2.Zero;
-        void OnCommand(Vector2 ground, string? target) { commands++; lastGround = ground; }
+        void OnCommand(Vector2 ground, string? target, MovementMode? mode) { commands++; lastGround = ground; }
         field.CommandRequested += OnCommand;
         // Manually step keyboard navigation so speed assertions do not depend on frame timing.
         field.SetProcess(false);
@@ -86,6 +86,10 @@ public partial class SmokeTests
             start = field.Camera.Position;
             CameraStep(field, .1, Key.W, Key.D);
             Near(new Vector2(field.Camera.Position.X - start.X, field.Camera.Position.Z - start.Z).Length(), cardinalDistance, "diagonal WASD speed matches cardinal speed");
+            start = field.Camera.Position;
+            CameraStep(field, .1, Key.Shift, Key.S);
+            Near(new Vector2(field.Camera.Position.X - start.X, field.Camera.Position.Z - start.Z).Length(),
+                cardinalDistance * CombatViewport.FastPanMultiplier, "Shift pans five times faster");
             start = field.Camera.Position;
             field._Process(.1);
             Check(field.Camera.Position.IsEqualApprox(start), "WASD stops immediately after release");

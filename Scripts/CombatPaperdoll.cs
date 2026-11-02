@@ -2,12 +2,26 @@ using Godot;
 
 namespace Mech;
 
-/// <summary>A shared front/rear schematic. The armor rim and internal core are independent.</summary>
+/// <summary>One line of a location's systems tooltip: identical systems in the same condition.</summary>
+public sealed record SystemGroup(int Count, string Name, ComponentCondition Condition)
+{
+    public string Text => Count > 1 ? $"{Count} x {Name}" : Name;
+}
+
+/// <summary>
+/// A shared front/rear schematic. The armor rim and internal core are independent.
+/// Compact dolls (unit cards) draw only the regions; the full doll lists each location's systems on hover.
+/// </summary>
 public partial class CombatPaperdoll : Control
 {
     public CombatUnit? Unit { get; private set; }
+    public bool Compact { get; init; }
     public static readonly Color Full = new("b4b8b6"), LightDamage = new("f1d34c"),
-        ModerateDamage = new("ef8a32"), CriticalDamage = new("e84c43");
+        ModerateDamage = new("ef8a32"), CriticalDamage = new("e84c43"), Healthy = new("6fcf6a");
+    public static Color SystemColor(ComponentCondition condition) => condition switch
+    {
+        ComponentCondition.Destroyed => CriticalDamage, ComponentCondition.Damaged => LightDamage, _ => Healthy
+    };
     public static Color ConditionColor(int remaining, int maximum) => remaining >= maximum ? Full
         : remaining * 3 > maximum * 2 ? LightDamage : remaining * 3 > maximum ? ModerateDamage : CriticalDamage;
     private static readonly Dictionary<MechLocation, Vector2[]> Shapes = new()
@@ -21,9 +35,22 @@ public partial class CombatPaperdoll : Control
         [MechLocation.RightLeg] = [new(48, 123), new(83, 130), new(79, 173), new(78, 208), new(38, 208), new(42, 173)],
         [MechLocation.LeftLeg] = [new(95, 130), new(130, 123), new(136, 173), new(140, 208), new(100, 208), new(99, 173)]
     };
+    // Rear view: anatomical left is on the viewer's left.
+    private static readonly (MechLocation Location, Vector2[] Shape)[] RearShapes =
+    [
+        (MechLocation.LeftTorso, [new(202, 55), new(225, 58), new(225, 112), new(205, 105)]),
+        (MechLocation.CenterTorso, [new(231, 57), new(259, 57), new(261, 113), new(229, 113)]),
+        (MechLocation.RightTorso, [new(265, 58), new(288, 55), new(285, 105), new(265, 112)])
+    ];
+    // The compact doll tucks the rear strip beside the front view and crops the labels and legend.
+    private static readonly Vector2 CompactRearShift = new(-26, 0);
+    private static readonly Rect2 CompactBounds = new(4, 22, 262, 188);
+    private MechLocation? _tooltipLocation;
     public override void _Ready()
     {
-        CustomMinimumSize = new(0, 220); MouseFilter = MouseFilterEnum.Ignore;
+        // Pass keeps wheel scrolling in the sidebar while the doll shows tooltips.
+        CustomMinimumSize = Compact ? Vector2.Zero : new(0, 220);
+        MouseFilter = Compact ? MouseFilterEnum.Ignore : MouseFilterEnum.Pass;
         // A width-dependent minimum height can oscillate with an automatic scrollbar.
         // Keep layout stable and fit the drawing to the allocated size instead.
         Resized += QueueRedraw;
@@ -37,11 +64,53 @@ public partial class CombatPaperdoll : Control
                 + (state.Structure == 0 ? " · LOST" : "")
                 + (spec.RearArmor > 0 ? $"\n       Rear {state.RearArmor}/{spec.RearArmor}" : "");
         }));
+    /// <summary>Weapons, components and ammunition in one location, grouped by name and condition in mount order.</summary>
+    public static IReadOnlyList<SystemGroup> LocationSystems(CombatUnit unit, MechLocation location)
+    {
+        var lost = !unit.Intact(location);
+        return unit.Weapons.Select(weapon => weapon.Spec).Where(item => item.Location == location).Select(item => (item.Id, Name: item.Rear ? $"{item.Name} (rear)" : item.Name))
+            .Concat(unit.Spec.Components.Where(item => item.Location == location).Select(item => (item.Id, item.Name)))
+            .Concat(unit.Spec.Ammo.Where(item => item.Location == location).Select(item => (item.Id, item.Name)))
+            .Select(item => (item.Name, Condition: lost ? ComponentCondition.Destroyed : unit.Equipment[item.Id]))
+            .GroupBy(item => item).Select(group => new SystemGroup(group.Count(), group.Key.Name, group.Key.Condition)).ToArray();
+    }
+    private float DrawScale => Compact ? Math.Min(Size.X / CompactBounds.Size.X, Size.Y / CompactBounds.Size.Y) : Math.Min(Size.X / 300, Size.Y / 244);
+    private Vector2 Origin => Compact ? (Size - CompactBounds.Size * DrawScale) / 2 - CompactBounds.Position * DrawScale
+        : new Vector2((Size.X - 300 * DrawScale) / 2, 0);
+    /// <summary>The location drawn under a point in this control's coordinates, front or rear.</summary>
+    public MechLocation? LocationAt(Vector2 at)
+    {
+        if (Unit is null) return null;
+        var point = (at - Origin) / DrawScale;
+        foreach (var (location, shape) in Shapes) if (Geometry2D.IsPointInPolygon(point, shape)) return location;
+        var rear = Compact ? point - CompactRearShift : point;
+        foreach (var (location, shape) in RearShapes) if (Geometry2D.IsPointInPolygon(rear, shape)) return location;
+        return null;
+    }
+    public string LocationTooltip(MechLocation location) => Unit is null ? "" : DraftCatalog.LocationName(location).ToUpperInvariant() + "\n"
+        + (LocationSystems(Unit, location) is { Count: > 0 } systems
+            ? string.Join("\n", systems.Select(item => item.Condition == ComponentCondition.Operational ? item.Text : $"{item.Text} · {item.Condition}"))
+            : "No systems");
+    public override string _GetTooltip(Vector2 atPosition)
+    {
+        _tooltipLocation = Compact ? null : LocationAt(atPosition);
+        return _tooltipLocation is { } location ? LocationTooltip(location) : "";
+    }
+    public override GodotObject? _MakeCustomTooltip(string forText)
+    {
+        if (Unit is null || _tooltipLocation is not { } location) return null;
+        var box = new VBoxContainer();
+        box.AddThemeConstantOverride("separation", 2);
+        Ui.Label(box, DraftCatalog.LocationName(location).ToUpperInvariant(), 12, Ui.Gold);
+        var systems = LocationSystems(Unit, location);
+        if (systems.Count == 0) Ui.Label(box, "No systems", 12, Ui.Muted);
+        foreach (var system in systems) Ui.Label(box, system.Text, 12, SystemColor(system.Condition));
+        return box;
+    }
     public override void _Draw()
     {
         if (Unit is null) return;
-        var scale = Math.Min(Size.X / 300, Size.Y / 244);
-        var origin = new Vector2((Size.X - 300 * scale) / 2, 0);
+        var scale = DrawScale; var origin = Origin;
         Vector2 At(Vector2 point) => origin + point * scale;
         void Text(Vector2 at, string text, Color color, int size = 11) =>
             DrawString(ThemeDB.FallbackFont, At(at), text, HorizontalAlignment.Left, -1, Math.Max(9, (int)(size * scale)), color);
@@ -59,19 +128,19 @@ public partial class CombatPaperdoll : Control
                 DrawColoredPolygon(shape.Select(p => At(center + (p - center) * .65f)).ToArray(), ConditionColor(state.Structure, spec.Structure));
             }
             DrawPolyline(outer.Append(outer[0]).ToArray(), new Color("62706b"), 1, true);
+            if (Compact) return;
             var abbreviation = DraftCatalog.Abbreviation(location);
             var fontSize = Math.Max(9, (int)(10 * scale));
             var textWidth = ThemeDB.FallbackFont.GetStringSize(abbreviation, fontSize: fontSize).X;
             DrawString(ThemeDB.FallbackFont, At(center) + new Vector2(-textWidth / 2, fontSize * .35f), abbreviation,
                 HorizontalAlignment.Left, -1, fontSize, state.Structure > 0 ? new Color("101916") : Ui.Muted);
         }
+        foreach (var (location, shape) in Shapes) Region(location, shape, false);
+        foreach (var (location, shape) in RearShapes)
+            Region(location, Compact ? shape.Select(point => point + CompactRearShift).ToArray() : shape, true);
+        if (Compact) return;
         Text(new(62, 14), "FRONT", Ui.Muted);
         Text(new(204, 38), "REAR TORSO", Ui.Muted, 10);
-        foreach (var (location, shape) in Shapes) Region(location, shape, false);
-        // Rear view: anatomical left is on the viewer's left.
-        Region(MechLocation.LeftTorso, [new(202, 55), new(225, 58), new(225, 112), new(205, 105)], true);
-        Region(MechLocation.CenterTorso, [new(231, 57), new(259, 57), new(261, 113), new(229, 113)], true);
-        Region(MechLocation.RightTorso, [new(265, 58), new(288, 55), new(285, 105), new(265, 112)], true);
         Text(new(199, 139), "RIM: ARMOR", Ui.Muted, 10);
         Text(new(199, 155), "CORE: INTERNAL", Ui.Muted, 10);
         var colors = new[] { Full, LightDamage, ModerateDamage, CriticalDamage };

@@ -205,6 +205,16 @@ internal static partial class CombatChecks
         var walking = CombatSimulation.HitChance(f, enemies[0], f.Weapons[0]);
         f.Moving = true; f.Movement = MovementMode.Run;
         check(CombatSimulation.HitChance(f, enemies[0], f.Weapons[0]) < walking, "running reduces firing accuracy");
+        var running = CombatSimulation.HitChance(f, enemies[0], f.Weapons[0]);
+        f.Movement = MovementMode.Walk; f.CurrentSpeed = -1;
+        check(CombatSimulation.HitChance(f, enemies[0], f.Weapons[0]) == running, "reversing in Walk mode aims as badly as running");
+        var facing = enemies[0].Facing; enemies[0].Facing = Vector2.Left;
+        var reply = enemies[0].Weapons.First(weapon => !weapon.Spec.Rear);
+        var shotAtReverser = CombatSimulation.HitChance(enemies[0], f, reply);
+        f.CurrentSpeed = 1;
+        check(shotAtReverser > 0 && CombatSimulation.HitChance(enemies[0], f, reply) == shotAtReverser,
+            "a reversing target still counts as walking");
+        f.Moving = false; f.CurrentSpeed = 0; enemies[0].Facing = facing;
     }
     private static void CheckExtendedRanges(Action<bool, string> check)
     {

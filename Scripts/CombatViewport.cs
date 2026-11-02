@@ -6,7 +6,9 @@ namespace Mech;
 public partial class CombatViewport : Control
 {
     public event Action<IReadOnlyList<string>, bool>? SelectionRequested;
-    public event Action<Vector2, string?>? CommandRequested;
+    /// <summary>Ground point, picked mech and the movement mode an Alt (Walk) or Ctrl (Run) modifier sets.</summary>
+    public event Action<Vector2, string?, MovementMode?>? CommandRequested;
+    public const float FastPanMultiplier = 5;
     public CombatSimulation? Simulation { get; private set; }
     public IReadOnlyCollection<string> Selection { get; set; } = Array.Empty<string>();
     public string? InspectedEnemy { get; set; }
@@ -891,7 +893,8 @@ public partial class CombatViewport : Control
             {
                 var at = GetGlobalTransformWithCanvas().AffineInverse() * mouse.Position;
                 var target = PickMech(at);
-                CommandRequested?.Invoke(GroundPoint(at), target?.Id);
+                MovementMode? mode = mouse.CtrlPressed ? MovementMode.Run : mouse.AltPressed ? MovementMode.Walk : null;
+                CommandRequested?.Invoke(GroundPoint(at), target?.Id, mode);
             }
             GetViewport().SetInputAsHandled();
         }
@@ -943,7 +946,8 @@ public partial class CombatViewport : Control
             if (Input.IsPhysicalKeyPressed(Key.S) || Input.IsPhysicalKeyPressed(Key.Down)) pan.Y++;
             if (Input.IsPhysicalKeyPressed(Key.A) || Input.IsPhysicalKeyPressed(Key.Left)) pan.X--;
             if (Input.IsPhysicalKeyPressed(Key.D) || Input.IsPhysicalKeyPressed(Key.Right)) pan.X++;
-            if (pan != Vector2.Zero) Pan(pan.Normalized() * (float)delta * Camera.Size * .5f);
+            var speed = Input.IsPhysicalKeyPressed(Key.Shift) ? FastPanMultiplier : 1;
+            if (pan != Vector2.Zero) Pan(pan.Normalized() * (float)delta * Camera.Size * .5f * speed);
             if (Input.IsPhysicalKeyPressed(Key.Q)) { _yaw -= (float)delta; UpdateCamera(); }
             if (Input.IsPhysicalKeyPressed(Key.E)) { _yaw += (float)delta; UpdateCamera(); }
         }

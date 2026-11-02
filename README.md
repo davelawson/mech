@@ -70,14 +70,19 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | Shift+click | Add to / remove from selection |
 | 1–4 / Shift+1–4 | Select / toggle a deployment slot |
 | Right-click ground / enemy / friendly | Move / Attack / Follow |
+| Alt+right-click / Ctrl+right-click | The same order, setting the selection to Walk / Run |
+| Z | Stop the selection and clear its orders |
+| X / C | Walk / Run |
+| G / F | Hold fire / Fire at will |
 | Space | Pause or resume |
-| WASD / arrows, middle-drag | Pan |
+| WASD / arrows, middle-drag | Pan (hold Shift for 5× speed) |
 | Wheel | Zoom (scrolls the battle log while over it) |
 | Right-drag, Q/E, Shift+middle-drag | Rotate |
 | Home | Arena overview |
 | Backtick (`` ` ``) | Reset camera and frame the selection |
 | Shift+backtick (~) | Toggle the battle log |
 | Hover a detected enemy | Show range lines from selected friendlies |
+| Hover a paperdoll location | List the systems installed there by condition |
 | Escape | Combat menu (End Simulation) |
 
 ## Build and test
