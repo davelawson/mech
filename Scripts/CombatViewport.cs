@@ -13,6 +13,8 @@ public partial class CombatViewport : Control
     public IReadOnlyCollection<string> Selection { get; set; } = Array.Empty<string>();
     public string? InspectedEnemy { get; set; }
     public string? HoveredMech { get; private set; }
+    /// <summary>Jump targeting is armed: draw selected range circles and the landing point under the pointer.</summary>
+    public bool JumpArmed { get; set; }
     public bool CommandsEnabled
     {
         get => _commandsEnabled;
@@ -301,6 +303,8 @@ public partial class CombatViewport : Control
         for (var i = _destructions.Count - 1; i >= 0; i--) RemoveDestruction(i);
         foreach (var mark in _burnMarks) mark.Mesh.QueueFree();
         _burnMarks.Clear();
+        foreach (var dust in _dust) dust.Mesh.QueueFree();
+        _dust.Clear(); _airborne.Clear();
         _models.Clear(); _pickBounds.Clear();
         Simulation = simulation; Simulation.ShotFired += OnShot; InspectedEnemy = null; Selection = Array.Empty<string>();
         if (_terrainView is not null) { _world.RemoveChild(_terrainView); _terrainView.QueueFree(); }
@@ -809,14 +813,57 @@ public partial class CombatViewport : Control
         {
             var model = _models[unit.Id];
             model.Visible = unit.Side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, unit.Id);
-            model.Position = World(unit.Position, Simulation.Terrain.HeightAt(unit.Position));
+            model.Position = World(unit.Position, Simulation.Terrain.HeightAt(unit.Position) + unit.Altitude);
             model.Rotation = new Vector3(unit.Status == CombatStatus.Destroyed ? Mathf.Pi / 2 : 0,
                 Mathf.Atan2(-unit.Facing.X, -unit.Facing.Y), 0);
             model.SetCondition(unit.Intact);
             model.SetTorsoTwist(unit.TorsoTwist);
-            model.AnimateLocomotion(animationDelta, unit.Active ? unit.CurrentSpeed : 0,
-                unit.WalkingSpeed, unit.RunningSpeed, unit.Active ? unit.AngularVelocity : 0);
+            if (unit.JumpPhase is { } phase) model.AnimateJump(phase);
+            else
+            {
+                model.AnimateLocomotion(animationDelta, unit.Active ? unit.CurrentSpeed : 0,
+                    unit.WalkingSpeed, unit.RunningSpeed, unit.Active ? unit.AngularVelocity : 0);
+                if (unit.LandedAt is { } landed) model.AnimateLanding((float)(Simulation.Clock - landed));
+            }
+            model.SetJetting(unit.JumpPhase is { } flight ? MechModel.JetStrength(flight) : 0, Simulation.Clock, unit.WorkingJumpJets);
+            // Dust kicks up where a jump leaves the ground and where it lands.
+            if (unit.Airborne != _airborne.Contains(unit.Id))
+            {
+                if (unit.Airborne) { _airborne.Add(unit.Id); AddDust(unit.JumpFrom, model.Scale.X); }
+                else { _airborne.Remove(unit.Id); AddDust(unit.Position, model.Scale.X); }
+            }
             if (model.Visible && model.PickBounds() is { } bounds) _pickBounds[unit.Id] = bounds.Grow(.08f);
+        }
+    }
+    private readonly HashSet<string> _airborne = [];
+    private readonly List<(MeshInstance3D Mesh, double Start, float Size)> _dust = [];
+    private const float DustSeconds = 1.4f;
+    private void AddDust(Vector2 at, float size)
+    {
+        if (Simulation is null) return;
+        var mesh = new MeshInstance3D
+        {
+            Mesh = new SphereMesh { Radius = 1, Height = 1, RadialSegments = 16, Rings = 6 }, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            Position = World(at, Simulation.Terrain.HeightAt(at)),
+            MaterialOverride = new StandardMaterial3D
+            {
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+                AlbedoColor = new Color("b8a682", .5f)
+            }
+        };
+        _world.AddChild(mesh); _dust.Add((mesh, Simulation.Clock, size));
+        UpdateDust();
+    }
+    /// <summary>Dust rings swell and fade with simulation time, so they freeze on pause.</summary>
+    private void UpdateDust()
+    {
+        for (var i = _dust.Count - 1; i >= 0; i--)
+        {
+            var (mesh, start, size) = _dust[i]; var t = (float)((Simulation?.Clock ?? start) - start) / DustSeconds;
+            if (t >= 1 || Simulation is null) { mesh.QueueFree(); _dust.RemoveAt(i); continue; }
+            var radius = size * (.6f + 1.4f * Mathf.Sqrt(Math.Max(0, t)));
+            mesh.Scale = new Vector3(radius, size * .35f * (1 - t * .5f), radius);
+            ((StandardMaterial3D)mesh.MaterialOverride).AlbedoColor = new Color("b8a682", .5f * (1 - t));
         }
     }
     public static Vector3 World(Vector2 point, float height = 0) => new(point.X, height, point.Y);
@@ -959,7 +1006,7 @@ public partial class CombatViewport : Control
                 || _effects[i].Laser is not null && Simulation.Unit(_effects[i].Shot.AttackerId).Status == CombatStatus.Destroyed)
                 RemoveEffect(i);
         foreach (var effect in _effects) { UpdateBeam(effect); UpdateShell(effect); UpdatePpc(effect); UpdateSalvo(effect); UpdateBurst(effect); }
-        UpdateBurnMarks();
+        UpdateBurnMarks(); UpdateDust();
         for (var i = _destructions.Count - 1; i >= 0; i--)
             if (Age(_destructions[i]) >= DestructionSeconds) RemoveDestruction(i);
         foreach (var destruction in _destructions) UpdateDestruction(destruction);
@@ -1221,6 +1268,27 @@ public partial class CombatViewport : Control
                 new Color(color, .45f), 1, true);
         }
     }
+    /// <summary>While jump targeting is armed: each able selected mech's range circle and its landing point under the pointer.</summary>
+    private void DrawJumpTargeting()
+    {
+        if (Simulation is null || !JumpArmed) return;
+        var color = new Color("ffb36b");
+        var pointer = GetLocalMousePosition();
+        var aim = new Rect2(Vector2.Zero, Size).HasPoint(pointer) ? GroundPoint(pointer) : (Vector2?)null;
+        foreach (var unit in Selection.Select(Simulation.Unit).Where(item => item.JumpUnavailableReason is null))
+        {
+            var range = unit.JumpRange;
+            DrawPolyline(Enumerable.Range(0, 73).Select(segment => ScreenPoint(unit.Position + Vector2.FromAngle(segment * Mathf.Tau / 72) * range, 1.5f)).ToArray(),
+                new Color(color, .8f), 2, true);
+            if (aim is not { } point) continue;
+            var landing = unit.Position + (point - unit.Position).LimitLength(range);
+            var from = ScreenPoint(unit.Position); var to = ScreenPoint(landing);
+            DrawDashedLine(from, to, new Color(color, .85f), 2, 8, true);
+            DrawArc(to, 9, 0, Mathf.Tau, 24, color, 2, true);
+            DrawString(ThemeDB.FallbackFont, to + new Vector2(12, 4), FormattableString.Invariant($"{unit.Position.DistanceTo(landing):0} m"),
+                HorizontalAlignment.Left, -1, 12, color);
+        }
+    }
     public override void _Draw()
     {
         if (Simulation is null || Camera is null) return;
@@ -1255,6 +1323,7 @@ public partial class CombatViewport : Control
                     ? Simulation.Unit(leader).Position : unit.AttackTarget is { } id
                     && Simulation.Contacts(unit.Side).TryGetValue(id, out var contact) ? contact.LastKnownPosition : unit.Position;
                 if (to.DistanceTo(unit.Position) > 12) { var end = ScreenPoint(to); DrawLine(at, end, new Color(Ui.Gold, .65f), 1, true); DrawArc(end, 5, 0, Mathf.Tau, 16, Ui.Gold); }
+                if (unit.Airborne) DrawArc(ScreenPoint(unit.JumpTo), 9, 0, Mathf.Tau, 24, new Color("ffb36b"), 2, true);
                 if (unit.PriorityTarget is { } priority && Simulation.Contacts(unit.Side).TryGetValue(priority, out var preferred))
                     DrawArc(ScreenPoint(preferred.LastKnownPosition), 16, 0, Mathf.Tau, 24, Ui.Gold, 1, true);
             }
@@ -1278,6 +1347,7 @@ public partial class CombatViewport : Control
                 DrawRect(new Rect2(label + new Vector2(-15, 1), new Vector2(30 * (float)Math.Clamp(unit.Heat / CombatRules.ShutdownHeat, 0, 1), 3)), heatColor);
             }
         }
+        DrawJumpTargeting();
         foreach (var contact in Simulation.Contacts(CombatSide.Friendly).Values.Where(item => !item.Detected))
         {
             var at = ScreenPoint(contact.LastKnownPosition);

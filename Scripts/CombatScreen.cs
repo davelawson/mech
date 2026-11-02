@@ -33,6 +33,9 @@ public partial class CombatScreen : Control
     private float _unitBarHeight;
     public IReadOnlyList<string> Selected => _selected;
     public bool SettingPriority { get; private set; }
+    /// <summary>Jump targeting is armed: the next ground right-click sends the selection on a jump.</summary>
+    public bool SettingJump { get; private set; }
+    public Button JumpButton { get; private set; } = null!;
     private ForceRoster _roster = null!;
     /// <summary>The roster this deployment was opened with: pending hangar loadouts included.</summary>
     public ForceRoster Roster => _roster;
@@ -95,6 +98,7 @@ public partial class CombatScreen : Control
         _walk = Ui.Button(movement, "Walk"); _run = Ui.Button(movement, "Run");
         _walk.Pressed += () => ChangeUnits(unit => unit.Movement = MovementMode.Walk);
         _run.Pressed += () => ChangeUnits(unit => unit.Movement = MovementMode.Run);
+        JumpButton = Ui.Button(movement, "Jump [J]"); JumpButton.Pressed += ToggleJump;
         var fire = new HBoxContainer(); _settings.AddChild(fire);
         _fire = Ui.Button(fire, "Fire at will"); _hold = Ui.Button(fire, "Hold fire");
         _fire.Pressed += () => ChangeUnits(unit => unit.Firing = FiringMode.FireAtWill);
@@ -112,7 +116,7 @@ public partial class CombatScreen : Control
         _settings.AddChild(_distance);
         _distance.ValueChanged += value => { if (!_refreshing) ChangeUnits(unit => unit.PreferredDistance = (float)value); };
         _priority = Ui.Button(_settings, "Set priority target…");
-        _priority.Pressed += () => { SettingPriority = !SettingPriority; Battlefield.GrabFocus(); RefreshDetails(); };
+        _priority.Pressed += () => { SettingPriority = !SettingPriority; SettingJump = false; Battlefield.GrabFocus(); RefreshDetails(); };
         Ui.Button(_settings, "Clear priority target").Pressed += () => { Simulation?.SetPriority(_selected, null); SettingPriority = false; RefreshDetails(); };
         _weaponsTitle = RosterUi.Text(body, "WEAPONS · PRIMARY SELECTION", 12, Ui.Gold);
         _weapons = new VBoxContainer(); body.AddChild(_weapons);
@@ -149,7 +153,7 @@ public partial class CombatScreen : Control
     }
     public void Open(ForceRoster roster, string selectedMechId)
     {
-        _roster = roster; Simulation = null; _primary = null; _selected.Clear(); SettingPriority = false;
+        _roster = roster; Simulation = null; _primary = null; _selected.Clear(); SettingPriority = SettingJump = false;
         BattleLog.Hide(); Layout();
         Show(); ShowOpponentSelection(selectedMechId);
     }
@@ -252,7 +256,7 @@ public partial class CombatScreen : Control
             if (Simulation?.Unit(id).Side != CombatSide.Friendly) continue;
             if (additive && _selected.Contains(id)) _selected.Remove(id); else if (!_selected.Contains(id)) _selected.Add(id);
         }
-        Battlefield.Selection = _selected; SettingPriority = false; RefreshDetails();
+        Battlefield.Selection = _selected; SettingPriority = SettingJump = false; RefreshDetails();
     }
     public void IssueCommand(Vector2 ground, string? target, MovementMode? mode = null)
     {
@@ -261,6 +265,12 @@ public partial class CombatScreen : Control
         {
             if (target is not null && Simulation.Unit(target) is { Side: CombatSide.Enemy, Defeated: false })
             { Simulation.SetPriority(_selected, target); SettingPriority = false; }
+            RefreshDetails(); return;
+        }
+        if (SettingJump)
+        {
+            // Mechs are not landing points: a click on one keeps jump targeting armed.
+            if (target is null) { Simulation.Jump(_selected, ground); SettingJump = false; }
             RefreshDetails(); return;
         }
         // Alt/Ctrl+right-click keeps the chosen mode, exactly as the Walk/Run buttons do.
@@ -294,6 +304,19 @@ public partial class CombatScreen : Control
         var box = (StyleBox)style.Duplicate();
         box.ContentMarginTop = 6; box.ContentMarginBottom = UnitDollHeight + 4;
         return box;
+    }
+    /// <summary>Why no selected unit can jump now, or null when at least one can.</summary>
+    private string? JumpUnavailable()
+    {
+        var units = _selected.Select(Simulation!.Unit).ToArray();
+        return units.Length == 0 ? "No selection" : units.Any(unit => unit.JumpUnavailableReason is null) ? null
+            : string.Join(" · ", units.Select(unit => $"{unit.Warrior.Callsign}: {unit.JumpUnavailableReason}").Distinct());
+    }
+    public void ToggleJump()
+    {
+        if (Simulation is null) return;
+        SettingJump = !SettingJump && JumpUnavailable() is null; SettingPriority = false;
+        Battlefield.GrabFocus(); RefreshDetails();
     }
     private void StopUnits() { Simulation?.Hold(_selected); RefreshDetails(); }
     public void TogglePause()
@@ -356,7 +379,7 @@ public partial class CombatScreen : Control
         {
             if (Modal is CombatModal.OpponentSelection or CombatModal.ForceSelection or CombatModal.Results) Exit();
             else if (Modal == CombatModal.Menu) Resume();
-            else if (SettingPriority) { SettingPriority = false; RefreshDetails(); }
+            else if (SettingPriority || SettingJump) { SettingPriority = SettingJump = false; RefreshDetails(); }
             else OpenMenu();
             return true;
         }
@@ -385,6 +408,7 @@ public partial class CombatScreen : Control
                 Key.C => () => ChangeUnits(unit => unit.Movement = MovementMode.Run),
                 Key.G => () => ChangeUnits(unit => unit.Firing = FiringMode.HoldFire),
                 Key.F => () => ChangeUnits(unit => unit.Firing = FiringMode.FireAtWill),
+                Key.J => ToggleJump,
                 _ => null
             };
             if (order is not null) { order(); return true; }
@@ -410,8 +434,12 @@ public partial class CombatScreen : Control
         if (Simulation is null) return;
         _status.Text = $"{(Simulation.Paused ? "PAUSED · orders available" : "LIVE")}  |  {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}";
         PauseButton.Text = Simulation.Paused ? "Resume  [Space]" : "Pause  [Space]";
+        // Jump targeting lapses once no selected unit can still jump.
+        if (SettingJump && JumpUnavailable() is not null) SettingJump = false;
+        Battlefield.JumpArmed = SettingJump;
         _help.Text = SettingPriority ? "PRIORITY TARGET: right-click a detected enemy. This changes target preference without ordering pursuit. Escape cancels."
-            : "Click / drag / 1–4: select · Shift: toggle · Right-click: Move / Attack / Follow (Alt: walk · Ctrl: run) · Z: stop · X/C: walk/run · G/F: hold/fire at will · Space: pause · WASD / arrows / middle-drag: pan (Shift: fast) · Wheel: zoom · Right-drag / Q/E: orbit · `: frame selection · ~: battle log · Home: arena";
+            : SettingJump ? "JUMP: right-click the ground to jump there, within each mech's range circle. Attack and Follow orders resume on landing. Escape cancels."
+            : "Click / drag / 1–4: select · Shift: toggle · Right-click: Move / Attack / Follow (Alt: walk · Ctrl: run) · Z: stop · X/C: walk/run · J: jump · G/F: hold/fire at will · Space: pause · WASD / arrows / middle-drag: pan (Shift: fast) · Wheel: zoom · Right-drag / Q/E: orbit · `: frame selection · ~: battle log · Home: arena";
         var friends = Simulation.Units.Where(item => item.Side == CombatSide.Friendly).ToArray();
         for (var i = 0; i < UnitButtons.Count; i++)
         {
@@ -487,6 +515,11 @@ public partial class CombatScreen : Control
             _refreshing = false;
         }
         _priority.Text = SettingPriority ? "Choose enemy on battlefield…" : "Set priority target…";
+        var jumpBlocked = JumpUnavailable();
+        JumpButton.Disabled = jumpBlocked is not null;
+        JumpButton.Text = SettingJump ? "● Jump [J]" : "Jump [J]";
+        JumpButton.TooltipText = jumpBlocked ?? "Choose a landing point, then right-click the ground.";
+        _unitInfo.Text += $"\n{JumpReadout(unit)}";
         var firingTarget = Simulation.SelectAimTarget(unit);
         var target = firingTarget ?? Simulation.Units.Where(item => item.Side != unit.Side && !item.Defeated && Simulation.Detected(unit.Side, item.Id))
             .OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
@@ -494,7 +527,7 @@ public partial class CombatScreen : Control
             + (target is null ? "No contact · move toward arena center" : $"{(firingTarget is null ? "Aim preview" : "Target")}: {target.Spec.Chassis} · {unit.Position.DistanceTo(target.Position):0} m");
         if (target is not null)
         {
-            var clear = Simulation.Terrain.ClearSight(unit.Position, target.Position);
+            var clear = Simulation.Sight(unit, target);
             var cover = Simulation.Terrain.VegetationModifier(unit.Position, target.Position);
             var spotter = firingTarget is null ? null : unit.Weapons.Where(weapon => weapon.Enabled && unit.WeaponUsable(weapon))
                 .Select(weapon => Simulation.IndirectSpotter(unit, firingTarget, weapon)).FirstOrDefault(item => item is not null);
@@ -520,6 +553,10 @@ public partial class CombatScreen : Control
         _systems.Text = SystemsReadout(unit);
 
     }
+    internal static string JumpReadout(CombatUnit unit) => unit.Spec.Jump == 0 ? "Jump: no jump jets"
+        : FormattableString.Invariant($"Jump {unit.JumpRange:0} m · ") + (unit.Airborne ? "Airborne"
+            : unit.JumpRecharge > 0 ? FormattableString.Invariant($"Recharging {Math.Ceiling(unit.JumpRecharge):0}s")
+            : unit.JumpUnavailableReason ?? "Ready");
     internal static string HeatReadout(CombatUnit unit) =>
         $"Heat {unit.Heat:0.0} · {unit.HeatBand} · {unit.HeatPolicy}\n"
         + $"Cooling {unit.CoolingRate:0.0} heat/s · {unit.EffectiveHeatSinks}/{unit.Spec.HeatSinks} {DefinitionText.HeatSinks(unit.Spec.HeatSinkType)} sinks"

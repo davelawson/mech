@@ -26,7 +26,6 @@
     - show engine, gyro, sensors, and ammo
     - show range brackets for each weapon
 - add paper dolls to the quick selection buttons along the bottom of the screen
-- mech animations for jumping
 - Improve terrain features
 - Make shooting cooler:
   - Sounds

@@ -73,6 +73,7 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | Alt+right-click / Ctrl+right-click | The same order, setting the selection to Walk / Run |
 | Z | Stop the selection and clear its orders |
 | X / C | Walk / Run |
+| J or **Jump**, then right-click ground | Jump there (Escape cancels) |
 | G / F | Hold fire / Fire at will |
 | Space | Pause or resume |
 | WASD / arrows, middle-drag | Pan (hold Shift for 5× speed) |

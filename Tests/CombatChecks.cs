@@ -131,6 +131,7 @@ internal static partial class CombatChecks
         var a = Battle(seed: 73); var b = Battle(seed: 73); Arrange(a); Arrange(b); a.Paused = b.Paused = false;
         a.Advance(10); for (var i = 0; i < 100; i++) b.Advance(.1);
         check(a.Units.Zip(b.Units).All(pair => pair.First.Hits == pair.Second.Hits && pair.First.ArmorLost == pair.Second.ArmorLost), "fixed-step combat is independent of frame partitioning");
+        CheckJumping(check);
         RunEngagements(check);
     }
     private static void CheckRandomizedOpposition(Action<bool, string> check)

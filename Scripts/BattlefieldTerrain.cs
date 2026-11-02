@@ -167,6 +167,14 @@ public sealed class BattlefieldTerrain
             && SlopeAt(point + Vector2.Left * CombatRules.UnitRadius) <= MaxSlope
             && SlopeAt(point + Vector2.Right * CombatRules.UnitRadius) <= MaxSlope;
     }
+    /// <summary>The highest solid surface a mech passing over this point must clear: ground or rock top.</summary>
+    public float ObstacleTop(Vector2 point)
+    {
+        var top = HeightAt(point);
+        foreach (var rock in _rocks)
+            if (point.DistanceTo(rock.Center) < rock.Radius + CombatRules.UnitRadius) top = Math.Max(top, HeightAt(rock.Center) + rock.Height);
+        return top;
+    }
     public bool CanTraverse(Vector2 from, Vector2 to)
     {
         if (_flat) return Passable(to);
@@ -187,10 +195,11 @@ public sealed class BattlefieldTerrain
         var root = MathF.Sqrt(discriminant); enter = Math.Max(0, (-b - root) / a); exit = Math.Min(1, (-b + root) / a);
         return enter <= exit;
     }
-    public bool ClearSight(Vector2 from, Vector2 to)
+    /// <summary>Sight between eyes raised this far above the ground at each end, as a jumping mech's are.</summary>
+    public bool ClearSight(Vector2 from, Vector2 to, float fromLift = 0, float toLift = 0)
     {
         if (_flat) return true;
-        var startHeight = HeightAt(from) + EyeHeight; var endHeight = HeightAt(to) + EyeHeight;
+        var startHeight = HeightAt(from) + EyeHeight + fromLift; var endHeight = HeightAt(to) + EyeHeight + toLift;
         foreach (var rock in _rocks)
         {
             if (!SegmentCircle(from, to, rock.Center, rock.Radius, out var enter, out var exit)) continue;

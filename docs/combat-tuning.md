@@ -127,6 +127,20 @@ Hit locations use a separate 2d6 roll:
 
 Each step moves units, integrates movement heat and cooling, refreshes detection, updates every torso, and selects each unit's best volley within its heat policy. All discharges and hit rolls are captured before applying directional damage, firing heat and flamer heat. Shots in the same exchange use the starting heat penalties; received flamer heat cannot cancel simultaneous return fire. Outcomes follow the entire batch, permitting simultaneous lethal return fire and draws. Visual effects illustrate already-resolved results.
 
+## Jumping
+
+| Value | Default |
+| --- | --- |
+| Range | Effective jump MP × 45 m (half a weapon-range hex), × 0.5 with a lost leg; a Jenner jumps 225 m |
+| Minimum jump | 15 m |
+| Flight time | 1.5 s + distance / 60 m/s (5.25 s for 225 m) |
+| Arc | Parabola peaking max(20 m, 0.2 × distance) above the line between takeoff and landing ground, raised to clear every rock and ridge beneath it by 6 m |
+| Heat | max(3, ⌈distance / 45 m⌉) at takeoff; refused if heat would reach the policy limit (20 Normal, 30 Aggressive) |
+| Recharge | 10 s from landing |
+| Hit difficulty | +3 for an airborne attacker or target, replacing its walk/run/reverse modifier |
+
+Landing points are searched from the clamped click outward along a golden-angle spiral in 4.5 m rings, up to 160 candidates within range. Enemy AI jumps toward its movement goal, capped at range, when the goal is at least 60 m away and either its waypoint route is at least 1.5 times the straight distance or it has detected but cannot see its Attack target.
+
 ## Heat
 
 All units begin at zero heat with Normal policy. Heat is continuous, never negative, and not capped at shutdown. Pausing freezes both generation and dissipation. Stock per-shot heat is added even on misses. Single sinks remove 1 heat per sink per 10 seconds; double sinks remove 2. Actual walking-speed travel adds 1 heat per 10 seconds, actual speed above the unheated walking limit adds 2, reversing counts as walking, and turning in place adds none. Selected Walk/Run mode alone does not generate heat.
@@ -146,7 +160,7 @@ The stock total includes internal sinks. Explicit Heat Sink component entries pu
 
 Friendly ground labels show a 30-pixel heat bar (full at the shutdown threshold) under the callsign, and cards show current heat; selected details show heat band, policy and effective cooling. Normal/Aggressive controls apply to selected units including thermal shutdowns, with a Mixed group readout when appropriate. Exact enemy heat and cooling appear only at Detailed contact tier and disappear when that tier is lost. Water provides no cooling bonus. Heat damage, ammunition explosions and manual venting remain deferred.
 
-Five-to-ten minutes remains a provisional ordinary-engagement target. With the expanded ranges and Normal heat policies, the seeded flat-ground mixed-lance check finishes in 761 simulated seconds; one-on-one Jenner, Griffin and Awesome checks finish in 121, 176 and 183 seconds. The seeded natural-terrain mixed-lance check finishes in 671 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
+Five-to-ten minutes remains a provisional ordinary-engagement target. With the expanded ranges and Normal heat policies, the seeded flat-ground mixed-lance check finishes in 761 simulated seconds; one-on-one Jenner, Griffin and Awesome checks finish in 121, 176 and 183 seconds. The seeded natural-terrain mixed-lance check, with enemy AI jumping, finishes in 898 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
 
 ## Calculation reuse
 

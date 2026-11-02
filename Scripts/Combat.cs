@@ -447,7 +447,7 @@ public sealed partial class CombatSimulation
                 {
                     var radius = CombatRules.DetectionRadius(observer, target);
                     var distance = observer.Position.DistanceSquaredTo(target.Position);
-                    if (distance > radius * radius || !Terrain.ClearSight(observer.Position, target.Position)) continue;
+                    if (distance > radius * radius || !Sight(observer, target)) continue;
                     level = distance <= radius * radius * .25f ? ContactLevel.Detailed : ContactLevel.Identified;
                     if (level == ContactLevel.Detailed) break;
                 }
@@ -522,9 +522,11 @@ public sealed partial class CombatSimulation
         if (EnemyAiEnabled) UpdateAi();
         StopInvalidFollows();
         foreach (var unit in Units) { unit.Moving = unit.TorsoTurning = false; unit.AngularVelocity = 0; }
-        foreach (var unit in Units.Where(item => item.Active)) MoveUnit(unit, delta);
+        foreach (var unit in Units.Where(item => item.Airborne)) AdvanceJump(unit, delta);
+        foreach (var unit in Units.Where(item => item.Active && !item.Airborne)) MoveUnit(unit, delta);
         foreach (var unit in Units.Where(item => !item.Defeated))
         {
+            if (!unit.Airborne) unit.JumpRecharge = Math.Max(0, Math.Round(unit.JumpRecharge - CombatRules.StepSeconds, 9));
             unit.AdvanceHeat(CombatRules.StepSeconds);
             foreach (var weapon in unit.Weapons) weapon.Remaining = Math.Max(0, weapon.Remaining - delta);
             unit.InterferenceRemaining = Math.Max(0, Math.Round(unit.InterferenceRemaining - CombatRules.StepSeconds, 9));
@@ -710,7 +712,7 @@ public sealed partial class CombatSimulation
                 {
                     var away = unit.Position - target.Position;
                     if (away.Length() < .3f) away = unit.Side == CombatSide.Friendly ? Vector2.Down : Vector2.Up;
-                    if (!Terrain.ClearSight(unit.Position, target.Position))
+                    if (!Sight(unit, target))
                     {
                         if (Elapsed >= unit.NextFiringSearch)
                         {
@@ -742,6 +744,7 @@ public sealed partial class CombatSimulation
             }
             while (unit.RouteIndex < unit.Route.Count - 1 && unit.Position.DistanceTo(unit.Route[unit.RouteIndex]) < 16.5f)
                 unit.RouteIndex++;
+            if (AiJump(unit, desired)) return;
             if (unit.RouteIndex < unit.Route.Count) goal = unit.Route[unit.RouteIndex];
             else goal = null;
         }
@@ -807,8 +810,9 @@ public sealed partial class CombatSimulation
         }
         return direction;
     }
+    // A jumping mech occupies only its landing point.
     private bool Blocked(CombatUnit unit, Vector2 candidate) => !Terrain.CanTraverse(unit.Position, candidate) || Units.Any(other => other != unit && other.Status != CombatStatus.Destroyed
-        && DistanceToSegment(other.Position, unit.Position, candidate) < CombatRules.UnitRadius * 2);
+        && DistanceToSegment(other.Airborne ? other.JumpTo : other.Position, unit.Position, candidate) < CombatRules.UnitRadius * 2);
     private static float DistanceToSegment(Vector2 point, Vector2 from, Vector2 to)
     {
         var segment = to - from;
@@ -818,7 +822,7 @@ public sealed partial class CombatSimulation
     public CombatUnit? SelectTarget(CombatUnit unit)
     {
         bool Engageable(CombatUnit target) => target.Side != unit.Side && !target.Defeated && Detected(unit.Side, target.Id)
-            && Terrain.ClearSight(unit.Position, target.Position)
+            && Sight(unit, target)
             && unit.Weapons.Any(weapon => !weapon.Spec.Rear && weapon.Enabled && unit.WeaponUsable(weapon) && unit.Position.DistanceTo(target.Position) <= weapon.LongRange);
         if (unit.AttackTarget is { } attack && unit.Order == CombatOrder.Attack && Engageable(Unit(attack))) return Unit(attack);
         if (unit.Firing == FiringMode.HoldFire) return null;
@@ -827,13 +831,13 @@ public sealed partial class CombatSimulation
         return Units.Where(Engageable).OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
     }
     public double TerrainHitChance(CombatUnit attacker, CombatUnit target, CombatWeapon weapon) =>
-        Terrain.ClearSight(attacker.Position, target.Position)
+        Sight(attacker, target)
             ? HitChance(attacker, target, weapon, Terrain.VegetationModifier(attacker.Position, target.Position))
             : IndirectSpotter(attacker, target, weapon) is { } spotter ? HitChance(attacker, target, weapon,
                 Terrain.VegetationModifier(spotter.Position, target.Position) + CombatRules.IndirectFireModifier) : 0;
     /// <summary>Clear sight, or an indirect LRM salvo guided by a spotter.</summary>
     public bool LineOfFire(CombatUnit unit, CombatUnit target, CombatWeapon weapon) =>
-        Terrain.ClearSight(unit.Position, target.Position) || IndirectSpotter(unit, target, weapon) is not null;
+        Sight(unit, target) || IndirectSpotter(unit, target, weapon) is not null;
     /// <summary>
     /// LRMs fire indirectly only at an Attack or priority target the shooter cannot see itself,
     /// guided by an active friendly with its own clear sight: least vegetation to the target, then nearest.
@@ -841,8 +845,8 @@ public sealed partial class CombatSimulation
     public CombatUnit? IndirectSpotter(CombatUnit unit, CombatUnit target, CombatWeapon weapon)
     {
         if (!CombatRules.IsLrm(weapon.Spec.Kind) || !(unit.Order == CombatOrder.Attack && unit.AttackTarget == target.Id
-            || unit.PriorityTarget == target.Id) || Terrain.ClearSight(unit.Position, target.Position)) return null;
-        return Units.Where(item => item != unit && item.Side == unit.Side && item.Active && Terrain.ClearSight(item.Position, target.Position))
+            || unit.PriorityTarget == target.Id) || Sight(unit, target)) return null;
+        return Units.Where(item => item != unit && item.Side == unit.Side && item.Active && Sight(item, target))
             .OrderBy(item => Terrain.VegetationModifier(item.Position, target.Position))
             .ThenBy(item => item.Position.DistanceSquaredTo(target.Position)).FirstOrDefault();
     }
@@ -856,8 +860,10 @@ public sealed partial class CombatSimulation
         var threshold = attacker.Warrior.Gunnery + CombatRules.AimModifier + range + minimum + terrainModifier + attacker.HeatAimModifier
             + attacker.InterferenceAimModifier
             // Reversing spoils the attacker's own aim as badly as running; as a target it still counts as walking.
-            + (attacker.Moving ? attacker.Movement == MovementMode.Run || attacker.CurrentSpeed < 0 ? 2 : 1 : 0)
-            + (target.Moving ? target.Movement == MovementMode.Run ? 2 : 1 : 0);
+            // Jumping replaces either side's ground movement modifier.
+            + (attacker.Airborne ? CombatRules.JumpToHitModifier
+                : attacker.Moving ? attacker.Movement == MovementMode.Run || attacker.CurrentSpeed < 0 ? 2 : 1 : 0)
+            + (target.Airborne ? CombatRules.JumpToHitModifier : target.Moving ? target.Movement == MovementMode.Run ? 2 : 1 : 0);
         var successes = 0;
         for (var a = 1; a <= 6; a++) for (var b = 1; b <= 6; b++) if (a + b >= threshold) successes++;
         return successes / 36.0;

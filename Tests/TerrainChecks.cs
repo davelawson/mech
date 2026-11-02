@@ -138,9 +138,10 @@ internal static class TerrainChecks
                     .OrderBy(target => unit.Position.DistanceSquaredTo(target.Position)).FirstOrDefault();
                 if (target is not null) sim.Attack([unit.Id], target.Id);
             }
-            sim.Advance(1); passable &= sim.Units.All(unit => terrain.Passable(unit.Position));
+            // Jumping mechs may pass over rocks and steep ground; they must still land on passable terrain.
+            sim.Advance(1); passable &= sim.Units.All(unit => unit.Airborne || terrain.Passable(unit.Position));
         }
-        GD.Print($"Terrain engagement: seed {terrain.Seed}, {definitions.Length} per side, {sim.Elapsed:0}s, {sim.Outcome}");
+        GD.Print($"Terrain engagement: seed {terrain.Seed}, {definitions.Length} per side, {sim.Elapsed:0}s, {sim.Outcome}, passable {passable}");
         check(passable && sim.Outcome != CombatOutcome.Ongoing, "generated-terrain engagement completes without entering impassable terrain: "
             + string.Join("; ", sim.Units.Select(unit => $"{unit.Id} {unit.Position} {unit.Order} shots={unit.ShotsFired}")));
     }

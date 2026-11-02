@@ -26,7 +26,7 @@ Status: confirmed October 25, 2026. The initial design interview is complete. Th
 
 ## Movement and damage in the first slice
 
-- Ground movement includes walking and running. Running is faster and reduces firing accuracy. Jumping is deferred.
+- Ground movement includes walking and running. Running is faster and reduces firing accuracy. Mechs with jump jets can also jump; see [Jumping](#jumping-confirmed-november-2-2026).
 - Walking is the initial default; a new movement order retains each mech's chosen movement mode.
 - Group Move assigns separate, non-overlapping destinations around the clicked point. A formation system is deferred.
 - When preferred engagement distance cannot be achieved, move toward the nearest achievable position within the arena while avoiding occupied space. Destroyed mechs immediately stop obstructing movement and Follow destinations; disabled mechs remain solid. Wrecks remain visible and selectable/inspectable. Continue firing whenever permitted and in range; preferred distance is a goal, not a firing prerequisite.
@@ -171,7 +171,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 
 - Buildings, destructible terrain, deep water, and advanced cover-seeking tactics.
 - Infantry, vehicles, aircraft, and other combatant types.
-- Critical hits, heat damage and ammunition explosions, water cooling bonuses, ammunition consumption, falls, jumping, and MechWarrior casualties.
+- Critical hits, heat damage and ammunition explosions, water cooling bonuses, ammunition consumption, falls, Death from Above, and MechWarrior casualties.
 - Physical projectile collision, friendly fire, melee, called shots, deliberate ammunition dumping, and other special actions.
 - Separate sensor/visual contacts, additional stances, formations, coordinated enemy tactics, additional time speeds, and automatic pause triggers.
 - Deployment placement, an opponent editor, tactical retreat/recovery mechanics, and saving in-progress simulations.
@@ -283,6 +283,19 @@ Hovering a location of the sidebar paperdoll lists every weapon, component and a
 Each friendly unit card carries a compact paperdoll of its mech's current armor and structure, with no labels or tooltip, beneath the existing callsign, status, chassis and heat text. Destroyed and disabled mechs keep theirs.
 
 A mech travelling in reverse takes the running penalty on its own shots, whatever its selected mode. As a target it still counts as walking, unless it is set to Run. Reversing heat is unchanged.
+
+## Jumping (confirmed November 2, 2026)
+
+Jump is an explicit order, not a movement mode. The Jump button beside Walk/Run, or J with battlefield focus, arms jump targeting; the next right-click on the ground sends every selected mech able to jump on one ballistic jump toward that point, and disarms it. Right-clicking a mech keeps targeting armed. Escape, selecting other mechs or arming a priority target cancels it, and it lapses once no selected mech can jump. While armed, the battlefield draws each able mech's range circle and its landing point under the pointer.
+
+- A jump's range follows the mech's effective jump MP: its loadout's jump MP less every jet that is destroyed or in a lost location, halved with a lost leg. A click beyond range lands at maximum range along the line. Each mech lands on free, passable ground: the clicked point if it can, otherwise the nearest free point in range, never on another mech or another jump's landing point. A group spreads its landings as a group Move does.
+- Flight is a ballistic arc over rocks, slopes, water, vegetation and other mechs, rising high enough to clear every rock and ridge beneath it. The mech faces its landing point and cannot steer or turn its legs in flight; its torso still twists and its weapons still fire. Shutdown, disablement or destruction in the air never stops the landing, and a wreck lands as a wreck. An airborne mech blocks no one; its landing point is treated as occupied.
+- A jump costs heat at takeoff and the jets must recharge after landing before the next jump. A mech cannot start a jump that would take its heat to its heat policy's limit, and generates no walking or running heat in the air.
+- Jumping is a manoeuvre: Attack and Follow orders resume on landing, while a Move order ends with the jump and the mech holds at its landing point. A new Move given in flight is carried out after landing.
+- An airborne attacker takes a jumping penalty to hit instead of its walking or running penalty; an airborne target is likewise harder to hit than a walking or running one. Jumping counts as motion for laser burns.
+- A jumping mech's eyes rise with it, so it can see, detect, fire and spot over rocks and hills mid-flight.
+- Enemy AI jumps toward its movement goal when its jets are ready, its heat policy allows, and either walking there means a long detour or a rock or hill hides its attack target.
+- The model springs from a crouch, tucks its legs through the apex, reaches for the ground and absorbs the landing, with dust where it takes off and lands. Rocket exhaust fires from every location holding jump jets: torso jets from low on the back, angled slightly rearward, and leg jets from the soles. Each plume leaves its nozzle white-hot with shock diamonds, flares and fades through yellow and orange to a dull red tail. Its length follows the thrust (full at takeoff, idling through the apex, braking before touchdown), its width follows the location's working jets, and it flickers out of step with the other plumes. Destroyed jets narrow their plume, and a location whose jets are all destroyed or lost goes dark. Selected details report jump range and whether the jets are ready, recharging or blocked by heat.
 
 ## Metric distances and mech scale (confirmed October 31, 2026)
 

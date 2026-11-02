@@ -90,6 +90,54 @@ public partial class SmokeTests
         }
     }
 
+    /// <summary>J and the Jump button arm jump targeting; Escape disarms it; a ground right-click jumps and a mech click keeps it armed.
+    /// Uses its own Jenner and Awesome rather than the randomly drafted company, which may have no jump jets.</summary>
+    private async Task TestCombatJumping()
+    {
+        var roster = ForceRoster.Create("Jump checks", new[] { "jenner", "awesome" }.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(2));
+        for (var i = 0; i < 2; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
+        // Open through navigation, as the hangar does, so keys route to the combat screen.
+        var tactical = _app.Tactical; _app.Navigation.Push(CommandScreen.Tactical, _app.Hangar.DeploymentButton);
+        tactical.Open(roster, roster.Mechs[0].Id); await Frames();
+        await Click(tactical.MirrorMatchButton);
+        if (!tactical.ForceChoices[1].ButtonPressed) await Click(tactical.ForceChoices[1]);
+        await Click(tactical.LaunchButton);
+        var field = tactical.Battlefield; var sim = tactical.Simulation!;
+        var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
+        var jumper = friends.Single(unit => unit.Spec.Id == "jenner"); var grounded = friends.Single(unit => unit.Spec.Id == "awesome");
+        tactical.SelectUnits([grounded.Id], false); field.GrabFocus(); await PressKey(Key.J);
+        Check(!tactical.SettingJump && tactical.JumpButton.Disabled && tactical.JumpButton.TooltipText.Contains("No jump jets"),
+            $"mechs without jump jets cannot arm a jump and say why: {tactical.JumpButton.TooltipText}");
+        Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Jump: no jump jets")),
+            "selected details report a mech without jump jets");
+        tactical.SelectUnits([jumper.Id], false); field.GrabFocus();
+        await PressKey(Key.J);
+        Check(tactical.SettingJump && field.JumpArmed && tactical.JumpButton.Text.StartsWith("●"),
+            "J arms jump targeting");
+        await PressKey(Key.Escape);
+        Check(!tactical.SettingJump && !field.JumpArmed && tactical.Modal == CombatModal.None, "Escape cancels jump targeting before opening the menu");
+        tactical.JumpButton.EmitSignal(BaseButton.SignalName.Pressed);
+        Check(tactical.SettingJump, "the Jump button arms jump targeting");
+        await Frames(); await Capture("combat-jump-targeting");
+        var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
+        tactical.IssueCommand(enemy.Position, enemy.Id);
+        Check(tactical.SettingJump && !jumper.Airborne, "right-clicking a mech keeps jump targeting armed");
+        var order = jumper.Order;
+        tactical.IssueCommand(jumper.Position + jumper.Facing * 100, null);
+        Check(!tactical.SettingJump && jumper.Airborne && jumper.JumpTo.DistanceTo(jumper.Position) <= jumper.JumpRange + .01f,
+            "a ground right-click sends the selection on a jump and disarms targeting");
+        Check(order != CombatOrder.Attack || jumper.Order == CombatOrder.Attack, "jumping keeps an Attack order");
+        var paused = sim.Paused; sim.Paused = false; sim.Advance(1); sim.Paused = paused; await Frames();
+        await Capture("combat-jump-flight");
+        Check(jumper.Altitude > 10 && tactical.JumpButton.Disabled && tactical.JumpButton.TooltipText.Contains("Airborne"),
+            $"the mech rises in flight and cannot jump again until it lands: {tactical.JumpButton.TooltipText}");
+        tactical.SelectUnits([jumper.Id, grounded.Id], false); await Frames();
+        Check(tactical.JumpButton.Disabled, "a group with no mech able to jump cannot arm a jump");
+        sim.Paused = false; sim.Advance(CombatRules.JumpRechargeSeconds + 5); sim.Paused = true; tactical.SelectUnits([jumper.Id, grounded.Id], false);
+        Check(!tactical.JumpButton.Disabled && tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Ready")),
+            "a group jumps when any member can, and details report ready jets");
+        await PressKey(Key.Escape); await Click(tactical.EndButton); await Click(tactical.ReturnButton);
+    }
     private static void CheckLocationSystems(Action<bool, string> check)
     {
         WeaponSpec Laser(string id, bool rear = false) =>

@@ -114,6 +114,34 @@ public partial class MechModel
         for (var i = 0; i < _shoulders.Count; i++)
             _shoulders[i].Rotation = new(wave * (i == 0 ? -gait.LeftArmSwing : gait.RightArmSwing) * _motionBlend, 0, 0);
     }
+    /// <summary>Jump pose for flight progress 0–1: spring from a crouch, tuck the legs through the apex, then reach for the ground.</summary>
+    public void AnimateJump(float phase)
+    {
+        _motionBlend = RunBlend = 0;
+        PoseJump(phase < .12f ? 1 - phase / .12f : 0, Mathf.SmoothStep(.05f, .3f, phase) * (1 - Mathf.SmoothStep(.7f, .97f, phase)));
+    }
+    /// <summary>A brief absorbing crouch after touchdown, over the ground pose for this many seconds since landing.</summary>
+    public void AnimateLanding(float age)
+    {
+        if (age is >= 0 and < LandingSeconds) PoseJump(Mathf.Sin(Mathf.Pi * age / LandingSeconds), 0);
+    }
+    public const float LandingSeconds = .45f;
+    private void PoseJump(float crouch, float tuck)
+    {
+        if (_body is null || _rig is null) return;
+        var gait = _rig.Gait;
+        var drop = gait.BodyDrop * 2.5f * crouch;
+        _body.Position = new(0, _rig.Waist - drop, 0);
+        _body.Rotation = new(-gait.Lean * (crouch + tuck), -_torsoTwist, 0);
+        foreach (var leg in _legs)
+        {
+            var length = leg.KneeRest.Length() + leg.AnkleRest.Length();
+            leg.Hip.Position = leg.Rest + new Vector3(0, -drop, 0);
+            // Planted feet stay on the ground through a crouch; tucked feet draw up toward the hips.
+            PoseLeg(leg, leg.KneeRest.Y + leg.AnkleRest.Y + drop + tuck * length * .3f, leg.KneeRest.Z + leg.AnkleRest.Z - tuck * length * .08f);
+        }
+        foreach (var shoulder in _shoulders) shoulder.Rotation = new(-.25f * tuck, 0, 0);
+    }
     private static void PoseLeg(Leg leg, float y, float z)
     {
         var thigh = new Vector2(leg.KneeRest.Y, leg.KneeRest.Z).Length();

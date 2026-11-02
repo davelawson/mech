@@ -73,6 +73,7 @@ public partial class MechModel : Node3D
         model.BindFiringMarkers(spec, model.MountedMarkers(prepared?.Hardpoints ?? []));
         model.RestBounds = model.MeasureBounds() ?? new Aabb(Vector3.Zero, Vector3.One);
         model.Height = model.RestBounds.End.Y * model.Scale.Y;
+        model.PlaceJumpJets(spec);
         return model;
     }
 
@@ -84,7 +85,7 @@ public partial class MechModel : Node3D
         Aabb? bounds = null;
         void Visit(Node3D node, Transform3D transform)
         {
-            if (visibleOnly && !node.Visible) return;
+            if (visibleOnly && !node.Visible || _nozzleRoots.Contains(node)) return;
             if (node is MeshInstance3D { Mesh: { } mesh })
             {
                 var box = transform * mesh.GetAabb();
@@ -122,7 +123,7 @@ public partial class MechModel : Node3D
     public Vector3 LocationCenter(MechLocation location)
     {
         Aabb? bounds = null;
-        foreach (var mesh in _locations[location].FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>())
+        foreach (var mesh in _locations[location].FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>().Where(mesh => !IsJetEffect(mesh)))
         {
             var box = mesh.GlobalTransform * mesh.Mesh.GetAabb();
             bounds = bounds is { } previous ? previous.Merge(box) : box;
