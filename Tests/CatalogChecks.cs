@@ -27,6 +27,20 @@ internal static class CatalogChecks
         CheckTextIndependence(check);
         CheckValidation(check);
         CheckSave(check);
+        CheckWeaponDefinitions(check);
+    }
+    private static void CheckWeaponDefinitions(Action<bool, string> check)
+    {
+        var kinds = Enum.GetValues<WeaponKind>();
+        check(WeaponDefinitions.All.Length == kinds.Length && kinds.All(kind => WeaponDefinitions.Of(kind).Kind == kind),
+            "every weapon kind has exactly one definition");
+        check(WeaponDefinitions.All.All(item => item.Slots > 0 && item.Tons > 0 && item.Cooldown > 0
+            && (item.Family is WeaponFamily.Autocannon or WeaponFamily.Lrm or WeaponFamily.Srm ? item.Size > 0 : item.Size == 0)),
+            "weapon definitions carry slots, mass, cooldown and a size only for autocannons and missile racks");
+        check(WeaponDefinitions.All.All(item => (item.Ammo is null) == (item.Family is WeaponFamily.Laser or WeaponFamily.Ppc or WeaponFamily.Flamer)),
+            "energy weapons need no ammunition and every other weapon names its own");
+        check(Enum.GetValues<AmmoKind>().All(ammo => WeaponDefinitions.All.Count(item => item.Ammo == ammo) == 1),
+            "every ammunition kind feeds exactly one weapon kind");
     }
     private static void CheckBaseline(Action<bool, string> check)
     {

@@ -8,35 +8,12 @@ public enum StorageGroup { Energy, Ballistic, Missile, Ammo, Equipment }
 /// <summary>A run of critical slots in one location. A split item has one block in each location it occupies.</summary>
 public sealed record CriticalBlock(int Start, int Length, SlotKind Kind, string? ItemId, string Name, int ItemSlots);
 
-/// <summary>Stock BattleTech mass and critical-slot sizes for weapons, which the catalog does not carry.</summary>
+/// <summary>Equipment mass and critical-slot rules; weapon sizes come from <see cref="WeaponDefinitions"/>.</summary>
 public static class EquipmentRules
 {
-    public static int Slots(WeaponKind kind) => kind switch
-    {
-        WeaponKind.SmallLaser or WeaponKind.MediumLaser or WeaponKind.Flamer or WeaponKind.MachineGun or WeaponKind.AC2
-            or WeaponKind.LRM5 or WeaponKind.SRM2 or WeaponKind.SRM4 => 1,
-        WeaponKind.LargeLaser or WeaponKind.ERLargeLaser or WeaponKind.LRM10 or WeaponKind.SRM6 => 2,
-        WeaponKind.PPC or WeaponKind.LRM15 => 3,
-        WeaponKind.AC5 => 4, WeaponKind.LRM20 => 5, WeaponKind.AC10 => 7, WeaponKind.AC20 => 10,
-        _ => throw new ArgumentOutOfRangeException(nameof(kind))
-    };
-    public static float Tons(WeaponKind kind) => kind switch
-    {
-        WeaponKind.SmallLaser or WeaponKind.MachineGun => .5f,
-        WeaponKind.MediumLaser or WeaponKind.Flamer or WeaponKind.SRM2 => 1,
-        WeaponKind.LRM5 or WeaponKind.SRM4 => 2, WeaponKind.SRM6 => 3,
-        WeaponKind.LargeLaser or WeaponKind.ERLargeLaser or WeaponKind.LRM10 => 5,
-        WeaponKind.AC2 => 6, WeaponKind.PPC or WeaponKind.LRM15 => 7, WeaponKind.AC5 => 8,
-        WeaponKind.LRM20 => 10, WeaponKind.AC10 => 12, WeaponKind.AC20 => 14,
-        _ => throw new ArgumentOutOfRangeException(nameof(kind))
-    };
-    public static StorageGroup Group(WeaponKind kind) => kind switch
-    {
-        WeaponKind.SmallLaser or WeaponKind.MediumLaser or WeaponKind.LargeLaser or WeaponKind.ERLargeLaser
-            or WeaponKind.PPC or WeaponKind.Flamer => StorageGroup.Energy,
-        WeaponKind.MachineGun or WeaponKind.AC2 or WeaponKind.AC5 or WeaponKind.AC10 or WeaponKind.AC20 => StorageGroup.Ballistic,
-        _ => StorageGroup.Missile
-    };
+    public static int Slots(WeaponKind kind) => WeaponDefinitions.Of(kind).Slots;
+    public static float Tons(WeaponKind kind) => WeaponDefinitions.Of(kind).Tons;
+    public static StorageGroup Group(WeaponKind kind) => WeaponDefinitions.Of(kind).Group;
     public static int HeatSinkSlots(HeatSinkKind kind) => kind == HeatSinkKind.Double ? 3 : 1;
     /// <summary>Jump jet mass follows the carrying mech's weight: up to 55 t, 60–85 t, and 90 t or more.</summary>
     public static float JumpJetTons(int mechTonnage) => mechTonnage <= 55 ? .5f : mechTonnage <= 85 ? 1 : 2;

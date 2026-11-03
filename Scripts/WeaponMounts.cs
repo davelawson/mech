@@ -23,26 +23,11 @@ public static class WeaponMounts
 {
     public const string Blank = "Blank";
 
-    private static (HardpointClass Class, string Family, int Size) Want(WeaponKind kind) => kind switch
+    private static (HardpointClass Class, string Family, int Size) Want(WeaponKind kind)
     {
-        WeaponKind.SmallLaser or WeaponKind.MediumLaser or WeaponKind.LargeLaser or WeaponKind.ERLargeLaser
-            => (HardpointClass.Energy, "Laser", 0),
-        WeaponKind.PPC => (HardpointClass.Energy, "PPC", 0),
-        WeaponKind.Flamer => (HardpointClass.Energy, "Flamer", 0),
-        WeaponKind.MachineGun => (HardpointClass.Ballistic, "MG", 0),
-        WeaponKind.AC2 => (HardpointClass.Ballistic, "AC", 2),
-        WeaponKind.AC5 => (HardpointClass.Ballistic, "AC", 5),
-        WeaponKind.AC10 => (HardpointClass.Ballistic, "AC", 10),
-        WeaponKind.AC20 => (HardpointClass.Ballistic, "AC", 20),
-        WeaponKind.SRM2 => (HardpointClass.Missile, "Missile", 2),
-        WeaponKind.SRM4 => (HardpointClass.Missile, "Missile", 4),
-        WeaponKind.SRM6 => (HardpointClass.Missile, "Missile", 6),
-        WeaponKind.LRM5 => (HardpointClass.Missile, "Missile", 5),
-        WeaponKind.LRM10 => (HardpointClass.Missile, "Missile", 10),
-        WeaponKind.LRM15 => (HardpointClass.Missile, "Missile", 15),
-        WeaponKind.LRM20 => (HardpointClass.Missile, "Missile", 20),
-        _ => throw new ArgumentOutOfRangeException(nameof(kind))
-    };
+        var definition = WeaponDefinitions.Of(kind);
+        return (definition.Hardpoint, definition.MountFamily, definition.Size);
+    }
 
     public static HardpointClass ClassOf(WeaponKind kind) => Want(kind).Class;
 

@@ -38,7 +38,7 @@ Run `scripts/mech unit` alongside the Godot groups when changing a file covered 
 | `hangar` | Hangar model, assignments and swaps, hangar board and location panels, loadout removal and installation (drag and drop), weapon mount slots, over-tonnage, Apply/Reset and pending changes, Inventory/Market tabs and pending purchases | `HangarScreen`, `HangarLocationPanel`, `HangarStorageLine`, `HangarDragItem`, `HangarConditionBar`, `MechPreview`, `Equipment` |
 | `missions` | Mission board model and phone overlay | `MissionsPanel`, `Missions` |
 | `finance` | Campaign model, calendar, quarterly payments, save/load, bankruptcy | `Campaign` (time and money) |
-| `catalog` | Mech and weapon definitions | `CatalogLoader`, `GameDefinitions`, `DefinitionText`, `Data/` |
+| `catalog` | Mech and weapon definitions | `CatalogLoader`, `GameDefinitions`, `WeaponDefinitions`, `DefinitionText`, `Data/` |
 | `combat-sim` | Combat simulation (weapons, heat, twisting, sensors, following, jumping, log) and terrain | `Combat`, `Heat`, `Jumping`, `TorsoTwisting`, `BattlefieldTerrain`, `CircleUnion`, `CombatLog`, `MechLocomotion` |
 | `combat-ui` | Combat layouts, picking, detection overlay, shot effects, tactical screen, jump targeting | `CombatScreen`, `CombatViewport`, `CombatPaperdoll`, `CombatLogPanel`, `BattlefieldTerrainView` |
 | `combat-layout` | Combat layout subset of `combat-ui` (freeze regression); not in the full run | as `combat-ui`, for a quick check |
@@ -52,6 +52,7 @@ A test file under `Tests/` belongs to the group that calls it. When you change a
 Run the full suite (`scripts/mech test` with no groups) when you change shared code:
 
 - `CommandApp.cs`, `Ui.cs`, `Campaign.cs` / `CampaignStore.cs` save formats
+- `WeaponDefinitions.cs`: catalog validation, hangar, combat and mounts all read it
 - `project.godot`, `Mech.csproj`, `global.json`, `Scenes/`, `Tests.Unit/` (also run `scripts/mech unit`)
 - the harness in `Tests/SmokeTests.cs` (the group registry, `StartApp`, input helpers)
 - any script not listed in the table above

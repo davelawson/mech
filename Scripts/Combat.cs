@@ -36,15 +36,7 @@ public static partial class CombatRules
     // Shared by combat, hangar previews and future chassis; catalog MP remain stock.
     public static float MovementSpeed(MechSpec spec, MovementMode mode) =>
         (mode == MovementMode.Run ? spec.Run : spec.Walk) * MovementScale;
-    public static float Cooldown(WeaponSpec weapon) => weapon.Kind switch
-    {
-        WeaponKind.MachineGun => 2, WeaponKind.SmallLaser => 3, WeaponKind.MediumLaser => 5,
-        WeaponKind.Flamer => 6, WeaponKind.LargeLaser or WeaponKind.ERLargeLaser => 7,
-        WeaponKind.PPC or WeaponKind.AC2 or WeaponKind.AC5
-            or WeaponKind.AC10 or WeaponKind.AC20 or WeaponKind.LRM5 or WeaponKind.LRM10 or WeaponKind.LRM15
-            or WeaponKind.LRM20 or WeaponKind.SRM2 or WeaponKind.SRM4 or WeaponKind.SRM6 => 10,
-        _ => throw new ArgumentOutOfRangeException(nameof(weapon))
-    };
+    public static float Cooldown(WeaponSpec weapon) => WeaponDefinitions.Of(weapon.Kind).Cooldown;
     public static int Damage(WeaponSpec weapon) => weapon.DamageProfile.PacketDamage;
     /// <summary>Armor, structure and damage count tenths of a stock point, so every value stays whole.</summary>
     public const int DamageScale = 10;
@@ -52,21 +44,20 @@ public static partial class CombatRules
     public const double WindDownSeconds = 3;
     public const double LaserBurnSeconds = 1;
     public const double LaserSecondHalfDelay = LaserBurnSeconds / 2;
-    public static bool IsLaser(WeaponKind kind) => kind is WeaponKind.SmallLaser or WeaponKind.MediumLaser
-        or WeaponKind.LargeLaser or WeaponKind.ERLargeLaser;
-    public static bool IsAutocannon(WeaponKind kind) => kind is WeaponKind.AC2 or WeaponKind.AC5 or WeaponKind.AC10 or WeaponKind.AC20;
+    public static bool IsLaser(WeaponKind kind) => WeaponDefinitions.Of(kind).Family == WeaponFamily.Laser;
+    public static bool IsAutocannon(WeaponKind kind) => WeaponDefinitions.Of(kind).Family == WeaponFamily.Autocannon;
     /// <summary>Autocannon shells fly straight at one speed for every caliber: one second at 1800 metres.</summary>
     public const float ShellSpeed = 1800;
     public static double ShellFlightSeconds(float distance) => distance / ShellSpeed;
-    public static bool IsMachineGun(WeaponKind kind) => kind is WeaponKind.MachineGun;
+    public static bool IsMachineGun(WeaponKind kind) => WeaponDefinitions.Of(kind).Family == WeaponFamily.MachineGun;
     /// <summary>A machine gun's discharge is a one-second burst of tracers; its damage lands with the first round.</summary>
     public const double MachineGunBurstSeconds = 1;
     public const float BulletSpeed = 3600;
     public static double BulletFlightSeconds(float distance) => distance / BulletSpeed;
-    public static bool IsLrm(WeaponKind kind) => kind is WeaponKind.LRM5 or WeaponKind.LRM10 or WeaponKind.LRM15 or WeaponKind.LRM20;
-    public static bool IsSrm(WeaponKind kind) => kind is WeaponKind.SRM2 or WeaponKind.SRM4 or WeaponKind.SRM6;
+    public static bool IsLrm(WeaponKind kind) => WeaponDefinitions.Of(kind).Family == WeaponFamily.Lrm;
+    public static bool IsSrm(WeaponKind kind) => WeaponDefinitions.Of(kind).Family == WeaponFamily.Srm;
     /// <summary>LRM and SRM racks fire salvos whose missiles roll separately.</summary>
-    public static bool FiresSalvo(WeaponKind kind) => IsLrm(kind) || IsSrm(kind);
+    public static bool FiresSalvo(WeaponKind kind) => WeaponDefinitions.Of(kind).FiresSalvo;
     /// <summary>LRM salvos fly slower than shells so the swarm reads: 3.6 seconds at the 1890 m long range.</summary>
     public const float MissileSpeed = 525;
     public static double MissileFlightSeconds(float distance) => distance / MissileSpeed;
@@ -79,7 +70,7 @@ public static partial class CombatRules
         / (SrmCalibrationSeconds * SrmCalibrationSeconds);
     public static double SrmFlightSeconds(float distance) =>
         (-SrmLaunchSpeed + Math.Sqrt(SrmLaunchSpeed * SrmLaunchSpeed + 2 * SrmAcceleration * distance)) / SrmAcceleration;
-    public static bool IsPpc(WeaponKind kind) => kind is WeaponKind.PPC;
+    public static bool IsPpc(WeaponKind kind) => WeaponDefinitions.Of(kind).Family == WeaponFamily.Ppc;
     /// <summary>A PPC bolt reaches a target at its long range in this time, inside its beam's half second;
     /// that fixes its speed, so nearer targets are struck sooner.</summary>
     public const double PpcLongRangeSeconds = .4;

@@ -140,14 +140,7 @@ public partial class MechModel : Node3D
         : name.Contains("Flamer", StringComparison.Ordinal) ? "Flamer"
         : name.Contains("Laser", StringComparison.Ordinal) ? "Laser" : "";
 
-    private static string MarkerKind(WeaponKind kind) => kind switch
-    {
-        WeaponKind.SRM2 or WeaponKind.SRM4 or WeaponKind.SRM6 => "SRM",
-        WeaponKind.LRM5 or WeaponKind.LRM10 or WeaponKind.LRM15 or WeaponKind.LRM20 => "LRM",
-        WeaponKind.AC2 or WeaponKind.AC5 or WeaponKind.AC10 or WeaponKind.AC20 => "AC",
-        WeaponKind.PPC => "PPC", WeaponKind.MachineGun => "MG", WeaponKind.Flamer => "Flamer",
-        _ => "Laser"
-    };
+    private static string MarkerKind(WeaponKind kind) => WeaponDefinitions.Of(kind).MarkerKind;
 
     // Indexed markers (`WeaponMuzzle_Weapon<i>_*`) name their catalog weapon directly. Otherwise each location's
     // weapons share its markers of the matching kind in catalog order: one beam each, launcher tubes split evenly.

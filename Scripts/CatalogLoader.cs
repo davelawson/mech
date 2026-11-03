@@ -84,12 +84,11 @@ internal static class CatalogLoader
                 var d = w.DamageProfile!; Defined(d.Kind, p + ".DamageProfile.Kind");
                 Require(d.PerProjectile > 0 && d.ProjectileCount > 0 && d.TargetHeat >= 0
                     && (long)d.PerProjectile * d.ProjectileCount <= int.MaxValue, p + ".DamageProfile", "invalid or overflowing damage");
-                var rack = w.Kind switch { WeaponKind.LRM5 => 5, WeaponKind.LRM10 => 10, WeaponKind.LRM15 => 15,
-                    WeaponKind.LRM20 => 20, WeaponKind.SRM2 => 2, WeaponKind.SRM4 => 4, WeaponKind.SRM6 => 6, _ => 1 };
-                Require(d.ProjectileCount == rack && d.Kind == (rack == 1 ? DamageKind.Direct : DamageKind.Missile),
+                var definition = WeaponDefinitions.Of(w.Kind);
+                Require(d.ProjectileCount == definition.Rack && d.Kind == (definition.FiresSalvo ? DamageKind.Missile : DamageKind.Direct),
                     p + ".DamageProfile", "does not match weapon category");
-                Require(d.TargetHeat == (w.Kind == WeaponKind.Flamer ? 2 : 0), p + ".DamageProfile.TargetHeat", "does not match weapon category");
-                Require(w.AmmoKind == ExpectedAmmo(w.Kind), p + ".AmmoKind", "does not match weapon category");
+                Require(d.TargetHeat == (definition.Family == WeaponFamily.Flamer ? 2 : 0), p + ".DamageProfile.TargetHeat", "does not match weapon category");
+                Require(w.AmmoKind == definition.Ammo, p + ".AmmoKind", "does not match weapon category");
                 if (w.AmmoKind is { } kind) Defined(kind, p + ".AmmoKind");
             }
             long externalSinks = 0;
@@ -133,16 +132,6 @@ internal static class CatalogLoader
         }).ToImmutableArray();
     internal static string GroupedId(string group, int index) => $"{group}.{index}";
 
-    private static AmmoKind? ExpectedAmmo(WeaponKind kind) => kind switch
-    {
-        WeaponKind.MachineGun => AmmoKind.MachineGun, WeaponKind.AC2 => AmmoKind.AC2, WeaponKind.AC5 => AmmoKind.AC5,
-        WeaponKind.AC10 => AmmoKind.AC10, WeaponKind.AC20 => AmmoKind.AC20, WeaponKind.LRM5 => AmmoKind.LRM5,
-        WeaponKind.LRM10 => AmmoKind.LRM10, WeaponKind.LRM15 => AmmoKind.LRM15, WeaponKind.LRM20 => AmmoKind.LRM20,
-        WeaponKind.SRM2 => AmmoKind.SRM2, WeaponKind.SRM4 => AmmoKind.SRM4, WeaponKind.SRM6 => AmmoKind.SRM6,
-        WeaponKind.SmallLaser or WeaponKind.MediumLaser or WeaponKind.LargeLaser or WeaponKind.ERLargeLaser
-            or WeaponKind.PPC or WeaponKind.Flamer => null,
-        _ => throw new ArgumentOutOfRangeException(nameof(kind))
-    };
     internal static ImmutableArray<WarriorSpec> ValidateWarriors(IEnumerable<WarriorSpec> source)
     {
         var warriors = source.ToImmutableArray(); var ids = new HashSet<string>(StringComparer.Ordinal);
