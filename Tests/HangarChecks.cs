@@ -487,6 +487,7 @@ public partial class SmokeTests
             && !StorageTexts(hangar).Contains("STORAGE"), "the left column has Inventory and Market tabs");
         var index = roster.Mechs.ToList().FindIndex(mech => mech.Removed.IsEmpty && mech.Installed.IsEmpty && mech.Spec.Ammo.Length > 0
             && Loadout.Suspect(mech.Spec).Count == 0);
+        Check(index >= 0, "the drafted company keeps a stock mech with ammunition for the market checks");
         hangar.Select(index); hangar.StorageTabs.CurrentTab = 1; await Frames();
         var market = hangar.MarketList.GetChildren().OfType<HangarStorageLine>().ToArray();
         Check(market.Select(line => line.Item.Id).Order(StringComparer.Ordinal).SequenceEqual(StorageCatalog.All.Select(item => item.Id).Order(StringComparer.Ordinal))

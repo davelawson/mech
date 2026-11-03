@@ -8,6 +8,8 @@ public partial class SmokeTests : Node
     private int _checks;
     private bool _screenshots;
     private string _saveFile = "";
+    // Every app drafts from this seed, so a failure in a drafted group reproduces; `--draft-seed=N` tries another company.
+    private int _draftSeed = 3025;
 
     /// <summary>How a test group starts: model checks only, a fresh app at the main menu, or a fresh app with a drafted company.</summary>
     private enum Setup { None, Menu, Drafted }
@@ -67,6 +69,7 @@ public partial class SmokeTests : Node
         try
         {
             _screenshots = args.Contains("--screenshots");
+            if (args.FirstOrDefault(arg => arg.StartsWith("--draft-seed=")) is { } seed) _draftSeed = int.Parse(seed["--draft-seed=".Length..]);
             // Synthetic headless mouse events need the enter notification a desktop window normally supplies.
             if (DisplayServer.GetName() == "headless") GetViewport().NotifyMouseEntered();
             var requested = args.FirstOrDefault(arg => arg.StartsWith("--groups="))?["--groups=".Length..]
@@ -91,7 +94,7 @@ public partial class SmokeTests : Node
         }
         catch (Exception error)
         {
-            GD.PushError($"FAIL after {_checks} checks: {error}");
+            GD.PushError($"FAIL after {_checks} checks (draft seed {_draftSeed}): {error}");
             GetTree().Quit(1);
         }
         finally
@@ -108,6 +111,7 @@ public partial class SmokeTests : Node
         _app.SavePath = $"user://smoke-{Guid.NewGuid():N}.json";
         _saveFile = ProjectSettings.GlobalizePath(_app.SavePath);
         AddChild(_app);
+        _app.Drafting.DraftRandom = new Random(_draftSeed);
         await Frames();
         if (drafted) { await Click(_app.MainMenu.NewButton); await FinishDraft(); }
     }

@@ -72,9 +72,11 @@ public partial class DraftScreen : Control
         _previewPanel = new PanelContainer(); _previewPanel.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Gold)); _preview.AddChild(_previewPanel);
         _previewBody = new VBoxContainer(); _previewPanel.AddChild(_previewBody); _preview.Hide();
     }
+    /// <summary>The draft's random source; unset, drafts use the shared one. Tests set it so every run drafts the same company.</summary>
+    public Random? DraftRandom { get; set; }
     public void Begin()
     {
-        Draft = InitialDraft.CreateRandom(); NameInput.Text = Draft.ForceName; _preview.Hide(); RefreshCandidates(); Refresh(); Show();
+        Draft = InitialDraft.CreateRandom(DraftRandom); NameInput.Text = Draft.ForceName; _preview.Hide(); RefreshCandidates(); Refresh(); Show();
         RosterUi.TrapFocus(this); NameInput.CallDeferred(Control.MethodName.GrabFocus);
     }
     public void RefreshArtwork() => RefreshCandidates();

@@ -61,6 +61,7 @@ Also run it when the user asks.
 
 ## Rules
 
+- **Fixed company.** Every test app drafts from seed 3025, so a drafted group sees the same company on every run and any failure reproduces. The failure message names the seed. Pass `--draft-seed=N` after `--` to try another company, for example `-- --groups=hangar --draft-seed=53`. A test that needs a particular kind of mech should check that one exists rather than index blindly; the game itself still drafts at random.
 - **Isolation.** Each group passes alone. A UI group gets a fresh `CommandApp` with its own temporary save: at the main menu (`Setup.Menu`) or in the office after a default draft (`Setup.Drafted`). A group must never rely on state left behind by another group. Set up what it needs inside the group.
 - **New tests** go in the group for the screen they exercise. Add the call to that group in `SmokeTests.Groups()`.
 - **New screens** get a new group, a row in this table, and an entry in `Groups()`.
