@@ -75,7 +75,10 @@ public partial class SmokeTests
             var tooltip = doll._GetTooltip(hits[MechLocation.CenterTorso]);
             Check(tooltip.StartsWith(DraftCatalog.LocationName(MechLocation.CenterTorso).ToUpperInvariant() + "\n"),
                 $"hovering the center torso lists its systems: {tooltip}");
-            Check(doll._MakeCustomTooltip(tooltip) is VBoxContainer box && box.GetChildCount() >= 2, "the systems tooltip is a coloured list");
+            // Godot frees a tooltip it shows itself; one built directly by the test must be freed here.
+            var custom = doll._MakeCustomTooltip(tooltip);
+            Check(custom is VBoxContainer box && box.GetChildCount() >= 2, "the systems tooltip is a coloured list");
+            (custom as Node)?.Free();
 
             Check(tactical.UnitDolls.Count == tactical.UnitButtons.Count
                 && tactical.UnitDolls.Select((card, i) => card.Unit == friends[i] && card.Compact && card.Visible

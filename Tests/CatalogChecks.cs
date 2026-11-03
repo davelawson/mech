@@ -237,8 +237,13 @@ internal static class CatalogChecks
                 && mech.Ammo.All(a => a.Shots == mech.Spec.Ammo.Single(s => s.Id == a.Id).Shots / 2),
                 "pre-refactor campaign save resolves typed definitions and retains damage, ammo, assignment and injury");
             store.Save(campaign);
-            // Resaving upgrades to version 5, which counts armor and structure in tenths of a point.
-            var expected = JsonNode.Parse(fixture)!; expected["Version"] = 5;
+            // Resaving upgrades to the current version, which counts armor and structure in tenths of a point
+            // and replaces the authored offer with a generated board.
+            var resaved = JsonNode.Parse(File.ReadAllText(path))!;
+            var expected = JsonNode.Parse(fixture)!; expected["Version"] = Campaign.SaveVersion;
+            expected["Missions"] = resaved["Missions"]!.DeepClone();
+            check(campaign.Missions.Available.Count == MissionTuning.BoardSize && campaign.Missions.Current is null,
+                "a version-four save receives a full board of generated offers");
             foreach (var location in expected["Roster"]!["Mechs"]!.AsArray().SelectMany(m => m!["Locations"]!.AsArray()))
                 foreach (var field in new[] { "Armor", "RearArmor", "Structure" })
                     location![field] = location[field]!.GetValue<int>() * CombatRules.DamageScale;
@@ -258,7 +263,7 @@ internal static class CatalogChecks
             }
             // Older saves gain the company's spare equipment, stocked once from its mechs.
             expected["Roster"]!["Storage"] = System.Text.Json.JsonSerializer.SerializeToNode(StorageCatalog.Stock(campaign.Roster.Mechs.Select(m => m.Spec)).ToArray());
-            check(JsonNode.DeepEquals(expected, JsonNode.Parse(File.ReadAllText(path))),
+            check(JsonNode.DeepEquals(expected, resaved),
                 "a version-four save keeps its shape and values when resaved, with protection rescaled and storage stocked");
             campaign.AdvanceOneDay(); campaign.AdvanceOneDay();
             check(warrior.Health == WarriorHealth.Healthy && warrior.RecoveryDate is null, "old saved recovery date still resolves normally");

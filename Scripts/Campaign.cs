@@ -34,7 +34,36 @@ public sealed class Campaign
     public bool PaymentPending => PaymentDue > 0;
     public ForceRoster? Roster { get; private set; }
     public bool RequiresDraft => Roster is null;
-    public MissionBoard Missions { get; private set; } = new();
+    public MissionBoard Missions { get; private set; }
+    public const int SaveVersion = 6;
+
+    public Campaign(ulong? missionSeed = null)
+    {
+        Missions = MissionBoard.Create(missionSeed ?? NewSeed(), Date, MissionOrigin);
+    }
+    private static ulong NewSeed() => (ulong)Random.Shared.NextInt64();
+
+    /// <summary>Where mission offers are generated around: the orbited system, or the destination of the current jump.</summary>
+    public string MissionOrigin => Travel.InOrbit ? Travel.OrbitSystemId : Travel.NextSystemId!;
+
+    /// <summary>Days until the DropShip could orbit a system, finishing the current jump first; null if unreachable.</summary>
+    public int? TravelDaysTo(string systemId)
+    {
+        var days = Travel.InOrbit ? 0 : Travel.DaysRemaining;
+        if (MissionOrigin == systemId) return days;
+        var route = StarChart.Instance.Plot(MissionOrigin, systemId);
+        return route is null ? null : days + StarChart.Instance.RouteDays(route);
+    }
+
+    /// <summary>Days after acceptance by which an offer must be completed.</summary>
+    public int? DeadlineDays(MissionOffer offer) => TravelDaysTo(offer.SystemId) + MissionTuning.DeadlineSlackDays;
+
+    public void AcceptMission(string id)
+    {
+        var offer = Missions.Find(id) ?? throw new ArgumentException("The mission is not available.", nameof(id));
+        var days = DeadlineDays(offer) ?? throw new InvalidOperationException("The mission location cannot be reached.");
+        Missions.Accept(id, Date.AddDays(days));
+    }
     public void EstablishCompany(InitialDraft draft)
     {
         if (!RequiresDraft) throw new InvalidOperationException("The initial draft is already complete.");
@@ -85,6 +114,7 @@ public sealed class Campaign
             if (arrived is not null) _events.Add(new($"travel-arrival-{Date.DayNumber}", Date,
                 CampaignEventKind.Arrival, $"Arrived at {StarChart.Instance[arrived].Name}. In orbit for today."));
         }
+        Missions.AdvanceDay(Date, MissionOrigin);
         var quarterReached = Date == NextQuarter;
         // Accounting is evaluated before any other event on the same date.
         if (quarterReached)
@@ -138,14 +168,14 @@ public sealed class Campaign
         return due;
     }
 
-    public CampaignSnapshot Snapshot() => new(5, Date, Cash, PaymentDue, DeferredDebt, NextQuarter, Bankrupt, _events.ToArray(), Roster?.Snapshot(), Missions.Snapshot(), Travel.Snapshot(), AccruedTransitDays, BilledTransitDays);
+    public CampaignSnapshot Snapshot() => new(SaveVersion, Date, Cash, PaymentDue, DeferredDebt, NextQuarter, Bankrupt, _events.ToArray(), Roster?.Snapshot(), Missions.Snapshot(), Travel.Snapshot(), AccruedTransitDays, BilledTransitDays);
 
     public static Campaign Restore(CampaignSnapshot save)
     {
         ArgumentNullException.ThrowIfNull(save);
         var date = save.Date;
         var quarterStart = date == default ? StartDate : new DateOnly(date.Year, (date.Month - 1) / 3 * 3 + 1, 1);
-        if (save.Version is not (1 or 2 or 3 or 4 or 5) || date < StartDate || date.Year >= 9999 || save.Cash < 0
+        if (save.Version is < 1 or > SaveVersion || date < StartDate || date.Year >= 9999 || save.Cash < 0
             || save.DeferredDebt < 0 || save.DeferredDebt > 284_000
             || save.DeferredDebt != 0 && (save.DeferredDebt < QuarterlyCharge || save.DeferredDebt % TransitDailyCharge != 0)
             || save.AccruedTransitDays < 0 || save.AccruedTransitDays > date.DayNumber - quarterStart.DayNumber
@@ -170,7 +200,9 @@ public sealed class Campaign
         if (save.Version >= 4) campaign.Travel = Mech.Travel.Restore(save.Travel!, StarChart.Instance);
         // Saves before version 5 counted whole stock points of armor and structure.
         if (save.Roster is not null) campaign.Roster = ForceRoster.Restore(save.Version < 5 ? ForceRoster.Rescale(save.Roster, CombatRules.DamageScale) : save.Roster, date);
-        if (save.Missions is not null) campaign.Missions = MissionBoard.Restore(save.Missions);
+        // Saves before version 6 held the single authored offer; they receive a freshly generated board.
+        campaign.Missions = save.Version >= 6 ? MissionBoard.Restore(save.Missions!, date)
+            : MissionBoard.Create(NewSeed(), date, campaign.MissionOrigin);
         foreach (var item in save.Events)
         {
             if (item is null || string.IsNullOrWhiteSpace(item.Id) || string.IsNullOrWhiteSpace(item.Title)

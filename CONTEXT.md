@@ -56,6 +56,12 @@ An agreement committing the mercenary force to work for an employer; it may enco
 **Mission**:
 An individual operational assignment within a contract.
 
+**Mission offer**:
+A single-mission contract on the mission offer board, with fixed terms: location, exact expected opposition, deadline, payment, salvage picks and an insurance limit.
+
+**Mission offer board**:
+The ten mission offers available at a time, oldest first. Each day the oldest may be taken off and the board is refilled.
+
 **Initial draft**:
 The selection of four starting BattleMechs and four starting MechWarriors from eight simultaneously visible pools, with three options of similar caliber in each pool.
 

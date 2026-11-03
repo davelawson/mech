@@ -38,6 +38,17 @@ public sealed class StarChart
     public int RouteDays(IReadOnlyList<string> route) => Enumerable.Range(1, route.Count - 1)
         .Sum(i => JumpDays(route[i - 1], route[i]));
 
+    /// <summary>The origin and every system reachable from it in at most the given number of jumps, ordered by ID.</summary>
+    public IReadOnlyList<string> WithinJumps(string origin, int jumps)
+    {
+        _ = this[origin];
+        var reached = new HashSet<string>(StringComparer.Ordinal) { origin };
+        var frontier = new List<string> { origin };
+        for (var jump = 0; jump < jumps && frontier.Count > 0; jump++)
+            frontier = frontier.SelectMany(id => _neighbors[id]).Where(reached.Add).ToList();
+        return reached.Order(StringComparer.Ordinal).ToArray();
+    }
+
     // Lexicographic Dijkstra: fewest jumps first, shortest total distance second.
     public string[]? Plot(string origin, string destination)
     {

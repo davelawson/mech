@@ -69,7 +69,7 @@
 # Calendar and persistence
 
 - Missions have a declared duration, initially one day, visible before launch. Every outcome, including retreat, consumes that full day for preparation, deployment, combat, and recovery. Completion must occur by the deadline; authored outcomes cannot silently alter elapsed time.
-- Regional contract offers expire and are periodically replaced. Offers visible from the current system disclose destination and travel estimate before acceptance.
+- Mission offers are generated around the DropShip and replaced from the oldest; see [Mission offers](#mission-offers). Offers disclose location, travel estimate and deadline before acceptance.
 - Support one manual campaign save, opened through the office filing cabinet, with confirmation before overwriting or loading over current progress. There is no autosave or automatic load at launch. The main menu can also load the save. Save the date, cash, pending payment, debt, next quarter, bankruptcy state, and scheduled events; include travel, repairs, and committed deployments as those systems are implemented. A mission may be settled only once.
 - Saves are stored in Godot’s per-user application-data directory as `campaign.json`, outside the installation folder.
 - New Company, Load Game, Quit, and closing the window ask before discarding campaign data only when it differs from the last successful save or load. A newly established company is unsaved until its first save. Time, assignments, seen mission offers and plotted routes count as campaign changes; navigation and view selections do not. Prompts offer Cancel and the explicit discard action, including **Quit Without Saving**. Failed saves or loads preserve the current unsaved status.
@@ -192,8 +192,21 @@ A fixed-size gold DropShip silhouette, dark backing, halo, and permanent locatio
 
 ## Mission offers
 
-A silent flashing light on the office phone indicates new mission offers. Opening it marks all available offers as seen. Browse briefings beside the offer list, accept one mission, or inspect the current mission while browsing others. Accepting returns to the office; abandon with confirmation before accepting another. Abandoned offers remain available and seen. Mission selection and seen status use the same manual save slot. Easy Peasy is the initial offer; its terms are provisional, with no payment or deadline effects yet. Deployment follows starmap movement.
+A silent flashing light on the office phone indicates new mission offers. Opening it marks all available offers as seen. Browse briefings beside the offer list, accept one mission, or inspect the current mission while browsing others. Accepting returns to the office; abandon with confirmation before accepting another. Mission selection and seen status use the same manual save slot. Deployment follows starmap movement. Each offer is a contract with a single mission.
 
+**The mission offer board** (confirmed November 3, 2026) holds 10 offers, listed oldest first. A new company starts with 10 generated offers. On every day advanced, including in transit and with a mission accepted, there is a 50% chance that the oldest offer is removed (at most one per day); the board is then refilled to 10. Offers have no expiry date, only the date they were posted. Accepting an offer takes it off the board, which holds 9 until the next day's refill; the daily roll never removes the accepted mission. Abandoning a mission removes it for good. New offers are posted that day, unseen, and flash the phone; offers never stop the calendar.
+
+**Each generated offer** has:
+
+- a placeholder name and briefing, and the objective "Defeat the defending force". There is no employer yet.
+- a location: a random named system within 3 jumps of the DropShip when the offer is posted, counted from the system being jumped to while in transit. It never changes.
+- its opposition: 2–4 BattleMechs, each a random stock catalog mech of a weight class drawn Light 40 / Medium 35 / Heavy 18 / Assault 7, piloted by an unnamed pilot of rank Green 20 / Regular 50 / Veteran 22 / Elite 8. The briefing shows exactly the force that will be fielded.
+- a completion deadline of travel days to the location plus 14, shown as "N days after acceptance" and fixed as a date on acceptance. The travel estimate finishes the current jump first.
+- fixed rewards, with no negotiation yet. Difficulty is the enemy tonnage, each mech weighted by its pilot's rank (Green 0.8, Regular 1.0, Veteran 1.25, Elite 1.5). The budget is difficulty × 4,000 C-bills, ±20%, split at random: at least 40% to payment, the rest between salvage and the insurance limit. **Payment** is in C-bills. **Salvage** is a number of picks from wrecks and equipment after the battle: its share ÷ 100,000 C-bills, rounded, from 0 to 6. **Insurance** pays the lesser of the deployed mechs' repair costs, with destroyed mechs at their replacement value, and the offer's limit (a negotiated maximum once negotiation exists). Payment and the insurance limit are rounded to 1,000 C-bills.
+
+Rewards are only displayed for now: payment, salvage and insurance are settled once mission results reach the campaign. The deadline is recorded but missing it has no effect yet. The numbers live in `MissionTuning`.
+
+Generation uses a seeded random number generator whose state is saved, so reloading and advancing repeats the same offers and removals. Saves before version 6 receive a freshly generated board and lose their accepted mission.
 
 ## Initial combat design (confirmed October 25, 2026)
 

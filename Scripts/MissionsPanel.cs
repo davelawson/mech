@@ -14,6 +14,7 @@ public partial class MissionsPanel : Control
     public Label MissionName { get; private set; } = null!;
     public IReadOnlyList<Button> MissionButtons => _missionButtons;
     private readonly List<Button> _missionButtons = [];
+    private Campaign _campaign = null!;
     private MissionBoard _board = null!;
     private string? _viewedId;
     private PanelContainer _panel = null!;
@@ -53,9 +54,10 @@ public partial class MissionsPanel : Control
         Resized += Layout; Layout(); Hide();
     }
 
-    public void Open(MissionBoard board)
+    public void Open(Campaign campaign)
     {
-        _board = board;
+        _campaign = campaign;
+        var board = _board = campaign.Missions;
         _board.MarkOffersSeen();
         _viewedId = board.SelectedMissionId ?? board.Available.FirstOrDefault()?.Id;
         Show(); Refresh();
@@ -65,6 +67,8 @@ public partial class MissionsPanel : Control
     public void Refresh()
     {
         RosterUi.Clear(_index); _missionButtons.Clear();
+        // An abandoned mission is gone, so fall back to the oldest offer.
+        if (_viewedId is null || _board.Find(_viewedId) is null) _viewedId = _board.Current?.Id ?? _board.Available.FirstOrDefault()?.Id;
         if (_board.Current is { } current)
         {
             RosterUi.Text(_index, "CURRENT MISSION", 12, Ui.Gold);
@@ -79,6 +83,7 @@ public partial class MissionsPanel : Control
     private void AddMission(MissionOffer offer)
     {
         var button = Ui.Button(_index, offer.Name); button.CustomMinimumSize = new Vector2(0, 48);
+        button.TooltipText = $"Posted {DateText(offer.Posted)}";
         button.ToggleMode = true; button.ButtonPressed = offer.Id == _viewedId;
         button.Pressed += () =>
         {
@@ -91,12 +96,12 @@ public partial class MissionsPanel : Control
 
     private void ShowDetails()
     {
-        var offer = _board.Offers.SingleOrDefault(item => item.Id == _viewedId);
+        var offer = _viewedId is null ? null : _board.Find(_viewedId);
         var isCurrent = offer is not null && offer.Id == _board.SelectedMissionId;
         _status.Text = isCurrent ? "CURRENT MISSION · ACCEPTED" : "AVAILABLE OFFER";
         MissionName.Text = offer?.Name ?? "No missions available";
         _briefing.Text = offer is null ? "Check the phone again when new offers arrive." : $"{offer.Briefing}\n\nOBJECTIVE\n{offer.Objective}";
-        _terms.Text = offer is null ? "" : $"PAYMENT  {offer.Payment.ToString("N0", CultureInfo.InvariantCulture)} C-bills\nDESTINATION  {offer.Destination}\nTRAVEL ESTIMATE  {offer.TravelEstimate}\nDEADLINE  {offer.Deadline}\nEXPECTED OPPOSITION  {offer.Opposition}\nABANDONMENT PENALTY  None";
+        _terms.Text = offer is null ? "" : Terms(offer, isCurrent);
         AcceptButton.Visible = offer is not null && !isCurrent;
         AcceptButton.Disabled = _board.Current is not null;
         AcceptButton.TooltipText = AcceptButton.Disabled ? "Abandon the current mission before accepting another offer." : "Accept this mission and return to the office.";
@@ -105,6 +110,25 @@ public partial class MissionsPanel : Control
             : _board.Current is not null ? "Abandon your current mission before accepting another offer." : "Accept this mission to undertake it.";
         RosterUi.TrapFocus(this);
     }
+
+    private string Terms(MissionOffer offer, bool isCurrent)
+    {
+        var travel = _campaign.TravelDaysTo(offer.SystemId);
+        var deadline = isCurrent ? DateText(_board.Deadline!.Value)
+            : _campaign.DeadlineDays(offer) is { } days ? $"{days} days after acceptance" : "Unreachable";
+        var opposition = string.Join("\n", offer.Opposition.Select(item =>
+        {
+            var spec = DraftCatalog.Mech(item.MechId);
+            return $"  {spec.DisplayName} · {spec.Tonnage}t — {item.Rank}";
+        }));
+        return $"POSTED  {DateText(offer.Posted)}\nPAYMENT  {CBills(offer.Payment)}\nSALVAGE  {offer.SalvagePicks} {(offer.SalvagePicks == 1 ? "pick" : "picks")}"
+            + $"\nINSURANCE  Up to {CBills(offer.InsuranceLimit)}\nLOCATION  {StarChart.Instance[offer.SystemId].Name}"
+            + $"\nTRAVEL ESTIMATE  {travel switch { null => "Unreachable", 0 => "In orbit", 1 => "1 day", _ => $"{travel} days" }}"
+            + $"\nDEADLINE  {deadline}\nEXPECTED OPPOSITION\n{opposition}\nABANDONMENT PENALTY  None";
+    }
+
+    private static string CBills(long amount) => $"{amount.ToString("N0", CultureInfo.InvariantCulture)} C-bills";
+    private static string DateText(DateOnly date) => date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture).ToUpperInvariant();
 
     private void Layout()
     {

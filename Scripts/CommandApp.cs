@@ -68,9 +68,9 @@ public partial class CommandApp : Control
         Rolodex.Closed += CloseWarriors;
         Office.MissionsRequested += ShowMissions;
         Missions.Closed += ShowOffice;
-        Missions.AcceptRequested += id => { State.Missions.Accept(id); ShowOffice(); };
+        Missions.AcceptRequested += id => { State.AcceptMission(id); ShowOffice(); };
         Missions.AbandonRequested += () => Confirm("Abandon mission?",
-            $"Abandon {State.Missions.Current!.Name}?\n\nThere is no penalty. The mission will remain available.",
+            $"Abandon {State.Missions.Current!.Name}?\n\nThere is no penalty, but the mission will be gone for good.",
             () =>
             {
                 State.Missions.Abandon(); Missions.Refresh(); RefreshCampaign();
@@ -393,7 +393,7 @@ public partial class CommandApp : Control
     {
         if (State.RequiresDraft || Navigation.CurrentScreen != CommandScreen.Office) return;
         Navigation.Push(CommandScreen.Missions, Office.PhoneButton);
-        Missions.Open(State.Missions); RefreshCampaign();
+        Missions.Open(State); RefreshCampaign();
     }
 
     public void ShowWarriors()

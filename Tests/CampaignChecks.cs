@@ -77,7 +77,7 @@ internal static class CampaignChecks
         worn = worn with { Roster = worn.Roster! with { Mechs = worn.Roster.Mechs.Select((mech, i) => i > 0 ? mech : mech with
             { Locations = mech.Locations.Select((loc, j) => j > 0 ? loc : loc with { Armor = 30, Structure = 10 }).ToArray() }).ToArray() } };
         var migrated = Campaign.Restore(Legacy(worn, 4)).Roster!.Snapshot();
-        check(worn.Version == 5 && migrated.Mechs.Zip(worn.Roster!.Mechs).All(pair => pair.First.Locations.SequenceEqual(pair.Second.Locations)),
+        check(worn.Version == Campaign.SaveVersion && migrated.Mechs.Zip(worn.Roster!.Mechs).All(pair => pair.First.Locations.SequenceEqual(pair.Second.Locations)),
             "version 4 saves count armor and structure in tenths of a point after loading");
         Throws(() => Campaign.Restore(worn with { Version = 4 }), check, "a version 4 save cannot hold more than stock protection once rescaled");
         Throws(() => Campaign.Restore(campaign.Snapshot() with { Cash = -1 }), check, "reject corrupt finance state");
@@ -97,9 +97,9 @@ internal static class CampaignChecks
         }).ToArray() }
     };
 
-    internal static Campaign NewCompany()
+    internal static Campaign NewCompany(ulong? missionSeed = null)
     {
-        var campaign = new Campaign();
+        var campaign = new Campaign(missionSeed);
         var draft = new InitialDraft { ForceName = "Test Company" };
         for (var pool = 0; pool < 8; pool++) draft.Select(pool, 0);
         campaign.EstablishCompany(draft);

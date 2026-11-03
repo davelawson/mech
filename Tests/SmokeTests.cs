@@ -338,7 +338,7 @@ public partial class SmokeTests : Node
         _app.StartNewCompany(); await FinishDraft();
         var office = _app.Office;
         var board = _app.State.Missions;
-        Check(office.PhoneFlashing && board.HasUnseenOffers, "phone indicates the initial unseen offer");
+        Check(office.PhoneFlashing && board.HasUnseenOffers, "phone indicates the initial unseen offers");
         office.RefreshCampaign(_app.State);
         for (var tick = 0; tick < 6; tick++) { office.RefreshCampaign(_app.State); office._Process(.1); }
         Check(!office.PhoneLight.Visible && office.PhoneButton.Modulate == Colors.White, "silent phone light keeps flashing through campaign refreshes");
@@ -346,7 +346,9 @@ public partial class SmokeTests : Node
         await Click(office.PhoneButton);
         Check(_app.Missions.Visible && office.Visible && !board.HasUnseenOffers && !office.PhoneFlashing && !office.PhoneLight.Visible,
             "painted phone opens mission overlay and marks list seen");
-        Check(_app.Missions.MissionName.Text == "Easy Peasy" && board.Current is null, "initial briefing opens without accepting mission");
+        var oldest = board.Available[0];
+        Check(_app.Missions.MissionName.Text == oldest.Name && board.Current is null && _app.Missions.MissionButtons.Count == MissionTuning.BoardSize,
+            "the oldest of ten offers opens first without accepting it");
         Check(_app.Missions.GetGlobalRect().Encloses(_app.Missions.AcceptButton.GetGlobalRect()), "first-open mission action stays inside the window");
         await Click(office.SafeButton);
         Check(!_app.Dialog.Visible && _app.Missions.Visible, "mission overlay blocks office clicks and does not dismiss on backdrop click");
@@ -363,13 +365,14 @@ public partial class SmokeTests : Node
         Check(!_app.Missions.Visible && !_app.MainMenu.Visible && office.PhoneButton.HasFocus(), "Escape closes mission panel and restores phone focus");
         var cash = _app.State.Cash; var date = _app.State.Date;
         await PressKey(Key.Enter); await Click(_app.Missions.AcceptButton);
-        Check(board.Current?.Name == "Easy Peasy" && !_app.Missions.Visible && office.Visible && office.PhoneButton.HasFocus(),
+        Check(board.Current == oldest && !_app.Missions.Visible && office.Visible && office.PhoneButton.HasFocus(),
             "acceptance returns to office with selected mission");
         Check(_app.State.Cash == cash && _app.State.Date == date, "acceptance changes neither money nor time");
         await Click(office.FilingButton); await Click(DialogButton("Save Game")); await Click(DialogButton("Close"));
         await Click(office.PhoneButton);
-        Check(_app.Missions.MissionButtons.Count == 1 && _app.Missions.AbandonButton.Visible && !_app.Missions.AcceptButton.Visible,
-            "reopening defaults to current mission without duplicate offer");
+        Check(_app.Missions.MissionButtons.Count == MissionTuning.BoardSize && _app.Missions.MissionName.Text == oldest.Name
+            && _app.Missions.AbandonButton.Visible && !_app.Missions.AcceptButton.Visible,
+            "reopening defaults to current mission, which has left the board");
         await Capture("missions-current");
         await Click(_app.Missions.AbandonButton);
         Check(_app.Dialog.Heading == "Abandon mission?" && board.Current is not null, "abandonment requires confirmation");
@@ -377,23 +380,23 @@ public partial class SmokeTests : Node
         Check(!_app.Dialog.Visible && _app.Missions.Visible && board.Current is not null && _app.Missions.AbandonButton.HasFocus(),
             "Escape cancels only abandonment confirmation and restores mission focus");
         await Click(_app.Missions.AbandonButton); await Click(DialogButton("Abandon Mission"));
-        Check(board.Current is null && _app.Missions.Visible && _app.Missions.AcceptButton.Visible && !office.PhoneFlashing,
-            "confirmed abandonment returns offer to available list without flashing again");
+        Check(board.Current is null && board.Find(oldest.Id) is null && _app.Missions.Visible && _app.Missions.AcceptButton.Visible
+            && _app.Missions.MissionButtons.Count == MissionTuning.BoardSize - 1 && !office.PhoneFlashing,
+            "confirmed abandonment removes the mission for good without flashing");
         Check(_app.State.Cash == cash && _app.State.Date == date, "abandonment has no penalty or time cost");
         await Click(_app.Missions.CloseButton);
         await Click(office.FilingButton); await Click(DialogButton("Load Game")); await Click(DialogButton("Load Game"));
-        Check(_app.State.Missions.Current?.Name == "Easy Peasy" && !office.PhoneFlashing, "manual load restores current mission and seen state");
+        Check(_app.State.Missions.Current?.Id == oldest.Id && !office.PhoneFlashing, "manual load restores current mission and seen state");
         await Click(office.PhoneButton);
-        var second = MissionCatalog.EasyPeasy with { Id = "second-offer", Name = "Second Offer" };
-        var expanded = MissionBoard.Restore(_app.State.Missions.Snapshot(), [MissionCatalog.EasyPeasy, second]);
-        _app.Missions.Open(expanded); await Frames();
-        Check(!expanded.HasUnseenOffers && _app.Missions.MissionName.Text == "Easy Peasy", "opening expanded pool marks new offers seen and defaults to current mission");
-        await Click(_app.Missions.MissionButtons.Single(button => button.Text == "Second Offer"));
-        Check(_app.Missions.MissionName.Text == "Second Offer" && _app.Missions.AcceptButton.Visible && _app.Missions.AcceptButton.Disabled
-            && !_app.Missions.AbandonButton.Visible && expanded.Current?.Name == "Easy Peasy", "other offers can be perused without replacing current mission");
+        var other = _app.State.Missions.Available[1];
+        await Click(_app.Missions.MissionButtons.First(button => button.TooltipText == $"Posted {_app.State.DateText}" && button.Text == other.Name));
+        Check(_app.Missions.MissionName.Text == other.Name && _app.Missions.AcceptButton.Visible && _app.Missions.AcceptButton.Disabled
+            && !_app.Missions.AbandonButton.Visible && _app.State.Missions.Current?.Id == oldest.Id, "other offers can be perused without replacing current mission");
         await Capture("missions-other-offer");
         await Click(_app.Missions.CloseButton);
-        _app.State.Missions.Abandon(); _app.ShowOffice(); await Frames();
+        _app.State.Missions.Abandon(); _app.State.AdvanceOneDay(); _app.ShowOffice(); await Frames();
+        Check(_app.State.Missions.Available.Count == MissionTuning.BoardSize && office.PhoneFlashing,
+            "the next day refills the board and the phone flashes for the new offer");
         System.IO.File.Delete(_saveFile);
     }
 
