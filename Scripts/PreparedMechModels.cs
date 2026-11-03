@@ -3,10 +3,11 @@ using Godot;
 
 namespace Mech;
 
-public partial class MechModel
+/// <summary>The prepared chassis table, kept off MechModel so rules code can read hardpoints without building meshes.</summary>
+internal static class PreparedMechModels
 {
-    private sealed record PreparedModel(string Chassis, RigProfile Rig, Hardpoint[] Hardpoints);
-    private static readonly Dictionary<string, PreparedModel> PreparedModels = new()
+    internal sealed record PreparedModel(string Chassis, MechModel.RigProfile Rig, Hardpoint[] Hardpoints);
+    internal static readonly Dictionary<string, PreparedModel> Models = new()
     {
         ["firestarter"] = new("Firestarter", new(1.3047417f, new(0.2858072f, 1.1469318f, -0.0000100f), new(0.3097583f, 0.6324679f, -0.1360211f),
             new(0.3335240f, 0.1596391f, 0.0589678f), new(0.5360900f, 1.6528519f, 0.0000736f), new(BodyDrop: 0.055f, RunDrop: 0.035f, LeftArmSwing: 0.035f, RightArmSwing: 0.035f)),
@@ -843,4 +844,8 @@ public partial class MechModel
             new("Torso_Right_EH1", MechLocation.RightTorso, HardpointClass.Energy, ["Flamer", "Laser", "PPC"], "Laser", "RightTorso_Weapon3", ["WeaponMuzzle_Weapon3_00"]),
         ]),
     };
+
+    /// <summary>A chassis's hardpoints; empty for generic geometry.</summary>
+    public static IReadOnlyList<Hardpoint> Hardpoints(string chassisId) =>
+        Models.TryGetValue(chassisId, out var prepared) ? prepared.Hardpoints : [];
 }

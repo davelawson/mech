@@ -45,7 +45,7 @@ public partial class MechModel
 
     /// <summary>The (hardpoint, visual) pairs in a chassis's weapon library.</summary>
     internal static IEnumerable<(string Hardpoint, string Visual)> WeaponLibraryVisuals(string chassisId) =>
-        PreparedModels.TryGetValue(chassisId, out var prepared) ? WeaponLibrary(prepared.Chassis).Keys : [];
+        PreparedMechModels.Models.TryGetValue(chassisId, out var prepared) ? WeaponLibrary(prepared.Chassis).Keys : [];
 
     private Material Outlined(Material original, Dictionary<Material, Material> cache)
     {

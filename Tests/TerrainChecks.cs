@@ -80,7 +80,7 @@ internal static class TerrainChecks
         check(water.Passable(Vector2.Zero) && water.SpeedFactor(Vector2.Zero) == .5f && vegetation.SpeedFactor(Vector2.Zero) == .7f, "water and vegetation are traversable with distinct movement penalties");
         var dry = Travel(BattlefieldTerrain.Flat); var wet = Travel(water);
         check(wet > 0 && wet < dry * .7f, "water slowdown affects actual movement rather than only navigation cost");
-        GD.Print($"Terrain checks: movement on dry ground {dry:0.00}, water {wet:0.00}");
+        Console.WriteLine($"Terrain checks: movement on dry ground {dry:0.00}, water {wet:0.00}");
         CheckEngagement(first, new[] { "jenner" }, check);
         CheckEngagement(other, new[] { "awesome" }, check);
         CheckEngagement(first, new[] { "firestarter", "griffin", "catapult", "awesome" }, check);
@@ -141,7 +141,7 @@ internal static class TerrainChecks
             // Jumping mechs may pass over rocks and steep ground; they must still land on passable terrain.
             sim.Advance(1); passable &= sim.Units.All(unit => unit.Airborne || terrain.Passable(unit.Position));
         }
-        GD.Print($"Terrain engagement: seed {terrain.Seed}, {definitions.Length} per side, {sim.Elapsed:0}s, {sim.Outcome}, passable {passable}");
+        Console.WriteLine($"Terrain engagement: seed {terrain.Seed}, {definitions.Length} per side, {sim.Elapsed:0}s, {sim.Outcome}, passable {passable}");
         check(passable && sim.Outcome != CombatOutcome.Ongoing, "generated-terrain engagement completes without entering impassable terrain: "
             + string.Join("; ", sim.Units.Select(unit => $"{unit.Id} {unit.Position} {unit.Order} shots={unit.ShotsFired}")));
     }

@@ -15,9 +15,9 @@ public partial class SmokeTests
 
     private async Task TestWeaponMounts()
     {
-        foreach (var spec in DraftCatalog.AllMechs.Where(mech => MechModel.Hardpoints(mech.Id).Count > 0))
+        foreach (var spec in DraftCatalog.AllMechs.Where(mech => PreparedMechModels.Hardpoints(mech.Id).Count > 0))
         {
-            var hardpoints = MechModel.Hardpoints(spec.Id);
+            var hardpoints = PreparedMechModels.Hardpoints(spec.Id);
             var expected = hardpoints.SelectMany(item => item.Visuals.Select(visual => (item.Id, visual))).ToHashSet();
             var library = MechModel.WeaponLibraryVisuals(spec.Id).ToHashSet();
             Check(library.SetEquals(expected), $"{spec.Id} weapon library holds exactly its hardpoint table's visuals; missing "
@@ -29,14 +29,14 @@ public partial class SmokeTests
         }
         var full = new[] { "atlas", "awesome", "catapult", "crusader", "firestarter", "griffin", "jenner", "panther",
             "shadow-hawk", "thunderbolt", "victor", "wolverine", "zeus" };
-        Check(full.All(id => MechModel.Hardpoints(id).Any(item => item.Stock is null)),
+        Check(full.All(id => PreparedMechModels.Hardpoints(id).Any(item => item.Stock is null)),
             "the thirteen fully exported chassis offer hardpoints beyond their stock mounts");
         foreach (var id in full)
         {
             var model = MechModel.Create(DraftCatalog.Mech(id), CombatSide.Friendly);
-            Check(MechModel.Hardpoints(id).Where(item => item.StockPart is not null).All(item =>
+            Check(PreparedMechModels.Hardpoints(id).Where(item => item.StockPart is not null).All(item =>
                     Part(model, item.Location, item.StockPart![(item.Location.ToString().Length + 1)..]) is not null)
-                && !model.FindChildren("*", "MeshInstance3D", true, false).Any(mesh => MechModel.Hardpoints(id).Any(item =>
+                && !model.FindChildren("*", "MeshInstance3D", true, false).Any(mesh => PreparedMechModels.Hardpoints(id).Any(item =>
                     mesh.Name.ToString().StartsWith(item.Id + "_", StringComparison.Ordinal))),
                 $"{id} stock model keeps its prepared weapon parts and adds no library visuals");
             model.Free();

@@ -90,6 +90,7 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 
 ```sh
 ./scripts/mech build
+./scripts/mech unit
 ./scripts/mech test [group...]
 ./scripts/mech test --list
 ./scripts/mech capture [group...]
@@ -97,7 +98,7 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 
 Tests are split into screen-sized groups (`menu`, `draft`, `office`, `map`, `roster`, `hangar`, `missions`, `finance`, `catalog`, `combat-sim`, `combat-ui`, `mech-visuals`, `layout`). With no group named, the full suite runs. See [testing](docs/testing.md) for what each group covers and when to run the full suite.
 
-`test` runs a C# headless Godot test scene with a nonzero exit code on failure. It checks all ten tactical acceptance scenarios, campaign isolation, deployment eligibility, simultaneous fire, location damage, shared detection, pursuit, targeting, AI, and actual combat controls, alongside star routing, travel, quarterly finances, saves, missions, drafting, assignments, health, navigation and resizing. Tests use isolated temporary saves. `capture` runs the same checks with a graphical display and saves deployment, combat, damage reports, draft, rolodex, hangar, office, mission, map, menu, finance, and payment screenshots to `TestResults/`.
+`unit` runs the engine-free model checks with `dotnet test --project Tests.Unit`, without Godot; CI runs it on every push. `test` runs a C# headless Godot test scene with a nonzero exit code on failure. It checks all ten tactical acceptance scenarios, campaign isolation, deployment eligibility, simultaneous fire, location damage, shared detection, pursuit, targeting, AI, and actual combat controls, alongside star routing, travel, quarterly finances, saves, missions, drafting, assignments, health, navigation and resizing. Tests use isolated temporary saves. `capture` runs the same checks with a graphical display and saves deployment, combat, damage reports, draft, rolodex, hangar, office, mission, map, menu, finance, and payment screenshots to `TestResults/`.
 
 After building, the menu and unsaved-change checks can also run directly:
 

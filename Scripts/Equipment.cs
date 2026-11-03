@@ -140,7 +140,7 @@ public static class MountLayout
     public static ImmutableDictionary<MechLocation, LocationMounts> For(MechSpec spec, IReadOnlyList<InstalledItem> installed,
         ImmutableDictionary<MechLocation, ImmutableArray<CriticalBlock>> layout)
     {
-        var hardpoints = MechModel.Hardpoints(spec.Id);
+        var hardpoints = PreparedMechModels.Hardpoints(spec.Id);
         var chosen = installed.Where(item => item.Mount is not null).ToDictionary(item => item.Id, item => item.Mount!.Value, StringComparer.Ordinal);
         return layout.ToImmutableDictionary(pair => pair.Key, pair => Location(spec, pair.Key, pair.Value, hardpoints, chosen));
     }

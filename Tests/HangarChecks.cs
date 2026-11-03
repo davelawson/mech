@@ -683,7 +683,7 @@ public partial class SmokeTests
         // Debug builds: F6 picks a hardpoint, F7 cycles its visual on the preview only.
         hangar.Select(0); await Frames();
         var owned = hangar.SelectedMech; var stock = hangar.Preview.Model!;
-        var first = MechModel.Hardpoints(owned.Spec.Id)[0];
+        var first = PreparedMechModels.Hardpoints(owned.Spec.Id)[0];
         await PressKey(Key.F6);
         Check(ReferenceEquals(stock, hangar.Preview.Model), "F6 selects a hardpoint without rebuilding the preview");
         await PressKey(Key.F7);

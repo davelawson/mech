@@ -6,11 +6,11 @@ public partial class MechModel
 {
     // Stride amplitude in metres per m/s of gait speed, so every chassis shares the Marauder's step rate.
     private const float StrideSeconds = .4383f;
-    private sealed record GaitProfile(float WalkLift = .075f, float RunLift = .11f, float BodyDrop = .035f, float RunDrop = .012f,
+    internal sealed record GaitProfile(float WalkLift = .075f, float RunLift = .11f, float BodyDrop = .035f, float RunDrop = .012f,
         float Bob = .010f, float Sway = .016f, float Lean = .035f, float Roll = .008f,
         float LeftArmSwing = .045f, float RightArmSwing = .045f);
     // Joint positions are model-local, on the anatomical right; the left side mirrors X.
-    private sealed record RigProfile(float Waist, Vector3 Hip, Vector3 Knee, Vector3 Ankle, Vector3 Shoulder, GaitProfile Gait);
+    internal sealed record RigProfile(float Waist, Vector3 Hip, Vector3 Knee, Vector3 Ankle, Vector3 Shoulder, GaitProfile Gait);
     // Per-chassis profiles are generated into PreparedMechModels.cs from model manifests and Data/mech-gaits.json.
     private sealed record Leg(Node3D Hip, Node3D Knee, Node3D Ankle, Vector3 Rest,
         Vector3 KneeRest, Vector3 AnkleRest, int Side);

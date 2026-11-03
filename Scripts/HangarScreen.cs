@@ -319,7 +319,7 @@ public partial class HangarScreen : Control
     /// (including empty). The preview alone changes; the owned mech and save are untouched.</summary>
     public void CycleDebugMount(bool visual)
     {
-        var hardpoints = MechModel.Hardpoints(SelectedMech.Spec.Id);
+        var hardpoints = PreparedMechModels.Hardpoints(SelectedMech.Spec.Id);
         if (hardpoints.Count == 0 || Preview.Model is not { } model) return;
         var showing = _debugMount is { Visible: true };
         if (!visual) _debugHardpoint = showing ? (_debugHardpoint + 1) % hardpoints.Count : 0;

@@ -28,10 +28,6 @@ public partial class MechModel : Node3D
     /// <summary>World metres per authored model unit; prepared models stand roughly 36–55 metres tall.</summary>
     public const float MetresPerModelUnit = 15;
 
-    /// <summary>A chassis's hardpoints; empty for generic geometry.</summary>
-    public static IReadOnlyList<Hardpoint> Hardpoints(string chassisId) =>
-        PreparedModels.TryGetValue(chassisId, out var prepared) ? prepared.Hardpoints : [];
-
     /// <summary>Builds the chassis with its weapons' visuals, resolved from the spec unless a mount map is given.</summary>
     public static MechModel Create(MechSpec spec, CombatSide side, MountMap? mounts = null)
     {
@@ -56,7 +52,7 @@ public partial class MechModel : Node3D
             """ } };
         model._teamColor = TeamColor(side);
         model._outline.SetShaderParameter("team_color", model._teamColor);
-        PreparedModels.TryGetValue(spec.Id, out var prepared);
+        PreparedMechModels.Models.TryGetValue(spec.Id, out var prepared);
         if (prepared is not null) model._outlineWidth = .65f;
         model._outline.SetShaderParameter("outline_width", model._outlineWidth);
         foreach (var location in Enum.GetValues<MechLocation>())

@@ -1,0 +1,23 @@
+name: Unit tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # Code and data only: the large model assets are not needed to build or run the engine-free checks.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            /*
+            !/Assets/
+            !/generated/
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet test --project Tests.Unit

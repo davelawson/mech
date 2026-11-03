@@ -71,7 +71,7 @@ public static class WeaponMounts
     private static string Key(WeaponSpec weapon) => $"{weapon.Location}:{weapon.Kind}:{weapon.Rear}";
 
     public static MountMap Resolve(MechSpec spec) =>
-        Resolve(spec, MechModel.Hardpoints(spec.Id), DraftCatalog.AllMechs.FirstOrDefault(mech => mech.Id == spec.Id));
+        Resolve(spec, PreparedMechModels.Hardpoints(spec.Id), DraftCatalog.AllMechs.FirstOrDefault(mech => mech.Id == spec.Id));
 
     /// <summary>The catalog loadout keeps the prepared model. Otherwise each weapon keeps a stock hardpoint still holding
     /// its stock weapon, then takes the first free compatible hardpoint in its location (stock-filled first), then an

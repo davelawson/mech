@@ -392,7 +392,7 @@ internal static partial class CombatChecks
                 sim.Advance(1);
             }
             check(sim.Outcome is CombatOutcome.Victory or CombatOutcome.Defeat or CombatOutcome.Draw, $"{definition} full engagement reaches a result");
-            GD.Print($"Combat tuning: {definition} {sim.Elapsed:0}s, {sim.Outcome}");
+            Console.WriteLine($"Combat tuning: {definition} {sim.Elapsed:0}s, {sim.Outcome}");
         }
         var roster = ForceRoster.Create("Mixed lance", new[] { "firestarter", "griffin", "catapult", "awesome" }.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(4));
         for (var i = 0; i < 4; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
@@ -409,6 +409,6 @@ internal static partial class CombatChecks
             lance.Advance(1);
         }
         check(lance.Outcome != CombatOutcome.Ongoing, "mixed four-on-four engagement reaches a result");
-        GD.Print($"Combat tuning: mixed lance {lance.Elapsed:0}s, {lance.Outcome}");
+        Console.WriteLine($"Combat tuning: mixed lance {lance.Elapsed:0}s, {lance.Outcome}");
     }
 }

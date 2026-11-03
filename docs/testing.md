@@ -12,6 +12,20 @@ scripts/mech capture combat-ui      # rendered run with screenshots in TestResul
 
 The direct equivalent is `godot --headless --path . --scene res://Tests/SmokeTests.tscn -- --groups=roster,hangar`. Each group prints its check count. An unknown group name fails and lists the valid ones.
 
+## Unit tests
+
+The engine-free check suites also run as xUnit tests in `Tests.Unit/`, without starting Godot:
+
+```sh
+scripts/mech unit                   # same as dotnet test --project Tests.Unit
+```
+
+Each test runs one suite from `Tests/` (`CatalogChecks`, `CampaignChecks`, `MissionChecks`, `RosterChecks`, `TravelChecks`, `HangarChecks`, `CombatChecks`, `TerrainChecks`) and reports every failed check, not only the first. The Godot groups still call the same suites. A run takes under a minute, mostly the terrain engagements. GitHub Actions (`.github/workflows/unit-tests.yml`) runs it on every push and pull request.
+
+These suites must stay engine-free: they may use Godot math structs (`Vector2`, `Vector3`, `Mathf`) but nothing that calls into the engine, such as `GD.Print`, nodes, resources, or static members of node classes that build meshes or materials. Write diagnostic output with `Console.WriteLine`. An engine call crashes the unit run with exit code 139 rather than failing a check. Hardpoint data therefore lives in `PreparedMechModels`, not on `MechModel`.
+
+Run `scripts/mech unit` alongside the Godot groups when changing a file covered by `catalog`, `finance`, `missions`, `roster`, `map` (`Travel`), `hangar` (`Equipment`) or `combat-sim`, or a suite listed above.
+
 ## Groups
 
 | Group | Covers | Run it when changing |
@@ -38,7 +52,7 @@ A test file under `Tests/` belongs to the group that calls it. When you change a
 Run the full suite (`scripts/mech test` with no groups) when you change shared code:
 
 - `CommandApp.cs`, `Ui.cs`, `Campaign.cs` / `CampaignStore.cs` save formats
-- `project.godot`, `Mech.csproj`, `Scenes/`
+- `project.godot`, `Mech.csproj`, `global.json`, `Scenes/`, `Tests.Unit/` (also run `scripts/mech unit`)
 - the harness in `Tests/SmokeTests.cs` (the group registry, `StartApp`, input helpers)
 - any script not listed in the table above
 

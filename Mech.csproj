@@ -7,6 +7,8 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <!-- The unit test project builds separately and reads the shared checks in Tests/. -->
+    <Compile Remove="Tests.Unit/**" />
     <EmbeddedResource Include="Data/mech-catalog.json" />
     <EmbeddedResource Include="Data/star-systems.json" />
   </ItemGroup>
@@ -15,5 +17,6 @@
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' != 'ExportRelease'">
     <EmbeddedResource Include="Tests/Fixtures/*.json" />
+    <InternalsVisibleTo Include="Mech.Tests.Unit" />
   </ItemGroup>
 </Project>
