@@ -485,15 +485,19 @@ public partial class SmokeTests
         GetWindow().Size = new Vector2I(1440, 900); await Frames();
         Check(hangar.StorageTabs.GetTabTitle(0) == "Inventory" && hangar.StorageTabs.GetTabTitle(1) == "Market"
             && !StorageTexts(hangar).Contains("STORAGE"), "the left column has Inventory and Market tabs");
-        var index = roster.Mechs.ToList().FindIndex(mech => mech.Removed.IsEmpty && mech.Installed.IsEmpty && mech.Spec.Ammo.Length > 0
-            && Loadout.Suspect(mech.Spec).Count == 0);
-        Check(index >= 0, "the drafted company keeps a stock mech with ammunition for the market checks");
+        // Earlier tests commit changes to at most one mech, and stock items cannot be put back, so use any untouched mech.
+        // Each carries ammunition or an energy weapon; taking either out leaves no weapon short of ammunition.
+        var index = roster.Mechs.ToList().FindIndex(mech => mech.Removed.IsEmpty && mech.Installed.IsEmpty && Loadout.Suspect(mech.Spec).Count == 0);
+        Check(index >= 0, "the drafted company keeps an untouched mech for the market checks");
         hangar.Select(index); hangar.StorageTabs.CurrentTab = 1; await Frames();
         var market = hangar.MarketList.GetChildren().OfType<HangarStorageLine>().ToArray();
         Check(market.Select(line => line.Item.Id).Order(StringComparer.Ordinal).SequenceEqual(StorageCatalog.All.Select(item => item.Id).Order(StringComparer.Ordinal))
             && market.All(line => line.Price == EquipmentMarket.NominalPrice && line.TooltipText.EndsWith("Drag onto a location to buy and install", StringComparison.Ordinal)),
             "the market offers every system for 1 C-bill");
-        var mech = hangar.SelectedMech; var stock = mech.Spec.Ammo[0]; var bin = StorageCatalog.AmmoId(stock.AmmoKind);
+        var mech = hangar.SelectedMech;
+        var energy = mech.Spec.Weapons.FirstOrDefault(item => EquipmentRules.Group(item.Kind) == StorageGroup.Energy);
+        var (stock, bin) = mech.Spec.Ammo.Length > 0 ? ((mech.Spec.Ammo[0].Id, mech.Spec.Ammo[0].Location), StorageCatalog.AmmoId(mech.Spec.Ammo[0].AmmoKind))
+            : ((energy!.Id, energy.Location), StorageCatalog.WeaponId(energy.Kind));
         var name = StorageCatalog.Describe(bin)!.Name;
         hangar.Remove(stock.Id); await Frames();
         var stored = StorageCount(hangar, name); var cash = _app.State.Cash; var target = hangar.LocationPanels[stock.Location];
@@ -518,7 +522,7 @@ public partial class SmokeTests
         await Click(hangar.ApplyButton);
         Check(!hangar.HasPendingChanges && _app.State.Cash == cash - 1 && hangar.Cash == cash - 1 && mech.Installed.Length == 1
             && roster.Storage.Single(item => item.Id == bin).Count == before + 1 && hangar.MarketText.Text.Contains("Pending purchases 0 C-bills"),
-            "Apply pays for the purchase; the removed bin joins storage and the bought one is installed");
+            "Apply pays for the purchase; the removed item joins storage and the bought one is installed");
 
         hangar.Remove(mech.Installed[0].Id); hangar.Install(bin, stock.Location, purchase: true); await Frames();
         await Click(hangar.ResetButton);
