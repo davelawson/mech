@@ -3,15 +3,16 @@ using System.Buffers;
 
 namespace Mech;
 
-public enum TerrainKind { Rock, Vegetation, Water, Ice }
+public enum TerrainKind { Rock, Vegetation, Water, Ice, Lava, DeepWater }
 public sealed record TerrainPatch(TerrainKind Kind, Vector2 Center, float Radius, float Height = 0);
 public sealed record TerrainHill(Vector2 Center, float Radius, float Height);
-public enum BuildingStyle { House, Barn, Block, Silo, Tank, Mast, Dome, Module }
+public enum BuildingStyle { House, Barn, Block, Silo, Tank, Mast, Dome, Module, Stack }
 /// <summary>A solid building. Rectangular footprints are rotated by Rotation radians from the X axis toward Z;
 /// round footprints use HalfSize.X as their radius. Height is above the ground at Center.</summary>
 public sealed record TerrainBuilding(BuildingStyle Style, int Cluster, Vector2 Center, Vector2 HalfSize, float Rotation, float Height)
 {
-    public bool Round => Style is BuildingStyle.Silo or BuildingStyle.Tank or BuildingStyle.Mast or BuildingStyle.Dome;
+    public bool Round => IsRound(Style);
+    public static bool IsRound(BuildingStyle style) => style is BuildingStyle.Silo or BuildingStyle.Tank or BuildingStyle.Mast or BuildingStyle.Dome or BuildingStyle.Stack;
 }
 
 /// <summary>Immutable terrain shared by simulation, navigation, rendering and picking. X/Y are ground X/Z.</summary>
@@ -67,6 +68,8 @@ public sealed class BattlefieldTerrain
     private readonly List<NavigationEdge>[] _neighbors;
     private readonly bool _flat;
     private readonly Solid[] _solids;
+    /// <summary>Lava and deep water: flat, open to sight and fire, but no mech may stand in them.</summary>
+    private readonly TerrainPatch[] _barriers;
     /// <summary>Solids near each coarse cell, for point queries: every solid within its reach plus mech clearance.</summary>
     private readonly int[][] _solidCells;
     public static BattlefieldTerrain Flat { get; } = new(0, [], []);
@@ -85,7 +88,7 @@ public sealed class BattlefieldTerrain
         }
         // Water and ice are flat at the level of their centre, with gently blended banks. Each point follows only
         // its nearest-flattening patch, so neighbouring banks never tilt another surface.
-        var flats = Patches.Where(patch => patch.Kind is TerrainKind.Water or TerrainKind.Ice)
+        var flats = Patches.Where(patch => IsFlat(patch.Kind))
             .Select(patch => (Patch: patch, Level: _heights[Node(patch.Center)])).ToArray();
         if (flats.Length > 0)
             for (var index = 0; index < _heights.Length; index++)
@@ -104,6 +107,7 @@ public sealed class BattlefieldTerrain
             .Concat(Buildings.Select(building => new Solid(building.Center, building.HalfSize, MathF.Cos(building.Rotation),
                 MathF.Sin(building.Rotation), building.Round, Math.Min(-15, HeightAt(building.Center) - 15), HeightAt(building.Center) + building.Height)))
             .ToArray();
+        _barriers = Patches.Where(patch => patch.Kind is TerrainKind.Lava or TerrainKind.DeepWater).ToArray();
         _solidCells = new int[SolidCells * SolidCells][];
         var cells = Enumerable.Range(0, _solidCells.Length).Select(_ => new List<int>()).ToArray();
         for (var i = 0; i < _solids.Length; i++)
@@ -155,9 +159,19 @@ public sealed class BattlefieldTerrain
     {
         Mech.Biome.Arctic => [new(TerrainKind.Rock, 56, 39, 90, 90, 180), new(TerrainKind.Vegetation, 24, 60, 120), new(TerrainKind.Ice, 14, 120, 240)],
         Mech.Biome.Lunar => [new(TerrainKind.Rock, 84, 24, 60, 30, 100)],
+        Mech.Biome.Highlands => [new(TerrainKind.Rock, 64, 39, 90, 90, 180), new(TerrainKind.Vegetation, 28, 60, 120), new(TerrainKind.Water, 8, 60, 120)],
+        Mech.Biome.Desert => [new(TerrainKind.Rock, 48, 45, 110, 60, 200), new(TerrainKind.Vegetation, 10, 45, 90), new(TerrainKind.Water, 4, 60, 90)],
+        Mech.Biome.Tropical => [new(TerrainKind.Water, 18, 90, 180), new(TerrainKind.Vegetation, 72, 90, 200), new(TerrainKind.Rock, 24, 39, 90, 90, 180)],
+        Mech.Biome.Grassland => [new(TerrainKind.Rock, 16, 39, 90, 60, 140), new(TerrainKind.Vegetation, 14, 60, 120), new(TerrainKind.Water, 6, 90, 150)],
+        Mech.Biome.Archipelago => [new(TerrainKind.DeepWater, 16, 180, 360), new(TerrainKind.Water, 14, 90, 180), new(TerrainKind.Vegetation, 24, 60, 120),
+            new(TerrainKind.Rock, 20, 39, 90, 90, 180)],
+        Mech.Biome.Volcanic => [new(TerrainKind.Lava, 12, 90, 200), new(TerrainKind.Rock, 64, 39, 90, 90, 180)],
+        Mech.Biome.Toxic => [new(TerrainKind.Water, 18, 90, 180), new(TerrainKind.Vegetation, 20, 60, 120), new(TerrainKind.Rock, 40, 39, 90, 90, 180)],
         _ => [new(TerrainKind.Rock, 40, 39, 90, 90, 180), new(TerrainKind.Vegetation, 48, 90, 180), new(TerrainKind.Water, 16, 90, 180)],
     };
     public static IReadOnlyList<TerrainKind> Kinds(Biome biome) => PatchRules(biome).Select(rule => rule.Kind).ToArray();
+    /// <summary>Kinds levelled flat at their centre's height and placed on low ground.</summary>
+    public static bool IsFlat(TerrainKind kind) => kind is TerrainKind.Water or TerrainKind.Ice or TerrainKind.Lava or TerrainKind.DeepWater;
     public const int MinClusters = 1, MaxClusters = 6, MinBuildings = 15, MaxBuildings = 50;
 
     public static BattlefieldTerrain Generate(int seed, Biome biome = Mech.Biome.Valley)
@@ -199,7 +213,7 @@ public sealed class BattlefieldTerrain
                 // Lunar boulders gather in fields; other features scatter.
                 var fields = rule.Kind == TerrainKind.Rock && biome == Mech.Biome.Lunar
                     ? Enumerable.Range(0, 12).Select(_ => Place(300)).ToArray() : null;
-                var flat = rule.Kind is TerrainKind.Water or TerrainKind.Ice; var clearance = flat ? 150 : 60;
+                var flat = IsFlat(rule.Kind); var clearance = flat ? 150 : 60;
                 for (var i = 0; i < rule.Count; i++)
                 {
                     var radius = Between(rule.MinRadius, rule.MaxRadius);
@@ -228,10 +242,12 @@ public sealed class BattlefieldTerrain
         throw new InvalidOperationException("Could not generate a connected battlefield.");
     }
 
-    /// <summary>Grid heights before patches and settlements: rolling hills, snowy ridges, or cratered plains.</summary>
+    /// <summary>Grid heights before patches and settlements, shaped per biome; recorded in docs/combat-tuning.md.</summary>
     private static float[] Relief(Biome biome, Random random, Func<float, Vector2> place, Func<float, float, float> between)
     {
         var noiseSeed = random.Next(); var detailSeed = random.Next();
+        // A second large-scale field, derived rather than drawn so existing biomes keep their random sequence.
+        var shapeSeed = noiseSeed ^ 0x5BD1E995;
         var relief = new float[GridSize * GridSize];
         for (var index = 0; index < relief.Length; index++)
         {
@@ -240,9 +256,34 @@ public sealed class BattlefieldTerrain
             {
                 Mech.Biome.Arctic => 270 * MathF.Pow(Ridged(noiseSeed, point / 1200, 3), 2.4f) + 10 * Fbm(detailSeed, point / 420, 2),
                 Mech.Biome.Lunar => 45 * Fbm(noiseSeed, point / 1800, 3) + 6 * Fbm(detailSeed, point / 360, 2),
+                Mech.Biome.Highlands => 300 * Mathf.SmoothStep(.3f, .85f, Fbm(noiseSeed, point / 1600, 3))
+                    + 90 * MathF.Pow(Ridged(shapeSeed, point / 800, 3), 3) + 10 * Fbm(detailSeed, point / 420, 2),
+                // Dunes: ridges stretched across the X axis over gently rolling sand.
+                Mech.Biome.Desert => 70 * Fbm(shapeSeed, point / 2200, 2) + 22 * MathF.Pow(Ridged(noiseSeed, new Vector2(point.X / 650, point.Y / 260), 2), 2)
+                    + 4 * Fbm(detailSeed, point / 300, 2),
+                Mech.Biome.Tropical => 170 * Mathf.SmoothStep(.3f, .8f, Fbm(noiseSeed, point / 1000, 3)) + 12 * Fbm(detailSeed, point / 300, 2),
+                Mech.Biome.Grassland => 60 * Fbm(noiseSeed, point / 2400, 3) + 4 * Fbm(detailSeed, point / 420, 2),
+                Mech.Biome.Archipelago => 150 * Mathf.SmoothStep(.45f, .8f, Fbm(noiseSeed, point / 1100, 3)) + 6 * Fbm(detailSeed, point / 420, 2),
+                Mech.Biome.Volcanic => 60 * Ridged(noiseSeed, point / 900, 3) + 8 * Fbm(detailSeed, point / 300, 2),
+                Mech.Biome.Toxic => 140 * Mathf.SmoothStep(.35f, .75f, Fbm(noiseSeed, point / 1200, 3)) + 40 * Ridged(shapeSeed, point / 500, 2)
+                    + 6 * Fbm(detailSeed, point / 300, 2),
                 _ => 230 * Mathf.SmoothStep(.38f, .8f, Fbm(noiseSeed, point / 1400, 3)) + 8 * Fbm(detailSeed, point / 420, 2),
             };
         }
+        if (biome == Mech.Biome.Volcanic)
+            for (var i = 0; i < 5; i++)
+            {
+                // Volcanic cones with a sunken caldera at the summit.
+                var radius = between(350, 650); var center = place(radius + 120);
+                var height = radius * .35f; var caldera = .22f;
+                for (var index = 0; index < relief.Length; index++)
+                {
+                    var d = Point(index).DistanceTo(center) / radius;
+                    if (d >= 1) continue;
+                    var cone = height * MathF.Pow(1 - Math.Max(d, caldera), 1.4f);
+                    relief[index] += d < caldera ? cone - height * .25f * (1 - d / caldera) * (1 - d / caldera) : cone;
+                }
+            }
         if (biome != Mech.Biome.Lunar) return relief;
         for (var i = 0; i < 40; i++)
         {
@@ -305,8 +346,7 @@ public sealed class BattlefieldTerrain
             {
                 var lotCenter = new Vector2((lot % columns + .5f) * pitch - half.X, (lot / columns + .5f) * pitch - half.Y);
                 var (style, size, height) = BuildingShape(biome, town, random, between);
-                var extent = style is BuildingStyle.Silo or BuildingStyle.Tank or BuildingStyle.Mast or BuildingStyle.Dome
-                    ? new Vector2(size.X, size.X) : size;
+                var extent = TerrainBuilding.IsRound(style) ? new Vector2(size.X, size.X) : size;
                 // Turning a rectangle a quarter keeps the street grid while varying the layout.
                 var quarter = random.Next(2) == 1;
                 var footprint = quarter ? new Vector2(extent.Y, extent.X) : extent;
@@ -326,14 +366,28 @@ public sealed class BattlefieldTerrain
             Mech.Biome.Arctic => roll < .6f ? (BuildingStyle.Block, new(between(10, 20), between(8, 14)), between(15, 25))
                 : roll < .9f ? (BuildingStyle.Tank, new(between(9, 14), 0), between(15, 24))
                 : (BuildingStyle.Mast, new(4, 0), between(45, 60)),
-            Mech.Biome.Lunar => roll < .45f ? Dome(between(14, 22)) : (BuildingStyle.Module, new(between(8, 10), between(15, 22)), 15),
-            _ when town => roll < .6f ? (BuildingStyle.Block, new(between(12, 22), between(12, 22)), between(25, 60))
-                : (BuildingStyle.House, new(between(9, 12), between(7, 10)), between(15, 20)),
-            _ => roll < .4f ? (BuildingStyle.House, new(between(9, 12), between(7, 10)), between(15, 20))
-                : roll < .8f ? (BuildingStyle.Barn, new(between(14, 22), between(10, 14)), between(20, 28))
-                : (BuildingStyle.Silo, new(between(7, 9), 0), between(30, 45)),
+            Mech.Biome.Lunar => roll < .45f ? Dome(between(14, 22)) : Module(),
+            Mech.Biome.Highlands => roll < .5f ? House()
+                : roll < .85f ? (BuildingStyle.Block, new(between(10, 18), between(8, 14)), between(15, 30))
+                : (BuildingStyle.Mast, new(4, 0), between(45, 60)),
+            Mech.Biome.Desert => roll < .55f ? (BuildingStyle.Block, new(between(10, 20), between(10, 18)), between(15, 25))
+                : roll < .85f ? (BuildingStyle.Tank, new(between(8, 12), 0), between(15, 22)) : Dome(between(12, 18)),
+            Mech.Biome.Tropical when town => roll < .5f ? (BuildingStyle.Block, new(between(12, 20), between(12, 20)), between(20, 45)) : House(),
+            Mech.Biome.Tropical => roll < .6f ? House() : Barn(),
+            Mech.Biome.Grassland => roll < .3f ? House() : roll < .6f ? Barn() : (BuildingStyle.Silo, new(between(7, 9), 0), between(30, 45)),
+            Mech.Biome.Archipelago when town => roll < .5f ? (BuildingStyle.Block, new(between(12, 20), between(12, 20)), between(20, 45)) : House(),
+            Mech.Biome.Archipelago => roll < .7f ? House() : (BuildingStyle.Tank, new(between(9, 14), 0), between(15, 24)),
+            Mech.Biome.Volcanic => roll < .5f ? (BuildingStyle.Block, new(between(12, 22), between(10, 16)), between(18, 30))
+                : roll < .8f ? (BuildingStyle.Tank, new(between(9, 14), 0), between(15, 24))
+                : (BuildingStyle.Stack, new(between(8, 12), 0), between(45, 60)),
+            Mech.Biome.Toxic => roll < .35f ? Dome(between(14, 22)) : roll < .75f ? Module() : (BuildingStyle.Tank, new(between(9, 14), 0), between(15, 24)),
+            _ when town => roll < .6f ? (BuildingStyle.Block, new(between(12, 22), between(12, 22)), between(25, 60)) : House(),
+            _ => roll < .4f ? House() : roll < .8f ? Barn() : (BuildingStyle.Silo, new(between(7, 9), 0), between(30, 45)),
         };
         static (BuildingStyle, Vector2, float) Dome(float radius) => (BuildingStyle.Dome, new(radius, 0), Math.Max(15, radius));
+        (BuildingStyle, Vector2, float) House() => (BuildingStyle.House, new(between(9, 12), between(7, 10)), between(15, 20));
+        (BuildingStyle, Vector2, float) Barn() => (BuildingStyle.Barn, new(between(14, 22), between(10, 14)), between(20, 28));
+        (BuildingStyle, Vector2, float) Module() => (BuildingStyle.Module, new(between(8, 10), between(15, 22)), 15);
     }
 
     // Seeded value noise: engine-free, so generation stays reproducible in unit tests.
@@ -401,6 +455,8 @@ public sealed class BattlefieldTerrain
         if (CombatRules.Clamp(point).DistanceSquaredTo(point) > 1e-8f) return false;
         foreach (var solid in SolidsNear(point))
             if (_solids[solid].Contains(point, CombatRules.UnitRadius + 1.5f)) return false;
+        foreach (var barrier in _barriers)
+            if (point.DistanceSquaredTo(barrier.Center) < (barrier.Radius + CombatRules.UnitRadius) * (barrier.Radius + CombatRules.UnitRadius)) return false;
         return SlopeAt(point) <= MaxSlope
             && SlopeAt(point + Vector2.Up * CombatRules.UnitRadius) <= MaxSlope
             && SlopeAt(point + Vector2.Down * CombatRules.UnitRadius) <= MaxSlope

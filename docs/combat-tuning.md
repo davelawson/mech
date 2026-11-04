@@ -44,10 +44,25 @@ Terrain is an immutable, seeded heightfield shared by combat, navigation, render
 | Valley relief | Fractal value noise (3 octaves, 1,400 m base wavelength) through a smoothstep, up to 230 m, plus 8 m of detail |
 | Arctic relief | Ridged noise (3 octaves, 1,200 m) raised to the 2.4th power, up to 270 m, plus 10 m of detail |
 | Lunar relief | 45 m of gentle noise and 40 craters, radius 60–480 m (mostly small), depth 15–30% of radius, rim 6% |
+| Highlands relief | Fractal noise (3 octaves, 1,600 m) through a smoothstep, up to 300 m, plus cubed ridged noise (800 m) up to 90 m, plus 10 m of detail |
+| Desert relief | 70 m of broad noise (2,200 m) plus dunes: squared ridged noise stretched 650 m along X and 260 m along Z, up to 22 m, plus 4 m of detail |
+| Tropical relief | Fractal noise (1,000 m) through a smoothstep, up to 170 m, plus 12 m of detail |
+| Grassland relief | 60 m of broad noise (2,400 m) plus 4 m of detail |
+| Archipelago relief | Fractal noise (1,100 m) through a narrow smoothstep, up to 150 m, so most ground is low shore; plus 6 m of detail |
+| Volcanic relief | 60 m of ridged noise (900 m), 8 m of detail, and 5 cones, radius 350–650 m, height 35% of radius, with a caldera at the inner 22% sunk by a quarter of the cone's height |
+| Toxic relief | Fractal noise (1,200 m) through a smoothstep, up to 140 m, plus 40 m of ridged noise (500 m) and 6 m of detail |
 | Valley features | 40 rocks (radius 39–90 m, height 90–180 m), 48 forests (radius 90–180 m), 16 water patches (radius 90–180 m) |
 | Arctic features | 56 rocks (as Valley), 24 conifer stands (radius 60–120 m), 14 frozen lakes (radius 120–240 m) |
 | Lunar features | 84 boulders (radius 24–60 m, height 30–100 m) in 12 fields |
+| Highlands features | 64 rocks (as Valley), 28 conifer stands (radius 60–120 m), 8 tarns (radius 60–120 m) |
+| Desert features | 48 rocks (radius 45–110 m, height 60–200 m), 10 scrub patches (radius 45–90 m), 4 oases (radius 60–90 m) |
+| Tropical features | 18 rivers and pools (radius 90–180 m), 72 jungle patches (radius 90–200 m), 24 rocks (as Valley) |
+| Grassland features | 16 rocks (radius 39–90 m, height 60–140 m), 14 copses (radius 60–120 m), 6 ponds (radius 90–150 m) |
+| Archipelago features | 16 deep-water channels (radius 180–360 m), 14 shallows (radius 90–180 m), 24 palm groves (radius 60–120 m), 20 rocks (as Valley) |
+| Volcanic features | 12 lava flows (radius 90–200 m), 64 rocks (as Valley) |
+| Toxic features | 18 toxic pools (water, radius 90–180 m), 20 fungal thickets (radius 60–120 m), 40 rocks (as Valley) |
 | Water / ice | Flat at their centre's level, banks blended over 120 m; water 50% speed, ice full speed and no cover. Placed on the lowest 30% of the ground where possible |
+| Lava / deep water | Flat and placed like water; impassable within patch radius + mech radius; open to sight and fire |
 | Vegetation | 70% speed |
 | Settlements | 1–6 clusters, 15–50 buildings in total, 15–60 m tall; 50 m lots on a grid with 60 m streets, levelled pads blended over 150 m |
 | Steepness limit | Gradient 0.65 (about 33°), including the mech footprint |
@@ -172,8 +187,15 @@ The stock total includes internal sinks. Explicit Heat Sink component entries pu
 | Valley | 10 | 100% | +0.2 heat/s | −0.2 heat/s |
 | Arctic | −20 | 150% | heat stays 0 | −0.8 heat/s |
 | Lunar | −50 | 25% | heat stays 0 | −1.4 heat/s |
+| Highlands | 0 | 75% | heat stays 0 | −0.4 heat/s |
+| Desert | 20 | 85% | +0.4 heat/s | 0 |
+| Tropical | 15 | 80% | +0.3 heat/s | −0.1 heat/s |
+| Grassland | 10 | 110% | +0.2 heat/s | −0.2 heat/s |
+| Archipelago | 5 | 120% | +0.1 heat/s | −0.3 heat/s |
+| Volcanic | 30 | 80% | +0.6 heat/s | +0.2 heat/s |
+| Toxic | 15 | 60% | +0.3 heat/s | −0.1 heat/s |
 
-Ten single sinks shed 1 heat/s at 100%, 1.5 in the Arctic and 0.25 on Lunar. In the Valley an idle mech without sinks settles at 10 heat, one with a single sink at 5, and one with two or more sinks at 0. The numbers are provisional.
+The "At heat" columns are ambient exchange only, before sinks. Ten single sinks shed 1 heat/s at 100%, 1.5 in the Arctic and 0.25 on Lunar; in the Volcanic biome they shed 0.8, just above the 0.6 ambient pull at heat 0. In the Valley an idle mech without sinks settles at 10 heat, one with a single sink at 5, and one with two or more sinks at 0. The numbers are provisional.
 
 Friendly ground labels show a 30-pixel heat bar (full at the shutdown threshold) under the callsign, and cards show current heat; selected details show heat band, policy, sink cooling × efficiency, and ambient temperature with its current exchange. Normal/Aggressive controls apply to selected units including thermal shutdowns, with a Mixed group readout when appropriate. Exact enemy heat and cooling appear only at Detailed contact tier and disappear when that tier is lost. Water provides no cooling bonus. Heat damage, ammunition explosions and manual venting remain deferred.
 

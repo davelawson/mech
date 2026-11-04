@@ -205,27 +205,43 @@ Both sides navigate around obstacles and seek a clear firing position for blocke
 
 ## Biomes (confirmed November 4, 2026)
 
-Every generated battlefield belongs to a **biome**: Valley, Arctic or Lunar. A biome sets the battlefield's climate, the shape of its ground, the features on it and its look. It changes nothing else: gravity, sensors and jumping are the same everywhere.
+Every generated battlefield belongs to a **biome**: Valley, Arctic, Lunar, Highlands, Desert, Tropical, Grassland, Archipelago, Volcanic or Toxic. The last seven were added November 4, 2026, so that every star system's climate maps onto one; their numbers are provisional. A biome sets the battlefield's climate, the shape of its ground, the features on it and its look. It changes nothing else: gravity, sensors and jumping are the same everywhere.
 
 **Climate.** A biome has an **ambient temperature**, on the mech heat scale, and a **cooling efficiency**. Every second, each mech's heat moves toward ambient, by 1 heat per heat clock for every 5 points of difference. A mech hotter than ambient gains free cooling; a colder one warms up. The exchange is proportional, so it is strongest for the hottest mechs. Cooling efficiency multiplies heat-sink output only; ambient exchange, weapon, movement, jump and received flamer heat are unaffected. Heat still never falls below zero, and every mech starts at zero.
 
 - **Valley**: average climate. Ambient is above zero, so a mech with few sinks slowly warms up while idle; ten single sinks hold an idle mech at zero.
 - **Arctic**: cold and windy. A low ambient and efficient sinks.
 - **Lunar**: vacuum. A very low ambient gives every hot mech strong free cooling, but sinks shed little, so a sink-heavy build gains far less than it would elsewhere.
+- **Highlands**: thin air. Cool, but sinks are weakened.
+- **Desert**: hot and dry, with slightly weakened sinks.
+- **Tropical**: hot and humid; sinks lose a fifth of their output.
+- **Grassland**: Valley's ambient with windy, slightly better cooling.
+- **Archipelago**: cool sea winds and efficient sinks.
+- **Volcanic**: the hottest biome. Ten single sinks barely hold an idle mech at zero.
+- **Toxic**: warm, and the corrosive air badly fouls sinks.
 
 **Terrain.** A biome shapes a seeded noise heightfield and chooses its features:
 
 - **Valley**: rolling hills and ridges, forests, rocks, and shallow streams and lakes on low ground.
 - **Arctic**: sharper snowy ridges, sparse conifer stands, rocks, and frozen lakes. Ice is flat, keeps full speed and gives no cover. There is no open water.
 - **Lunar**: cratered plains with raised rims, and boulder fields. No vegetation or water.
+- **Highlands**: tall mountain massifs cut by ridges and passes, many rocks, conifer scrub and small tarns.
+- **Desert**: long dunes over rolling sand, tall rock outcrops, sparse scrub and a few oases.
+- **Tropical**: broken hills under dense jungle, the most vegetation of any biome, with rivers and a few rocks.
+- **Grassland**: nearly flat plains with few rocks, copses and ponds, so sight lines are long.
+- **Archipelago**: low islands separated by **deep water** channels, with shallows, palm groves and rocks.
+- **Volcanic**: jagged basalt ground, five volcanic cones with summit calderas, **lava** flows and many rocks. No vegetation or water.
+- **Toxic**: eroded hills and ridges, toxic pools (shallow water), fungal thickets and rocks.
 
-**Buildings.** Every biome has one to six settlements holding 15–50 buildings between them, each on a levelled pad, with streets wide enough for any mech. Buildings are solid and indestructible, like rocks: they block movement, sight and fire and give no cover penalty. Movement, jumping and blocked-attack firing positions treat them like rocks. Valley has farmsteads and small towns, Arctic prefab outposts with tanks and radio masts, and Lunar pressurised domes and habitat modules.
+Lava and deep water are flat like water, but no mech may stand in them: they block movement, including the mech's own width, and jumping mechs cannot land in them. They do not block sight or fire. Navigation detours around them like rocks.
+
+**Buildings.** Every biome has one to six settlements holding 15–50 buildings between them, each on a levelled pad, with streets wide enough for any mech. Buildings are solid and indestructible, like rocks: they block movement, sight and fire and give no cover penalty. Movement, jumping and blocked-attack firing positions treat them like rocks. Valley has farmsteads and small towns, Arctic prefab outposts with tanks and radio masts, and Lunar pressurised domes and habitat modules. Highlands has stone villages and relay masts; Desert walled flat-roofed blocks, water tanks and moisture domes; Tropical stilt houses and plantation sheds, with blocks in towns; Grassland ranches and grain silos; Archipelago fishing villages and fuel tanks, with blocks in towns; Volcanic geothermal plants with tanks and cooling stacks; and Toxic sealed domes, habitat modules and tanks.
 
 **Choosing a biome.** Simulated Deployment has a **Biome** picker beside the terrain seed: Random or a named biome, with each biome's ambient temperature and cooling efficiency shown. The same seed and biome recreate a battlefield; the same seed in another biome is a different battlefield. The battlefield header, pause menu and results show the biome beside the seed. Selected details split cooling into sink output × efficiency and the current ambient exchange.
 
 **Campaign.** Campaign missions will take their biome from the star system hosting them, and the star chart will show a system's biome. Both wait for real planetary data (likely from Sarna); until then only Simulated Deployment uses biomes.
 
-**Visuals.** Everything is drawn in code: noise-textured ground in each biome's palette, faceted rocks and boulders, broadleaf or conifer trees filling vegetation patches, water and ice surfaces, buildings per style, and each biome's sky and sunlight (a black starfield on Lunar). Snow and dust particles are deferred.
+**Visuals.** Everything is drawn in code: noise-textured ground in each biome's palette, faceted rocks and boulders, broadleaf or conifer trees filling vegetation patches, water and ice surfaces, buildings per style, and each biome's sky and sunlight (a black starfield on Lunar). Lava glows; deep water is darker and opaque. Snow and dust particles are deferred.
 
 ## Sensors and pilot budgets (confirmed October 27, 2026)
 

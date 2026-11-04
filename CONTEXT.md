@@ -134,7 +134,7 @@ One mesh a hardpoint can show, such as `Laser`, `AC10`, `Missile6`, or a `Blank`
 The hardpoint → weapon visual assignment a mech model is built from, resolved from its weapons.
 
 **Biome**:
-The kind of world a battlefield lies on (Valley, Arctic or Lunar), setting its climate, ground shape, features and look.
+The kind of world a battlefield lies on (Valley, Arctic, Lunar, Highlands, Desert, Tropical, Grassland, Archipelago, Volcanic or Toxic), setting its climate, ground shape, features and look.
 
 **Ambient temperature**:
 A biome's temperature on the mech heat scale. Mech heat drifts toward it: hotter mechs gain free cooling, colder ones warm up.

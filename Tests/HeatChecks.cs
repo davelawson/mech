@@ -101,7 +101,9 @@ internal static partial class CombatChecks
     {
         static bool Near(double actual, double expected) => Math.Abs(actual - expected) < 1e-6;
         // One heat per heat clock for every five points between the mech and the ambient temperature.
-        foreach (var (biome, ambient, efficiency) in new[] { (Biome.Valley, 10d, 1d), (Biome.Arctic, -20d, 1.5), (Biome.Lunar, -50d, .25) })
+        foreach (var (biome, ambient, efficiency) in new[] { (Biome.Valley, 10d, 1d), (Biome.Arctic, -20d, 1.5), (Biome.Lunar, -50d, .25),
+            (Biome.Highlands, 0d, .75), (Biome.Desert, 20d, .85), (Biome.Tropical, 15d, .8), (Biome.Grassland, 10d, 1.1),
+            (Biome.Archipelago, 5d, 1.2), (Biome.Volcanic, 30d, .8), (Biome.Toxic, 15d, .6) })
         {
             var sim = HeatFixture([HeatGun("test", 0, 1)], 10, biome: biome); var f = Friendly(sim);
             check(Biomes.Spec(biome).Ambient == ambient && Biomes.Spec(biome).CoolingEfficiency == efficiency, $"{biome} has the agreed climate");

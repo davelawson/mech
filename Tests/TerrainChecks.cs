@@ -20,7 +20,9 @@ internal static class TerrainChecks
     }
     public static void Run(Action<bool, string> check)
     {
-        var first = BattlefieldTerrain.Generate(183); var repeat = BattlefieldTerrain.Generate(183); var other = BattlefieldTerrain.Generate(184);
+        // Seed 183 in every biome, generated once: generation dominates this suite's run time.
+        var standard = Biomes.All.ToDictionary(spec => spec.Biome, spec => BattlefieldTerrain.Generate(183, spec.Biome));
+        var first = standard[Biome.Valley]; var repeat = BattlefieldTerrain.Generate(183); var other = BattlefieldTerrain.Generate(184);
         check(first.Patches.SequenceEqual(repeat.Patches) && first.Buildings.SequenceEqual(repeat.Buildings) && SameRelief(first, repeat),
             "terrain seed recreates all geometry");
         CheckNavigationQueries(first, check);
@@ -29,13 +31,13 @@ internal static class TerrainChecks
             && first.Patches.Count(patch => patch.Kind == TerrainKind.Vegetation) > 36
             && first.Patches.Count(patch => patch.Kind == TerrainKind.Water) > 12 && !first.Patches.Any(patch => patch.Kind == TerrainKind.Ice),
             "valley maps carry rocks, forests and water at the agreed density");
-        CheckBiomes(check);
+        CheckBiomes(standard, check);
         CheckBuildings(check);
         check(first.Patches.Any(patch => Math.Abs(patch.Center.X) > 1440) && first.Patches.Any(patch => Math.Abs(patch.Center.Y) > 1440),
             "terrain features populate the expanded battlefield beyond the old boundaries");
         check(first.Patches.Any(patch => !first.Patches.Any(mirror => mirror.Kind == patch.Kind && mirror.Center == new Vector2(patch.Center.X, -patch.Center.Y))), "terrain generation allows asymmetric layouts");
-        foreach (var terrain in new[] { first, other, BattlefieldTerrain.Generate(int.MinValue), BattlefieldTerrain.Generate(int.MaxValue),
-            BattlefieldTerrain.Generate(183, Biome.Arctic), BattlefieldTerrain.Generate(183, Biome.Lunar) })
+        foreach (var terrain in new[] { first, other, BattlefieldTerrain.Generate(int.MinValue), BattlefieldTerrain.Generate(int.MaxValue) }
+            .Concat(standard.Values.Where(terrain => terrain != first)))
         {
             foreach (var x in new[] { -360f, -240, -120, 0, 120, 240, 360 }) foreach (var z in new[] { -1920f, 1920 })
             {
@@ -50,7 +52,7 @@ internal static class TerrainChecks
         var deployed = CombatSimulation.Deploy(roster, roster.Mechs.Select(unit => unit.Id), 42, 183);
         check(deployed.Terrain.Patches.SequenceEqual(first.Patches), "deployment uses supplied terrain seed independently of combat seed");
         var lunar = CombatSimulation.Deploy(roster, roster.Mechs.Select(unit => unit.Id), 42, 183, biome: Biome.Lunar);
-        check(lunar.Terrain.Biome == Biome.Lunar && lunar.Terrain.Patches.SequenceEqual(BattlefieldTerrain.Generate(183, Biome.Lunar).Patches)
+        check(lunar.Terrain.Biome == Biome.Lunar && lunar.Terrain.Patches.SequenceEqual(standard[Biome.Lunar].Patches)
             && lunar.Units.All(unit => unit.Climate == Biomes.Spec(Biome.Lunar)), "deployment generates the chosen biome and gives every mech its climate");
         var rocks = new BattlefieldTerrain(1, [new(TerrainKind.Rock, Vector2.Zero, 60, 120)], []);
         check(!rocks.Passable(new Vector2(71, 0)) && rocks.Passable(new Vector2(72, 0)), "rocks reserve space for mech radius");
@@ -84,14 +86,21 @@ internal static class TerrainChecks
         check(coverBattle.TerrainHitChance(f, e, f.Weapons[0]) < CombatSimulation.HitChance(f, e, f.Weapons[0]), "cover penalty changes the same hit probability used by combat");
         var water = new BattlefieldTerrain(5, [new(TerrainKind.Water, Vector2.Zero, 600)], []);
         check(water.Passable(Vector2.Zero) && water.SpeedFactor(Vector2.Zero) == .5f && vegetation.SpeedFactor(Vector2.Zero) == .7f, "water and vegetation are traversable with distinct movement penalties");
+        var lava = new BattlefieldTerrain(7, [new(TerrainKind.Lava, Vector2.Zero, 120)], []);
+        check(!lava.Passable(Vector2.Zero) && lava.ClearSight(new Vector2(-240, 0), new Vector2(240, 0)), "lava bars movement but not sight or fire");
+        var around = lava.FindPath(new Vector2(-240, 0), new Vector2(240, 0)); var start = new Vector2(-240, 0);
+        check(around.Count > 1 && around.All(waypoint => { var clear = lava.CanTraverse(start, waypoint); start = waypoint; return clear; }),
+            "navigation detours around lava");
         var dry = Travel(BattlefieldTerrain.Flat); var wet = Travel(water);
         check(wet > 0 && wet < dry * .7f, "water slowdown affects actual movement rather than only navigation cost");
         Console.WriteLine($"Terrain checks: movement on dry ground {dry:0.00}, water {wet:0.00}");
         CheckEngagement(first, new[] { "jenner" }, check);
         CheckEngagement(other, new[] { "awesome" }, check);
         CheckEngagement(first, new[] { "firestarter", "griffin", "catapult", "awesome" }, check);
-        CheckEngagement(BattlefieldTerrain.Generate(183, Biome.Arctic), new[] { "griffin" }, check);
-        CheckEngagement(BattlefieldTerrain.Generate(183, Biome.Lunar), new[] { "catapult" }, check);
+        CheckEngagement(standard[Biome.Arctic], new[] { "griffin" }, check);
+        CheckEngagement(standard[Biome.Lunar], new[] { "catapult" }, check);
+        CheckEngagement(standard[Biome.Archipelago], new[] { "jenner" }, check);
+        CheckEngagement(standard[Biome.Volcanic], new[] { "jenner" }, check);
     }
     private static bool SameRelief(BattlefieldTerrain a, BattlefieldTerrain b)
     {
@@ -106,11 +115,12 @@ internal static class TerrainChecks
         { var height = terrain.HeightAt(new(x, z)); low = Math.Min(low, height); high = Math.Max(high, height); }
         return (low, high);
     }
-    private static void CheckBiomes(Action<bool, string> check)
+    private static void CheckBiomes(IReadOnlyDictionary<Biome, BattlefieldTerrain> standard, Action<bool, string> check)
     {
         foreach (var seed in new[] { 183, 7, -41 })
         {
-            var valley = BattlefieldTerrain.Generate(seed); var arctic = BattlefieldTerrain.Generate(seed, Biome.Arctic); var lunar = BattlefieldTerrain.Generate(seed, Biome.Lunar);
+            var all = seed == 183 ? standard : Biomes.All.ToDictionary(spec => spec.Biome, spec => BattlefieldTerrain.Generate(seed, spec.Biome));
+            var valley = all[Biome.Valley]; var arctic = all[Biome.Arctic]; var lunar = all[Biome.Lunar];
             check(arctic.Biome == Biome.Arctic && arctic.Patches.Any(patch => patch.Kind == TerrainKind.Ice) && arctic.Patches.Any(patch => patch.Kind == TerrainKind.Vegetation)
                 && !arctic.Patches.Any(patch => patch.Kind == TerrainKind.Water), "arctic maps have frozen lakes and sparse forests but no open water");
             check(lunar.Biome == Biome.Lunar && lunar.Patches.Count > 60 && lunar.Patches.All(patch => patch.Kind == TerrainKind.Rock),
@@ -121,12 +131,35 @@ internal static class TerrainChecks
             check(Relief(valley).High > 150 && Relief(arctic).High > 180 && Relief(lunar).Low < -40,
                 "relief is shaped per biome: valley hills, arctic ridges and lunar craters");
             check(!valley.Patches.SequenceEqual(arctic.Patches) && !SameRelief(valley, arctic), "the same seed in another biome is another battlefield");
-            foreach (var terrain in new[] { valley, arctic, lunar })
+            check(Relief(all[Biome.Highlands]).High > 250 && Relief(all[Biome.Grassland]).High - Relief(all[Biome.Grassland]).Low < 80
+                && Relief(all[Biome.Volcanic]).High > 120,
+                "relief is shaped per biome: highland mountains, flat grassland and volcanic cones");
+            check(all[Biome.Tropical].Patches.Where(patch => patch.Kind == TerrainKind.Vegetation).Sum(patch => patch.Radius * patch.Radius)
+                > valley.Patches.Where(patch => patch.Kind == TerrainKind.Vegetation).Sum(patch => patch.Radius * patch.Radius),
+                "tropical jungle is denser than valley forest");
+            foreach (var (biome, kinds) in new (Biome, TerrainKind[])[]
             {
-                var flats = terrain.Patches.Where(patch => patch.Kind is TerrainKind.Water or TerrainKind.Ice).ToArray();
-                check(flats.All(patch => Math.Abs(terrain.HeightAt(patch.Center + new Vector2(patch.Radius * .7f, 0)) - terrain.HeightAt(patch.Center)) < .01f
-                    && terrain.SpeedFactor(patch.Center) == (patch.Kind == TerrainKind.Ice ? 1 : BattlefieldTerrain.WaterSpeed)),
-                    "water and ice are flat; ice keeps full speed");
+                (Biome.Highlands, [TerrainKind.Rock, TerrainKind.Vegetation, TerrainKind.Water]),
+                (Biome.Desert, [TerrainKind.Rock, TerrainKind.Vegetation, TerrainKind.Water]),
+                (Biome.Tropical, [TerrainKind.Rock, TerrainKind.Vegetation, TerrainKind.Water]),
+                (Biome.Grassland, [TerrainKind.Rock, TerrainKind.Vegetation, TerrainKind.Water]),
+                (Biome.Archipelago, [TerrainKind.Rock, TerrainKind.Vegetation, TerrainKind.Water, TerrainKind.DeepWater]),
+                (Biome.Volcanic, [TerrainKind.Rock, TerrainKind.Lava]),
+                (Biome.Toxic, [TerrainKind.Rock, TerrainKind.Vegetation, TerrainKind.Water]),
+            })
+                check(all[biome].Biome == biome && all[biome].Patches.Select(patch => patch.Kind).ToHashSet().SetEquals(kinds),
+                    $"{biome} maps carry exactly their biome's features");
+            foreach (var terrain in all.Values)
+            {
+                var flats = terrain.Patches.Where(patch => BattlefieldTerrain.IsFlat(patch.Kind)).ToArray();
+                check(flats.All(patch => Math.Abs(terrain.HeightAt(patch.Center + new Vector2(patch.Radius * .7f, 0)) - terrain.HeightAt(patch.Center)) < .01f),
+                    $"{terrain.Biome} water, ice, lava and deep water are flat");
+                check(flats.Where(patch => patch.Kind is TerrainKind.Water or TerrainKind.Ice)
+                    .All(patch => terrain.SpeedFactor(patch.Center) == (patch.Kind == TerrainKind.Ice ? 1 : BattlefieldTerrain.WaterSpeed)),
+                    "ice keeps full speed and water slows");
+                check(flats.Where(patch => patch.Kind is TerrainKind.Lava or TerrainKind.DeepWater).All(patch => !terrain.Passable(patch.Center)
+                    && !terrain.Passable(patch.Center + new Vector2(patch.Radius + CombatRules.UnitRadius - 1, 0))),
+                    $"{terrain.Biome} lava and deep water bar mechs, including their width");
                 var clusters = terrain.Buildings.GroupBy(building => building.Cluster).ToArray();
                 check(clusters.Length is >= BattlefieldTerrain.MinClusters and <= BattlefieldTerrain.MaxClusters
                     && terrain.Buildings.Count is >= BattlefieldTerrain.MinBuildings and <= BattlefieldTerrain.MaxBuildings
@@ -137,6 +170,13 @@ internal static class TerrainChecks
                 {
                     Biome.Arctic => styles.IsSubsetOf([BuildingStyle.Block, BuildingStyle.Tank, BuildingStyle.Mast]),
                     Biome.Lunar => styles.IsSubsetOf([BuildingStyle.Dome, BuildingStyle.Module]),
+                    Biome.Highlands => styles.IsSubsetOf([BuildingStyle.House, BuildingStyle.Block, BuildingStyle.Mast]),
+                    Biome.Desert => styles.IsSubsetOf([BuildingStyle.Block, BuildingStyle.Tank, BuildingStyle.Dome]),
+                    Biome.Tropical => styles.IsSubsetOf([BuildingStyle.House, BuildingStyle.Barn, BuildingStyle.Block]),
+                    Biome.Grassland => styles.IsSubsetOf([BuildingStyle.House, BuildingStyle.Barn, BuildingStyle.Silo]),
+                    Biome.Archipelago => styles.IsSubsetOf([BuildingStyle.House, BuildingStyle.Block, BuildingStyle.Tank]),
+                    Biome.Volcanic => styles.IsSubsetOf([BuildingStyle.Block, BuildingStyle.Tank, BuildingStyle.Stack]),
+                    Biome.Toxic => styles.IsSubsetOf([BuildingStyle.Dome, BuildingStyle.Module, BuildingStyle.Tank]),
                     _ => styles.IsSubsetOf([BuildingStyle.House, BuildingStyle.Barn, BuildingStyle.Silo, BuildingStyle.Block]),
                 }, $"{terrain.Biome} buildings use the biome's styles");
                 check(terrain.Buildings.All(building => terrain.Patches.All(patch => patch.Center.DistanceTo(building.Center) > patch.Radius + 30)),

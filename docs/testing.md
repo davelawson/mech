@@ -20,7 +20,7 @@ The engine-free check suites also run as xUnit tests in `Tests.Unit/`, without s
 scripts/mech unit                   # same as dotnet test --project Tests.Unit
 ```
 
-Each test runs one suite from `Tests/` (`CatalogChecks`, `CampaignChecks`, `MissionChecks`, `RosterChecks`, `TravelChecks`, `HangarChecks`, `CombatChecks`, `TerrainChecks`) and reports every failed check, not only the first. The Godot groups still call the same suites. A run takes under a minute, mostly the terrain engagements. GitHub Actions (`.github/workflows/unit-tests.yml`) runs it on every push and pull request.
+Each test runs one suite from `Tests/` (`CatalogChecks`, `CampaignChecks`, `MissionChecks`, `RosterChecks`, `TravelChecks`, `HangarChecks`, `CombatChecks`, `TerrainChecks`) and reports every failed check, not only the first. The Godot groups still call the same suites. A run takes about two minutes, mostly generating terrain in every biome and the terrain engagements. GitHub Actions (`.github/workflows/unit-tests.yml`) runs it on every push and pull request.
 
 These suites must stay engine-free: they may use Godot math structs (`Vector2`, `Vector3`, `Mathf`) but nothing that calls into the engine, such as `GD.Print`, nodes, resources, or static members of node classes that build meshes or materials. Write diagnostic output with `Console.WriteLine`. An engine call crashes the unit run with exit code 139 rather than failing a check. Hardpoint data therefore lives in `PreparedMechModels`, not on `MechModel`.
 

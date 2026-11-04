@@ -301,10 +301,10 @@ public partial class SmokeTests
             // Features are named by kind or style and index.
             int Named(string name) => scene.GetChildren().Count(node => node.Name.ToString().Contains(name));
             Check(Enum.GetNames<BuildingStyle>().Sum(Named) == view.Terrain.Buildings.Count
-                && (Named("Trees") == 1) == (biome != Biome.Lunar)
+                && (Named("Trees") == 1) == view.Terrain.Patches.Any(patch => patch.Kind == TerrainKind.Vegetation)
                 && Named("Rock") == view.Terrain.Patches.Count(patch => patch.Kind == TerrainKind.Rock)
-                && Named("Ice") == view.Terrain.Patches.Count(patch => patch.Kind == TerrainKind.Ice),
-                $"{biome} renders its buildings, rocks, ice and trees");
+                && new[] { TerrainKind.Ice, TerrainKind.Lava, TerrainKind.DeepWater }.All(kind => Named(kind.ToString()) == view.Terrain.Patches.Count(patch => patch.Kind == kind)),
+                $"{biome} renders its buildings, rocks, ice, lava, deep water and trees");
             await Capture($"terrain-{biome.ToString().ToLowerInvariant()}");
             await PressKey(Key.Home); await Capture($"terrain-{biome.ToString().ToLowerInvariant()}-overview");
         }

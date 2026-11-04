@@ -39,3 +39,17 @@ Offline importer checks use attributed mechanical excerpts under `Tests/Fixtures
 Each system stores its original name, symbol center, clickable label bounds, and a stable ID derived from source coordinates. Names are not unique identifiers. Positions map directly to the 7000 × 6000 starscape image; the source 120-light-year ruler spans 169.302 PDF points, or 4.898784722 image pixels per light-year. Decorative stars, faction labels, legend samples, and annotations without destination symbols are excluded. The named Brocchi and Enders cluster markers remain selectable destinations. Multiline names and capital symbols require explicit handling in the extractor; regenerating against a changed PDF requires reviewing those associations.
 
 The geography retains the original BattleTech map's rights and attribution; see [artwork sources](../docs/artwork.md).
+
+## Star system climate
+
+`system-climate.json` records each chart system's primary-world climate in 3025: atmospheric pressure, atmosphere, equatorial temperature (°C), surface water (%), population and USILR socio-industrial rating. It is adapted from the MegaMek Data planetary systems (`data/universe/planetary_systems/canon_systems`), pinned at the same revision as the mech catalog and distributed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/), MegaMek Data (C) 2025–2026 by The MegaMek Team. Climate is stored raw; the game derives each system's biome from it.
+
+Systems are matched by position rather than name, because chart names repeat and some chart labels differ from the source (for example, "Victoria" is two different systems, and "Calish II" and "Calish III" share one source system). One affine transform from source light-year coordinates to chart pixels is fitted on names unique to both sides, discarding mislabelled outliers. Each chart symbol then takes the nearest source system, which must lie within 3 light-years. The importer fails if the fit's median residual exceeds 0.05 light-years or any symbol has no match, and it lists every chart name that differs from its source system for review. That list shows four pairs of chart labels swapped between neighbouring symbols (Bayeux/Kaufermann, Phact/Wazan, Adhafera/Tania Borealis, Bryant/Epsilon Indi); the climate follows the symbol, not the label.
+
+Regenerate with Python 3, PyYAML, git and a network connection:
+
+```sh
+python3 scripts/import-system-climate.py
+```
+
+`--revision SHA` changes the pin, and `--source-dir` reads an already checked-out `planetary_systems` directory offline.
