@@ -22,6 +22,7 @@ public partial class MissionsPanel : Control
     private Label _status = null!;
     private Label _briefing = null!;
     private Label _terms = null!;
+    public string TermsText => _terms.Text;
     private Label _acceptHint = null!;
 
     public override void _Ready()
@@ -123,6 +124,7 @@ public partial class MissionsPanel : Control
         }));
         return $"POSTED  {DateText(offer.Posted)}\nPAYMENT  {CBills(offer.Payment)}\nSALVAGE  {offer.SalvagePicks} {(offer.SalvagePicks == 1 ? "pick" : "picks")}"
             + $"\nINSURANCE  Up to {CBills(offer.InsuranceLimit)}\nLOCATION  {StarChart.Instance[offer.SystemId].Name}"
+            + $"\nBIOME  {StarChart.Instance[offer.SystemId].BiomeText}"
             + $"\nTRAVEL ESTIMATE  {travel switch { null => "Unreachable", 0 => "In orbit", 1 => "1 day", _ => $"{travel} days" }}"
             + $"\nDEADLINE  {deadline}\nEXPECTED OPPOSITION\n{opposition}\nABANDONMENT PENALTY  None";
     }

@@ -160,7 +160,7 @@ public partial class MapViewport : Control
                 }
                 var system = HitSystem(motion.Position);
                 _hoveredSystem = system?.Id;
-                TooltipText = system is null ? "" : system.Name + (_campaign?.Travel.InOrbit == true
+                TooltipText = system is null ? "" : system.Name + (system.BiomeText.Length > 0 ? $" · {system.BiomeText}" : "") + (_campaign?.Travel.InOrbit == true
                     ? " · Click to plot a journey" : " · Plotting is available in orbit");
                 MouseDefaultCursorShape = system is not null && _campaign?.Travel.InOrbit == true
                     ? CursorShape.PointingHand : CursorShape.Drag;

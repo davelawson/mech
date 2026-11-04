@@ -349,6 +349,7 @@ public partial class SmokeTests : Node
         var oldest = board.Available[0];
         Check(_app.Missions.MissionName.Text == oldest.Name && board.Current is null && _app.Missions.MissionButtons.Count == MissionTuning.BoardSize,
             "the oldest of ten offers opens first without accepting it");
+        Check(_app.Missions.TermsText.Contains($"BIOME  {StarChart.Instance[oldest.SystemId].BiomeText}"), "mission terms show the host system's biome");
         Check(_app.Missions.GetGlobalRect().Encloses(_app.Missions.AcceptButton.GetGlobalRect()), "first-open mission action stays inside the window");
         await Click(office.SafeButton);
         Check(!_app.Dialog.Visible && _app.Missions.Visible, "mission overlay blocks office clicks and does not dismiss on backdrop click");

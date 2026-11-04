@@ -11,6 +11,7 @@
     <Compile Remove="Tests.Unit/**" />
     <EmbeddedResource Include="Data/mech-catalog.json" />
     <EmbeddedResource Include="Data/star-systems.json" />
+    <EmbeddedResource Include="Data/system-climate.json" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' == 'ExportRelease'">
     <Compile Remove="Tests/**/*.cs" />

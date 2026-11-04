@@ -239,7 +239,9 @@ Lava and deep water are flat like water, but no mech may stand in them: they blo
 
 **Choosing a biome.** Simulated Deployment has a **Biome** picker beside the terrain seed: Random or a named biome, with each biome's ambient temperature and cooling efficiency shown. The same seed and biome recreate a battlefield; the same seed in another biome is a different battlefield. The battlefield header, pause menu and results show the biome beside the seed. Selected details split cooling into sink output × efficiency and the current ambient exchange.
 
-**Campaign.** Campaign missions will take their biome from the star system hosting them, and the star chart will show a system's biome. Both wait for real planetary data (likely from Sarna); until then only Simulated Deployment uses biomes.
+**Campaign.** Every star system has a biome, classified from its primary world's climate (see [combat tuning](combat-tuning.md#system-biomes)); the star chart and mission offers show it. Campaign missions will be fought in their host system's biome once they launch battles; until then only Simulated Deployment generates battlefields. **Urban** is not a biome but an overlay: systems of 4 billion people or more are marked Urban and will get denser settlements in their climate's biome once missions launch battles. Each system has exactly one biome.
+
+**Weather** (deferred). Storms, rain, blizzards and sandstorms are a separate layer that can sit on any biome and may affect sensors and visibility, unlike biomes.
 
 **Visuals.** Everything is drawn in code: noise-textured ground in each biome's palette, faceted rocks and boulders, broadleaf or conifer trees filling vegetation patches, water and ice surfaces, buildings per style, and each biome's sky and sunlight (a black starfield on Lunar). Lava glows; deep water is darker and opaque. Snow and dust particles are deferred.
 

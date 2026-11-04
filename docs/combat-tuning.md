@@ -77,6 +77,27 @@ Generation permits unrestricted asymmetry while reserving clear spawn bands and 
 
 Move orders resolve inaccessible destinations to the nearest reachable navigation point in the unit's connected component. A unit held up by an obstacle for 1.5 seconds replans its route from where it stands. Paths detour around rocks, buildings and steep slopes, with terrain speed weighting for detours; direct clear routes remain direct. Waypoints feed the existing acceleration, braking, turning, and occupied-space avoidance. A unit nearing the end of its route while its goal has moved replans to the current goal, so a moving Follow leader cannot strand it short. Both sides seek a reachable clear firing position when a detected attack target is behind terrain, reconsidering at most once per simulated second. There is no deliberate cover-seeking AI. Shared detection cannot authorize a shot through solid terrain.
 
+## System biomes
+
+A star system's biome comes from its primary world's 3025 climate in `Data/system-climate.json`. The first matching rule wins. Temperatures are equatorial °C, and Terra is recorded at 30 °C, so the thresholds sit relative to Terra.
+
+| Rule | Biome | Systems |
+| --- | --- | --- |
+| Pressure vacuum or trace | Lunar | 2 |
+| Toxic atmosphere | Toxic | 25 |
+| Temperature above 50 | Volcanic | 43 |
+| Temperature 24 or below | Arctic | 394 |
+| Water 85% or more | Archipelago | 62 |
+| Temperature above 40, or above 30 with water below 30% | Desert if water below 50%, else Tropical | 282 Desert |
+| Temperature above 30 with water 50% or more | Tropical | 345 in all |
+| Thin pressure | Highlands | 213 |
+| Water below 40% | Grassland | 297 |
+| Otherwise | Valley | 490 |
+
+The Arctic, Tropical and Grassland thresholds were widened on November 4, 2026 to halve Valley (from 964 systems) and spread its worlds across those three biomes.
+
+Systems of 4,000,000,000 people or more (116) are also Urban.
+
 ## Weapons and hit rolls
 
 | Weapon | Cooldown |

@@ -2,7 +2,16 @@ using System.Text.Json;
 
 namespace Mech;
 
-public sealed record StarSystem(string Id, string Name, double X, double Y, double[] LabelBounds);
+public sealed record StarSystem(string Id, string Name, double X, double Y, double[] LabelBounds, SystemClimate? Climate = null)
+{
+    /// <summary>The system's biome; null only for hand-built charts without climate.</summary>
+    public Biome? Biome => Climate is null ? null : Biomes.ForClimate(Climate);
+    public bool Urban => Climate?.Population >= Biomes.UrbanPopulation;
+    /// <summary>"Volcanic", "Valley · Urban", or empty without climate.</summary>
+    public string BiomeText => Biome is { } biome ? Biomes.Spec(biome).Name + (Urban ? " · Urban" : "") : "";
+}
+internal sealed record SystemClimateEntry(string Id, string Pressure, string Atmosphere, int Temperature, int Water, long Population, string SocioIndustrial);
+internal sealed record SystemClimateData(SystemClimateEntry[] Systems);
 public sealed record StarCatalogData(double PixelsPerLightYear, StarSystem[] Systems);
 
 /// <summary>Geography extracted from the pinned map. Coordinates use the 7000 × 6000 image.</summary>
@@ -88,8 +97,16 @@ public sealed class StarChart
     {
         using var stream = typeof(StarChart).Assembly.GetManifestResourceStream("Mech.Data.star-systems.json")
             ?? throw new InvalidOperationException("The star system catalog is missing.");
-        var data = JsonSerializer.Deserialize<StarCatalogData>(stream, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var data = JsonSerializer.Deserialize<StarCatalogData>(stream, options)
             ?? throw new InvalidOperationException("The star system catalog is empty.");
-        return new StarChart(data.Systems, data.PixelsPerLightYear);
+        using var climateStream = typeof(StarChart).Assembly.GetManifestResourceStream("Mech.Data.system-climate.json")
+            ?? throw new InvalidOperationException("The star system climate data is missing.");
+        var climates = (JsonSerializer.Deserialize<SystemClimateData>(climateStream, options)
+            ?? throw new InvalidOperationException("The star system climate data is empty.")).Systems
+            .ToDictionary(entry => entry.Id, entry => new SystemClimate(entry.Pressure, entry.Atmosphere, entry.Temperature, entry.Water,
+                entry.Population, entry.SocioIndustrial), StringComparer.Ordinal);
+        return new StarChart(data.Systems.Select(system => system with { Climate = climates.TryGetValue(system.Id, out var climate) ? climate
+            : throw new InvalidOperationException($"Star system {system.Id} has no climate.") }), data.PixelsPerLightYear);
     }
 }

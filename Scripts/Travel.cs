@@ -22,8 +22,10 @@ public sealed class Travel
     public int JourneyDaysRemaining => !HasJourney ? 0 : DaysToArrival
         + Enumerable.Range(LegIndex + 2, _journey!.Length - LegIndex - 2)
             .Sum(i => _chart.JumpDays(_journey[i - 1], _journey[i]));
-    public string LocationText => InOrbit ? $"In orbit · {_chart[OrbitSystemId].Name}"
+    public string LocationText => InOrbit ? $"In orbit · {_chart[OrbitSystemId].Name}{Suffix(_chart[OrbitSystemId].BiomeText)}"
         : $"In transit · {_chart[OrbitSystemId].Name} → {_chart[NextSystemId!].Name} · {DaysRemaining}d remaining";
+
+    private static string Suffix(string text) => text.Length == 0 ? "" : $" · {text}";
 
     public Travel(StarChart chart, string? startingSystem = null)
     {

@@ -136,6 +136,12 @@ The hardpoint → weapon visual assignment a mech model is built from, resolved 
 **Biome**:
 The kind of world a battlefield lies on (Valley, Arctic, Lunar, Highlands, Desert, Tropical, Grassland, Archipelago, Volcanic or Toxic), setting its climate, ground shape, features and look.
 
+**Urban**:
+A star system of 4 billion people or more. Not a biome: an overlay on the system's climate biome.
+
+**Weather**:
+A deferred battlefield condition, such as a storm, that can sit on any biome.
+
 **Ambient temperature**:
 A biome's temperature on the mech heat scale. Mech heat drifts toward it: hotter mechs gain free cooling, colder ones warm up.
 

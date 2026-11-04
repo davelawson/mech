@@ -180,6 +180,8 @@ A 30-light-year jump takes five days; shorter jumps scale linearly and round up 
 
 Persist location, candidate and embarked routes, current jump progress, accrued transit days, and the frozen transit component of a pending bill. Use the source map's coordinates and scale; duplicated system names retain distinct stable identities. Unreachable destinations cannot be embarked.
 
+**System biomes** (confirmed November 4, 2026). Every system has a [biome](combat-design.md#biomes-confirmed-november-4-2026) derived from its primary world's 3025 climate (`Data/system-climate.json`), and systems of 4 billion people or more are also **Urban**. The biome shows in the system's hover tooltip, in the location readout while in orbit ("In orbit · Galatea · Volcanic"), and as the destination's biome in candidate and embarked routes.
+
 Find a system with the destination search as an alternative to clicking it. Drag to pan; scroll or use the + / − buttons to zoom. With the map focused, + / − zoom, arrow keys pan, and Home fits the complete chart. 100% zoom fits the whole chart; maximum zoom is 1200%. Resizing preserves the image aspect ratio, hotspot alignment, and map location. Return with “Back to office”, right-click, or Escape; map position survives navigation, and keyboard focus returns to the wall chart.
 
 
@@ -199,6 +201,7 @@ A silent flashing light on the office phone indicates new mission offers. Openin
 **Each generated offer** has:
 
 - a placeholder name and briefing, and the objective "Defeat the defending force". There is no employer yet.
+- a biome: the location's, shown in the terms. Missions will be fought on it once they launch battles.
 - a location: a random named system within 3 jumps of the DropShip when the offer is posted, counted from the system being jumped to while in transit. It never changes.
 - its opposition: 2–4 BattleMechs, each a random stock catalog mech of a weight class drawn Light 40 / Medium 35 / Heavy 18 / Assault 7, piloted by an unnamed pilot of rank Green 20 / Regular 50 / Veteran 22 / Elite 8. The briefing shows exactly the force that will be fielded.
 - a completion deadline of travel days to the location plus 14, shown as "N days after acceptance" and fixed as a date on acceptance. The travel estimate finishes the current jump first.

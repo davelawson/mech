@@ -51,6 +51,7 @@ internal static class TravelChecks
     {
         var chart = StarChart.Instance;
         check(chart.Systems.Count > 1900 && chart[chart.StartingSystemId].Name == "Galatea", "full reference geography and Galatea start load");
+        CheckBiomes(chart, check);
         check(chart.Systems.All(system => system.LabelBounds.Length == 4 && system.X is >= 0 and <= 7000
             && system.Y is >= 0 and <= 6000), "all systems have image coordinates and clickable label bounds");
         var campaign = CampaignChecks.NewCompany();
@@ -119,5 +120,32 @@ internal static class TravelChecks
         var rejected = false;
         try { action(); } catch (Exception error) when (error is ArgumentException or InvalidOperationException) { rejected = true; }
         check(rejected, message);
+    }
+
+    private static void CheckBiomes(StarChart chart, Action<bool, string> check)
+    {
+        check(chart.Systems.All(system => system.Climate is not null && system.Biome is not null), "every star system has a climate and a biome");
+        // Coverage after halving Valley, November 4, 2026.
+        var counts = chart.Systems.GroupBy(system => system.Biome!.Value).ToDictionary(group => group.Key, group => group.Count());
+        var expected = new Dictionary<Biome, int> { [Biome.Valley] = 490, [Biome.Highlands] = 213, [Biome.Desert] = 282, [Biome.Tropical] = 345,
+            [Biome.Arctic] = 394, [Biome.Grassland] = 297, [Biome.Archipelago] = 62, [Biome.Volcanic] = 43, [Biome.Toxic] = 25, [Biome.Lunar] = 2 };
+        check(expected.All(pair => counts.GetValueOrDefault(pair.Key) == pair.Value),
+            "biome coverage matches the agreed counts: " + string.Join(", ", counts.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key} {pair.Value}")));
+        check(chart.Systems.Count(system => system.Urban) == 116, "systems of four billion people or more are urban");
+        StarSystem Named(string name) => chart.Systems.Single(system => system.Name == name);
+        check(Named("Terra").BiomeText == "Valley · Urban" && Named("Tharkad").BiomeText == "Arctic · Urban"
+            && Named("Luthien").BiomeText == "Tropical · Urban" && Named("Galatea").BiomeText == "Volcanic",
+            "known worlds take their expected biomes");
+        static Biome Of(string pressure, string atmosphere, int temperature, int water) =>
+            Biomes.ForClimate(new(pressure, atmosphere, temperature, water, 0, "C-C-C-C-C"));
+        check(Of("VACUUM", "TOXIC_POISON", 60, 0) == Biome.Lunar && Of("STANDARD", "TOXIC_POISON", 60, 0) == Biome.Toxic
+            && Of("STANDARD", "TAINTED_POISON", 51, 90) == Biome.Volcanic && Of("THIN", "BREATHABLE", 24, 90) == Biome.Arctic
+            && Of("STANDARD", "BREATHABLE", 45, 85) == Biome.Archipelago && Of("STANDARD", "BREATHABLE", 41, 49) == Biome.Desert
+            && Of("STANDARD", "BREATHABLE", 41, 50) == Biome.Tropical && Of("STANDARD", "BREATHABLE", 31, 29) == Biome.Desert
+            && Of("STANDARD", "BREATHABLE", 31, 50) == Biome.Tropical && Of("THIN", "BREATHABLE", 31, 49) == Biome.Highlands
+            && Of("STANDARD", "BREATHABLE", 25, 39) == Biome.Grassland && Of("STANDARD", "BREATHABLE", 25, 40) == Biome.Valley,
+            "climate rules apply in order, first match wins");
+        var travel = new Travel(chart, Named("Galatea").Id);
+        check(travel.LocationText == "In orbit · Galatea · Volcanic", "location shows the orbited system's biome");
     }
 }

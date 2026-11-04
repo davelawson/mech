@@ -179,7 +179,8 @@ public partial class MapScreen : Control
         // The complete sequence remains available in the tooltip for long routes.
         var summary = names.Length <= 6 ? string.Join(" → ", names)
             : $"{names[0]} → … → {names[^1]}";
-        return $"{title}\n{summary}\n{route.Count - 1} {(route.Count == 2 ? "jump" : "jumps")} · {transitDays} transit {(transitDays == 1 ? "day" : "days")}{(remaining ? " remaining" : "")}\n{transitDays * Campaign.TransitDailyCharge:N0} C-bills{(remaining ? " remaining" : "")} transit cost";
+        var biome = StarChart.Instance[route[^1]].BiomeText;
+        return $"{title}\n{summary}{(biome.Length > 0 ? $"\nDestination: {biome}" : "")}\n{route.Count - 1} {(route.Count == 2 ? "jump" : "jumps")} · {transitDays} transit {(transitDays == 1 ? "day" : "days")}{(remaining ? " remaining" : "")}\n{transitDays * Campaign.TransitDailyCharge:N0} C-bills{(remaining ? " remaining" : "")} transit cost";
     }
 
     private void RefreshControls()

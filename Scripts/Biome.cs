@@ -2,6 +2,9 @@ namespace Mech;
 
 public enum Biome { Valley, Arctic, Lunar, Highlands, Desert, Tropical, Grassland, Archipelago, Volcanic, Toxic }
 
+/// <summary>A star system's primary-world climate in 3025, imported into Data/system-climate.json.</summary>
+public sealed record SystemClimate(string Pressure, string Atmosphere, int Temperature, int Water, long Population, string SocioIndustrial);
+
 /// <summary>A battlefield's climate. Numbers are recorded in docs/combat-tuning.md.</summary>
 public sealed record BiomeSpec(Biome Biome, string Name, double Ambient, double CoolingEfficiency, string Description)
 {
@@ -25,4 +28,24 @@ public static class Biomes
         new(Biome.Toxic, "Toxic", 15, .6, "Poisonous air over eroded hills, toxic pools and fungal thickets. Corroded sinks shed poorly."),
     ];
     public static BiomeSpec Spec(Biome biome) => All.Single(spec => spec.Biome == biome);
+
+    /// <summary>Systems at least this populous are urban: denser settlements in their climate's biome.</summary>
+    public const long UrbanPopulation = 4_000_000_000;
+
+    /// <summary>A system's biome from its primary world's climate; the first matching rule wins.
+    /// Temperatures are equatorial °C, so the thresholds sit relative to Terra's 30 °C. Recorded in docs/combat-tuning.md.</summary>
+    public static Biome ForClimate(SystemClimate climate)
+    {
+        var (temperature, water) = (climate.Temperature, climate.Water);
+        if (climate.Pressure is "VACUUM" or "TRACE") return Biome.Lunar;
+        if (climate.Atmosphere.StartsWith("TOXIC", StringComparison.Ordinal)) return Biome.Toxic;
+        if (temperature > 50) return Biome.Volcanic;
+        if (temperature <= 24) return Biome.Arctic;
+        if (water >= 85) return Biome.Archipelago;
+        if (temperature > 40 || temperature > 30 && water < 30) return water < 50 ? Biome.Desert : Biome.Tropical;
+        if (temperature > 30 && water >= 50) return Biome.Tropical;
+        if (climate.Pressure == "THIN") return Biome.Highlands;
+        if (water < 40) return Biome.Grassland;
+        return Biome.Valley;
+    }
 }
