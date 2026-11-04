@@ -10,7 +10,7 @@ internal static partial class CombatChecks
 
     private static CombatSimulation HeatFixture(WeaponSpec[] weapons, int sinks = 0, HeatSinkKind sinkType = HeatSinkKind.Single,
         ComponentSpec[]? components = null, ComponentCondition sinkCondition = ComponentCondition.Operational,
-        int seed = 41, int gunnery = -10)
+        int seed = 41, int gunnery = -10, Biome? biome = null)
     {
         var spec = DraftCatalog.Mech("awesome") with
         { Weapons = weapons.ToImmutableArray(), HeatSinks = sinks, HeatSinkType = sinkType, Components = (components ?? []).ToImmutableArray(), Ammo = [] };
@@ -24,12 +24,13 @@ internal static partial class CombatChecks
             unit.Facing = side == CombatSide.Friendly ? Vector2.Right : Vector2.Left;
             return unit;
         });
-        return new(units, seed, BattlefieldTerrain.Flat) { EnemyAiEnabled = false };
+        return new(units, seed, biome is null ? BattlefieldTerrain.Flat : new BattlefieldTerrain(0, [], [], biome: biome)) { EnemyAiEnabled = false };
     }
 
     private static void CheckHeat(Action<bool, string> check)
     {
         CheckHeatRates(check);
+        CheckClimate(check);
         CheckHeatSelection(check);
         CheckWeaponPreviews(check);
         CheckHeatShutdown(check);
@@ -94,6 +95,41 @@ internal static partial class CombatChecks
         check(f.HeatBand == "Hot" && Math.Abs(f.WalkingSpeed - speed * .75f) < .00001
             && Math.Abs(CombatSimulation.HitChance(f, e, f.Weapons[0]) - 10d / 36) < .00001, "twenty heat applies 75% speed and +2 to the 2d6 target number");
         check(f.Acceleration == acceleration, "heat speed limits preserve authored acceleration and braking");
+    }
+
+    private static void CheckClimate(Action<bool, string> check)
+    {
+        static bool Near(double actual, double expected) => Math.Abs(actual - expected) < 1e-6;
+        // One heat per heat clock for every five points between the mech and the ambient temperature.
+        foreach (var (biome, ambient, efficiency) in new[] { (Biome.Valley, 10d, 1d), (Biome.Arctic, -20d, 1.5), (Biome.Lunar, -50d, .25) })
+        {
+            var sim = HeatFixture([HeatGun("test", 0, 1)], 10, biome: biome); var f = Friendly(sim);
+            check(Biomes.Spec(biome).Ambient == ambient && Biomes.Spec(biome).CoolingEfficiency == efficiency, $"{biome} has the agreed climate");
+            check(Near(f.AmbientHeatRate, ambient / 50) && Near(f.CoolingRate, efficiency), $"{biome} exchanges ambient heat at mech heat 0 and scales sinks by efficiency");
+            f.AddHeat(20);
+            check(Near(f.AmbientHeatRate, (ambient - 20) / 50), $"{biome} ambient exchange is proportional to the temperature difference");
+            var sinkless = Friendly(HeatFixture([HeatGun("test", 0, 1)], 0, biome: biome)); sinkless.AddHeat(20);
+            check(Near(sinkless.AmbientHeatRate, f.AmbientHeatRate) && sinkless.CoolingRate == 0, $"{biome} cooling efficiency does not change ambient exchange");
+        }
+        // Ten single sinks shed 1 heat/s, outpacing the valley's 0.2 heat/s pull at zero heat; without sinks a mech warms toward ambient.
+        foreach (var (sinks, settled) in new[] { (10, 0d), (1, 5d), (0, 10d) })
+        {
+            var valley = HeatFixture([HeatGun("test", 0, 1)], sinks, biome: Biome.Valley);
+            foreach (var unit in valley.Units) unit.Firing = FiringMode.HoldFire;
+            valley.Paused = false; valley.Advance(900);
+            check(Math.Abs(Friendly(valley).Heat - settled) < .01, $"valley mechs with {sinks} single sinks settle at {settled} heat: {Friendly(valley).Heat:0.000}");
+        }
+        var lunar = HeatFixture([HeatGun("test", 7, 1)], 10, biome: Biome.Lunar);
+        var cold = Friendly(lunar); Enemy(lunar).Firing = FiringMode.HoldFire;
+        lunar.Paused = false; lunar.Advance(.05);
+        check(cold.Heat == 7 && cold.ShotsFired == 1, "climate leaves weapon heat at its stock value");
+        // About 0.25 from quarter-efficiency sinks plus 1.14 from the −50 ambient over the first second.
+        cold.Firing = FiringMode.HoldFire; lunar.Advance(1);
+        check(cold.Heat is > 5.58 and < 5.65, $"lunar sinks and ambient cool together: {cold.Heat:0.000}");
+        lunar.Advance(60);
+        check(cold.Heat == 0, "heat never falls below zero, even in a sub-zero climate");
+        var flat = Friendly(HeatFixture([HeatGun("test", 0, 1)], 10));
+        check(flat.Climate is null && flat.AmbientHeatRate == 0 && flat.CoolingRate == 1, "hand-built test terrain has no climate");
     }
 
     private static void CheckHeatSelection(Action<bool, string> check)

@@ -18,6 +18,7 @@ public partial class SmokeTests
             screen.MirrorMatchButton.EmitSignal(BaseButton.SignalName.Pressed);
             foreach (var choice in screen.ForceChoices) choice.ButtonPressed = true;
             screen.TerrainSeedInput.Text = "183";
+            screen.ChooseBiome(Biome.Valley);
             screen.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed);
             await Frames();
             var sim = screen.Simulation!; var field = screen.Battlefield;

@@ -132,3 +132,15 @@ One mesh a hardpoint can show, such as `Laser`, `AC10`, `Missile6`, or a `Blank`
 
 **Mount map**:
 The hardpoint → weapon visual assignment a mech model is built from, resolved from its weapons.
+
+**Biome**:
+The kind of world a battlefield lies on (Valley, Arctic or Lunar), setting its climate, ground shape, features and look.
+
+**Ambient temperature**:
+A biome's temperature on the mech heat scale. Mech heat drifts toward it: hotter mechs gain free cooling, colder ones warm up.
+
+**Cooling efficiency**:
+A biome's multiplier on heat-sink output. It does not affect ambient exchange.
+
+**Settlement**:
+A cluster of solid buildings on a levelled pad of the battlefield.

@@ -18,6 +18,9 @@ public partial class CombatScreen : Control
     public SimulationOpponent Opponent { get; private set; }
     public LineEdit TerrainSeedInput { get; private set; } = null!;
     public Button NewTerrainButton { get; private set; } = null!;
+    /// <summary>Random, then each biome in <see cref="Biomes.All"/> order.</summary>
+    public OptionButton BiomePicker { get; private set; } = null!;
+    private Label _biomeClimate = null!;
     public Button LaunchButton { get; private set; } = null!;
     public Button BackButton { get; private set; } = null!;
     public Button PauseButton { get; private set; } = null!;
@@ -187,7 +190,16 @@ public partial class CombatScreen : Control
         RosterUi.Text(_modalContent, Opponent == SimulationOpponent.Mirror
             ? "Choose 1–4 BattleMechs. Opposition mirrors your mechs and pilot skills. Both sides start fully repaired and supplied. Your campaign will be preserved."
             : "Choose 1–4 BattleMechs. A fresh enemy draft matches your count and weight categories. Your units keep their current condition. Your campaign will be preserved.", 14);
-        RosterUi.Text(_modalContent, "Natural terrain · enter a seed to recreate a battlefield. Combat rolls vary independently.", 12, Ui.Muted);
+        RosterUi.Text(_modalContent, "Natural terrain · the same seed and biome recreate a battlefield. Combat rolls vary independently.", 12, Ui.Muted);
+        var biomeRow = new HBoxContainer(); _modalContent.AddChild(biomeRow);
+        Ui.Label(biomeRow, "Biome", 13, Ui.Gold);
+        BiomePicker = new OptionButton { FitToLongestItem = false };
+        BiomePicker.AddItem("Random");
+        foreach (var biome in Biomes.All) BiomePicker.AddItem(biome.Name);
+        biomeRow.AddChild(BiomePicker);
+        _biomeClimate = Ui.Label(biomeRow, "", 12, Ui.Muted);
+        _biomeClimate.SizeFlagsHorizontal = SizeFlags.ExpandFill; _biomeClimate.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        BiomePicker.ItemSelected += _ => RefreshForceSelection();
         var seedRow = new HBoxContainer(); _modalContent.AddChild(seedRow);
         Ui.Label(seedRow, "Terrain seed", 13, Ui.Gold);
         TerrainSeedInput = new LineEdit { Text = Random.Shared.Next().ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -215,17 +227,27 @@ public partial class CombatScreen : Control
     private void RefreshForceSelection()
     {
         var count = ForceChoices.Count(item => item.ButtonPressed); _forceCount.Text = $"{count} / 4 selected · Starts paused";
+        _biomeClimate.Text = SelectedBiome is { } chosen ? $"{Biomes.Spec(chosen).ClimateText} · {Biomes.Spec(chosen).Description}"
+            : string.Join(" · ", Biomes.All.Select(biome => FormattableString.Invariant($"{biome.Name} {biome.Ambient:0}/{biome.EfficiencyText}")));
         var validSeed = int.TryParse(TerrainSeedInput.Text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out _);
         if (!validSeed) _forceCount.Text += " · Enter a seed from −2147483648 to 2147483647";
         LaunchButton.Disabled = count is < 1 or > 4 || !validSeed;
         for (var i = 0; i < ForceChoices.Count; i++)
             ForceChoices[i].Disabled = CombatSimulation.UnavailableReason(_roster, _roster.Mechs[i]) is not null || (count >= 4 && !ForceChoices[i].ButtonPressed);
     }
+    private Biome? SelectedBiome => BiomePicker.Selected > 0 ? Biomes.All[BiomePicker.Selected - 1].Biome : null;
+    /// <summary>Picks a biome for the next launch; null picks Random.</summary>
+    public void ChooseBiome(Biome? biome)
+    {
+        BiomePicker.Select(biome is { } chosen ? 1 + Biomes.All.ToList().FindIndex(spec => spec.Biome == chosen) : 0);
+        RefreshForceSelection();
+    }
     private void Launch()
     {
         if (LaunchButton.Disabled) return;
         Simulation = CombatSimulation.Deploy(_roster, _forceIds.Where((_, i) => ForceChoices[i].ButtonPressed),
-            terrainSeed: int.Parse(TerrainSeedInput.Text, System.Globalization.CultureInfo.InvariantCulture), opponent: Opponent);
+            terrainSeed: int.Parse(TerrainSeedInput.Text, System.Globalization.CultureInfo.InvariantCulture), opponent: Opponent,
+            biome: SelectedBiome ?? Biomes.All[Random.Shared.Next(Biomes.All.Count)].Biome);
         Battlefield.Display(Simulation); _shade.Hide(); Modal = CombatModal.None; Battlefield.CommandsEnabled = true;
         BattleLog.Hide(); BattleLog.Display(Simulation); Layout();
         Battlefield.MouseFilter = MouseFilterEnum.Stop;
@@ -329,7 +351,7 @@ public partial class CombatScreen : Control
         if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing) return;
         _resumeRunning = !Simulation.Paused; Simulation.Paused = true;
         BeginModal(CombatModal.Menu, "Combat paused");
-        RosterUi.Text(_modalContent, $"Terrain seed: {Simulation.Terrain.Seed}", 14, Ui.Gold);
+        RosterUi.Text(_modalContent, $"Terrain seed: {Simulation.Terrain.Seed} · {BiomeText(Simulation)}", 14, Ui.Gold);
         var seedCopy = new LineEdit { Text = Simulation.Terrain.Seed.ToString(System.Globalization.CultureInfo.InvariantCulture), Editable = false };
         _modalContent.AddChild(seedCopy);
         RosterUi.Text(_modalContent, "Resume the simulation or end it and review damage. This practice battle has no campaign consequences.", 16);
@@ -351,7 +373,7 @@ public partial class CombatScreen : Control
         if (Simulation is null) return;
         BeginModal(CombatModal.Results, Simulation.Outcome == CombatOutcome.Ended ? "Simulation ended" : Simulation.Outcome.ToString());
         RosterUi.Text(_modalContent, $"Combat time {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss} · Campaign preserved", 15, Ui.Gold);
-        RosterUi.Text(_modalContent, $"Terrain seed: {Simulation.Terrain.Seed}", 14, Ui.Muted);
+        RosterUi.Text(_modalContent, $"Terrain seed: {Simulation.Terrain.Seed} · {BiomeText(Simulation)}", 14, Ui.Muted);
         var body = RosterUi.Scroll(_modalContent);
         foreach (var side in Enum.GetValues<CombatSide>())
         {
@@ -557,9 +579,12 @@ public partial class CombatScreen : Control
         : FormattableString.Invariant($"Jump {unit.JumpRange:0} m · ") + (unit.Airborne ? "Airborne"
             : unit.JumpRecharge > 0 ? FormattableString.Invariant($"Recharging {Math.Ceiling(unit.JumpRecharge):0}s")
             : unit.JumpUnavailableReason ?? "Ready");
+    internal static string BiomeText(CombatSimulation simulation) => simulation.Terrain.Biome is { } biome ? Biomes.Spec(biome).Name : "Test terrain";
     internal static string HeatReadout(CombatUnit unit) =>
         $"Heat {unit.Heat:0.0} · {unit.HeatBand} · {unit.HeatPolicy}\n"
-        + $"Cooling {unit.CoolingRate:0.0} heat/s · {unit.EffectiveHeatSinks}/{unit.Spec.HeatSinks} {DefinitionText.HeatSinks(unit.Spec.HeatSinkType)} sinks"
+        + $"Cooling {unit.CoolingRate:0.00} heat/s · {unit.EffectiveHeatSinks}/{unit.Spec.HeatSinks} {DefinitionText.HeatSinks(unit.Spec.HeatSinkType)} sinks"
+        + (unit.Climate is { } climate ? $" × {climate.EfficiencyText}"
+            + $"\nAmbient {climate.Ambient:0} · {(unit.AmbientHeatRate >= 0 ? "+" : "−")}{Math.Abs(unit.AmbientHeatRate):0.00} heat/s" : "")
         + (unit.Shutdown && !unit.Defeated ? "\nAutomatic restart below 10 heat" : "");
 
     // Enemy ammunition depletion is never known: inspection shows only physical equipment loss.

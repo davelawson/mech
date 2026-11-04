@@ -155,6 +155,7 @@ public sealed partial class CombatUnit
     public Vector2 Destination { get; internal set; }
     internal IReadOnlyList<Vector2> Route { get; set; } = Array.Empty<Vector2>();
     internal int RouteIndex { get; set; }
+    internal float BlockedSeconds { get; set; }
     internal Vector2 RouteGoal { get; set; } = new(float.NaN, float.NaN);
     internal Vector2 FiringPosition { get; set; }
     internal double NextFiringSearch { get; set; }
@@ -355,13 +356,13 @@ public sealed partial class CombatSimulation
     }
 
     public static CombatSimulation Deploy(ForceRoster roster, IEnumerable<string> selected, int? seed = null, int? terrainSeed = null,
-        SimulationOpponent opponent = SimulationOpponent.Mirror) =>
-        CreateDeployment(roster, selected, seed, terrainSeed, null, opponent);
+        SimulationOpponent opponent = SimulationOpponent.Mirror, Biome biome = Biome.Valley) =>
+        CreateDeployment(roster, selected, seed, terrainSeed, null, opponent, biome);
     internal static CombatSimulation DeployOnTerrain(ForceRoster roster, IEnumerable<string> selected, BattlefieldTerrain terrain, int seed = 41,
         SimulationOpponent opponent = SimulationOpponent.Mirror) =>
-        CreateDeployment(roster, selected, seed, null, terrain, opponent);
+        CreateDeployment(roster, selected, seed, null, terrain, opponent, Biome.Valley);
     private static CombatSimulation CreateDeployment(ForceRoster roster, IEnumerable<string> selected, int? seed, int? terrainSeed,
-        BattlefieldTerrain? terrain, SimulationOpponent opponent)
+        BattlefieldTerrain? terrain, SimulationOpponent opponent, Biome biome)
     {
         if (!Enum.IsDefined(opponent)) throw new ArgumentOutOfRangeException(nameof(opponent));
         var ids = selected.ToArray();
@@ -388,7 +389,7 @@ public sealed partial class CombatSimulation
             units.Add(DeploymentUnit($"enemy-{i + 1}", enemy.Mech, enemy.Pilot, CombatSide.Enemy,
                 new Vector2(x, -CombatRules.DeploymentDepth), pristine: true));
         }
-        return new CombatSimulation(units, combatSeed, terrain ?? BattlefieldTerrain.Generate(terrainSeed ?? Random.Shared.Next()));
+        return new CombatSimulation(units, combatSeed, terrain ?? BattlefieldTerrain.Generate(terrainSeed ?? Random.Shared.Next(), biome));
     }
     private static CombatUnit DeploymentUnit(string id, OwnedMech source, WarriorSpec pilot, CombatSide side, Vector2 position, bool pristine) =>
         new(id, source.Spec, pilot, side,
@@ -418,6 +419,8 @@ public sealed partial class CombatSimulation
     internal CombatSimulation(IEnumerable<CombatUnit> units, int seed, BattlefieldTerrain? terrain = null)
     {
         Units = Array.AsReadOnly(units.ToArray()); Terrain = terrain ?? BattlefieldTerrain.Flat;
+        var climate = Terrain.Biome is { } biome ? Biomes.Spec(biome) : null;
+        foreach (var unit in Units) unit.Climate = climate;
         History = _history.AsReadOnly(); _random = new Random(seed); RefreshDetection();
     }
     public CombatUnit Unit(string id) => Units.Single(item => item.Id == id);
@@ -774,8 +777,13 @@ public sealed partial class CombatSimulation
         if (Math.Abs(travel) > 1e-8f)
         {
             if (CombatRules.Clamp(candidate).DistanceSquaredTo(candidate) > 1e-10f || Blocked(unit, candidate))
+            {
                 nextSpeed = 0; // Contact with terrain, solid mechs or arena edges is a hard constraint.
-            else { unit.Position = candidate; unit.Moving = true; }
+                // A unit wedged against an obstacle replans from where it stands rather than pressing on forever.
+                unit.BlockedSeconds += delta;
+                if (unit.BlockedSeconds > 1.5f) { unit.Route = Array.Empty<Vector2>(); unit.BlockedSeconds = 0; }
+            }
+            else { unit.Position = candidate; unit.Moving = true; unit.BlockedSeconds = 0; }
         }
         unit.CurrentSpeed = nextSpeed;
     }

@@ -39,7 +39,7 @@ Run `scripts/mech unit` alongside the Godot groups when changing a file covered 
 | `missions` | Mission board model and phone overlay | `MissionsPanel`, `Missions` |
 | `finance` | Campaign model, calendar, quarterly payments, save/load, bankruptcy | `Campaign` (time and money) |
 | `catalog` | Mech and weapon definitions | `CatalogLoader`, `GameDefinitions`, `WeaponDefinitions`, `DefinitionText`, `Data/` |
-| `combat-sim` | Combat simulation (weapons, heat, twisting, sensors, following, jumping, log) and terrain | `Combat`, `Heat`, `Jumping`, `TorsoTwisting`, `BattlefieldTerrain`, `CircleUnion`, `CombatLog`, `MechLocomotion` |
+| `combat-sim` | Combat simulation (weapons, heat and climate, twisting, sensors, following, jumping, log) and terrain, biomes and buildings | `Combat`, `Heat`, `Biome`, `Jumping`, `TorsoTwisting`, `BattlefieldTerrain`, `CircleUnion`, `CombatLog`, `MechLocomotion` |
 | `combat-ui` | Combat layouts, picking, detection overlay, shot effects, tactical screen, jump targeting | `CombatScreen`, `CombatViewport`, `CombatPaperdoll`, `CombatLogPanel`, `BattlefieldTerrainView` |
 | `combat-layout` | Combat layout subset of `combat-ui` (freeze regression); not in the full run | as `combat-ui`, for a quick check |
 | `mech-visuals` | Imported models, gaits, jump poses and jets, damage hiding, blueprint framing, weapon hardpoints | `MechModel`, `JumpJets`, `PreparedMechModels`, `PreparedModelLoader`, `WeaponMounts`, `Assets/` models and weapon libraries, `Data/mech-models.json` |

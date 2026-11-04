@@ -25,6 +25,8 @@ public partial class CombatViewport : Control
     private NativeViewportContainer _surface = null!;
     private Node3D _world = null!;
     private Node3D? _terrainView;
+    private DirectionalLight3D? _sun;
+    private WorldEnvironment? _environment;
     private readonly Dictionary<string, MechModel> _models = [];
     private readonly Dictionary<string, Aabb> _pickBounds = [];
     private readonly List<ShotEffect> _effects = [];
@@ -278,14 +280,7 @@ public partial class CombatViewport : Control
         _world = new Node3D(); _viewport.AddChild(_world);
         Camera = new Camera3D { Projection = Camera3D.ProjectionType.Orthogonal, Size = 1500, Far = 24000, Current = true };
         _world.AddChild(Camera);
-        var light = new DirectionalLight3D { RotationDegrees = new Vector3(-60, -30, 0), LightEnergy = 1.1f };
-        _world.AddChild(light);
-        _world.AddChild(new WorldEnvironment { Environment = new Godot.Environment
-        {
-            BackgroundMode = Godot.Environment.BGMode.Color, BackgroundColor = new Color("111b21"),
-            AmbientLightSource = Godot.Environment.AmbientSource.Color, AmbientLightColor = new Color("b1c1cc"), AmbientLightEnergy = .65f,
-            TonemapMode = Godot.Environment.ToneMapper.Filmic
-        } });
+        ApplyLighting(null);
         Resized += QueueRedraw;
         FocusExited += CancelDrag;
         MouseExited += () => SetHovered(null);
@@ -293,6 +288,12 @@ public partial class CombatViewport : Control
         GetWindow().FocusExited += WindowFocusExited;
         GetWindow().FocusEntered += WindowFocusEntered;
         UpdateCamera();
+    }
+    private void ApplyLighting(Biome? biome)
+    {
+        foreach (var old in new Node?[] { _sun, _environment }.OfType<Node>()) { _world.RemoveChild(old); old.QueueFree(); }
+        var (sun, environment) = BattlefieldTerrainView.Lighting(biome);
+        _world.AddChild(_sun = sun); _world.AddChild(_environment = new WorldEnvironment { Environment = environment });
     }
     public void Display(CombatSimulation simulation)
     {
@@ -309,6 +310,7 @@ public partial class CombatViewport : Control
         Simulation = simulation; Simulation.ShotFired += OnShot; InspectedEnemy = null; Selection = Array.Empty<string>();
         if (_terrainView is not null) { _world.RemoveChild(_terrainView); _terrainView.QueueFree(); }
         _terrainView = BattlefieldTerrainView.Create(simulation.Terrain); _world.AddChild(_terrainView);
+        ApplyLighting(simulation.Terrain.Biome);
         _focus = new Vector3(0, 0, CombatRules.DeploymentDepth - 600); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 1500; UpdateCamera();
         foreach (var unit in simulation.Units) CreateMech(unit);
         CancelDrag(); SyncModels(); QueueRedraw();
@@ -625,16 +627,14 @@ public partial class CombatViewport : Control
         }
         effect.Salvo = salvo;
     }
-    // An indirect arc peaks high enough to pass blocking hills and rocks with room to spare.
+    // An indirect arc peaks high enough to pass blocking hills, rocks and buildings with room to spare.
     private float Clearance(Vector3 from, Vector3 to)
     {
         var terrain = Simulation!.Terrain; var peak = 0f;
         for (var i = 1; i < 20; i++)
         {
             var t = i / 20f; var point = from.Lerp(to, t); var ground = new Vector2(point.X, point.Z);
-            var height = terrain.HeightAt(ground);
-            foreach (var rock in terrain.Patches.Where(patch => patch.Kind == TerrainKind.Rock && ground.DistanceTo(patch.Center) <= patch.Radius))
-                height = Math.Max(height, terrain.HeightAt(rock.Center) + rock.Height);
+            var height = terrain.SolidTop(ground);
             peak = Math.Max(peak, (height + 90 - point.Y) / (4 * t * (1 - t)));
         }
         return peak;
@@ -1293,8 +1293,13 @@ public partial class CombatViewport : Control
     {
         if (Simulation is null || Camera is null) return;
         var font = ThemeDB.FallbackFont;
-        DrawString(font, new Vector2(12, 18), $"Terrain seed: {Simulation.Terrain.Seed}", HorizontalAlignment.Left, -1, 12, Ui.Gold);
-        DrawString(font, new Vector2(12, 34), "Rocks: blocked · Green: soft cover · Blue: slow water · Tan: steep", HorizontalAlignment.Left, -1, 11, Ui.Text);
+        var header = $"Terrain seed: {Simulation.Terrain.Seed} · {CombatScreen.BiomeText(Simulation)}";
+        var legend = BattlefieldTerrainView.Legend(Simulation.Terrain.Biome);
+        // A dark backing keeps the header readable over snow as well as grass and regolith.
+        var width = Math.Max(font.GetStringSize(header, HorizontalAlignment.Left, -1, 12).X, font.GetStringSize(legend, HorizontalAlignment.Left, -1, 11).X);
+        DrawRect(new Rect2(6, 4, width + 12, 36), new Color(0, 0, 0, .45f));
+        DrawString(font, new Vector2(12, 18), header, HorizontalAlignment.Left, -1, 12, Ui.Gold);
+        DrawString(font, new Vector2(12, 34), legend, HorizontalAlignment.Left, -1, 11, Ui.Text);
         var center = ScreenPoint(Vector2.Zero);
         DrawString(font, center + new Vector2(-42, -8), "ARENA CENTER", HorizontalAlignment.Left, -1, 12, new Color(Ui.Muted, .7f));
         var ranges = DetectionRanges;

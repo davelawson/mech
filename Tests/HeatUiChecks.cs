@@ -15,6 +15,7 @@ public partial class SmokeTests
             tactical.Open(roster, roster.Mechs[0].Id);
             tactical.MirrorMatchButton.EmitSignal(BaseButton.SignalName.Pressed);
             foreach (var choice in tactical.ForceChoices) choice.ButtonPressed = true;
+            tactical.ChooseBiome(Biome.Valley);
             tactical.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed);
             var sim = tactical.Simulation!;
             var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();

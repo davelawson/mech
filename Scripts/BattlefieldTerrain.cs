@@ -3,9 +3,16 @@ using System.Buffers;
 
 namespace Mech;
 
-public enum TerrainKind { Rock, Vegetation, Water }
+public enum TerrainKind { Rock, Vegetation, Water, Ice }
 public sealed record TerrainPatch(TerrainKind Kind, Vector2 Center, float Radius, float Height = 0);
 public sealed record TerrainHill(Vector2 Center, float Radius, float Height);
+public enum BuildingStyle { House, Barn, Block, Silo, Tank, Mast, Dome, Module }
+/// <summary>A solid building. Rectangular footprints are rotated by Rotation radians from the X axis toward Z;
+/// round footprints use HalfSize.X as their radius. Height is above the ground at Center.</summary>
+public sealed record TerrainBuilding(BuildingStyle Style, int Cluster, Vector2 Center, Vector2 HalfSize, float Rotation, float Height)
+{
+    public bool Round => Style is BuildingStyle.Silo or BuildingStyle.Tank or BuildingStyle.Mast or BuildingStyle.Dome;
+}
 
 /// <summary>Immutable terrain shared by simulation, navigation, rendering and picking. X/Y are ground X/Z.</summary>
 public sealed class BattlefieldTerrain
@@ -19,9 +26,14 @@ public sealed class BattlefieldTerrain
     public const float WaterSpeed = .5f;
     public const float VegetationSpeed = .7f;
     public const int MaxVegetationModifier = 2;
+    /// <summary>Clear width between neighbouring buildings of a cluster, and the lot each building stands on.</summary>
+    public const float StreetWidth = 60, BuildingLot = 50;
     public int Seed { get; }
+    /// <summary>The generated biome; hand-built test terrain has none and therefore no climate.</summary>
+    public Biome? Biome { get; }
     public IReadOnlyList<TerrainPatch> Patches { get; }
     public IReadOnlyList<TerrainHill> Hills { get; }
+    public IReadOnlyList<TerrainBuilding> Buildings { get; }
     private readonly float[] _heights = new float[GridSize * GridSize];
     private readonly bool[] _walkable = new bool[GridSize * GridSize];
     private readonly int[] _components = new int[GridSize * GridSize];
@@ -34,26 +46,74 @@ public sealed class BattlefieldTerrain
             return cost != 0 ? cost : Node.CompareTo(other.Node);
         }
     }
+    /// <summary>A rock or building: a vertical prism from Bottom to Top over a circle or rotated rectangle.</summary>
+    private readonly record struct Solid(Vector2 Center, Vector2 HalfSize, float Cos, float Sin, bool Round, float Bottom, float Top)
+    {
+        public Vector2 Local(Vector2 point)
+        {
+            var offset = point - Center;
+            return new(offset.X * Cos + offset.Y * Sin, -offset.X * Sin + offset.Y * Cos);
+        }
+        public bool Contains(Vector2 point, float margin)
+        {
+            if (Round) return point.DistanceTo(Center) < HalfSize.X + margin;
+            var local = Local(point);
+            return Math.Abs(local.X) < HalfSize.X + margin && Math.Abs(local.Y) < HalfSize.Y + margin;
+        }
+        public float Reach => Round ? HalfSize.X : HalfSize.Length();
+    }
+    private const float SolidCellSize = 240;
+    private const int SolidCells = (int)(CombatRules.ArenaHalfSize * 2 / SolidCellSize) + 1;
     private readonly List<NavigationEdge>[] _neighbors;
     private readonly bool _flat;
-    private readonly TerrainPatch[] _rocks;
+    private readonly Solid[] _solids;
+    /// <summary>Solids near each coarse cell, for point queries: every solid within its reach plus mech clearance.</summary>
+    private readonly int[][] _solidCells;
     public static BattlefieldTerrain Flat { get; } = new(0, [], []);
 
-    internal BattlefieldTerrain(int seed, IEnumerable<TerrainPatch> patches, IEnumerable<TerrainHill> hills)
+    internal BattlefieldTerrain(int seed, IEnumerable<TerrainPatch> patches, IEnumerable<TerrainHill> hills,
+        IEnumerable<TerrainBuilding>? buildings = null, Biome? biome = null, float[]? relief = null)
     {
-        Seed = seed; Patches = Array.AsReadOnly(patches.ToArray()); Hills = Array.AsReadOnly(hills.ToArray());
-        _flat = Patches.Count == 0 && Hills.Count == 0;
-        _rocks = Patches.Where(patch => patch.Kind == TerrainKind.Rock).ToArray();
+        Seed = seed; Biome = biome; Patches = Array.AsReadOnly(patches.ToArray()); Hills = Array.AsReadOnly(hills.ToArray());
+        Buildings = Array.AsReadOnly((buildings ?? []).ToArray());
+        _flat = Patches.Count == 0 && Hills.Count == 0 && Buildings.Count == 0 && relief is null;
         for (var z = 0; z < GridSize; z++) for (var x = 0; x < GridSize; x++)
         {
             var point = new Vector2(x - HalfCells, z - HalfCells) * CellSize;
-            var height = Hills.Sum(hill => point.DistanceTo(hill.Center) >= hill.Radius ? 0
+            _heights[Index(x, z)] = (relief?[Index(x, z)] ?? 0) + Hills.Sum(hill => point.DistanceTo(hill.Center) >= hill.Radius ? 0
                 : hill.Height * (1 + MathF.Cos(MathF.PI * point.DistanceTo(hill.Center) / hill.Radius)) * .5f);
-            // Water is shallow, with a flat surface and gently blended banks.
-            foreach (var water in Patches.Where(patch => patch.Kind == TerrainKind.Water))
-                height *= Mathf.SmoothStep(0, 1, Math.Clamp((point.DistanceTo(water.Center) - water.Radius - 30) / 90, 0, 1));
-            _heights[Index(x, z)] = height;
         }
+        // Water and ice are flat at the level of their centre, with gently blended banks. Each point follows only
+        // its nearest-flattening patch, so neighbouring banks never tilt another surface.
+        var flats = Patches.Where(patch => patch.Kind is TerrainKind.Water or TerrainKind.Ice)
+            .Select(patch => (Patch: patch, Level: _heights[Node(patch.Center)])).ToArray();
+        if (flats.Length > 0)
+            for (var index = 0; index < _heights.Length; index++)
+            {
+                var blend = 1f; var level = 0f;
+                foreach (var (patch, patchLevel) in flats)
+                {
+                    var weight = Mathf.SmoothStep(0, 1, Math.Clamp((Point(index).DistanceTo(patch.Center) - patch.Radius - 30) / 90, 0, 1));
+                    if (weight < blend) { blend = weight; level = patchLevel; }
+                }
+                _heights[index] = Mathf.Lerp(level, _heights[index], blend);
+            }
+        _solids = Patches.Where(patch => patch.Kind == TerrainKind.Rock)
+            .Select(rock => new Solid(rock.Center, new(rock.Radius, rock.Radius), 1, 0, true,
+                Math.Min(-15, HeightAt(rock.Center) - 15), HeightAt(rock.Center) + rock.Height))
+            .Concat(Buildings.Select(building => new Solid(building.Center, building.HalfSize, MathF.Cos(building.Rotation),
+                MathF.Sin(building.Rotation), building.Round, Math.Min(-15, HeightAt(building.Center) - 15), HeightAt(building.Center) + building.Height)))
+            .ToArray();
+        _solidCells = new int[SolidCells * SolidCells][];
+        var cells = Enumerable.Range(0, _solidCells.Length).Select(_ => new List<int>()).ToArray();
+        for (var i = 0; i < _solids.Length; i++)
+        {
+            var reach = _solids[i].Reach + CombatRules.UnitRadius + 1.5f;
+            var (minX, minZ) = SolidCell(_solids[i].Center - new Vector2(reach, reach));
+            var (maxX, maxZ) = SolidCell(_solids[i].Center + new Vector2(reach, reach));
+            for (var z = minZ; z <= maxZ; z++) for (var x = minX; x <= maxX; x++) cells[z * SolidCells + x].Add(i);
+        }
+        for (var i = 0; i < cells.Length; i++) _solidCells[i] = cells[i].ToArray();
         _neighbors = Enumerable.Range(0, _heights.Length).Select(_ => new List<NavigationEdge>(8)).ToArray();
         // Terrain never changes: evaluate traversal speeds once instead of for every A* expansion.
         var speeds = new float[_heights.Length];
@@ -84,15 +144,30 @@ public sealed class BattlefieldTerrain
                 if (_components[edge.Node] == 0) { _components[edge.Node] = component; open.Enqueue(edge.Node); }
         }
     }
+    private static (int X, int Z) SolidCell(Vector2 point) =>
+        (Math.Clamp((int)((point.X + CombatRules.ArenaHalfSize) / SolidCellSize), 0, SolidCells - 1),
+         Math.Clamp((int)((point.Y + CombatRules.ArenaHalfSize) / SolidCellSize), 0, SolidCells - 1));
+    private int[] SolidsNear(Vector2 point) { var (x, z) = SolidCell(point); return _solidCells[z * SolidCells + x]; }
 
-    public static BattlefieldTerrain Generate(int seed)
+    /// <summary>Feature counts and sizes per biome; recorded in docs/combat-tuning.md.</summary>
+    private sealed record PatchRule(TerrainKind Kind, int Count, float MinRadius, float MaxRadius, float MinHeight = 0, float MaxHeight = 0);
+    private static PatchRule[] PatchRules(Biome biome) => biome switch
+    {
+        Mech.Biome.Arctic => [new(TerrainKind.Rock, 56, 39, 90, 90, 180), new(TerrainKind.Vegetation, 24, 60, 120), new(TerrainKind.Ice, 14, 120, 240)],
+        Mech.Biome.Lunar => [new(TerrainKind.Rock, 84, 24, 60, 30, 100)],
+        _ => [new(TerrainKind.Rock, 40, 39, 90, 90, 180), new(TerrainKind.Vegetation, 48, 90, 180), new(TerrainKind.Water, 16, 90, 180)],
+    };
+    public static IReadOnlyList<TerrainKind> Kinds(Biome biome) => PatchRules(biome).Select(rule => rule.Kind).ToArray();
+    public const int MinClusters = 1, MaxClusters = 6, MinBuildings = 15, MaxBuildings = 50;
+
+    public static BattlefieldTerrain Generate(int seed, Biome biome = Mech.Biome.Valley)
     {
         var random = new Random(seed);
         // Spawn bands and a central rendezvous remain clear for every force size.
-        bool Clear(Vector2 point, float radius) => new[] { new Vector2(0, CombatRules.DeploymentDepth), new Vector2(0, -CombatRules.DeploymentDepth) }
-            .All(spawn => Math.Abs(point.X - spawn.X) > radius + CombatRules.DeploymentSpacing * 1.5f + 90
-                || Math.Abs(point.Y - spawn.Y) > radius + 150)
-            && point.Length() > radius + 60;
+        float ClearDistance(Vector2 point) => Math.Min(point.Length() - 60, new[] { CombatRules.DeploymentDepth, -CombatRules.DeploymentDepth }
+            .Min(z => new Vector2(Math.Max(0, Math.Abs(point.X) - CombatRules.DeploymentSpacing * 1.5f - 90),
+                Math.Max(0, Math.Abs(point.Y - z) - 150)).Length()));
+        bool Clear(Vector2 point, float radius) => ClearDistance(point) > radius;
         Vector2 Place(float radius)
         {
             for (var attempt = 0; attempt < 500; attempt++)
@@ -103,38 +178,203 @@ public sealed class BattlefieldTerrain
             }
             return new Vector2(CombatRules.ArenaHalfSize * .625f, 0);
         }
+        float Between(float min, float max) => min + random.NextSingle() * (max - min);
         // Retry complete candidates instead of silently accepting disconnected spawn areas.
         for (var attempt = 0; attempt < 64; attempt++)
         {
-            var hills = Enumerable.Range(0, 28).Select(_ =>
-            {
-                var radius = 180 + random.NextSingle() * 150;
-                return new TerrainHill(Place(radius + 90), radius, 90 + random.NextSingle() * 120);
-            }).ToArray();
+            var relief = Relief(biome, random, Place, Between);
+            for (var index = 0; index < relief.Length; index++)
+                relief[index] *= Mathf.SmoothStep(0, 1, Math.Clamp(ClearDistance(Point(index)) / 400, 0, 1));
+            var clusters = new List<(Vector2 Center, float Radius)>();
+            var buildings = Settlements(biome, random, relief, clusters, Place, Between);
+            if (buildings is null) continue;
             var patches = new List<TerrainPatch>();
-            foreach (var kind in Enum.GetValues<TerrainKind>())
+            // Lakes and frozen lakes keep to the lowest ground, so levelling them leaves gentle banks.
+            var lowGround = relief.Order().ElementAt(relief.Length * 3 / 10);
+            // Banks blend up to 120 m beyond a lake, so lakes keep that far from pads and spawns.
+            bool Free(Vector2 point, float radius) => patches.All(patch => patch.Center.DistanceTo(point) >= patch.Radius + radius + 30)
+                && clusters.All(cluster => cluster.Center.DistanceTo(point) >= cluster.Radius + radius + 150);
+            foreach (var rule in PatchRules(biome))
             {
-                var count = kind == TerrainKind.Rock ? 64 : kind == TerrainKind.Vegetation ? 40 : 16;
-                for (var i = 0; i < count; i++)
+                // Lunar boulders gather in fields; other features scatter.
+                var fields = rule.Kind == TerrainKind.Rock && biome == Mech.Biome.Lunar
+                    ? Enumerable.Range(0, 12).Select(_ => Place(300)).ToArray() : null;
+                var flat = rule.Kind is TerrainKind.Water or TerrainKind.Ice; var clearance = flat ? 150 : 60;
+                for (var i = 0; i < rule.Count; i++)
                 {
-                    var radius = kind == TerrainKind.Rock ? 39 + random.NextSingle() * 51 : 90 + random.NextSingle() * 90;
+                    var radius = Between(rule.MinRadius, rule.MaxRadius);
                     Vector2 point;
                     var tries = 0;
-                    do { point = Place(radius + 60); tries++; }
-                    while (tries < 500 && patches.Any(patch => patch.Center.DistanceTo(point) < patch.Radius + radius + 30));
-                    if (patches.Any(patch => patch.Center.DistanceTo(point) < patch.Radius + radius + 30)) continue;
-                    patches.Add(new(kind, point, radius, kind == TerrainKind.Rock ? 90 + random.NextSingle() * 90 : 0));
+                    do
+                    {
+                        point = fields is null ? Place(radius + clearance)
+                            : fields[i % fields.Length] + Vector2.FromAngle(random.NextSingle() * MathF.Tau) * (random.NextSingle() * 300);
+                        tries++;
+                    }
+                    while (tries < 500 && (!Free(point, radius) || !Clear(point, radius + clearance)
+                        || (flat && tries < 400 && relief[Node(point)] > lowGround + 1)));
+                    if (!Free(point, radius) || !Clear(point, radius + clearance)) continue;
+                    patches.Add(new(rule.Kind, point, radius, rule.MaxHeight > 0 ? Between(rule.MinHeight, rule.MaxHeight) : 0));
                 }
             }
-            var terrain = new BattlefieldTerrain(seed, patches, hills);
+            var terrain = new BattlefieldTerrain(seed, patches, [], buildings, biome, relief);
             var starts = Enumerable.Range(-3, 7).Select(index => index * CombatRules.DeploymentSpacing / 2)
                 .SelectMany(x => new[] { new Vector2(x, CombatRules.DeploymentDepth), new Vector2(x, -CombatRules.DeploymentDepth) })
                 .Append(Vector2.Zero).ToArray();
             var component = terrain.Component(starts[0]);
             if (component != 0 && starts.All(point => terrain.Passable(point) && terrain.Component(point) == component)
-                && Enum.GetValues<TerrainKind>().All(kind => patches.Any(patch => patch.Kind == kind))) return terrain;
+                && PatchRules(biome).All(rule => patches.Any(patch => patch.Kind == rule.Kind))) return terrain;
         }
         throw new InvalidOperationException("Could not generate a connected battlefield.");
+    }
+
+    /// <summary>Grid heights before patches and settlements: rolling hills, snowy ridges, or cratered plains.</summary>
+    private static float[] Relief(Biome biome, Random random, Func<float, Vector2> place, Func<float, float, float> between)
+    {
+        var noiseSeed = random.Next(); var detailSeed = random.Next();
+        var relief = new float[GridSize * GridSize];
+        for (var index = 0; index < relief.Length; index++)
+        {
+            var point = Point(index);
+            relief[index] = biome switch
+            {
+                Mech.Biome.Arctic => 270 * MathF.Pow(Ridged(noiseSeed, point / 1200, 3), 2.4f) + 10 * Fbm(detailSeed, point / 420, 2),
+                Mech.Biome.Lunar => 45 * Fbm(noiseSeed, point / 1800, 3) + 6 * Fbm(detailSeed, point / 360, 2),
+                _ => 230 * Mathf.SmoothStep(.38f, .8f, Fbm(noiseSeed, point / 1400, 3)) + 8 * Fbm(detailSeed, point / 420, 2),
+            };
+        }
+        if (biome != Mech.Biome.Lunar) return relief;
+        for (var i = 0; i < 40; i++)
+        {
+            // Many small craters and a few large ones, each a bowl with a raised rim.
+            var radius = 60 + 420 * MathF.Pow(random.NextSingle(), 3);
+            var center = place(radius * 1.6f + 120);
+            var depth = radius * between(.15f, .3f); var rim = radius * .06f;
+            for (var index = 0; index < relief.Length; index++)
+            {
+                var d = Point(index).DistanceTo(center) / radius;
+                if (d > 2.2f) continue;
+                relief[index] += d < 1 ? -depth + (depth + rim) * MathF.Pow(d, 2.4f) : rim * MathF.Exp(-3 * ((d - 1) / .4f) * ((d - 1) / .4f));
+            }
+        }
+        return relief;
+    }
+
+    /// <summary>Building clusters on levelled pads; null when the clusters do not fit.</summary>
+    private static List<TerrainBuilding>? Settlements(Biome biome, Random random, float[] relief, List<(Vector2 Center, float Radius)> placed,
+        Func<float, Vector2> place, Func<float, float, float> between)
+    {
+        var clusterCount = MinClusters + random.Next(MaxClusters - MinClusters + 1);
+        var total = MinBuildings + random.Next(MaxBuildings - MinBuildings + 1);
+        var weights = Enumerable.Range(0, clusterCount).Select(_ => .5f + random.NextSingle()).ToArray();
+        var sizes = weights.Select(weight => Math.Max(1, (int)(total * weight / weights.Sum()))).ToArray();
+        for (var i = 0; sizes.Sum() < total; i = (i + 1) % clusterCount) sizes[i]++;
+        for (var i = 0; sizes.Sum() > total; i = (i + 1) % clusterCount) if (sizes[i] > 1) sizes[i]--;
+        const float pitch = StreetWidth + BuildingLot;
+        var buildings = new List<TerrainBuilding>();
+        for (var cluster = 0; cluster < clusterCount; cluster++)
+        {
+            var count = sizes[cluster];
+            var columns = (int)MathF.Ceiling(MathF.Sqrt(count)); var rows = (int)MathF.Ceiling(count / (float)columns);
+            var half = new Vector2(columns, rows) * pitch / 2;
+            var radius = half.Length() + 60;
+            Vector2 center = default; var fits = false;
+            for (var tries = 0; tries < 200 && !fits; tries++)
+            {
+                center = place(radius + 120);
+                fits = Math.Max(Math.Abs(center.X), Math.Abs(center.Y)) <= CombatRules.ArenaHalfSize - radius - 60
+                    && placed.All(other => other.Center.DistanceTo(center) >= other.Radius + radius + 120);
+            }
+            if (!fits) return null;
+            placed.Add((center, radius));
+            var rotation = random.NextSingle() * MathF.PI;
+            var cos = MathF.Cos(rotation); var sin = MathF.Sin(rotation);
+            Vector2 World(Vector2 local) => center + new Vector2(local.X * cos - local.Y * sin, local.X * sin + local.Y * cos);
+            // Level the pad to its centre's height, blending back into the surrounding relief.
+            var level = relief[Node(center)];
+            for (var index = 0; index < relief.Length; index++)
+            {
+                var offset = Point(index) - center;
+                var local = new Vector2(offset.X * cos + offset.Y * sin, -offset.X * sin + offset.Y * cos);
+                var outside = new Vector2(Math.Max(0, Math.Abs(local.X) - half.X - 30), Math.Max(0, Math.Abs(local.Y) - half.Y - 30)).Length();
+                relief[index] = Mathf.Lerp(level, relief[index], Mathf.SmoothStep(0, 1, Math.Clamp(outside / 150, 0, 1)));
+            }
+            var lots = Enumerable.Range(0, columns * rows).OrderBy(_ => random.Next()).Take(count).Order();
+            var town = count >= 10;
+            foreach (var lot in lots)
+            {
+                var lotCenter = new Vector2((lot % columns + .5f) * pitch - half.X, (lot / columns + .5f) * pitch - half.Y);
+                var (style, size, height) = BuildingShape(biome, town, random, between);
+                var extent = style is BuildingStyle.Silo or BuildingStyle.Tank or BuildingStyle.Mast or BuildingStyle.Dome
+                    ? new Vector2(size.X, size.X) : size;
+                // Turning a rectangle a quarter keeps the street grid while varying the layout.
+                var quarter = random.Next(2) == 1;
+                var footprint = quarter ? new Vector2(extent.Y, extent.X) : extent;
+                var slack = new Vector2(BuildingLot / 2, BuildingLot / 2) - footprint;
+                var jitter = new Vector2(Math.Max(0, slack.X) * (random.NextSingle() * 2 - 1), Math.Max(0, slack.Y) * (random.NextSingle() * 2 - 1));
+                buildings.Add(new(style, cluster, World(lotCenter + jitter), extent, rotation + (quarter ? MathF.PI / 2 : 0), height));
+            }
+        }
+        return buildings;
+    }
+    private static (BuildingStyle Style, Vector2 HalfSize, float Height) BuildingShape(Biome biome, bool town, Random random,
+        Func<float, float, float> between)
+    {
+        var roll = random.NextSingle();
+        return biome switch
+        {
+            Mech.Biome.Arctic => roll < .6f ? (BuildingStyle.Block, new(between(10, 20), between(8, 14)), between(15, 25))
+                : roll < .9f ? (BuildingStyle.Tank, new(between(9, 14), 0), between(15, 24))
+                : (BuildingStyle.Mast, new(4, 0), between(45, 60)),
+            Mech.Biome.Lunar => roll < .45f ? Dome(between(14, 22)) : (BuildingStyle.Module, new(between(8, 10), between(15, 22)), 15),
+            _ when town => roll < .6f ? (BuildingStyle.Block, new(between(12, 22), between(12, 22)), between(25, 60))
+                : (BuildingStyle.House, new(between(9, 12), between(7, 10)), between(15, 20)),
+            _ => roll < .4f ? (BuildingStyle.House, new(between(9, 12), between(7, 10)), between(15, 20))
+                : roll < .8f ? (BuildingStyle.Barn, new(between(14, 22), between(10, 14)), between(20, 28))
+                : (BuildingStyle.Silo, new(between(7, 9), 0), between(30, 45)),
+        };
+        static (BuildingStyle, Vector2, float) Dome(float radius) => (BuildingStyle.Dome, new(radius, 0), Math.Max(15, radius));
+    }
+
+    // Seeded value noise: engine-free, so generation stays reproducible in unit tests.
+    private static float Lattice(int seed, int x, int y)
+    {
+        unchecked
+        {
+            var hash = (uint)seed * 0x9E3779B1u ^ (uint)x * 0x85EBCA77u ^ (uint)y * 0xC2B2AE3Du;
+            hash ^= hash >> 15; hash *= 0x2C1B3C6Du; hash ^= hash >> 12; hash *= 0x297A2D39u; hash ^= hash >> 15;
+            return hash / (float)uint.MaxValue;
+        }
+    }
+    private static float ValueNoise(int seed, Vector2 point)
+    {
+        var x = MathF.Floor(point.X); var y = MathF.Floor(point.Y); var ix = (int)x; var iy = (int)y;
+        static float Fade(float t) => t * t * t * (t * (t * 6 - 15) + 10);
+        var u = Fade(point.X - x); var v = Fade(point.Y - y);
+        return Mathf.Lerp(Mathf.Lerp(Lattice(seed, ix, iy), Lattice(seed, ix + 1, iy), u),
+            Mathf.Lerp(Lattice(seed, ix, iy + 1), Lattice(seed, ix + 1, iy + 1), u), v);
+    }
+    private static float Fbm(int seed, Vector2 point, int octaves)
+    {
+        float sum = 0, amplitude = 1, total = 0;
+        for (var octave = 0; octave < octaves; octave++)
+        {
+            sum += ValueNoise(seed + octave * 7919, point) * amplitude; total += amplitude;
+            amplitude *= .5f; point = Octave(point);
+        }
+        return sum / total;
+    }
+    // Rotating and offsetting each octave hides the lattice's axis-aligned grain.
+    private static Vector2 Octave(Vector2 point) => new Vector2(point.X * .8f - point.Y * .6f, point.X * .6f + point.Y * .8f) * 2.03f + new Vector2(17.3f, 41.9f);
+    private static float Ridged(int seed, Vector2 point, int octaves)
+    {
+        float sum = 0, amplitude = 1, total = 0;
+        for (var octave = 0; octave < octaves; octave++)
+        {
+            sum += (1 - Math.Abs(ValueNoise(seed + octave * 7919, point) * 2 - 1)) * amplitude; total += amplitude;
+            amplitude *= .5f; point = Octave(point);
+        }
+        return sum / total;
     }
 
     private static int Index(int x, int z) => z * GridSize + x;
@@ -159,20 +399,22 @@ public sealed class BattlefieldTerrain
     public bool Passable(Vector2 point)
     {
         if (CombatRules.Clamp(point).DistanceSquaredTo(point) > 1e-8f) return false;
-        foreach (var rock in _rocks)
-            if (point.DistanceTo(rock.Center) < rock.Radius + CombatRules.UnitRadius + 1.5f) return false;
+        foreach (var solid in SolidsNear(point))
+            if (_solids[solid].Contains(point, CombatRules.UnitRadius + 1.5f)) return false;
         return SlopeAt(point) <= MaxSlope
             && SlopeAt(point + Vector2.Up * CombatRules.UnitRadius) <= MaxSlope
             && SlopeAt(point + Vector2.Down * CombatRules.UnitRadius) <= MaxSlope
             && SlopeAt(point + Vector2.Left * CombatRules.UnitRadius) <= MaxSlope
             && SlopeAt(point + Vector2.Right * CombatRules.UnitRadius) <= MaxSlope;
     }
-    /// <summary>The highest solid surface a mech passing over this point must clear: ground or rock top.</summary>
-    public float ObstacleTop(Vector2 point)
+    /// <summary>The highest solid surface a mech passing over this point must clear: ground, rock or roof.</summary>
+    public float ObstacleTop(Vector2 point) => SolidTop(point, CombatRules.UnitRadius);
+    /// <summary>The highest ground, rock or roof within this distance of the point.</summary>
+    public float SolidTop(Vector2 point, float margin = 0)
     {
         var top = HeightAt(point);
-        foreach (var rock in _rocks)
-            if (point.DistanceTo(rock.Center) < rock.Radius + CombatRules.UnitRadius) top = Math.Max(top, HeightAt(rock.Center) + rock.Height);
+        foreach (var solid in SolidsNear(point))
+            if (_solids[solid].Contains(point, margin)) top = Math.Max(top, _solids[solid].Top);
         return top;
     }
     public bool CanTraverse(Vector2 from, Vector2 to)
@@ -182,6 +424,7 @@ public sealed class BattlefieldTerrain
         for (var i = 0; i <= steps; i++) if (!Passable(from.Lerp(to, i / (float)steps))) return false;
         return true;
     }
+    // Ice is flat and gives no cover: it neither slows nor screens.
     public float SpeedFactor(Vector2 point) => (Contains(TerrainKind.Water, point) ? WaterSpeed : Contains(TerrainKind.Vegetation, point) ? VegetationSpeed : 1) / (1 + SlopeAt(point));
     public int VegetationModifier(Vector2 from, Vector2 to) => Math.Min(MaxVegetationModifier,
         Patches.Count(patch => patch.Kind == TerrainKind.Vegetation && SegmentCircle(from, to, patch.Center, patch.Radius, out _, out _)));
@@ -195,17 +438,31 @@ public sealed class BattlefieldTerrain
         var root = MathF.Sqrt(discriminant); enter = Math.Max(0, (-b - root) / a); exit = Math.Min(1, (-b + root) / a);
         return enter <= exit;
     }
+    private static bool SegmentSolid(Vector2 from, Vector2 to, Solid solid, out float enter, out float exit)
+    {
+        if (solid.Round) return SegmentCircle(from, to, solid.Center, solid.HalfSize.X, out enter, out exit);
+        var start = solid.Local(from); var direction = solid.Local(to) - start;
+        enter = 0; exit = 1;
+        for (var axis = 0; axis < 2; axis++)
+        {
+            var origin = axis == 0 ? start.X : start.Y; var step = axis == 0 ? direction.X : direction.Y;
+            var half = axis == 0 ? solid.HalfSize.X : solid.HalfSize.Y;
+            if (Math.Abs(step) < 1e-8f) { if (Math.Abs(origin) > half) return false; continue; }
+            var near = (-half - origin) / step; var far = (half - origin) / step;
+            enter = Math.Max(enter, Math.Min(near, far)); exit = Math.Min(exit, Math.Max(near, far));
+        }
+        return enter <= exit;
+    }
     /// <summary>Sight between eyes raised this far above the ground at each end, as a jumping mech's are.</summary>
     public bool ClearSight(Vector2 from, Vector2 to, float fromLift = 0, float toLift = 0)
     {
         if (_flat) return true;
         var startHeight = HeightAt(from) + EyeHeight + fromLift; var endHeight = HeightAt(to) + EyeHeight + toLift;
-        foreach (var rock in _rocks)
+        foreach (var solid in _solids)
         {
-            if (!SegmentCircle(from, to, rock.Center, rock.Radius, out var enter, out var exit)) continue;
+            if (!SegmentSolid(from, to, solid, out var enter, out var exit)) continue;
             var low = Mathf.Lerp(startHeight, endHeight, enter); var high = Mathf.Lerp(startHeight, endHeight, exit);
-            var ground = HeightAt(rock.Center);
-            if (Math.Min(low, high) <= ground + rock.Height && Math.Max(low, high) >= -15) return false;
+            if (Math.Min(low, high) <= solid.Top && Math.Max(low, high) >= solid.Bottom) return false;
         }
         var steps = Math.Max(1, (int)MathF.Ceiling(from.DistanceTo(to) / 6));
         for (var i = 1; i < steps; i++)
@@ -215,14 +472,15 @@ public sealed class BattlefieldTerrain
         }
         return true;
     }
-    public float? RockRayDistance(Vector3 origin, Vector3 direction, float maximum)
+    /// <summary>Nearest rock or building along a normalized ray.</summary>
+    public float? SolidRayDistance(Vector3 origin, Vector3 direction, float maximum)
     {
         float? nearest = null;
         var from = new Vector2(origin.X, origin.Z); var to = from + new Vector2(direction.X, direction.Z) * maximum;
-        foreach (var rock in _rocks)
+        foreach (var solid in _solids)
         {
-            if (!SegmentCircle(from, to, rock.Center, rock.Radius, out var enter, out var exit)) continue;
-            var low = -15f; var high = HeightAt(rock.Center) + rock.Height;
+            if (!SegmentSolid(from, to, solid, out var enter, out var exit)) continue;
+            var low = solid.Bottom; var high = solid.Top;
             if (Math.Abs(direction.Y) < 1e-8f)
             { if (origin.Y < low || origin.Y > high) continue; }
             else
@@ -234,10 +492,10 @@ public sealed class BattlefieldTerrain
         }
         return nearest;
     }
-    /// <summary>Nearest rendered ground or solid rock along a normalized camera ray.</summary>
+    /// <summary>Nearest rendered ground, rock or building along a normalized camera ray.</summary>
     public float? RayDistance(Vector3 origin, Vector3 direction, float maximum)
     {
-        var rock = RockRayDistance(origin, direction, maximum);
+        var rock = SolidRayDistance(origin, direction, maximum);
         var limit = rock ?? maximum;
         var previous = 0f;
         for (var distance = 6f; distance <= limit + 6; distance += 6)

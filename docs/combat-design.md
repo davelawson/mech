@@ -125,7 +125,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 - This is a standalone simulation using existing mech and MechWarrior definitions. It reports damage and outcome without changing the campaign; launching from an accepted mission and applying permanent results are deferred.
 - Use a bounded 192 × 192 arena with procedural natural terrain and authored opposing starting positions, initially outside detection range. Keep spawns clear and connected. Expose a reproducible terrain seed independent of combat rolls.
 - Start paused and support one to four mechs per side. There is no deployment-placement phase.
-- Simulated Deployment first offers **Randomized enemy** or **Mirror match**, then opens the existing force-selection and terrain setup. Canceling returns to the hangar. Every deployment goes through force selection; this is also a general rule for eventual campaign deployments.
+- Simulated Deployment first offers **Randomized enemy** or **Mirror match**, then opens the existing force-selection and terrain setup, including the [biome](#biomes-confirmed-november-4-2026) picker. Canceling returns to the hangar. Every deployment goes through force selection; this is also a general rule for eventual campaign deployments.
 - Select one to four operational roster mechs with healthy, assigned MechWarriors. Show why unavailable mechs cannot participate. Assignments remain managed in the hangar.
 - A mirror match copies the selected mech types and assigned MechWarrior skills, with both sides fully repaired and supplied inside the simulation.
 - Randomized opposition is generated on Launch using fresh candidate pools and uniformly random choices under the player's initial draft rules. Deploy the same number of enemies with the same weight categories as the selected player force, retaining their draft-assigned pilots. Generate another fresh legal draft whenever a category runs out, keeping unused pairs available for later slots. Enemy units start pristine; player units retain their current condition and ammunition in this mode. Repeating a terrain seed reproduces terrain independently of the enemy draft.
@@ -169,7 +169,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 
 ## Deferred beyond the first slice
 
-- Buildings, destructible terrain, deep water, and advanced cover-seeking tactics.
+- Destructible buildings and terrain, roads, deep water, and advanced cover-seeking tactics.
 - Infantry, vehicles, aircraft, and other combatant types.
 - Critical hits, heat damage and ammunition explosions, water cooling bonuses, ammunition consumption, falls, Death from Above, and MechWarrior casualties.
 - Physical projectile collision, friendly fire, melee, called shots, deliberate ammunition dumping, and other special actions.
@@ -202,6 +202,30 @@ Rocks are impassable and block detection and fire. Hills affect movement and lin
 
 Both sides navigate around obstacles and seek a clear firing position for blocked attack orders. A movement order to an inaccessible point resolves to the nearest reachable point and displays the actual destination. Combat information explains blocked fire and vegetation penalties. Use simple, readable visuals and one default terrain density; document and test initial numerical tuning.
 
+
+## Biomes (confirmed November 4, 2026)
+
+Every generated battlefield belongs to a **biome**: Valley, Arctic or Lunar. A biome sets the battlefield's climate, the shape of its ground, the features on it and its look. It changes nothing else: gravity, sensors and jumping are the same everywhere.
+
+**Climate.** A biome has an **ambient temperature**, on the mech heat scale, and a **cooling efficiency**. Every second, each mech's heat moves toward ambient, by 1 heat per heat clock for every 5 points of difference. A mech hotter than ambient gains free cooling; a colder one warms up. The exchange is proportional, so it is strongest for the hottest mechs. Cooling efficiency multiplies heat-sink output only; ambient exchange, weapon, movement, jump and received flamer heat are unaffected. Heat still never falls below zero, and every mech starts at zero.
+
+- **Valley**: average climate. Ambient is above zero, so a mech with few sinks slowly warms up while idle; ten single sinks hold an idle mech at zero.
+- **Arctic**: cold and windy. A low ambient and efficient sinks.
+- **Lunar**: vacuum. A very low ambient gives every hot mech strong free cooling, but sinks shed little, so a sink-heavy build gains far less than it would elsewhere.
+
+**Terrain.** A biome shapes a seeded noise heightfield and chooses its features:
+
+- **Valley**: rolling hills and ridges, forests, rocks, and shallow streams and lakes on low ground.
+- **Arctic**: sharper snowy ridges, sparse conifer stands, rocks, and frozen lakes. Ice is flat, keeps full speed and gives no cover. There is no open water.
+- **Lunar**: cratered plains with raised rims, and boulder fields. No vegetation or water.
+
+**Buildings.** Every biome has one to six settlements holding 15–50 buildings between them, each on a levelled pad, with streets wide enough for any mech. Buildings are solid and indestructible, like rocks: they block movement, sight and fire and give no cover penalty. Movement, jumping and blocked-attack firing positions treat them like rocks. Valley has farmsteads and small towns, Arctic prefab outposts with tanks and radio masts, and Lunar pressurised domes and habitat modules.
+
+**Choosing a biome.** Simulated Deployment has a **Biome** picker beside the terrain seed: Random or a named biome, with each biome's ambient temperature and cooling efficiency shown. The same seed and biome recreate a battlefield; the same seed in another biome is a different battlefield. The battlefield header, pause menu and results show the biome beside the seed. Selected details split cooling into sink output × efficiency and the current ambient exchange.
+
+**Campaign.** Campaign missions will take their biome from the star system hosting them, and the star chart will show a system's biome. Both wait for real planetary data (likely from Sarna); until then only Simulated Deployment uses biomes.
+
+**Visuals.** Everything is drawn in code: noise-textured ground in each biome's palette, faceted rocks and boulders, broadleaf or conifer trees filling vegetation patches, water and ice surfaces, buildings per style, and each biome's sky and sunlight (a black starfield on Lunar). Snow and dust particles are deferred.
 
 ## Sensors and pilot budgets (confirmed October 27, 2026)
 

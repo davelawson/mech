@@ -37,25 +37,30 @@ Move toward the center to make contact. Enemy AI advances there until it detects
 
 ## Natural terrain
 
-Terrain is an immutable, seeded heightfield shared by combat, navigation, rendering and mouse picking. Ground positions remain continuous X/Z; elevation comes from the same triangulated heightfield, sampled every 30 metres, used by the mesh. Combat randomness has a separate seed. Deployment shows an editable signed 32-bit terrain seed and a New terrain button; the battlefield, pause menu and results retain the seed.
+Terrain is an immutable, seeded heightfield shared by combat, navigation, rendering and mouse picking. Ground positions remain continuous X/Z; elevation comes from the same triangulated heightfield, sampled every 30 metres, used by the mesh. Combat randomness has a separate seed. Deployment shows an editable signed 32-bit terrain seed, a New terrain button and a Biome picker; the battlefield, pause menu and results retain the seed and biome.
 
 | Value | Default |
 | --- | --- |
-| Hills | 28 cosine hills, radius 180–330 m, height 90–210 m; overlapping elevations combine |
-| Rocks | Up to 64, radius 39–90 m, height 90–180 m; solid vertical cylinders |
-| Vegetation | Up to 40 patches, radius 90–180 m; 70% speed |
-| Water | Up to 16 shallow patches, radius 90–180 m; 50% speed and flat banks |
+| Valley relief | Fractal value noise (3 octaves, 1,400 m base wavelength) through a smoothstep, up to 230 m, plus 8 m of detail |
+| Arctic relief | Ridged noise (3 octaves, 1,200 m) raised to the 2.4th power, up to 270 m, plus 10 m of detail |
+| Lunar relief | 45 m of gentle noise and 40 craters, radius 60–480 m (mostly small), depth 15–30% of radius, rim 6% |
+| Valley features | 40 rocks (radius 39–90 m, height 90–180 m), 48 forests (radius 90–180 m), 16 water patches (radius 90–180 m) |
+| Arctic features | 56 rocks (as Valley), 24 conifer stands (radius 60–120 m), 14 frozen lakes (radius 120–240 m) |
+| Lunar features | 84 boulders (radius 24–60 m, height 30–100 m) in 12 fields |
+| Water / ice | Flat at their centre's level, banks blended over 120 m; water 50% speed, ice full speed and no cover. Placed on the lowest 30% of the ground where possible |
+| Vegetation | 70% speed |
+| Settlements | 1–6 clusters, 15–50 buildings in total, 15–60 m tall; 50 m lots on a grid with 60 m streets, levelled pads blended over 150 m |
 | Steepness limit | Gradient 0.65 (about 33°), including the mech footprint |
 | Slope speed factor | Divide terrain speed by 1 + local gradient |
-| Solid clearance | Rock radius + mech radius + 1.5 metres |
+| Solid clearance | Rock radius, or building footprint, + mech radius + 1.5 metres |
 | Detection / firing height | 22.5 metres above the ground at each endpoint |
 | Vegetation hit modifier | +1 per crossed patch, capped at +2 |
 | Navigation | Eight-neighbor 30-metre grid, continuous segment clearance checks every 7.5 metres |
-| Hill sight checks | Every 6 metres along the elevated sight ray; rocks use ray/cylinder intersection |
+| Sight checks | Every 6 metres along the elevated sight ray; rocks use ray/cylinder and buildings ray/box intersection |
 
-Generation permits unrestricted asymmetry while reserving clear spawn bands and a clear central rendezvous. It validates paths between all possible spawn slots and the center, retries disconnected candidates, and requires every terrain kind. Patch placement avoids overlapping patches. Hills may overlap patches; shallow water flattens its immediate surroundings. There is one default density. Doubling each battlefield dimension quadruples the feature counts while retaining individual feature sizes. The 30-metre navigation and heightfield grid is 193 × 193.
+Generation permits unrestricted asymmetry while reserving clear spawn bands and a clear central rendezvous: relief fades to flat within 400 metres of them. Lakes keep 150 metres from spawns and settlements, and other features 60 metres from spawns and 150 metres from settlements. Generation validates paths between all possible spawn slots and the center, retries disconnected candidates, and requires every feature kind of its biome. Patch placement avoids overlapping patches. Hand-built test terrain may still use cosine hills. The 30-metre navigation and heightfield grid is 193 × 193.
 
-Move orders resolve inaccessible destinations to the nearest reachable navigation point in the unit's connected component. Paths detour around rocks and steep slopes, with terrain speed weighting for detours; direct clear routes remain direct. Waypoints feed the existing acceleration, braking, turning, and occupied-space avoidance. A unit nearing the end of its route while its goal has moved replans to the current goal, so a moving Follow leader cannot strand it short. Both sides seek a reachable clear firing position when a detected attack target is behind terrain, reconsidering at most once per simulated second. There is no deliberate cover-seeking AI. Shared detection cannot authorize a shot through solid terrain.
+Move orders resolve inaccessible destinations to the nearest reachable navigation point in the unit's connected component. A unit held up by an obstacle for 1.5 seconds replans its route from where it stands. Paths detour around rocks, buildings and steep slopes, with terrain speed weighting for detours; direct clear routes remain direct. Waypoints feed the existing acceleration, braking, turning, and occupied-space avoidance. A unit nearing the end of its route while its goal has moved replans to the current goal, so a moving Follow leader cannot strand it short. Both sides seek a reachable clear firing position when a detected attack target is behind terrain, reconsidering at most once per simulated second. There is no deliberate cover-seeking AI. Shared detection cannot authorize a shot through solid terrain.
 
 ## Weapons and hit rolls
 
@@ -160,9 +165,19 @@ Normal only permits volleys whose projected heat is strictly below 20; Aggressiv
 
 The stock total includes internal sinks. Explicit Heat Sink component entries publish their grouped contribution as `HeatSinkCount`, independently of critical-slot count; existing single-sink groups retain the previous contribution equal to their Slots count. Remove the whole group's contribution when its component is Destroyed or its mounting location is lost, including attached arm loss; do not subtract it twice. Damaged groups retain full output. The unlisted internal remainder survives while the mech survives. Mauler's 11 internal double sinks remove 2.2 heat per second. Individual critical hits and engine heat are deferred.
 
-Friendly ground labels show a 30-pixel heat bar (full at the shutdown threshold) under the callsign, and cards show current heat; selected details show heat band, policy and effective cooling. Normal/Aggressive controls apply to selected units including thermal shutdowns, with a Mixed group readout when appropriate. Exact enemy heat and cooling appear only at Detailed contact tier and disappear when that tier is lost. Water provides no cooling bonus. Heat damage, ammunition explosions and manual venting remain deferred.
+**Climate.** Every second, heat moves toward the biome's ambient temperature by (ambient − heat) ÷ 5 per 10-second heat clock, that is 0.02 × (ambient − heat) per second. Cooling efficiency multiplies sink output only. Hand-built test terrain has no climate: no exchange and 100% efficiency.
 
-Five-to-ten minutes remains a provisional ordinary-engagement target. With the expanded ranges and Normal heat policies, the seeded flat-ground mixed-lance check finishes in 761 simulated seconds; one-on-one Jenner, Griffin and Awesome checks finish in 121, 176 and 183 seconds. The seeded natural-terrain mixed-lance check, with enemy AI jumping, finishes in 898 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
+| Biome | Ambient | Cooling efficiency | At heat 0 | At heat 20 |
+| --- | --- | --- | --- | --- |
+| Valley | 10 | 100% | +0.2 heat/s | −0.2 heat/s |
+| Arctic | −20 | 150% | heat stays 0 | −0.8 heat/s |
+| Lunar | −50 | 25% | heat stays 0 | −1.4 heat/s |
+
+Ten single sinks shed 1 heat/s at 100%, 1.5 in the Arctic and 0.25 on Lunar. In the Valley an idle mech without sinks settles at 10 heat, one with a single sink at 5, and one with two or more sinks at 0. The numbers are provisional.
+
+Friendly ground labels show a 30-pixel heat bar (full at the shutdown threshold) under the callsign, and cards show current heat; selected details show heat band, policy, sink cooling × efficiency, and ambient temperature with its current exchange. Normal/Aggressive controls apply to selected units including thermal shutdowns, with a Mixed group readout when appropriate. Exact enemy heat and cooling appear only at Detailed contact tier and disappear when that tier is lost. Water provides no cooling bonus. Heat damage, ammunition explosions and manual venting remain deferred.
+
+Five-to-ten minutes remains a provisional ordinary-engagement target. With the expanded ranges and Normal heat policies, the seeded flat-ground mixed-lance check finishes in 761 simulated seconds; one-on-one Jenner, Griffin and Awesome checks finish in 121, 176 and 183 seconds. The seeded natural-terrain (Valley) mixed-lance check, with enemy AI jumping, finishes in 596 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
 
 ## Calculation reuse
 

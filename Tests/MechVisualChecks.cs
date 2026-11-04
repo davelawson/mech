@@ -146,6 +146,7 @@ public partial class SmokeTests
         hangar.Hide();
         var combat = new CombatScreen(); stage.AddChild(combat); combat.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         combat.Open(damagedRoster, damaged.Id); combat.RandomizedEnemyButton.EmitSignal(BaseButton.SignalName.Pressed);
+        combat.ChooseBiome(Biome.Valley);
         combat.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed); await Frames();
         var damagedFriendly = combat.Simulation!.Units.First(unit => unit.Side == CombatSide.Friendly);
         Check(combat.Paperdoll.Unit == damagedFriendly
@@ -154,6 +155,7 @@ public partial class SmokeTests
                 damagedFriendly.Spec.Locations.Single(loc => loc.Location == MechLocation.RightTorso).Armor) == CombatPaperdoll.ModerateDamage,
             "randomized battle preserves pre-deployment damage colored against stock maxima");
         combat.Open(damagedRoster, damaged.Id); combat.MirrorMatchButton.EmitSignal(BaseButton.SignalName.Pressed);
+        combat.ChooseBiome(Biome.Valley);
         combat.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed); await Frames();
         var sim = combat.Simulation!; var friendly = sim.Units.First(unit => unit.Side == CombatSide.Friendly);
         var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);

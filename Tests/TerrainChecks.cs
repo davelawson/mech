@@ -21,18 +21,21 @@ internal static class TerrainChecks
     public static void Run(Action<bool, string> check)
     {
         var first = BattlefieldTerrain.Generate(183); var repeat = BattlefieldTerrain.Generate(183); var other = BattlefieldTerrain.Generate(184);
-        check(first.Patches.SequenceEqual(repeat.Patches) && first.Hills.SequenceEqual(repeat.Hills), "terrain seed recreates all geometry");
+        check(first.Patches.SequenceEqual(repeat.Patches) && first.Buildings.SequenceEqual(repeat.Buildings) && SameRelief(first, repeat),
+            "terrain seed recreates all geometry");
         CheckNavigationQueries(first, check);
         check(!first.Patches.SequenceEqual(other.Patches), "different terrain seeds create different maps");
-        check(Enum.GetValues<TerrainKind>().All(kind => first.Patches.Any(patch => patch.Kind == kind)) && first.Hills.Count > 0, "generated maps include rocks, vegetation, water and hills");
-        check(first.Hills.Count == 28 && first.Patches.Count(patch => patch.Kind == TerrainKind.Rock) > 48
-            && first.Patches.Count(patch => patch.Kind == TerrainKind.Vegetation) > 30
-            && first.Patches.Count(patch => patch.Kind == TerrainKind.Water) > 12,
-            "expanded battlefield preserves terrain density with approximately four times the feature counts");
+        check(first.Biome == Biome.Valley && first.Patches.Count(patch => patch.Kind == TerrainKind.Rock) > 30
+            && first.Patches.Count(patch => patch.Kind == TerrainKind.Vegetation) > 36
+            && first.Patches.Count(patch => patch.Kind == TerrainKind.Water) > 12 && !first.Patches.Any(patch => patch.Kind == TerrainKind.Ice),
+            "valley maps carry rocks, forests and water at the agreed density");
+        CheckBiomes(check);
+        CheckBuildings(check);
         check(first.Patches.Any(patch => Math.Abs(patch.Center.X) > 1440) && first.Patches.Any(patch => Math.Abs(patch.Center.Y) > 1440),
             "terrain features populate the expanded battlefield beyond the old boundaries");
         check(first.Patches.Any(patch => !first.Patches.Any(mirror => mirror.Kind == patch.Kind && mirror.Center == new Vector2(patch.Center.X, -patch.Center.Y))), "terrain generation allows asymmetric layouts");
-        foreach (var terrain in new[] { first, other, BattlefieldTerrain.Generate(int.MinValue), BattlefieldTerrain.Generate(int.MaxValue) })
+        foreach (var terrain in new[] { first, other, BattlefieldTerrain.Generate(int.MinValue), BattlefieldTerrain.Generate(int.MaxValue),
+            BattlefieldTerrain.Generate(183, Biome.Arctic), BattlefieldTerrain.Generate(183, Biome.Lunar) })
         {
             foreach (var x in new[] { -360f, -240, -120, 0, 120, 240, 360 }) foreach (var z in new[] { -1920f, 1920 })
             {
@@ -46,6 +49,9 @@ internal static class TerrainChecks
         var roster = Roster();
         var deployed = CombatSimulation.Deploy(roster, roster.Mechs.Select(unit => unit.Id), 42, 183);
         check(deployed.Terrain.Patches.SequenceEqual(first.Patches), "deployment uses supplied terrain seed independently of combat seed");
+        var lunar = CombatSimulation.Deploy(roster, roster.Mechs.Select(unit => unit.Id), 42, 183, biome: Biome.Lunar);
+        check(lunar.Terrain.Biome == Biome.Lunar && lunar.Terrain.Patches.SequenceEqual(BattlefieldTerrain.Generate(183, Biome.Lunar).Patches)
+            && lunar.Units.All(unit => unit.Climate == Biomes.Spec(Biome.Lunar)), "deployment generates the chosen biome and gives every mech its climate");
         var rocks = new BattlefieldTerrain(1, [new(TerrainKind.Rock, Vector2.Zero, 60, 120)], []);
         check(!rocks.Passable(new Vector2(71, 0)) && rocks.Passable(new Vector2(72, 0)), "rocks reserve space for mech radius");
         check(!rocks.ClearSight(new Vector2(-240, 0), new Vector2(240, 0)) && rocks.ClearSight(new Vector2(-240, 120), new Vector2(240, 120)), "rocks block intersecting sight and firing rays");
@@ -84,11 +90,100 @@ internal static class TerrainChecks
         CheckEngagement(first, new[] { "jenner" }, check);
         CheckEngagement(other, new[] { "awesome" }, check);
         CheckEngagement(first, new[] { "firestarter", "griffin", "catapult", "awesome" }, check);
+        CheckEngagement(BattlefieldTerrain.Generate(183, Biome.Arctic), new[] { "griffin" }, check);
+        CheckEngagement(BattlefieldTerrain.Generate(183, Biome.Lunar), new[] { "catapult" }, check);
+    }
+    private static bool SameRelief(BattlefieldTerrain a, BattlefieldTerrain b)
+    {
+        for (var z = -2880f; z <= 2880; z += 90) for (var x = -2880f; x <= 2880; x += 90)
+            if (a.HeightAt(new(x, z)) != b.HeightAt(new(x, z))) return false;
+        return true;
+    }
+    private static (float Low, float High) Relief(BattlefieldTerrain terrain)
+    {
+        float low = float.MaxValue, high = float.MinValue;
+        for (var z = -2880f; z <= 2880; z += 30) for (var x = -2880f; x <= 2880; x += 30)
+        { var height = terrain.HeightAt(new(x, z)); low = Math.Min(low, height); high = Math.Max(high, height); }
+        return (low, high);
+    }
+    private static void CheckBiomes(Action<bool, string> check)
+    {
+        foreach (var seed in new[] { 183, 7, -41 })
+        {
+            var valley = BattlefieldTerrain.Generate(seed); var arctic = BattlefieldTerrain.Generate(seed, Biome.Arctic); var lunar = BattlefieldTerrain.Generate(seed, Biome.Lunar);
+            check(arctic.Biome == Biome.Arctic && arctic.Patches.Any(patch => patch.Kind == TerrainKind.Ice) && arctic.Patches.Any(patch => patch.Kind == TerrainKind.Vegetation)
+                && !arctic.Patches.Any(patch => patch.Kind == TerrainKind.Water), "arctic maps have frozen lakes and sparse forests but no open water");
+            check(lunar.Biome == Biome.Lunar && lunar.Patches.Count > 60 && lunar.Patches.All(patch => patch.Kind == TerrainKind.Rock),
+                "lunar maps have boulder fields and neither vegetation nor water");
+            check(arctic.Patches.Where(patch => patch.Kind == TerrainKind.Vegetation).Sum(patch => patch.Radius * patch.Radius)
+                < valley.Patches.Where(patch => patch.Kind == TerrainKind.Vegetation).Sum(patch => patch.Radius * patch.Radius) / 2,
+                "arctic forests are sparser than valley forests");
+            check(Relief(valley).High > 150 && Relief(arctic).High > 180 && Relief(lunar).Low < -40,
+                "relief is shaped per biome: valley hills, arctic ridges and lunar craters");
+            check(!valley.Patches.SequenceEqual(arctic.Patches) && !SameRelief(valley, arctic), "the same seed in another biome is another battlefield");
+            foreach (var terrain in new[] { valley, arctic, lunar })
+            {
+                var flats = terrain.Patches.Where(patch => patch.Kind is TerrainKind.Water or TerrainKind.Ice).ToArray();
+                check(flats.All(patch => Math.Abs(terrain.HeightAt(patch.Center + new Vector2(patch.Radius * .7f, 0)) - terrain.HeightAt(patch.Center)) < .01f
+                    && terrain.SpeedFactor(patch.Center) == (patch.Kind == TerrainKind.Ice ? 1 : BattlefieldTerrain.WaterSpeed)),
+                    "water and ice are flat; ice keeps full speed");
+                var clusters = terrain.Buildings.GroupBy(building => building.Cluster).ToArray();
+                check(clusters.Length is >= BattlefieldTerrain.MinClusters and <= BattlefieldTerrain.MaxClusters
+                    && terrain.Buildings.Count is >= BattlefieldTerrain.MinBuildings and <= BattlefieldTerrain.MaxBuildings
+                    && terrain.Buildings.All(building => building.Height is >= 15 and <= 60),
+                    $"{terrain.Biome} settlements hold 15–50 buildings, 15–60 m tall, in one to six clusters: {terrain.Buildings.Count} in {clusters.Length}");
+                var styles = terrain.Buildings.Select(building => building.Style).ToHashSet();
+                check(terrain.Biome switch
+                {
+                    Biome.Arctic => styles.IsSubsetOf([BuildingStyle.Block, BuildingStyle.Tank, BuildingStyle.Mast]),
+                    Biome.Lunar => styles.IsSubsetOf([BuildingStyle.Dome, BuildingStyle.Module]),
+                    _ => styles.IsSubsetOf([BuildingStyle.House, BuildingStyle.Barn, BuildingStyle.Silo, BuildingStyle.Block]),
+                }, $"{terrain.Biome} buildings use the biome's styles");
+                check(terrain.Buildings.All(building => terrain.Patches.All(patch => patch.Center.DistanceTo(building.Center) > patch.Radius + 30)),
+                    "terrain features keep clear of settlements");
+                check(clusters.All(cluster => cluster.Select(building => terrain.HeightAt(building.Center)).Distinct().Count() == 1),
+                    "each settlement stands on a levelled pad");
+                // Every building can be approached on foot from the deployment area.
+                var spawn = new Vector2(0, CombatRules.DeploymentDepth);
+                check(terrain.Buildings.All(building => Enumerable.Range(0, 16).Select(index => building.Center
+                        + Vector2.FromAngle(index * Mathf.Tau / 16) * (building.HalfSize.Length() + BattlefieldTerrain.StreetWidth / 2))
+                    .Any(point => terrain.Passable(point) && terrain.FindPath(spawn, point) is { Count: > 0 } route && route[^1].DistanceTo(point) < .3f)),
+                    $"{terrain.Biome} streets leave every building reachable");
+            }
+        }
+    }
+    private static void CheckBuildings(Action<bool, string> check)
+    {
+        var block = new TerrainBuilding(BuildingStyle.Block, 0, Vector2.Zero, new(30, 15), 0, 40);
+        var solid = new BattlefieldTerrain(1, [], [], [block]);
+        check(!solid.Passable(new(41, 0)) && solid.Passable(new(42, 0)) && !solid.Passable(new(0, 26)) && solid.Passable(new(0, 27)),
+            "rectangular buildings reserve their footprint plus mech clearance");
+        var turned = new BattlefieldTerrain(2, [], [], [block with { Rotation = Mathf.Pi / 2 }]);
+        check(turned.Passable(new(27, 0)) && !turned.Passable(new(0, 41)) && turned.Passable(new(0, 42)), "rotated footprints turn with the building");
+        var diagonal = new BattlefieldTerrain(3, [], [], [block with { Rotation = Mathf.Pi / 4 }]);
+        check(!diagonal.Passable(new(20, 20)) && diagonal.Passable(new(-20, 20)) && diagonal.Passable(new(41, 0)),
+            "diagonal footprints block along their length and leave the space beside their corners open");
+        check(!solid.ClearSight(new(-240, 0), new(240, 0)) && solid.ClearSight(new(-240, 120), new(240, 120)), "buildings block intersecting sight and firing rays");
+        check(solid.ObstacleTop(Vector2.Zero) == 40 && solid.SolidTop(new(35, 0)) == 0 && solid.ObstacleTop(new(35, 0)) == 40,
+            "jumping mechs must clear roofs, including the mech's own width");
+        check(solid.RayDistance(new(0, 100, 0), Vector3.Down, 200) is { } roof && Math.Abs(roof - 60) < .01f
+            && solid.RayDistance(new(-100, 20, 0), Vector3.Right, 200) is { } wall && Math.Abs(wall - 70) < .01f,
+            "camera and shot rays stop at roofs and walls");
+        var over = new BattlefieldTerrain(4, [], [new(new Vector2(-240, 0), 120, 150), new(new Vector2(240, 0), 120, 150)],
+            [block with { Height = 20 }]);
+        check(over.ClearSight(new(-240, 0), new(240, 0)), "height-aware sight can pass above low buildings");
+        var path = solid.FindPath(new(-240, 0), new(240, 0)); var origin = new Vector2(-240, 0);
+        check(path.Count > 1, "navigation detours around buildings");
+        foreach (var waypoint in path) { check(solid.CanTraverse(origin, waypoint), "detours cannot clip building clearance"); origin = waypoint; }
+        var dome = new BattlefieldTerrain(5, [], [], [new(BuildingStyle.Dome, 0, Vector2.Zero, new(20, 0), 1, 30)]);
+        check(!dome.Passable(new(21, 21)) && dome.Passable(new(23, 23)) && !dome.ClearSight(new(-240, 10), new(240, 10)),
+            "domes use round footprints");
+        CheckMovement(solid, check);
     }
     private static void CheckNavigationQueries(BattlefieldTerrain terrain, Action<bool, string> check)
     {
         var from = new Vector2(-360, 1920); var to = new Vector2(360, -1920);
-        Vector2[] expected = [new(-360, 510), new(120, -390), new(240, -1560), to];
+        Vector2[] expected = [new(-840, 1170), new(-810, 720), new(-510, -90), new(-240, -900), new(30, -1230), to];
         var retained = terrain.FindPath(from, to);
         check(retained.SequenceEqual(expected), "seeded path retains its original waypoints and tie ordering");
         var rocks = new BattlefieldTerrain(1, [new(TerrainKind.Rock, Vector2.Zero, 60, 120)], []);

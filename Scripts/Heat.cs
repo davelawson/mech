@@ -6,6 +6,8 @@ public static partial class CombatRules
 {
     public const double WarmHeat = 10, HotHeat = 20, ShutdownHeat = 30;
     public const double HeatClockSeconds = 10;
+    /// <summary>Each this many heat points between a mech and the ambient temperature move 1 heat per heat clock.</summary>
+    public const double AmbientExchangeDifference = 5;
     /// <summary>Heat per second from travelling at walking speed, and above the unheated walking limit.</summary>
     public const double WalkingHeatRate = 1 / HeatClockSeconds, RunningHeatRate = 2 / HeatClockSeconds;
     public static double HeatLimit(HeatPolicy policy) => policy == HeatPolicy.Aggressive ? ShutdownHeat : HotHeat;
@@ -26,11 +28,18 @@ public sealed partial class CombatUnit
         .Where(component => component.Kind == ComponentKind.HeatSink
             && (!Intact(component.Location) || Equipment[component.Id] == ComponentCondition.Destroyed))
         .Sum(component => component.HeatSinkCount));
-    public double CoolingRate => EffectiveHeatSinks * Spec.CoolingPerSink / CombatRules.HeatClockSeconds;
+    /// <summary>The battlefield's climate; tests on hand-built terrain have none and exchange no ambient heat.</summary>
+    internal BiomeSpec? Climate { get; set; }
+    public double CoolingEfficiency => Climate?.CoolingEfficiency ?? 1;
+    /// <summary>Heat-sink cooling per second, after the climate's cooling efficiency.</summary>
+    public double CoolingRate => EffectiveHeatSinks * Spec.CoolingPerSink * CoolingEfficiency / CombatRules.HeatClockSeconds;
+    /// <summary>Heat per second gained (positive) or shed (negative) toward the ambient temperature, unaffected by efficiency.</summary>
+    public double AmbientHeatRate => Climate is { } climate
+        ? (climate.Ambient - Heat) / CombatRules.AmbientExchangeDifference / CombatRules.HeatClockSeconds : 0;
     public double MovementHeatRate => !Moving || !Active ? 0
         : CurrentSpeed > UnheatedWalkingSpeed + .00001f ? CombatRules.RunningHeatRate : CombatRules.WalkingHeatRate;
 
-    internal void AdvanceHeat(double delta) => AddHeat((MovementHeatRate - CoolingRate) * delta);
+    internal void AdvanceHeat(double delta) => AddHeat((MovementHeatRate - CoolingRate + AmbientHeatRate) * delta);
     internal void AddHeat(double amount)
     {
         // Normalize numerical drift so an exact threshold is not crossed a step early.

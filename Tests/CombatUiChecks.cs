@@ -53,6 +53,12 @@ public partial class SmokeTests
         Check(!tactical.LaunchButton.Disabled && int.TryParse(tactical.TerrainSeedInput.Text, out _), "New terrain supplies a valid seed");
         tactical.TerrainSeedInput.Text = "183";
         tactical.TerrainSeedInput.EmitSignal(LineEdit.SignalName.TextChanged, "183");
+        Check(tactical.BiomePicker.ItemCount == 1 + Biomes.All.Count && tactical.BiomePicker.Selected == 0
+            && tactical.BiomePicker.GetItemText(0) == "Random", "biome picker offers Random and every biome, defaulting to Random");
+        Check(TacticalText().Any(text => Biomes.All.All(biome => text.Contains(biome.Name))), "Random lists every biome's climate");
+        tactical.BiomePicker.Select(1 + Biomes.All.ToList().FindIndex(spec => spec.Biome == Biome.Valley));
+        tactical.BiomePicker.EmitSignal(OptionButton.SignalName.ItemSelected, (long)tactical.BiomePicker.Selected);
+        Check(TacticalText().Any(text => text.Contains(Biomes.Spec(Biome.Valley).ClimateText)), "choosing a biome shows its ambient temperature and cooling efficiency");
         await Capture("deployment-selection");
         GetWindow().Size = new Vector2I(900, 500); await Frames();
         Check(tactical.GetGlobalRect().Encloses(tactical.TerrainSeedInput.GetGlobalRect())
@@ -84,8 +90,10 @@ public partial class SmokeTests
         var friendly = sim.Units.First(item => item.Side == CombatSide.Friendly);
         var distanceControl = tactical.FindChildren("*", "SpinBox", true, false).OfType<SpinBox>().Single();
         Check(distanceControl.MinValue == 135 && distanceControl.MaxValue == 1890, "preferred-distance control supports the expanded engagement distances");
-        Check(sim.Terrain.Seed == 183, "deployment honors the entered terrain seed");
-        var hilltop = sim.Terrain.Hills.OrderByDescending(hill => sim.Terrain.HeightAt(hill.Center)).First().Center;
+        Check(sim.Terrain.Seed == 183 && sim.Terrain.Biome == Biome.Valley, "deployment honors the entered terrain seed and chosen biome");
+        Check(CombatScreen.HeatReadout(friendly).Contains("× 100%") && CombatScreen.HeatReadout(friendly).Contains("Ambient 10 · +0.20 heat/s"),
+            "selected details split cooling into sinks × efficiency and ambient exchange");
+        var hilltop = HighestGround(sim.Terrain);
         Check(field.GroundPoint(field.ScreenPoint(hilltop)).DistanceTo(hilltop) < .6f, "height-aware picking matches rendered hill elevation");
         var rock = sim.Terrain.Patches.First(patch => patch.Kind == TerrainKind.Rock);
         await PressKey(Key.Home);
@@ -134,6 +142,7 @@ public partial class SmokeTests
         var pausedAt = sim.Elapsed;
         Check(tactical.Modal == CombatModal.Menu && sim.Paused, "Escape opens suspended combat menu");
         await Delay(.15); Check(sim.Elapsed == pausedAt, "combat menu freezes combat clock");
+        Check(TacticalText().Any(text => text.Contains("Terrain seed: 183 · Valley")), "combat menu shows the biome beside the seed");
         await Capture("combat-menu");
         await Click(tactical.ResumeButton);
         Check(!sim.Paused && tactical.Modal == CombatModal.None, "menu Resume restores running state");
@@ -224,11 +233,13 @@ public partial class SmokeTests
         await Click(tactical.ForceChoices[0]);
         tactical.TerrainSeedInput.Text = "183";
         tactical.TerrainSeedInput.EmitSignal(LineEdit.SignalName.TextChanged, "183");
+        tactical.ChooseBiome(Biome.Lunar);
         await Click(tactical.LaunchButton);
         var randomFriends = tactical.Simulation!.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
         var randomEnemies = tactical.Simulation.Units.Where(unit => unit.Side == CombatSide.Enemy).ToArray();
         Check(randomFriends.Length == 2 && randomEnemies.Length == 2 && randomFriends.Zip(randomEnemies)
-            .All(pair => pair.First.Spec.WeightClass == pair.Second.Spec.WeightClass) && tactical.Simulation.Terrain.Seed == 183,
+            .All(pair => pair.First.Spec.WeightClass == pair.Second.Spec.WeightClass) && tactical.Simulation.Terrain.Seed == 183
+            && tactical.Simulation.Terrain.Biome == Biome.Lunar && tactical.Simulation.Units.All(unit => unit.Climate == Biomes.Spec(Biome.Lunar)),
             "randomized launch honors selected force categories, count and terrain seed");
         foreach (var unit in tactical.Simulation!.Units.Where(item => item.Side == CombatSide.Enemy)) unit.ApplyDamage(MechLocation.CenterTorso, 10000);
         tactical.TogglePause(); await Delay(.15);
@@ -239,6 +250,16 @@ public partial class SmokeTests
         Check(_app.Hangar.Visible && JsonSerializer.Serialize(_app.State.Snapshot()) == before, "result Escape preserves campaign and returns to hangar");
         await PressKey(Key.Escape);
     }
+    private string[] TacticalText() => _app.Tactical.FindChildren("*", "Label", true, false).OfType<Label>()
+        .Where(label => label.IsVisibleInTree()).Select(label => label.Text).ToArray();
+    /// <summary>The highest passable grid point: the generated relief's hilltop.</summary>
+    private static Vector2 HighestGround(BattlefieldTerrain terrain)
+    {
+        var best = Vector2.Zero;
+        for (var z = -2850f; z <= 2850; z += 30) for (var x = -2850f; x <= 2850; x += 30)
+            if (terrain.HeightAt(new(x, z)) > terrain.HeightAt(best) && terrain.Passable(new(x, z))) best = new(x, z);
+        return best;
+    }
     private async Task TestTerrainUi()
     {
         var tactical = _app.Tactical; var sim = tactical.Simulation!; var terrain = sim.Terrain;
@@ -246,7 +267,7 @@ public partial class SmokeTests
         var target = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
         foreach (var unit in sim.Units) { sim.Hold([unit.Id]); unit.Firing = FiringMode.HoldFire; }
         static IEnumerable<Vector2> Around(Vector2 center, float radius) => Enumerable.Range(0, 24).Select(index => center + Vector2.FromAngle(index * Mathf.Tau / 24) * radius);
-        var rock = terrain.Patches.First(patch => patch.Kind == TerrainKind.Rock && terrain.HeightAt(patch.Center) < .01f
+        var rock = terrain.Patches.First(patch => patch.Kind == TerrainKind.Rock && terrain.SlopeAt(patch.Center) < .1f
             && Around(patch.Center, patch.Radius + 90).All(terrain.Passable));
         friends[0].Position = rock.Center + Vector2.Left * (rock.Radius + 90);
         target.Position = rock.Center + Vector2.Right * (rock.Radius + 90);
@@ -264,12 +285,30 @@ public partial class SmokeTests
         sim.RefreshDetection(); tactical.SelectUnits([friends[0].Id], false); await Delay(.15);
         Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Vegetation: +")),
             "combat information shows the vegetation hit penalty");
-        var hill = terrain.Hills.OrderByDescending(hill => terrain.HeightAt(hill.Center)).First();
-        friends[0].Position = hill.Center; await Frames();
+        var hill = HighestGround(terrain);
+        friends[0].Position = hill; await Frames();
         Check(tactical.Battlefield.FindChildren("*", "Node3D", true, false).OfType<MechModel>().Any(model =>
-            Math.Abs(model.Position.X - hill.Center.X) < .3f && Math.Abs(model.Position.Z - hill.Center.Y) < .3f
-            && Math.Abs(model.Position.Y - terrain.HeightAt(hill.Center)) < .3f), "rendered mechs stand at the simulation hill elevation");
+            Math.Abs(model.Position.X - hill.X) < .3f && Math.Abs(model.Position.Z - hill.Y) < .3f
+            && Math.Abs(model.Position.Y - terrain.HeightAt(hill)) < .3f), "rendered mechs stand at the simulation hill elevation");
         await Capture("terrain-elevation");
+        // Each biome renders its own features and buildings; restore the battle afterwards.
+        var roster = _app.State.Roster!;
+        foreach (var biome in Biomes.All.Select(spec => spec.Biome))
+        {
+            var view = CombatSimulation.Deploy(roster, [roster.Mechs[0].Id], 41, 183, biome: biome);
+            tactical.Battlefield.Display(view); await Frames();
+            var scene = tactical.Battlefield.FindChildren("Terrain", "Node3D", true, false).OfType<Node3D>().Single();
+            // Features are named by kind or style and index.
+            int Named(string name) => scene.GetChildren().Count(node => node.Name.ToString().Contains(name));
+            Check(Enum.GetNames<BuildingStyle>().Sum(Named) == view.Terrain.Buildings.Count
+                && (Named("Trees") == 1) == (biome != Biome.Lunar)
+                && Named("Rock") == view.Terrain.Patches.Count(patch => patch.Kind == TerrainKind.Rock)
+                && Named("Ice") == view.Terrain.Patches.Count(patch => patch.Kind == TerrainKind.Ice),
+                $"{biome} renders its buildings, rocks, ice and trees");
+            await Capture($"terrain-{biome.ToString().ToLowerInvariant()}");
+            await PressKey(Key.Home); await Capture($"terrain-{biome.ToString().ToLowerInvariant()}-overview");
+        }
+        tactical.Battlefield.Display(sim); await Frames();
     }
 
 }
