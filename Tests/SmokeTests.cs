@@ -38,7 +38,7 @@ public partial class SmokeTests : Node
         }),
         new("roster", Setup.Drafted, async () => { RosterChecks.Run(Check); await TestRosterUi(); }),
         new("hangar", Setup.Drafted, async () => { HangarChecks.Run(Check); await TestHangarAssignmentsUi(); await TestHangarScreen(); await TestHangarLoadout(); await TestHangarInstall(); await TestHangarArmor(); await TestHangarMarket(); }),
-        new("missions", Setup.Menu, async () => { MissionChecks.Run(Check); await TestMissionsUi(); }),
+        new("missions", Setup.Menu, async () => { MissionChecks.Run(Check); ReputationChecks.Run(Check); await TestMissionsUi(); }),
         new("finance", Setup.Menu, async () => { CampaignChecks.Run(Check); await TestCampaignUi(); }),
         new("catalog", Setup.None, () => { CatalogChecks.Run(Check); return Task.CompletedTask; }),
         new("combat-sim", Setup.None, () => { CombatChecks.Run(Check); TerrainChecks.Run(Check); return Task.CompletedTask; }),
@@ -176,6 +176,9 @@ public partial class SmokeTests : Node
         await PressKey(Key.Enter);
         Check(_app.StarMap.Visible && !_app.Office.Visible, "keyboard activation opens the chart");
         Check(_app.StarMap.Viewport.HasFocus(), "map receives keyboard focus");
+        var galatea = StarChart.Instance[StarChart.Instance.StartingSystemId];
+        Check(MapViewport.SystemTooltip(galatea, _app.State) == "Galatea · Volcanic\nOwner: Lyran Commonwealth · Neutral 0\nClick to plot a journey",
+            "system tooltip names the owner and your standing with it");
         await Capture("map-fit");
         await PressKey(Key.Plus);
         Near(_app.StarMap.Viewport.Transform.Zoom, 1.35f, "keyboard zoom");
@@ -350,6 +353,10 @@ public partial class SmokeTests : Node
         Check(_app.Missions.MissionName.Text == oldest.Name && board.Current is null && _app.Missions.MissionButtons.Count == MissionTuning.BoardSize,
             "the oldest of ten offers opens first without accepting it");
         Check(_app.Missions.TermsText.Contains($"BIOME  {StarChart.Instance[oldest.SystemId].BiomeText}"), "mission terms show the host system's biome");
+        Check(_app.Missions.ReputationLabels.Select(label => label.Text).SequenceEqual(Factions.All.Select(faction => $"{faction.Name} · Neutral 0")),
+            "the phone lists a neutral standing with each faction");
+        Check(_app.Missions.TermsText.StartsWith($"EMPLOYER  {oldest.Employer.Name}") && _app.Missions.TermsText.Contains($"\nOPPONENT  {oldest.Opponent.Name}")
+            && _app.Missions.MissionButtons.All(button => button.Text.Contains(" vs. ")), "offers show the employer and opponent");
         Check(_app.Missions.GetGlobalRect().Encloses(_app.Missions.AcceptButton.GetGlobalRect()), "first-open mission action stays inside the window");
         await Click(office.SafeButton);
         Check(!_app.Dialog.Visible && _app.Missions.Visible, "mission overlay blocks office clicks and does not dismiss on backdrop click");
@@ -390,7 +397,7 @@ public partial class SmokeTests : Node
         Check(_app.State.Missions.Current?.Id == oldest.Id && !office.PhoneFlashing, "manual load restores current mission and seen state");
         await Click(office.PhoneButton);
         var other = _app.State.Missions.Available[1];
-        await Click(_app.Missions.MissionButtons.First(button => button.TooltipText == $"Posted {_app.State.DateText}" && button.Text == other.Name));
+        await Click(_app.Missions.MissionButtons.First(button => button.TooltipText.StartsWith($"Posted {_app.State.DateText}\n") && button.Text.StartsWith(other.Name + "\n")));
         Check(_app.Missions.MissionName.Text == other.Name && _app.Missions.AcceptButton.Visible && _app.Missions.AcceptButton.Disabled
             && !_app.Missions.AbandonButton.Visible && _app.State.Missions.Current?.Id == oldest.Id, "other offers can be perused without replacing current mission");
         await Capture("missions-other-offer");

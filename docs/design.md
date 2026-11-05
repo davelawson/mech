@@ -28,7 +28,7 @@
 - Supply mission results through authored outcomes with editable details.
 - Contracts and missions are distinct; initially offer single-mission contracts.
 - Apply payment, mech damage and loss, repair costs and time, pilot casualties, and recurring expenses.
-- Salvage and reputation are deferred beyond this first milestone.
+- Salvage is deferred beyond this first milestone. Reputation is described under [Reputation](#reputation-confirmed-november-5-2026).
 - Advance an explicit calendar; allow one active contract initially.
 
 # Campaign and travel
@@ -180,6 +180,8 @@ A 30-light-year jump takes five days; shorter jumps scale linearly and round up 
 
 Persist location, candidate and embarked routes, current jump progress, accrued transit days, and the frozen transit component of a pending bill. Use the source map's coordinates and scale; duplicated system names retain distinct stable identities. Unreachable destinations cannot be embarked.
 
+**System owners** (confirmed November 5, 2026). Every system has the owner it had on 1 January 3025, from [`Data/system-factions.json`](../Data/README.md#star-system-owners): a Great House, ComStar (Terra only), a Periphery state, an Independent world, or several claimants when contested. Abandoned and unsurveyed systems have no owner. The hover tooltip has a second line, "Owner: Lyran Commonwealth · Neutral 0", giving the owner and your [reputation](#reputation-confirmed-november-5-2026) with it. Contested systems and owners that aren't tracked factions are named without a reputation, and unowned systems show no owner line. A third line says whether a click plots a journey.
+
 **System biomes** (confirmed November 4, 2026). Every system has a [biome](combat-design.md#biomes-confirmed-november-4-2026) derived from its primary world's 3025 climate (`Data/system-climate.json`), and systems of 4 billion people or more are also **Urban**. The biome shows in the system's hover tooltip, in the location readout while in orbit ("In orbit · Galatea · Volcanic"), and as the destination's biome in candidate and embarked routes.
 
 Find a system with the destination search as an alternative to clicking it. Drag to pan; scroll or use the + / − buttons to zoom. With the map focused, + / − zoom, arrow keys pan, and Home fits the complete chart. 100% zoom fits the whole chart; maximum zoom is 1200%. Resizing preserves the image aspect ratio, hotspot alignment, and map location. Return with “Back to office”, right-click, or Escape; map position survives navigation, and keyboard focus returns to the wall chart.
@@ -200,16 +202,53 @@ A silent flashing light on the office phone indicates new mission offers. Openin
 
 **Each generated offer** has:
 
-- a placeholder name and briefing, and the objective "Defeat the defending force". There is no employer yet.
+- an employer and an opponent (see [Contract sides](#reputation-confirmed-november-5-2026)), and whether it is a **raid** (the employer attacks) or a **defense**. The placeholder name and briefing follow the kind ("Raid on Galatea", "Defense of Galatea") and name the employer; the objective is "Defeat the defending force" on a raid and "Defeat the attacking force" on a defense. The phone's offer list shows each offer's sides, as "Davion vs. Kurita", and the terms show the employer, opponent and contract kind with your reputation with each tracked faction.
 - a biome: the location's, shown in the terms. Missions will be fought on it once they launch battles.
-- a location: a random named system within 3 jumps of the DropShip when the offer is posted, counted from the system being jumped to while in transit. It never changes.
+- a location: a named system within 3 jumps of the DropShip when the offer is posted, counted from the system being jumped to while in transit, chosen to suit the sides. It never changes.
 - its opposition: 2–4 BattleMechs, each a random stock catalog mech of a weight class drawn Light 40 / Medium 35 / Heavy 18 / Assault 7, piloted by an unnamed pilot of rank Green 20 / Regular 50 / Veteran 22 / Elite 8. The briefing shows exactly the force that will be fielded.
 - a completion deadline of travel days to the location plus 14, shown as "N days after acceptance" and fixed as a date on acceptance. The travel estimate finishes the current jump first.
 - fixed rewards, with no negotiation yet. Difficulty is the enemy tonnage, each mech weighted by its pilot's rank (Green 0.8, Regular 1.0, Veteran 1.25, Elite 1.5). The budget is difficulty × 4,000 C-bills, ±20%, split at random: at least 40% to payment, the rest between salvage and the insurance limit. **Payment** is in C-bills. **Salvage** is a number of picks from wrecks and equipment after the battle: its share ÷ 100,000 C-bills, rounded, from 0 to 6. **Insurance** pays the lesser of the deployed mechs' repair costs, with destroyed mechs at their replacement value, and the offer's limit (a negotiated maximum once negotiation exists). Payment and the insurance limit are rounded to 1,000 C-bills.
 
 Rewards are only displayed for now: payment, salvage and insurance are settled once mission results reach the campaign. The deadline is recorded but missing it has no effect yet. The numbers live in `MissionTuning`.
 
-Generation uses a seeded random number generator whose state is saved, so reloading and advancing repeats the same offers and removals. Saves before version 6 receive a freshly generated board and lose their accepted mission.
+Generation uses a seeded random number generator whose state is saved, so reloading and advancing repeats the same offers and removals. Saves before version 8 receive a freshly generated board and lose their accepted mission.
+
+## Reputation (confirmed November 5, 2026)
+
+The mercenary force has a reputation with each **tracked faction**: the five Great Houses (Federated Suns, Draconis Combine, Capellan Confederation, Free Worlds League and Lyran Commonwealth) and ComStar. Pirates have no collective reputation, since each band is independent; local forces (a governor's feud, a planetary concern below the Great Houses' notice) and Periphery states have none either. The tracked factions are a data list in `Factions`, so more can be added later.
+
+- **Scale.** Reputation runs from −100 to +100. Every faction starts at 0, neutral, and reputation never drifts back on its own. It is stored in tenths of a point, so half-point changes stay exact, and shown in whole points rounded half away from zero.
+- **Tiers.** Hated ≤ −60, Hostile ≤ −20, Neutral −19 to +19, Friendly ≥ +20, Honored ≥ +60. The numbers live in `ReputationTuning`.
+- **Display.** The phone's mission overlay lists every tracked faction under its heading, as "Draconis Combine · Friendly +24", in red for Hated and Hostile, grey for Neutral and green for Friendly and Honored. The star map's hover tooltip shows your reputation with the system's owner (see [System owners](#star-travel-confirmed-october-25-2026)).
+- **Effects.** Until negotiation exists, the only effect is that a faction that hates you posts no offers; it can still be fought. Reputation will shape negotiated terms once negotiation is designed.
+- **Saves.** Version 7 saves record each faction's reputation in tenths, keyed by faction name. Older saves start neutral with everyone.
+
+**Contract sides.** Every offer has an employer and an opponent, drawn by these odds (in `MissionTuning`) among the systems within the offer's reach. Two Houses **border** each other at a location when the other holds a system within 2 jumps of it.
+
+- **Employer:** a Great House 75%, ComStar 10%, pirates 15%. Local forces never hire. A Hated faction is never drawn.
+- **A Great House** fights another House 50%, local forces 20%, pirates 20% or ComStar 10%. Against another House it is a raid on a rival world bordering its own, or a defense of its own world against a bordering rival, 50/50. It raids local forces at a system it doesn't hold, defends its own world against pirates, and moves against ComStar on one of its own worlds.
+- **ComStar** works at any held system, as a raid or defense 50/50, against pirates 40%, local forces 30%, or a House 30% (the system's House, or one bordering it; pirates if there is none).
+- **Pirates** always raid a House's world, against local forces 60% or that House 40%.
+- **Local forces** are generated per offer, such as "Galatea Planetary Guard" or "Governor Brandt's Household Troops".
+- When the drawn employer has nothing suitable within reach, a random system's owner defends it against pirates; if that owner is untracked or hates you, pirates raid its local forces instead.
+
+**Mission conduct** (scored by `Reputation.MissionChanges`, applied once at settlement when settlement exists). Changes in points; they add up when a faction plays several roles, such as ComStar hiring the force.
+
+| Fact | Employer | Opponent | ComStar | System owner |
+|---|---|---|---|---|
+| Success | +6 | | +1 | |
+| Failure with reasonable effort | −2 | | | |
+| Failure without effort, abandonment, missed deadline | −8 | | −1 | |
+| Fighting them (base) | | −3 | | |
+| Each enemy MechWarrior who survives | | +1 | +0.5 | |
+| Each enemy mech allowed to flee | | +1 | +0.5 | |
+| Each salvage pick taken over the allotment | −2 | | −1 | |
+| Each building destroyed beyond 3 | | | −0.5 | −1 |
+| Raiding for pirates | | | −2 | −2 |
+
+- Opponent, honor, building and pirate-raid changes need a battle; abandoning or missing the deadline involves none. Only tracked factions change: pirates and local forces hold no reputation, though sparing them still earns ComStar's respect.
+- **Reasonable effort** means the force lost armor equal to at least a quarter of the most armor its deployed mechs' tonnages allow (the sum of their location armor limits), whatever they actually carried, so fielding damaged or lightly armored mechs doesn't help.
+- Fleeing, building destruction and salvage are reported as zero until those mechanics exist. A MechWarrior dies only when the head is destroyed (see [combat design](combat-design.md#location-loss-and-defeat)).
 
 ## Initial combat design (confirmed October 25, 2026)
 

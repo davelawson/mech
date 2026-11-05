@@ -8,7 +8,7 @@ public sealed record CampaignEvent(string Id, DateOnly Date, CampaignEventKind K
 public sealed record DayResult(bool Advanced, bool QuarterReached, IReadOnlyList<CampaignEvent> Events);
 public sealed record CampaignSnapshot(int Version, DateOnly Date, long Cash, long PaymentDue,
     long DeferredDebt, DateOnly NextQuarter, bool Bankrupt, CampaignEvent[] Events, RosterSnapshot? Roster = null, MissionSnapshot? Missions = null,
-    TravelSnapshot? Travel = null, int AccruedTransitDays = 0, int BilledTransitDays = 0);
+    TravelSnapshot? Travel = null, int AccruedTransitDays = 0, int BilledTransitDays = 0, ReputationSnapshot? Reputation = null);
 
 /// <summary>Campaign time and obligations, independent of the scene tree and animation.</summary>
 public sealed class Campaign
@@ -35,11 +35,12 @@ public sealed class Campaign
     public ForceRoster? Roster { get; private set; }
     public bool RequiresDraft => Roster is null;
     public MissionBoard Missions { get; private set; }
-    public const int SaveVersion = 6;
+    public Reputation Reputation { get; private set; } = new();
+    public const int SaveVersion = 8;
 
     public Campaign(ulong? missionSeed = null)
     {
-        Missions = MissionBoard.Create(missionSeed ?? NewSeed(), Date, MissionOrigin);
+        Missions = MissionBoard.Create(missionSeed ?? NewSeed(), Date, MissionOrigin, Reputation);
     }
     private static ulong NewSeed() => (ulong)Random.Shared.NextInt64();
 
@@ -114,7 +115,7 @@ public sealed class Campaign
             if (arrived is not null) _events.Add(new($"travel-arrival-{Date.DayNumber}", Date,
                 CampaignEventKind.Arrival, $"Arrived at {StarChart.Instance[arrived].Name}. In orbit for today."));
         }
-        Missions.AdvanceDay(Date, MissionOrigin);
+        Missions.AdvanceDay(Date, MissionOrigin, Reputation);
         var quarterReached = Date == NextQuarter;
         // Accounting is evaluated before any other event on the same date.
         if (quarterReached)
@@ -168,7 +169,7 @@ public sealed class Campaign
         return due;
     }
 
-    public CampaignSnapshot Snapshot() => new(SaveVersion, Date, Cash, PaymentDue, DeferredDebt, NextQuarter, Bankrupt, _events.ToArray(), Roster?.Snapshot(), Missions.Snapshot(), Travel.Snapshot(), AccruedTransitDays, BilledTransitDays);
+    public CampaignSnapshot Snapshot() => new(SaveVersion, Date, Cash, PaymentDue, DeferredDebt, NextQuarter, Bankrupt, _events.ToArray(), Roster?.Snapshot(), Missions.Snapshot(), Travel.Snapshot(), AccruedTransitDays, BilledTransitDays, Reputation.Snapshot());
 
     public static Campaign Restore(CampaignSnapshot save)
     {
@@ -188,7 +189,7 @@ public sealed class Campaign
             || save.Bankrupt != (save.PaymentDue > 0 && save.DeferredDebt > 0 && save.Cash < save.PaymentDue)
             || save.Events is null || save.Version == 1 && save.Roster is not null || save.Version >= 2 && save.Roster is null
             || save.Version < 3 && save.Missions is not null || save.Version >= 3 && save.Missions is null
-            || save.Version >= 4 && save.Travel is null)
+            || save.Version >= 4 && save.Travel is null || save.Version >= 7 && save.Reputation is null)
             throw new ArgumentException("The campaign save contains invalid state.");
 
         var campaign = new Campaign
@@ -200,9 +201,12 @@ public sealed class Campaign
         if (save.Version >= 4) campaign.Travel = Mech.Travel.Restore(save.Travel!, StarChart.Instance);
         // Saves before version 5 counted whole stock points of armor and structure.
         if (save.Roster is not null) campaign.Roster = ForceRoster.Restore(save.Version < 5 ? ForceRoster.Rescale(save.Roster, CombatRules.DamageScale) : save.Roster, date);
-        // Saves before version 6 held the single authored offer; they receive a freshly generated board.
-        campaign.Missions = save.Version >= 6 ? MissionBoard.Restore(save.Missions!, date)
-            : MissionBoard.Create(NewSeed(), date, campaign.MissionOrigin);
+        // Saves before version 7 had no reputation, so every faction starts neutral.
+        if (save.Version >= 7) campaign.Reputation = Mech.Reputation.Restore(save.Reputation!);
+        // Saves before version 6 held the single authored offer, and offers before version 8 had no employer or opponent;
+        // they receive a freshly generated board.
+        campaign.Missions = save.Version >= 8 ? MissionBoard.Restore(save.Missions!, date)
+            : MissionBoard.Create(NewSeed(), date, campaign.MissionOrigin, campaign.Reputation);
         foreach (var item in save.Events)
         {
             if (item is null || string.IsNullOrWhiteSpace(item.Id) || string.IsNullOrWhiteSpace(item.Title)

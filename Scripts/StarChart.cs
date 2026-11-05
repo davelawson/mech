@@ -2,8 +2,12 @@ using System.Text.Json;
 
 namespace Mech;
 
-public sealed record StarSystem(string Id, string Name, double X, double Y, double[] LabelBounds, SystemClimate? Climate = null)
+public sealed record StarSystem(string Id, string Name, double X, double Y, double[] LabelBounds, SystemClimate? Climate = null, SystemOwner? Owner = null)
 {
+    /// <summary>The single tracked faction holding the system, or null when it is unowned, contested or held by anyone else.</summary>
+    public Faction? Faction => Owner is { Contested: false } owner ? Factions.ForCode(owner.Codes[0]) : null;
+    /// <summary>"Draconis Combine", "A / B (contested)", or empty for unclaimed systems.</summary>
+    public string OwnerText => Owner?.Text ?? "";
     /// <summary>The system's biome; null only for hand-built charts without climate.</summary>
     public Biome? Biome => Climate is null ? null : Biomes.ForClimate(Climate);
     public bool Urban => Climate?.Population >= Biomes.UrbanPopulation;
@@ -12,6 +16,17 @@ public sealed record StarSystem(string Id, string Name, double X, double Y, doub
 }
 internal sealed record SystemClimateEntry(string Id, string Pressure, string Atmosphere, int Temperature, int Water, long Population, string SocioIndustrial);
 internal sealed record SystemClimateData(SystemClimateEntry[] Systems);
+internal sealed record SystemFactionEntry(string Id, string[] Factions);
+internal sealed record SystemFactionData(Dictionary<string, string> Factions, SystemFactionEntry[] Systems);
+
+/// <summary>Who held a system on the campaign start date, from Data/system-factions.json. Several codes mean it was contested.</summary>
+public sealed record SystemOwner(string[] Codes, string[] Names)
+{
+    /// <summary>Owner codes for systems nobody holds: abandoned or not yet surveyed.</summary>
+    public static readonly string[] Unclaimed = ["ABN", "UND"];
+    public bool Contested => Codes.Length > 1;
+    public string Text => Contested ? string.Join(" / ", Names) + " (contested)" : Names[0];
+}
 public sealed record StarCatalogData(double PixelsPerLightYear, StarSystem[] Systems);
 
 /// <summary>Geography extracted from the pinned map. Coordinates use the 7000 × 6000 image.</summary>
@@ -106,7 +121,17 @@ public sealed class StarChart
             ?? throw new InvalidOperationException("The star system climate data is empty.")).Systems
             .ToDictionary(entry => entry.Id, entry => new SystemClimate(entry.Pressure, entry.Atmosphere, entry.Temperature, entry.Water,
                 entry.Population, entry.SocioIndustrial), StringComparer.Ordinal);
-        return new StarChart(data.Systems.Select(system => system with { Climate = climates.TryGetValue(system.Id, out var climate) ? climate
-            : throw new InvalidOperationException($"Star system {system.Id} has no climate.") }), data.PixelsPerLightYear);
+        using var factionStream = typeof(StarChart).Assembly.GetManifestResourceStream("Mech.Data.system-factions.json")
+            ?? throw new InvalidOperationException("The star system owners are missing.");
+        var factions = JsonSerializer.Deserialize<SystemFactionData>(factionStream, options)
+            ?? throw new InvalidOperationException("The star system owners are empty.");
+        var owners = factions.Systems.ToDictionary(entry => entry.Id, entry => entry.Factions.Except(SystemOwner.Unclaimed).ToArray(), StringComparer.Ordinal);
+        return new StarChart(data.Systems.Select(system => system with
+        {
+            Climate = climates.TryGetValue(system.Id, out var climate) ? climate
+                : throw new InvalidOperationException($"Star system {system.Id} has no climate."),
+            Owner = owners.TryGetValue(system.Id, out var codes) ? codes.Length == 0 ? null : new SystemOwner(codes, codes.Select(code => factions.Factions[code]).ToArray())
+                : throw new InvalidOperationException($"Star system {system.Id} has no owner record."),
+        }), data.PixelsPerLightYear);
     }
 }

@@ -15,6 +15,7 @@ internal static class MissionChecks
         check(board.Available.All(item => nearby.Contains(item.SystemId)) && nearby.Contains(chart.StartingSystemId),
             "starting offers lie within three jumps of Galatea");
         CheckOffers(board.Available, check);
+        CheckSides(chart, check);
 
         var unseen = Campaign.Restore(campaign.Snapshot());
         check(unseen.Missions.HasUnseenOffers && Json(unseen) == Json(campaign), "offers and unseen state survive save restoration");
@@ -129,7 +130,7 @@ internal static class MissionChecks
             var low = MissionGenerator.Difficulty(offer.Opposition) * MissionTuning.CBillsPerDifficulty * (1 - MissionTuning.RewardVariation);
             var high = MissionGenerator.Difficulty(offer.Opposition) * MissionTuning.CBillsPerDifficulty * (1 + MissionTuning.RewardVariation);
             var valid = offer.Opposition.Length is >= MissionTuning.MinOpposition and <= MissionTuning.MaxOpposition
-                && offer.Objective == MissionTuning.Objective && !string.IsNullOrWhiteSpace(offer.Briefing)
+                && offer.Objective == (offer.Raid ? MissionTuning.RaidObjective : MissionTuning.DefenseObjective) && !string.IsNullOrWhiteSpace(offer.Briefing)
                 && offer.Payment >= low * MissionTuning.MinPaymentShare - MissionTuning.RewardRounding
                 && offer.Payment + offer.InsuranceLimit <= high + 2 * MissionTuning.RewardRounding
                 && offer.SalvagePicks is >= 0 and <= MissionTuning.MaxSalvagePicks && offer.InsuranceLimit >= 0
@@ -137,6 +138,79 @@ internal static class MissionChecks
             if (!valid) { check(false, $"{offer.Name} has a 2–4 mech opposition and rewards scaled to its difficulty"); return; }
         }
         check(true, "offers have a 2–4 mech opposition and rewards scaled to their difficulty");
+    }
+
+    private static void CheckSides(StarChart chart, Action<bool, string> check)
+    {
+        StarSystem Named(string name) => chart.Systems.Single(system => system.Name == name);
+        bool IsHouse(Faction? faction) => faction is { } f && Factions.Spec(f).GreatHouse;
+        bool Borders(string id, Faction house) => chart.WithinJumps(id, MissionTuning.BorderJumps).Any(near => chart[near].Faction == house);
+        var random = new MissionRandom(2025);
+        var offers = new List<MissionOffer>();
+        foreach (var origin in new[] { "Galatea", "Luthien", "New Avalon", "Terra", "Sian", "Alpheratz" })
+            for (var i = 0; i < 400; i++)
+                offers.Add(MissionGenerator.Generate(random, i + 1, Campaign.StartDate, Named(origin).Id, chart));
+        CheckOffers(offers, check);
+        string Rule(MissionOffer offer)
+        {
+            var (employer, opponent, place) = (offer.Employer, offer.Opponent, chart[offer.SystemId]);
+            if (employer.Kind == PartyKind.LocalForces) return "local forces never hire";
+            if (employer.Kind == PartyKind.Pirates)
+                return !offer.Raid ? "pirates always raid"
+                    : opponent.Kind == PartyKind.Faction && opponent.Faction != place.Faction ? "pirates only fight the House holding the target"
+                    : opponent.Kind == PartyKind.Pirates ? "pirates never fight pirates" : "";
+            if (employer.Faction == Faction.ComStar)
+                return place.Owner is null ? "ComStar works at held systems"
+                    : opponent.Kind == PartyKind.Faction && !IsHouse(opponent.Faction) ? "ComStar fights Houses, pirates or local forces"
+                    : opponent.Faction is { } house && house != place.Faction && !Borders(offer.SystemId, house) ? "ComStar fights the House holding or bordering the location" : "";
+            var own = employer.Faction!.Value;
+            return opponent.Kind switch
+            {
+                PartyKind.Pirates when offer.Raid || place.Faction != own => "Houses defend their own worlds against pirates",
+                PartyKind.LocalForces when !offer.Raid || place.Faction == own => "Houses raid local forces away from their own worlds",
+                PartyKind.Faction when opponent.Faction == Faction.ComStar && (!offer.Raid || place.Faction != own) => "Houses remove ComStar from their own worlds",
+                PartyKind.Faction when IsHouse(opponent.Faction) && offer.Raid && (place.Faction != opponent.Faction || !Borders(offer.SystemId, own))
+                    => "a House raid targets a bordering rival's world",
+                PartyKind.Faction when IsHouse(opponent.Faction) && !offer.Raid && (place.Faction != own || !Borders(offer.SystemId, opponent.Faction!.Value))
+                    => "a House defends its own world against a bordering rival",
+                PartyKind.Faction when opponent.Faction == own => "a House never fights itself",
+                _ => "",
+            };
+        }
+        var broken = offers.Select(offer => (offer, rule: Rule(offer))).FirstOrDefault(item => item.rule.Length > 0);
+        check(broken.offer is null, broken.offer is null ? "employers and opponents follow the contract rules"
+            : $"{broken.offer.Name}: {broken.offer.Employer.Name} vs {broken.offer.Opponent.Name}: {broken.rule}");
+        var employers = offers.GroupBy(offer => offer.Employer.Kind == PartyKind.Pirates ? "pirates" : offer.Employer.Faction == Faction.ComStar ? "ComStar" : "House")
+            .ToDictionary(group => group.Key, group => group.Count() * 100.0 / offers.Count);
+        check(employers["House"] is > 68 and < 82 && employers["ComStar"] is > 6 and < 14 && employers["pirates"] is > 11 and < 19,
+            $"Houses, ComStar and pirates hire about 75/10/15% of the time ({string.Join(", ", employers.Select(pair => $"{pair.Key} {pair.Value:0}%"))})");
+        check(offers.Any(offer => offer.Opponent.Kind == PartyKind.LocalForces) && offers.Any(offer => offer.Opponent.Faction == Faction.ComStar)
+            && offers.Any(offer => offer.Raid && IsHouse(offer.Opponent.Faction) && IsHouse(offer.Employer.Faction))
+            && offers.Any(offer => !offer.Raid && IsHouse(offer.Opponent.Faction) && IsHouse(offer.Employer.Faction)),
+            "offers include House raids and defenses, ComStar opponents and local forces");
+        check(offers.All(offer => offer.Name.EndsWith(chart[offer.SystemId].Name) && offer.Briefing.Contains(offer.Employer.Name)),
+            "the offer names its location and the briefing its employer");
+
+        var reputation = new Reputation();
+        reputation.Adjust(Faction.Kurita, -600);
+        reputation.Adjust(Faction.ComStar, -600);
+        var hated = Enumerable.Range(1, 400).Select(i => MissionGenerator.Generate(random, i, Campaign.StartDate, Named("Luthien").Id, chart, reputation)).ToArray();
+        check(hated.All(offer => offer.Employer.Faction is not (Faction.Kurita or Faction.ComStar)) && hated.Any(offer => offer.Opponent.Faction == Faction.Kurita),
+            "a faction that hates the force posts no offers, but can still be fought");
+
+        var campaign = CampaignChecks.NewCompany();
+        var good = campaign.Snapshot().Missions!;
+        var first = good.Offers[0];
+        Reject(() => MissionBoard.Restore(good with { Offers = [first with { Employer = new(PartyKind.LocalForces, null, "Militia") }, .. good.Offers[1..]] }, campaign.Date),
+            check, "local forces cannot hire");
+        Reject(() => MissionBoard.Restore(good with { Offers = [first with { Opponent = new(PartyKind.Faction, null, "Nobody") }, .. good.Offers[1..]] }, campaign.Date),
+            check, "a faction party needs a tracked faction");
+        Reject(() => MissionBoard.Restore(good with { Offers = [first with { Opponent = first.Employer }, .. good.Offers[1..]] }, campaign.Date),
+            check, "an employer cannot fight itself");
+        Reject(() => MissionBoard.Restore(good with { Offers = [first with { Employer = null! }, .. good.Offers[1..]] }, campaign.Date), check, "an offer needs an employer");
+        var legacy = Campaign.Restore(campaign.Snapshot() with { Version = 7 });
+        check(legacy.Missions.Available.Count == MissionTuning.BoardSize && legacy.Missions.HasUnseenOffers && legacy.Missions.Current is null,
+            "version 7 saves receive a fresh board of offers with employers");
     }
 
     private static string Json(Campaign campaign) => JsonSerializer.Serialize(campaign.Snapshot());

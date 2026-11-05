@@ -12,6 +12,14 @@ public partial class MapViewport : Control
     private string? _hoveredSystem;
     public string? HoveredSystemId => _hoveredSystem;
 
+    /// <summary>"Galatea · Volcanic", the owner and your standing with it, then what a click does.</summary>
+    public static string SystemTooltip(StarSystem system, Campaign? campaign)
+    {
+        var owner = campaign?.Reputation.OwnerText(system) ?? (system.OwnerText.Length > 0 ? $"Owner: {system.OwnerText}" : "");
+        return system.Name + (system.BiomeText.Length > 0 ? $" · {system.BiomeText}" : "") + (owner.Length > 0 ? $"\n{owner}" : "")
+            + (campaign?.Travel.InOrbit == true ? "\nClick to plot a journey" : "\nPlotting is available in orbit");
+    }
+
     public void SetCampaign(Campaign campaign) { _campaign = campaign; QueueRedraw(); }
     public void RefreshTravel() => QueueRedraw();
 
@@ -160,8 +168,7 @@ public partial class MapViewport : Control
                 }
                 var system = HitSystem(motion.Position);
                 _hoveredSystem = system?.Id;
-                TooltipText = system is null ? "" : system.Name + (system.BiomeText.Length > 0 ? $" · {system.BiomeText}" : "") + (_campaign?.Travel.InOrbit == true
-                    ? " · Click to plot a journey" : " · Plotting is available in orbit");
+                TooltipText = system is null ? "" : SystemTooltip(system, _campaign);
                 MouseDefaultCursorShape = system is not null && _campaign?.Travel.InOrbit == true
                     ? CursorShape.PointingHand : CursorShape.Drag;
                 QueueRedraw();

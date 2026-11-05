@@ -24,6 +24,8 @@ public partial class MissionsPanel : Control
     private Label _terms = null!;
     public string TermsText => _terms.Text;
     private Label _acceptHint = null!;
+    private HFlowContainer _reputation = null!;
+    public IReadOnlyList<Label> ReputationLabels => _reputation.GetChildren().OfType<Label>().Skip(1).ToArray();
 
     public override void _Ready()
     {
@@ -36,6 +38,7 @@ public partial class MissionsPanel : Control
         var heading = Ui.Label(top, "MISSION OFFERS", 22, Ui.Gold); heading.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         CloseButton = Ui.Button(top, "Back to office"); CloseButton.CustomMinimumSize = new Vector2(135, 38);
         CloseButton.Pressed += () => Closed?.Invoke();
+        _reputation = new HFlowContainer(); _reputation.AddThemeConstantOverride("h_separation", 18); body.AddChild(_reputation);
         var content = new HBoxContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; content.AddThemeConstantOverride("separation", 24); body.AddChild(content);
         var left = new VBoxContainer { CustomMinimumSize = new Vector2(205, 0) }; content.AddChild(left);
         _index = RosterUi.Scroll(left);
@@ -67,6 +70,14 @@ public partial class MissionsPanel : Control
 
     public void Refresh()
     {
+        RosterUi.Clear(_reputation);
+        Ui.Label(_reputation, "REPUTATION", 12, Ui.Muted);
+        foreach (var faction in Factions.All)
+        {
+            var label = Ui.Label(_reputation, $"{faction.Name} · {_campaign.Reputation.Text(faction.Faction)}", 13, TierColor(_campaign.Reputation.Tier(faction.Faction)));
+            label.TooltipText = "Standing from −100 to +100. Successful, honorable work raises it.";
+            label.MouseFilter = MouseFilterEnum.Pass;
+        }
         RosterUi.Clear(_index); _missionButtons.Clear();
         // An abandoned mission is gone, so fall back to the oldest offer.
         if (_viewedId is null || _board.Find(_viewedId) is null) _viewedId = _board.Current?.Id ?? _board.Available.FirstOrDefault()?.Id;
@@ -83,8 +94,8 @@ public partial class MissionsPanel : Control
 
     private void AddMission(MissionOffer offer)
     {
-        var button = Ui.Button(_index, offer.Name); button.CustomMinimumSize = new Vector2(0, 48);
-        button.TooltipText = $"Posted {DateText(offer.Posted)}";
+        var button = Ui.Button(_index, $"{offer.Name}\n{offer.Employer.ShortName} vs. {offer.Opponent.ShortName}"); button.CustomMinimumSize = new Vector2(0, 48);
+        button.TooltipText = $"Posted {DateText(offer.Posted)}\n{offer.Employer.Name}{Standing(offer.Employer)} vs. {offer.Opponent.Name}{Standing(offer.Opponent)}";
         button.ToggleMode = true; button.ButtonPressed = offer.Id == _viewedId;
         button.Pressed += () =>
         {
@@ -122,12 +133,23 @@ public partial class MissionsPanel : Control
             var spec = DraftCatalog.Mech(item.MechId);
             return $"  {spec.DisplayName} · {spec.Tonnage}t — {item.Rank}";
         }));
-        return $"POSTED  {DateText(offer.Posted)}\nPAYMENT  {CBills(offer.Payment)}\nSALVAGE  {offer.SalvagePicks} {(offer.SalvagePicks == 1 ? "pick" : "picks")}"
+        return $"EMPLOYER  {offer.Employer.Name}{Standing(offer.Employer)}\nOPPONENT  {offer.Opponent.Name}{Standing(offer.Opponent)}"
+            + $"\nCONTRACT  {(offer.Raid ? "Raid" : "Defense")}\nPOSTED  {DateText(offer.Posted)}\nPAYMENT  {CBills(offer.Payment)}\nSALVAGE  {offer.SalvagePicks} {(offer.SalvagePicks == 1 ? "pick" : "picks")}"
             + $"\nINSURANCE  Up to {CBills(offer.InsuranceLimit)}\nLOCATION  {StarChart.Instance[offer.SystemId].Name}"
             + $"\nBIOME  {StarChart.Instance[offer.SystemId].BiomeText}"
             + $"\nTRAVEL ESTIMATE  {travel switch { null => "Unreachable", 0 => "In orbit", 1 => "1 day", _ => $"{travel} days" }}"
             + $"\nDEADLINE  {deadline}\nEXPECTED OPPOSITION\n{opposition}\nABANDONMENT PENALTY  None";
     }
+
+    /// <summary>" · Friendly +24" for a tracked faction; pirates and local forces hold no reputation.</summary>
+    private string Standing(Party party) => party.Faction is { } faction ? $" · {_campaign.Reputation.Text(faction)}" : "";
+
+    public static Color TierColor(ReputationTier tier) => tier switch
+    {
+        ReputationTier.Hated or ReputationTier.Hostile => new Color("e07a5a"),
+        ReputationTier.Friendly or ReputationTier.Honored => new Color("8fc77e"),
+        _ => Ui.Muted,
+    };
 
     private static string CBills(long amount) => $"{amount.ToString("N0", CultureInfo.InvariantCulture)} C-bills";
     private static string DateText(DateOnly date) => date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture).ToUpperInvariant();

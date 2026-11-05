@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Mech;
 
 public enum EnemyPilotRank { Green, Regular, Veteran, Elite }
@@ -5,9 +7,24 @@ public enum EnemyPilotRank { Green, Regular, Veteran, Elite }
 /// <summary>One BattleMech of a mission's opposition and the rank of its unnamed pilot.</summary>
 public sealed record EnemyMech(string MechId, EnemyPilotRank Rank);
 
-/// <summary>Generated briefing terms. The opposition is exactly the force that will be fielded; rewards are fixed.</summary>
+public enum PartyKind { Faction, Pirates, LocalForces }
+
+/// <summary>A side in a contract: a tracked faction, a pirate band, or local forces. Only tracked factions hold a reputation.</summary>
+public sealed record Party(PartyKind Kind, Faction? Faction, string Name)
+{
+    public static Party Of(Faction faction) => new(PartyKind.Faction, faction, Factions.Name(faction));
+    public static Party Pirates { get; } = new(PartyKind.Pirates, null, "Pirates");
+    [JsonIgnore] public string ShortName => Faction is { } faction ? Factions.Spec(faction).ShortName : Name;
+    /// <summary>How a briefing refers to the party mid-sentence.</summary>
+    [JsonIgnore] public string Description => Kind == PartyKind.Pirates ? "a pirate band" : Name;
+    [JsonIgnore] public bool Valid => !string.IsNullOrWhiteSpace(Name) && Enum.IsDefined(Kind) && (Kind == PartyKind.Faction) == (Faction is not null)
+        && (Faction is not { } faction || Enum.IsDefined(faction) && Name == Factions.Name(faction)) && (Kind != PartyKind.Pirates || Name == "Pirates");
+}
+
+/// <summary>Generated briefing terms. The opposition is exactly the force that will be fielded; rewards are fixed.
+/// On a raid the employer attacks the opponent; otherwise the force defends the location for the employer.</summary>
 public sealed record MissionOffer(string Id, string Name, string Briefing, string Objective, string SystemId, DateOnly Posted,
-    EnemyMech[] Opposition, long Payment, int SalvagePicks, long InsuranceLimit);
+    EnemyMech[] Opposition, long Payment, int SalvagePicks, long InsuranceLimit, Party Employer, Party Opponent, bool Raid);
 
 /// <summary>Numbers for mission generation, recorded in docs/design.md.</summary>
 public static class MissionTuning
@@ -27,7 +44,19 @@ public static class MissionTuning
     public const long CBillsPerSalvagePick = 100_000;
     public const int MaxSalvagePicks = 6;
     public const long RewardRounding = 1_000;
-    public const string Objective = "Defeat the defending force.";
+    public const string RaidObjective = "Defeat the defending force.";
+    public const string DefenseObjective = "Defeat the attacking force.";
+    // Employer odds: Great House, ComStar, pirates.
+    public static readonly int[] EmployerOdds = [75, 10, 15];
+    // Opponent odds for a Great House employer: another House, local forces, pirates, ComStar.
+    public static readonly int[] HouseOpponentOdds = [50, 20, 20, 10];
+    // Opponent odds for ComStar: pirates, local forces, a Great House.
+    public static readonly int[] ComStarOpponentOdds = [40, 30, 30];
+    // Opponent odds for pirates: local forces, the system's Great House.
+    public static readonly int[] PirateOpponentOdds = [60, 40];
+    public const double RaidChance = .5;
+    /// <summary>Two Houses border each other at a location when the other holds a system this many jumps from it.</summary>
+    public const int BorderJumps = 2;
 }
 
 /// <summary>SplitMix64: its whole state is one number, so a save reproduces every later roll.</summary>
@@ -53,12 +82,16 @@ public sealed class MissionRandom(ulong state)
 
 public static class MissionGenerator
 {
-    private static readonly string[] Kinds = ["Raid on", "Strike at", "Assault on", "Sweep of", "Ambush at", "Recon in force at"];
+    private static readonly string[] RaidKinds = ["Raid on", "Strike at", "Assault on", "Sweep of", "Ambush at", "Recon in force at"];
+    private static readonly string[] DefenseKinds = ["Defense of", "Relief of", "Holding action at", "Garrison duty at", "Counterattack at"];
+    private static readonly string[] LocalForceNames = ["{0} Planetary Guard", "{0} Militia", "Governor {1}'s Household Troops", "Duke {1}'s Retainers", "The {1} Family Guard"];
+    private static readonly string[] Surnames = ["Halloran", "Vasquez", "Okonkwo", "Brandt", "Szabo", "Takeda", "Moreau", "Ivanova", "Castellan", "Whitlock"];
 
-    public static MissionOffer Generate(MissionRandom random, int number, DateOnly date, string originSystemId, StarChart chart)
+    public static MissionOffer Generate(MissionRandom random, int number, DateOnly date, string originSystemId, StarChart chart, Reputation? reputation = null)
     {
-        var systems = chart.WithinJumps(originSystemId, MissionTuning.LocationJumps);
-        var system = chart[systems[random.Next(systems.Count)]];
+        var area = chart.WithinJumps(originSystemId, MissionTuning.LocationJumps);
+        var (systemId, employer, opponent, raid) = new Sides(random, chart, area, reputation ?? new()).Choose();
+        var system = chart[systemId];
         var count = MissionTuning.MinOpposition + random.Next(MissionTuning.MaxOpposition - MissionTuning.MinOpposition + 1);
         var opposition = new EnemyMech[count];
         for (var i = 0; i < count; i++)
@@ -73,9 +106,101 @@ public static class MissionGenerator
         var salvageShare = (1 - paymentShare) * random.NextDouble();
         var insuranceShare = 1 - paymentShare - salvageShare;
         var salvagePicks = Math.Clamp((int)Math.Round(budget * salvageShare / MissionTuning.CBillsPerSalvagePick), 0, MissionTuning.MaxSalvagePicks);
-        return new($"offer-{number}", $"{Kinds[random.Next(Kinds.Length)]} {system.Name}",
-            $"Placeholder briefing. A client needs the force holding {system.Name} dealt with. Further details will follow.",
-            MissionTuning.Objective, system.Id, date, opposition, Round(budget * paymentShare), salvagePicks, Round(budget * insuranceShare));
+        var kinds = raid ? RaidKinds : DefenseKinds;
+        var briefing = raid ? $"Placeholder briefing. {employer.Name} is hiring a force to strike {opponent.Description} on {system.Name}."
+            : $"Placeholder briefing. {employer.Name} needs {system.Name} held against {opponent.Description}.";
+        return new($"offer-{number}", $"{kinds[random.Next(kinds.Length)]} {system.Name}", briefing + " Further details will follow.",
+            raid ? MissionTuning.RaidObjective : MissionTuning.DefenseObjective, system.Id, date, opposition,
+            Round(budget * paymentShare), salvagePicks, Round(budget * insuranceShare), employer, opponent, raid);
+    }
+
+    /// <summary>Chooses who hires the force, who it fights and where, among the systems within reach.
+    /// A faction that hates the force never hires it.</summary>
+    private sealed class Sides(MissionRandom random, StarChart chart, IReadOnlyList<string> area, Reputation reputation)
+    {
+        private bool Hires(Faction faction) => !reputation.Hates(faction);
+        private Faction? House(string id) => chart[id].Faction is { } faction && Factions.Spec(faction).GreatHouse ? faction : null;
+        private IEnumerable<string> HeldBy(Faction faction) => area.Where(id => chart[id].Faction == faction);
+        /// <summary>Great Houses other than the given one holding a system within the border distance of a location.</summary>
+        private Faction[] Neighbors(string id, Faction except) => chart.WithinJumps(id, MissionTuning.BorderJumps)
+            .Select(House).OfType<Faction>().Where(house => house != except).Distinct().Order().ToArray();
+        private T Pick<T>(IReadOnlyList<T> items) => items[random.Next(items.Count)];
+        private bool Roll(double chance) => random.NextDouble() < chance;
+
+        public (string SystemId, Party Employer, Party Opponent, bool Raid) Choose() => random.Pick(MissionTuning.EmployerOdds) switch
+        {
+            0 => ForHouse(),
+            1 => ForComStar(),
+            _ => ForPirates(),
+        } ?? Fallback();
+
+        private (string, Party, Party, bool)? ForHouse()
+        {
+            var houses = Factions.GreatHouses.Where(house => Hires(house) && HeldBy(house).Any()).ToArray();
+            if (houses.Length == 0) return null;
+            var employer = Pick(houses);
+            var home = HeldBy(employer).ToArray();
+            switch (random.Pick(MissionTuning.HouseOpponentOdds))
+            {
+                case 0 when Roll(MissionTuning.RaidChance):
+                    var targets = area.Where(id => House(id) is { } owner && owner != employer
+                        && chart.WithinJumps(id, MissionTuning.BorderJumps).Any(near => chart[near].Faction == employer)).ToArray();
+                    if (targets.Length == 0) break;
+                    var target = Pick(targets);
+                    return (target, Party.Of(employer), Party.Of(House(target)!.Value), true);
+                case 0:
+                    var fronts = home.Where(id => Neighbors(id, employer).Length > 0).ToArray();
+                    if (fronts.Length == 0) break;
+                    var front = Pick(fronts);
+                    return (front, Party.Of(employer), Party.Of(Pick(Neighbors(front, employer))), false);
+                case 1:
+                    var foreign = area.Where(id => chart[id].Faction != employer).ToArray();
+                    if (foreign.Length == 0) break;
+                    var place = Pick(foreign);
+                    return (place, Party.Of(employer), LocalForces(place), true);
+                case 3:
+                    // Removing a ComStar presence from one of the House's own worlds.
+                    return (Pick(home), Party.Of(employer), Party.Of(Faction.ComStar), true);
+            }
+            return (Pick(home), Party.Of(employer), Party.Pirates, false);
+        }
+
+        private (string, Party, Party, bool)? ForComStar()
+        {
+            if (!Hires(Faction.ComStar)) return null;
+            var held = area.Where(id => chart[id].Owner is not null).ToArray();
+            if (held.Length == 0) return null;
+            var place = Pick(held);
+            var raid = Roll(MissionTuning.RaidChance);
+            switch (random.Pick(MissionTuning.ComStarOpponentOdds))
+            {
+                case 1: return (place, Party.Of(Faction.ComStar), LocalForces(place), raid);
+                case 2:
+                    var houses = House(place) is { } owner ? new[] { owner } : Neighbors(place, Faction.ComStar);
+                    if (houses.Length > 0) return (place, Party.Of(Faction.ComStar), Party.Of(Pick(houses)), raid);
+                    break;
+            }
+            return (place, Party.Of(Faction.ComStar), Party.Pirates, raid);
+        }
+
+        private (string, Party, Party, bool)? ForPirates()
+        {
+            var targets = area.Where(id => House(id) is not null).ToArray();
+            if (targets.Length == 0) return null;
+            var target = Pick(targets);
+            return (target, Party.Pirates, random.Pick(MissionTuning.PirateOpponentOdds) == 0 ? LocalForces(target) : Party.Of(House(target)!.Value), true);
+        }
+
+        /// <summary>Nothing suitable within reach: the location's owner defends against pirates, or pirates raid local forces.</summary>
+        private (string, Party, Party, bool) Fallback()
+        {
+            var place = Pick(area);
+            return chart[place].Faction is { } owner && Hires(owner) ? (place, Party.Of(owner), Party.Pirates, false)
+                : (place, Party.Pirates, LocalForces(place), true);
+        }
+
+        private Party LocalForces(string id) =>
+            new(PartyKind.LocalForces, null, string.Format(Pick(LocalForceNames), chart[id].Name, Pick(Surnames)));
     }
 
     /// <summary>Enemy tonnage, each mech weighted by its pilot's rank.</summary>
@@ -105,30 +230,30 @@ public sealed class MissionBoard
 
     private MissionBoard(ulong seed, StarChart chart) { _random = new(seed); _chart = chart; }
 
-    public static MissionBoard Create(ulong seed, DateOnly date, string originSystemId, StarChart? chart = null)
+    public static MissionBoard Create(ulong seed, DateOnly date, string originSystemId, Reputation reputation, StarChart? chart = null)
     {
         var board = new MissionBoard(seed, chart ?? StarChart.Instance);
-        board.Refill(date, originSystemId);
+        board.Refill(date, originSystemId, reputation);
         return board;
     }
 
     public MissionOffer? Find(string id) => Current?.Id == id ? Current : _available.SingleOrDefault(item => item.Id == id);
 
     /// <summary>Each day the oldest offer may be taken off the board; the board is then refilled.</summary>
-    internal void AdvanceDay(DateOnly date, string originSystemId)
+    internal void AdvanceDay(DateOnly date, string originSystemId, Reputation reputation)
     {
         if (_available.Count > 0 && _random.NextDouble() < MissionTuning.DailyRemovalChance)
         {
             _seen.Remove(_available[0].Id);
             _available.RemoveAt(0);
         }
-        Refill(date, originSystemId);
+        Refill(date, originSystemId, reputation);
     }
 
-    private void Refill(DateOnly date, string originSystemId)
+    private void Refill(DateOnly date, string originSystemId, Reputation reputation)
     {
         while (_available.Count < MissionTuning.BoardSize)
-            _available.Add(MissionGenerator.Generate(_random, _nextOfferNumber++, date, originSystemId, _chart));
+            _available.Add(MissionGenerator.Generate(_random, _nextOfferNumber++, date, originSystemId, _chart, reputation));
     }
 
     public void MarkOffersSeen()
@@ -189,5 +314,6 @@ public sealed class MissionBoard
         && offer.Opposition is { Length: >= MissionTuning.MinOpposition and <= MissionTuning.MaxOpposition }
         && offer.Opposition.All(item => item is not null && Enum.IsDefined(item.Rank)
             && DraftCatalog.AllMechs.Any(mech => mech.Id == item.MechId))
-        && offer.Payment > 0 && offer.SalvagePicks is >= 0 and <= MissionTuning.MaxSalvagePicks && offer.InsuranceLimit >= 0;
+        && offer.Payment > 0 && offer.SalvagePicks is >= 0 and <= MissionTuning.MaxSalvagePicks && offer.InsuranceLimit >= 0
+        && offer.Employer is { Valid: true, Kind: not PartyKind.LocalForces } && offer.Opponent is { Valid: true } && offer.Employer != offer.Opponent;
 }

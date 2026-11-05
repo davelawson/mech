@@ -52,4 +52,10 @@ Regenerate with Python 3, PyYAML, git and a network connection:
 python3 scripts/import-system-climate.py
 ```
 
-`--revision SHA` changes the pin, and `--source-dir` reads an already checked-out `planetary_systems` directory offline.
+`--revision SHA` changes the pin, and `--source-dir` reads an already checked-out `data/universe` directory (holding `planetary_systems` and `factions`) offline.
+
+## Star system owners
+
+`system-factions.json` records who held each chart system on 1 January 3025, written by the same importer from the same pinned source and under the same license and attribution. Each system's ownership events and its primary world's events are merged by date, and the last faction change on or before that date wins. Several codes mean the system was contested. The `factions` table gives the name each code's faction used at the campaign start (MegaMek's `SLCOMNET` is ComStar by then); the importer fails if a code has no faction definition. The chart symbol takes the same source system as its climate.
+
+The game reads Great House and ComStar codes as [tracked factions](../docs/design.md#reputation-confirmed-november-5-2026); every other owner, such as the Outworlds Alliance or an Independent world, is shown by name only. `ABN` (abandoned) and `UND` (unsurveyed) mean nobody holds the system.

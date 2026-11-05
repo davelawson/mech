@@ -52,6 +52,7 @@ internal static class TravelChecks
         var chart = StarChart.Instance;
         check(chart.Systems.Count > 1900 && chart[chart.StartingSystemId].Name == "Galatea", "full reference geography and Galatea start load");
         CheckBiomes(chart, check);
+        CheckOwners(chart, check);
         check(chart.Systems.All(system => system.LabelBounds.Length == 4 && system.X is >= 0 and <= 7000
             && system.Y is >= 0 and <= 6000), "all systems have image coordinates and clickable label bounds");
         var campaign = CampaignChecks.NewCompany();
@@ -120,6 +121,23 @@ internal static class TravelChecks
         var rejected = false;
         try { action(); } catch (Exception error) when (error is ArgumentException or InvalidOperationException) { rejected = true; }
         check(rejected, message);
+    }
+
+    private static void CheckOwners(StarChart chart, Action<bool, string> check)
+    {
+        StarSystem Named(string name) => chart.Systems.Single(system => system.Name == name);
+        check(Named("Terra").Faction == Faction.ComStar && Named("New Avalon").Faction == Faction.Davion && Named("Luthien").Faction == Faction.Kurita
+            && Named("Sian").Faction == Faction.Liao && Named("Atreus").Faction == Faction.Marik && Named("Tharkad").Faction == Faction.Steiner,
+            "capitals belong to their factions in 3025");
+        check(Named("Galatea").OwnerText == "Lyran Commonwealth" && Named("Alpheratz").OwnerText == "Outworlds Alliance" && Named("Alpheratz").Faction is null,
+            "Periphery owners are named but untracked");
+        var contested = chart.Systems.Where(system => system.Owner?.Contested == true).ToArray();
+        check(contested.Length > 0 && contested.All(system => system.Faction is null && system.OwnerText.EndsWith(" (contested)")),
+            "contested systems name every claimant and have no single owner");
+        var counts = chart.Systems.GroupBy(system => system.Faction).ToDictionary(group => group.Key ?? (Faction)(-1), group => group.Count());
+        check(counts[Faction.Davion] == 505 && counts[Faction.Steiner] == 443 && counts[Faction.Kurita] == 414 && counts[Faction.Marik] == 333
+            && counts[Faction.Liao] == 208 && counts[Faction.ComStar] == 1, "every House holds its 3025 systems; ComStar holds only Terra");
+        check(chart.Systems.Count(system => system.Owner is null) == 66, "abandoned and unsurveyed systems have no owner");
     }
 
     private static void CheckBiomes(StarChart chart, Action<bool, string> check)

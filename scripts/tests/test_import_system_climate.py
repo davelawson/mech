@@ -17,6 +17,9 @@ id: Example
 xcood: 1.5
 ycood: -2.0
 primarySlot: {source: book, value: 2}
+event:
+  - {date: '2800-01-01', faction: {source: canon, value: [FS]}}
+  - {date: '3025-06-01', faction: {source: canon, value: [DC]}}
 planet:
   - name: Inner
     sysPos: 1
@@ -34,6 +37,15 @@ planet:
       - {date: '2800-01-01', population: 1000.0, socioIndustrial: C-C-C-C-C}
       - {date: '3025-06-01', population: 2000.0}
       - {date: '3050-01-01', population: 9000.0, socioIndustrial: A-A-A-A-A}
+      - {date: '3024-01-01', faction: {source: canon, value: [FS, CC]}}
+"""
+
+FACTION = """
+key: CS
+name: SLCOMNET
+nameChanges:
+  2788: ComStar
+  3100: Later Name
 """
 
 
@@ -42,10 +54,17 @@ class ClimateImportChecks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             (pathlib.Path(temp) / 'canon_systems').mkdir()
             (pathlib.Path(temp) / 'canon_systems/Example.yml').write_text(SYSTEM)
-            [(ident, x, y, climate)] = IMPORTER.read_source(pathlib.Path(temp))
+            [(ident, x, y, climate, owner)] = IMPORTER.read_source(pathlib.Path(temp))
         self.assertEqual((ident, x, y), ('Example', 1.5, -2.0))
         self.assertEqual(climate, dict(pressure='THIN', atmosphere='BREATHABLE', temperature=12, water=65,
                                        population=2000, socioIndustrial='C-C-C-C-C'))
+        # System and primary-world events merge; the latest owner on the campaign start date wins.
+        self.assertEqual(owner, ['FS', 'CC'])
+
+    def test_faction_names_in_effect_at_campaign_start(self):
+        with tempfile.TemporaryDirectory() as temp:
+            (pathlib.Path(temp) / 'CS.yml').write_text(FACTION)
+            self.assertEqual(IMPORTER.faction_names(pathlib.Path(temp)), {'CS': 'ComStar'})
 
     def test_affine_fit_recovers_chart_transform(self):
         transform = ((4.8, 0.01, 3000.0), (-0.02, -4.8, 3100.0))
@@ -64,6 +83,16 @@ class ClimateImportChecks(unittest.TestCase):
             self.assertLessEqual(system['distanceLightYears'], IMPORTER.MAX_MATCH_LIGHT_YEARS)
             self.assertIsNotNone(system['temperature'])
             self.assertIsNotNone(system['water'])
+
+    def test_committed_owners_cover_every_chart_system(self):
+        chart = json.loads((ROOT / 'Data/star-systems.json').read_text())['systems']
+        owners = json.loads((ROOT / 'Data/system-factions.json').read_text())
+        self.assertEqual([s['id'] for s in owners['systems']], [s['id'] for s in chart])
+        for system in owners['systems']:
+            for code in system['factions']:
+                self.assertIn(code, owners['factions'])
+        terra = next(s for s in owners['systems'] if s['name'] == 'Terra')
+        self.assertEqual(terra['factions'], ['CS'])
 
 
 if __name__ == '__main__':

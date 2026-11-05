@@ -19,6 +19,7 @@ internal static class Suite
 public sealed class Catalog { [Fact] public void Checks() => Suite.Run(CatalogChecks.Run); }
 public sealed class Campaign { [Fact] public void Checks() => Suite.Run(CampaignChecks.Run); }
 public sealed class Missions { [Fact] public void Checks() => Suite.Run(MissionChecks.Run); }
+public sealed class Reputation { [Fact] public void Checks() => Suite.Run(ReputationChecks.Run); }
 public sealed class Roster { [Fact] public void Checks() => Suite.Run(RosterChecks.Run); }
 public sealed class Travel { [Fact] public void Checks() => Suite.Run(TravelChecks.Run); }
 public sealed class Hangar { [Fact] public void Checks() => Suite.Run(HangarChecks.Run); }

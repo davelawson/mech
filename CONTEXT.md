@@ -133,6 +133,18 @@ One mesh a hardpoint can show, such as `Laser`, `AC10`, `Missile6`, or a `Blank`
 **Mount map**:
 The hardpoint → weapon visual assignment a mech model is built from, resolved from its weapons.
 
+**Tracked faction**:
+A power the mercenary force holds a reputation with: one of the five Great Houses or ComStar. Pirates, local forces and Periphery states are not tracked.
+
+**Reputation**:
+The mercenary force's standing with a tracked faction, from −100 (Hated) through 0 (Neutral) to +100 (Honored).
+
+**Local forces**:
+A regional power acting outside the Great Houses, such as a governor prosecuting a personal feud. Fighting them affects no faction's reputation.
+
+**System owner**:
+The faction holding a star system on 1 January 3025, or several claimants when contested.
+
 **Biome**:
 The kind of world a battlefield lies on (Valley, Arctic, Lunar, Highlands, Desert, Tropical, Grassland, Archipelago, Volcanic or Toxic), setting its climate, ground shape, features and look.
 

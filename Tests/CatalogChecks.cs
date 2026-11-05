@@ -242,6 +242,9 @@ internal static class CatalogChecks
             var resaved = JsonNode.Parse(File.ReadAllText(path))!;
             var expected = JsonNode.Parse(fixture)!; expected["Version"] = Campaign.SaveVersion;
             expected["Missions"] = resaved["Missions"]!.DeepClone();
+            // Reputation arrived in version 7; older saves start neutral with every faction.
+            expected["Reputation"] = resaved["Reputation"]!.DeepClone();
+            check(Enum.GetValues<Faction>().All(faction => campaign.Reputation.Tenths(faction) == 0), "a version-four save starts neutral with every faction");
             check(campaign.Missions.Available.Count == MissionTuning.BoardSize && campaign.Missions.Current is null,
                 "a version-four save receives a full board of generated offers");
             foreach (var location in expected["Roster"]!["Mechs"]!.AsArray().SelectMany(m => m!["Locations"]!.AsArray()))
