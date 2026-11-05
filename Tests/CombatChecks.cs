@@ -320,6 +320,24 @@ internal static partial class CombatChecks
         check(unit.Locations[MechLocation.CenterTorso].Armor == unit.Locations[MechLocation.CenterTorso].InitialArmor - 3, "transfer continues through destroyed side torso");
         unit.ApplyDamage(MechLocation.CenterTorso, 10000);
         check(unit.Status == CombatStatus.Destroyed, "center torso loss destroys mech");
+        check(unit.WarriorKilled, "overkill carried from the center torso through the head kills the MechWarrior");
+
+        sim = Battle(); unit = Friendly(sim); center = unit.Locations[MechLocation.CenterTorso];
+        var head = unit.Locations[MechLocation.Head];
+        unit.ApplyDamage(MechLocation.CenterTorso, center.Armor + center.Structure);
+        check(unit.Status == CombatStatus.Destroyed && !unit.WarriorKilled && head.Armor == head.InitialArmor,
+            "a center torso destroyed without overkill leaves the MechWarrior alive");
+        sim = Battle(); unit = Friendly(sim); center = unit.Locations[MechLocation.CenterTorso]; head = unit.Locations[MechLocation.Head];
+        unit.ApplyDamage(MechLocation.CenterTorso, center.Armor + center.Structure + 2);
+        check(!unit.WarriorKilled && head.Armor == head.InitialArmor - 2 && head.Structure == head.InitialStructure,
+            "center torso overkill carries into the head's armor");
+        sim = Battle(); unit = Friendly(sim); head = unit.Locations[MechLocation.Head];
+        unit.ApplyDamage(MechLocation.Head, head.Armor + head.Structure);
+        check(unit.WarriorKilled && unit.Intact(MechLocation.CenterTorso), "head destruction kills the MechWarrior");
+        sim = Battle(); unit = Friendly(sim);
+        foreach (var location in new[] { MechLocation.LeftLeg, MechLocation.RightLeg })
+            unit.ApplyDamage(location, unit.Locations[location].Armor + unit.Locations[location].Structure);
+        check(unit.Status == CombatStatus.Disabled && !unit.WarriorKilled, "a disabled mech's MechWarrior survives");
     }
     private static void CheckNavigation(Action<bool, string> check)
     {

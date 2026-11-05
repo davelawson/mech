@@ -380,7 +380,7 @@ public partial class CombatScreen : Control
             RosterUi.Text(body, side == CombatSide.Friendly ? "YOUR FORCE" : "OPPOSITION", 16, Ui.Gold);
             foreach (var unit in Simulation.Units.Where(item => item.Side == side))
             {
-                RosterUi.Text(body, $"{unit.Spec.DisplayName} · {unit.Warrior.Callsign} · {unit.Status}", 14);
+                RosterUi.Text(body, $"{unit.Spec.DisplayName} · {unit.Warrior.Callsign} · {unit.Status}{(unit.WarriorKilled ? " · MechWarrior killed" : "")}", 14);
                 RosterUi.Text(body, $"Armor lost (front + rear): {unit.ArmorLost} · Structure lost: {unit.StructureLost}\nShots: {unit.ShotsFired} · Hits: {unit.Hits} · Damage delivered: {unit.DamageDealt}\n"
                     + string.Join("  ", unit.Locations.Values.Select(loc => $"{DraftCatalog.Abbreviation(loc.Location)} {loc.Armor}/{loc.Structure}")), 12, Ui.Muted);
             }

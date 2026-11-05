@@ -220,6 +220,8 @@ public sealed partial class CombatUnit
         ? CombatStatus.Destroyed : (!Intact(MechLocation.LeftLeg) && !Intact(MechLocation.RightLeg))
             || !Weapons.Any(WeaponIntact) ? CombatStatus.Disabled : Shutdown ? CombatStatus.Shutdown : CombatStatus.Active;
     public bool Active => Status == CombatStatus.Active;
+    /// <summary>The MechWarrior dies only when the head is destroyed, including by overkill carried up from the center torso.</summary>
+    public bool WarriorKilled => !Intact(MechLocation.Head);
     public bool Defeated => Status is CombatStatus.Disabled or CombatStatus.Destroyed;
     private float Mobility => Defeated ? 0 : (!Intact(MechLocation.LeftLeg) || !Intact(MechLocation.RightLeg)) ? .5f : 1;
     public float UnheatedWalkingSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Walk) * Mobility;
@@ -258,6 +260,8 @@ public sealed partial class CombatUnit
                 MechLocation.LeftArm => MechLocation.LeftTorso,
                 MechLocation.RightArm => MechLocation.RightTorso,
                 MechLocation.LeftTorso or MechLocation.RightTorso or MechLocation.LeftLeg or MechLocation.RightLeg => MechLocation.CenterTorso,
+                // Overkill on the center torso carries up into the cockpit.
+                MechLocation.CenterTorso => MechLocation.Head,
                 _ => (MechLocation?)null
             };
             if (next is null) break;
