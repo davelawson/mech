@@ -35,6 +35,8 @@ public partial class CombatScreen : Control
     public List<CombatPaperdoll> UnitDolls { get; } = [];
     private float _unitBarHeight;
     public IReadOnlyList<string> Selected => _selected;
+    /// <summary>The local player's slot: force selection offers its lance, and its orders go to that lance's mechs.</summary>
+    public int Slot { get; set; } = Campaign.LeaderSlot;
     public bool SettingPriority { get; private set; }
     /// <summary>Jump targeting is armed: the next ground right-click sends the selection on a jump.</summary>
     public bool SettingJump { get; private set; }
@@ -105,28 +107,28 @@ public partial class CombatScreen : Control
         _groupInfo = RosterUi.Text(_settings, "", 12, Ui.Muted);
         var movement = new HBoxContainer(); _settings.AddChild(movement);
         _walk = Ui.Button(movement, "Walk"); _run = Ui.Button(movement, "Run");
-        _walk.Pressed += () => ChangeUnits(unit => unit.Movement = MovementMode.Walk);
-        _run.Pressed += () => ChangeUnits(unit => unit.Movement = MovementMode.Run);
+        _walk.Pressed += () => Send(new MovementCommand([.. _selected], MovementMode.Walk));
+        _run.Pressed += () => Send(new MovementCommand([.. _selected], MovementMode.Run));
         JumpButton = Ui.Button(movement, "Jump [J]"); JumpButton.Pressed += ToggleJump;
         var fire = new HBoxContainer(); _settings.AddChild(fire);
         _fire = Ui.Button(fire, "Fire at will"); _hold = Ui.Button(fire, "Hold fire");
-        _fire.Pressed += () => ChangeUnits(unit => unit.Firing = FiringMode.FireAtWill);
-        _hold.Pressed += () => ChangeUnits(unit => unit.Firing = FiringMode.HoldFire);
+        _fire.Pressed += () => Send(new FiringCommand([.. _selected], FiringMode.FireAtWill));
+        _hold.Pressed += () => Send(new FiringCommand([.. _selected], FiringMode.HoldFire));
         var heat = new HBoxContainer(); _settings.AddChild(heat);
         NormalHeatButton = Ui.Button(heat, "Normal heat"); AggressiveHeatButton = Ui.Button(heat, "Aggressive heat");
         NormalHeatButton.TooltipText = "Fire the highest expected-damage volley that keeps heat below 20.";
         AggressiveHeatButton.TooltipText = "Allow heat below 30 for a stronger burst, accepting movement and accuracy penalties.";
-        NormalHeatButton.Pressed += () => ChangeUnits(unit => unit.HeatPolicy = HeatPolicy.Normal);
-        AggressiveHeatButton.Pressed += () => ChangeUnits(unit => unit.HeatPolicy = HeatPolicy.Aggressive);
+        NormalHeatButton.Pressed += () => Send(new HeatPolicyCommand([.. _selected], HeatPolicy.Normal));
+        AggressiveHeatButton.Pressed += () => Send(new HeatPolicyCommand([.. _selected], HeatPolicy.Aggressive));
         Ui.Button(_settings, "Stop movement / clear order [Z]").Pressed += StopUnits;
         RosterUi.Text(_settings, "Preferred engagement distance (m)", 12, Ui.Muted);
         _distance = new SpinBox { MinValue = CombatRules.MinimumPreferredDistance, MaxValue = CombatRules.MaximumPreferredDistance,
             Step = 15, AllowGreater = false, AllowLesser = false };
         _settings.AddChild(_distance);
-        _distance.ValueChanged += value => { if (!_refreshing) ChangeUnits(unit => unit.PreferredDistance = (float)value); };
+        _distance.ValueChanged += value => { if (!_refreshing) Send(new DistanceCommand([.. _selected], (float)value)); };
         _priority = Ui.Button(_settings, "Set priority target…");
         _priority.Pressed += () => { SettingPriority = !SettingPriority; SettingJump = false; Battlefield.GrabFocus(); RefreshDetails(); };
-        Ui.Button(_settings, "Clear priority target").Pressed += () => { Simulation?.SetPriority(_selected, null); SettingPriority = false; RefreshDetails(); };
+        Ui.Button(_settings, "Clear priority target").Pressed += () => { SettingPriority = false; Send(new PriorityCommand([.. _selected], null)); };
         _weaponsTitle = RosterUi.Text(body, "WEAPONS · PRIMARY SELECTION", 12, Ui.Gold);
         _weapons = new VBoxContainer(); body.AddChild(_weapons);
         _locations = RosterUi.Text(body, "", 12);
@@ -235,9 +237,11 @@ public partial class CombatScreen : Control
         NewTerrainButton.Pressed += () => { TerrainSeedInput.Text = Random.Shared.Next().ToString(System.Globalization.CultureInfo.InvariantCulture); RefreshForceSelection(); };
         TerrainSeedInput.TextChanged += _ => RefreshForceSelection();
         var body = RosterUi.Scroll(_modalContent); ForceChoices.Clear(); _forceIds.Clear();
-        var first = _roster.Mechs.FirstOrDefault(item => item.Id == selectedMechId && CombatSimulation.UnavailableReason(_roster, item) is null)
-            ?? _roster.Mechs.FirstOrDefault(item => CombatSimulation.UnavailableReason(_roster, item) is null);
-        foreach (var mech in _roster.Mechs)
+        // The player's own lance deploys; lance pool mechs are listed so their absence is explained.
+        var offered = _roster.Mechs.Where(item => item.Lance == Slot || item.Lance is null).ToArray();
+        var first = offered.FirstOrDefault(item => item.Id == selectedMechId && CombatSimulation.UnavailableReason(_roster, item) is null)
+            ?? offered.FirstOrDefault(item => CombatSimulation.UnavailableReason(_roster, item) is null);
+        foreach (var mech in offered)
         {
             var reason = CombatSimulation.UnavailableReason(_roster, mech); var warrior = _roster.Pilot(mech);
             var choice = new CheckBox { Text = $"{mech.Spec.DisplayName} · {mech.Spec.Tonnage}t", Disabled = reason is not null, ButtonPressed = mech == first };
@@ -259,7 +263,8 @@ public partial class CombatScreen : Control
         if (!validSeed) _forceCount.Text += " · Enter a seed from −2147483648 to 2147483647";
         LaunchButton.Disabled = count is < 1 or > 4 || !validSeed;
         for (var i = 0; i < ForceChoices.Count; i++)
-            ForceChoices[i].Disabled = CombatSimulation.UnavailableReason(_roster, _roster.Mechs[i]) is not null || (count >= 4 && !ForceChoices[i].ButtonPressed);
+            ForceChoices[i].Disabled = CombatSimulation.UnavailableReason(_roster, _roster.Mechs.Single(item => item.Id == _forceIds[i])) is not null
+                || (count >= ForceRoster.LanceSize && !ForceChoices[i].ButtonPressed);
     }
     private Biome? SelectedBiome => BiomePicker.Selected > 0 ? Biomes.All[BiomePicker.Selected - 1].Biome : null;
     /// <summary>Picks a biome for the next launch; null picks Random.</summary>
@@ -314,26 +319,26 @@ public partial class CombatScreen : Control
         if (SettingPriority)
         {
             if (target is not null && Simulation.Unit(target) is { Side: CombatSide.Enemy, Defeated: false })
-            { Simulation.SetPriority(_selected, target); SettingPriority = false; }
+            { Simulation.Execute(new PriorityCommand([.. _selected], target), Slot); SettingPriority = false; }
             RefreshDetails(); return;
         }
         if (SettingJump)
         {
             // Mechs are not landing points: a click on one keeps jump targeting armed.
-            if (target is null) { Simulation.Jump(_selected, ground); SettingJump = false; }
+            if (target is null) { Simulation.Execute(new JumpCommand([.. _selected], ground), Slot); SettingJump = false; }
             RefreshDetails(); return;
         }
         // Alt/Ctrl+right-click keeps the chosen mode, exactly as the Walk/Run buttons do.
-        if (mode is { } movement) ChangeUnits(unit => unit.Movement = movement);
-        if (target is not null && Simulation.Unit(target).Side == CombatSide.Friendly) Simulation.Follow(_selected, target);
-        else if (target is not null) Simulation.Attack(_selected, target);
-        else Simulation.Move(_selected, ground);
+        if (mode is { } movement) Simulation.Execute(new MovementCommand([.. _selected], movement), Slot);
+        Simulation.Execute(target is null ? new MoveCommand([.. _selected], ground)
+            : Simulation.Unit(target).Side == CombatSide.Friendly ? new FollowCommand([.. _selected], target) : new AttackCommand([.. _selected], target), Slot);
         RefreshDetails();
     }
-    private void ChangeUnits(Action<CombatUnit> change)
+    /// <summary>Sends a command as the local player, then shows its effect.</summary>
+    private void Send(CombatCommand command)
     {
         if (Simulation is null) return;
-        foreach (var unit in _selected.Select(Simulation.Unit).Where(item => !item.Defeated)) change(unit);
+        Simulation.Execute(command, Slot);
         RefreshDetails();
     }
     /// <summary>Two text lines at the card font, with the margins above and below them.</summary>
@@ -368,16 +373,16 @@ public partial class CombatScreen : Control
         SettingJump = !SettingJump && JumpUnavailable() is null; SettingPriority = false;
         Battlefield.GrabFocus(); RefreshDetails();
     }
-    private void StopUnits() { Simulation?.Hold(_selected); RefreshDetails(); }
+    private void StopUnits() => Send(new HoldCommand([.. _selected]));
     public void TogglePause()
     {
         if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing) return;
-        Simulation.Paused = !Simulation.Paused; RefreshDetails();
+        Send(new PauseCommand(!Simulation.PauseHolds.Contains(Slot)));
     }
     public void OpenMenu()
     {
         if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing) return;
-        _resumeRunning = !Simulation.Paused; Simulation.Paused = true;
+        _resumeRunning = !Simulation.PauseHolds.Contains(Slot); Simulation.Execute(new PauseCommand(true), Slot);
         BeginModal(CombatModal.Menu, "Combat paused");
         RosterUi.Text(_modalContent, $"Terrain seed: {Simulation.Terrain.Seed} · {BiomeText(Simulation)}", 14, Ui.Gold);
         var seedCopy = new LineEdit { Text = Simulation.Terrain.Seed.ToString(System.Globalization.CultureInfo.InvariantCulture), Editable = false };
@@ -392,7 +397,7 @@ public partial class CombatScreen : Control
     public void Resume()
     {
         if (Simulation is null || Modal != CombatModal.Menu) return;
-        Simulation.Paused = !_resumeRunning; Modal = CombatModal.None; _shade.Hide(); Battlefield.CommandsEnabled = true;
+        Simulation.Execute(new PauseCommand(!_resumeRunning), Slot); Modal = CombatModal.None; _shade.Hide(); Battlefield.CommandsEnabled = true;
         Battlefield.MouseFilter = MouseFilterEnum.Stop;
         Battlefield.GrabFocus(); RefreshDetails();
     }
@@ -459,10 +464,10 @@ public partial class CombatScreen : Control
             Action? order = code switch
             {
                 Key.Z => StopUnits,
-                Key.X => () => ChangeUnits(unit => unit.Movement = MovementMode.Walk),
-                Key.C => () => ChangeUnits(unit => unit.Movement = MovementMode.Run),
-                Key.G => () => ChangeUnits(unit => unit.Firing = FiringMode.HoldFire),
-                Key.F => () => ChangeUnits(unit => unit.Firing = FiringMode.FireAtWill),
+                Key.X => () => Send(new MovementCommand([.. _selected], MovementMode.Walk)),
+                Key.C => () => Send(new MovementCommand([.. _selected], MovementMode.Run)),
+                Key.G => () => Send(new FiringCommand([.. _selected], FiringMode.HoldFire)),
+                Key.F => () => Send(new FiringCommand([.. _selected], FiringMode.FireAtWill)),
                 Key.J => ToggleJump,
                 _ => null
             };
@@ -488,7 +493,8 @@ public partial class CombatScreen : Control
     {
         if (Simulation is null) return;
         _status.Text = $"{(Simulation.Paused ? "PAUSED · orders available" : "LIVE")}  |  {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}";
-        PauseButton.Text = Simulation.Paused ? "Resume  [Space]" : "Pause  [Space]";
+        // The button shows the local player's own toggle; the battle stays paused while any player holds one.
+        PauseButton.Text = Simulation.PauseHolds.Contains(Slot) ? "Resume  [Space]" : "Pause  [Space]";
         // Jump targeting lapses once no selected unit can still jump.
         if (SettingJump && JumpUnavailable() is not null) SettingJump = false;
         Battlefield.JumpArmed = SettingJump;
@@ -521,7 +527,8 @@ public partial class CombatScreen : Control
                 {
                     var toggle = new CheckButton { ButtonPressed = weapon.Enabled };
                     _weapons.AddChild(toggle); _weaponControls.Add((weapon, toggle));
-                    toggle.Toggled += value => weapon.Enabled = value;
+                    var index = _weaponControls.Count - 1;
+                    toggle.Toggled += value => Simulation!.Execute(new WeaponCommand(primary!, index, value), Slot);
                 }
         }
         if (inspected is not null)

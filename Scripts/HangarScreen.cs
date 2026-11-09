@@ -14,6 +14,13 @@ public partial class HangarScreen : Control
     public event Action? DeploymentRequested;
     public event Action? QuickLaunchRequested;
     public event Action? ApplyRequested;
+    /// <summary>Moves a mech into a lance, or into the lance pool (null).</summary>
+    public event Action<string, int?>? LanceRequested;
+    /// <summary>The local player's slot: its own lance is the one mechs join from the lance pool.</summary>
+    public int Slot { get; set; } = Campaign.LeaderSlot;
+    /// <summary>Adds the selected mech to the player's lance, or returns it to the lance pool.</summary>
+    public Button LanceButton { get; private set; } = null!;
+    public Label LanceText { get; private set; } = null!;
     public Button BackButton { get; private set; } = null!;
     public Button WarriorsButton { get; private set; } = null!;
     public Button DeploymentButton { get; private set; } = null!;
@@ -140,6 +147,10 @@ public partial class HangarScreen : Control
         AssignButton.Pressed += () => { if (PilotPicker.Selected >= 0 && PilotPicker.Selected < _pilotIds.Count) AssignmentRequested?.Invoke(SelectedMech.Id, _pilotIds[PilotPicker.Selected]); };
         UnassignButton = Ui.Button(actions, "Unassign"); UnassignButton.Pressed += () => AssignmentRequested?.Invoke(SelectedMech.Id, null);
         WarriorsButton = Ui.Button(summary, "View MechWarriors"); WarriorsButton.Pressed += () => WarriorDetailsRequested?.Invoke();
+        var lanceRow = new HBoxContainer(); lanceRow.AddThemeConstantOverride("separation", 6); summary.AddChild(lanceRow);
+        LanceText = RosterUi.Text(lanceRow, "", 13); LanceText.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        LanceButton = Ui.Button(lanceRow, "");
+        LanceButton.Pressed += () => LanceRequested?.Invoke(SelectedMech.Id, SelectedMech.Lance is null ? Slot : null);
         summary.AddChild(new HSeparator());
         _mechName = RosterUi.Text(summary, "", 20, Ui.Gold);
         TonnageText = RosterUi.Text(summary, "", 20);
@@ -382,6 +393,12 @@ public partial class HangarScreen : Control
         var current = warrior is null ? _pilotIds.FindIndex(id => _roster.Assignment(id) is null) : _pilotIds.IndexOf(warrior.Id);
         PilotPicker.Select(current >= 0 ? current : _pilotIds.Count > 0 ? 0 : -1);
         PilotPicker.Disabled = _pilotIds.Count == 0; UpdateAssignmentAction();
+        var lanceFull = _roster.LanceMechs(Slot).Count() >= ForceRoster.LanceSize;
+        LanceText.Text = SelectedMech.Lance is { } lance ? $"{ForceRoster.LanceName(lance)} · {_roster.LanceMechs(lance).Count()}/{ForceRoster.LanceSize}" : "Lance pool";
+        LanceButton.Text = SelectedMech.Lance is null ? $"Add to {ForceRoster.LanceName(Slot)}" : "Move to lance pool";
+        LanceButton.Disabled = !_roster.Controls(Slot, SelectedMech) || SelectedMech.Lance is null && lanceFull;
+        LanceButton.TooltipText = !_roster.Controls(Slot, SelectedMech) ? "Another player's lance" : SelectedMech.Lance is null && lanceFull
+            ? $"A lance holds at most {ForceRoster.LanceSize} BattleMechs" : SelectedMech.Lance is null ? "Only lance mechs deploy" : "Lance pool mechs do not deploy";
         var pending = SelectedHasPendingChanges; var applicable = SelectedCanApply;
         ResetButton.Disabled = !pending; ApplyButton.Disabled = !applicable; UpdateQuickLaunch();
         ResetButton.FocusMode = pending ? FocusModeEnum.All : FocusModeEnum.None;
@@ -394,7 +411,7 @@ public partial class HangarScreen : Control
         for (var i = 0; i < RosterButtons.Count; i++)
         {
             var design = _roster.Mechs[i].Definition;
-            RosterButtons[i].Text = $"{design.Chassis}\n{design.Variant} · {design.Tonnage}t{(_pending.ContainsKey(_roster.Mechs[i].Id) ? " •" : "")}";
+            RosterButtons[i].Text = $"{design.Chassis}\n{design.Variant} · {design.Tonnage}t{(_pending.ContainsKey(_roster.Mechs[i].Id) ? " •" : "")}{(_roster.Mechs[i].Lance is null ? " · Pool" : "")}";
         }
         for (var i = 0; i < RosterButtons.Count; i++) RosterButtons[i].AddThemeStyleboxOverride("normal", Ui.Box(i == index ? new Color("344431") : Ui.Panel, i == index ? Ui.Gold : Ui.Line));
     }

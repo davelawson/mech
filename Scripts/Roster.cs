@@ -145,10 +145,13 @@ public sealed record EquipmentCondition(string Id, ComponentCondition Condition)
 public sealed record AmmoCondition(string Id, int Shots);
 /// <summary>Removed lists the stock items taken out in the hangar, Installed the storage items put in, in installation order, and
 /// Armor the locations whose installed armor differs from stock; each is null when empty.</summary>
+/// <summary>Lance is the zero-based lance the mech belongs to, or null in the lance pool.</summary>
 public sealed record MechSnapshot(string Id, string DefinitionId, string? WarriorId, LocationCondition[] Locations,
-    EquipmentCondition[] Equipment, AmmoCondition[] Ammo, string[]? Removed = null, InstalledItem[]? Installed = null, ArmorFit[]? Armor = null);
+    EquipmentCondition[] Equipment, AmmoCondition[] Ammo, string[]? Removed = null, InstalledItem[]? Installed = null, ArmorFit[]? Armor = null,
+    int? Lance = null);
 public sealed record WarriorSnapshot(string DefinitionId, WarriorHealth Health, DateOnly? RecoveryDate);
-public sealed record RosterSnapshot(string ForceName, MechSnapshot[] Mechs, WarriorSnapshot[] Warriors, StorageEntry[]? Storage = null);
+/// <summary>Lances is the company's lance count; saves from before lances have none.</summary>
+public sealed record RosterSnapshot(string ForceName, MechSnapshot[] Mechs, WarriorSnapshot[] Warriors, StorageEntry[]? Storage = null, int? Lances = null);
 
 public sealed class OwnedMech
 {
@@ -165,6 +168,8 @@ public sealed class OwnedMech
     public ImmutableArray<ArmorFit> Armor { get; private set; }
     public LoadoutPlan Plan => new(Removed, Installed) { Armor = Armor };
     public string? WarriorId { get; internal set; }
+    /// <summary>The zero-based lance the mech belongs to, or null in the lance pool.</summary>
+    public int? Lance { get; internal set; }
     public IReadOnlyList<LocationCondition> Locations { get; private set; }
     public IReadOnlyList<EquipmentCondition> Equipment { get; private set; }
     public IReadOnlyList<AmmoCondition> Ammo { get; private set; }
@@ -172,7 +177,7 @@ public sealed class OwnedMech
     internal OwnedMech(MechSnapshot save, MechSpec definition)
     {
         if (definition.Id != save.DefinitionId) throw new ArgumentException("Definition identity does not match owned state.");
-        Id = save.Id; Definition = definition; WarriorId = save.WarriorId;
+        Id = save.Id; Definition = definition; WarriorId = save.WarriorId; Lance = save.Lance;
         Removed = (save.Removed ?? []).ToImmutableHashSet(StringComparer.Ordinal); Installed = [.. save.Installed ?? []]; Armor = [.. save.Armor ?? []];
         Spec = Loadout.Build(definition, Removed, Installed, Armor);
         Locations = Array.AsReadOnly(save.Locations.ToArray()); Equipment = Array.AsReadOnly(save.Equipment.ToArray()); Ammo = Array.AsReadOnly(save.Ammo.ToArray());
@@ -262,7 +267,7 @@ public sealed class OwnedMech
     public string Status => !Operational ? "Not operational" : Damaged ? "Operational · damaged" : "Operational";
     internal MechSnapshot Snapshot() => new(Id, Definition.Id, WarriorId, Locations.ToArray(), Equipment.ToArray(), Ammo.ToArray(),
         Removed.Count == 0 ? null : Removed.Order(StringComparer.Ordinal).ToArray(), Installed.IsEmpty ? null : Installed.ToArray(),
-        Armor.IsEmpty ? null : Armor.OrderBy(item => item.Location).ToArray());
+        Armor.IsEmpty ? null : Armor.OrderBy(item => item.Location).ToArray(), Lance);
 }
 
 public sealed class RosterWarrior
@@ -287,19 +292,40 @@ public sealed class ForceRoster
     public IReadOnlyList<StorageEntry> Storage => _storage.AsReadOnly();
     private readonly List<StorageEntry> _storage;
     public int ReadyWarriors => Warriors.Count(item => item.Ready);
-    private ForceRoster(string name, IEnumerable<OwnedMech> mechs, IEnumerable<RosterWarrior> warriors, IEnumerable<StorageEntry>? storage = null)
+    public const int LanceSize = 4, MaxLances = 3;
+    /// <summary>One lance per player slot, fixed when the company forms.</summary>
+    public int LanceCount { get; }
+    private ForceRoster(string name, IEnumerable<OwnedMech> mechs, IEnumerable<RosterWarrior> warriors, IEnumerable<StorageEntry>? storage = null, int lances = 1)
     {
         ForceName = name; Mechs = new ReadOnlyCollection<OwnedMech>(mechs.ToArray()); Warriors = new ReadOnlyCollection<RosterWarrior>(warriors.ToArray());
         _storage = (storage ?? StorageCatalog.Stock(Mechs.Select(item => item.Definition))).ToList();
+        LanceCount = lances;
     }
-    internal static ForceRoster Create(string name, IEnumerable<MechSpec> mechs, IEnumerable<WarriorSpec> warriors)
+    /// <summary>A new company: its mechs fill the lances in order, four to a lance, and any beyond them start in the lance pool.</summary>
+    internal static ForceRoster Create(string name, IEnumerable<MechSpec> mechs, IEnumerable<WarriorSpec> warriors, int lances = 1)
     {
+        if (lances is < 1 or > MaxLances) throw new ArgumentOutOfRangeException(nameof(lances));
         var units = mechs.Select((spec, i) => new OwnedMech(new($"mech-{i + 1}", spec.Id, null,
             spec.Locations.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)).ToArray(),
             spec.Weapons.Select(item => item.Id).Concat(spec.Components.Select(item => item.Id)).Concat(spec.Ammo.Select(item => item.Id))
                 .Select(id => new EquipmentCondition(id, ComponentCondition.Operational)).ToArray(),
-            spec.Ammo.Select(item => new AmmoCondition(item.Id, item.Shots)).ToArray())));
-        return new(name, units, warriors.Select(spec => new RosterWarrior(new(spec.Id, WarriorHealth.Healthy, null))));
+            spec.Ammo.Select(item => new AmmoCondition(item.Id, item.Shots)).ToArray(), Lance: i < lances * LanceSize ? i / LanceSize : null)));
+        return new(name, units, warriors.Select(spec => new RosterWarrior(new(spec.Id, WarriorHealth.Healthy, null))), lances: lances);
+    }
+    public static string LanceName(int lance) => $"Lance {lance + 1}";
+    public IEnumerable<OwnedMech> LanceMechs(int lance) => Mechs.Where(item => item.Lance == lance);
+    public IEnumerable<OwnedMech> Pool => Mechs.Where(item => item.Lance is null);
+    /// <summary>Whether a player slot may act on a mech: one in the slot's own lance or in the lance pool, never another player's lance.
+    /// Its MechWarrior goes with it.</summary>
+    public bool Controls(int slot, OwnedMech mech) => mech.Lance is null || mech.Lance == slot;
+    /// <summary>Moves a mech into a lance with room, or into the lance pool (null). Its pilot assignment is kept.</summary>
+    public void SetLance(string mechId, int? lance)
+    {
+        var mech = Mechs.SingleOrDefault(item => item.Id == mechId) ?? throw new ArgumentException("Unknown owned BattleMech.");
+        if (lance == mech.Lance) return;
+        if (lance is { } target && (target < 0 || target >= LanceCount)) throw new ArgumentOutOfRangeException(nameof(lance), "The company has no such lance.");
+        if (lance is { } full && LanceMechs(full).Count() >= LanceSize) throw new InvalidOperationException($"A lance holds at most {LanceSize} BattleMechs.");
+        mech.Lance = lance;
     }
     public OwnedMech? Assignment(string warriorId) => Mechs.SingleOrDefault(item => item.WarriorId == warriorId);
     public RosterWarrior? Pilot(OwnedMech mech) => Warriors.SingleOrDefault(item => item.Id == mech.WarriorId);
@@ -318,7 +344,7 @@ public sealed class ForceRoster
     /// <summary>A detached copy with these mechs' loadouts replaced, for a simulated deployment of pending hangar changes.</summary>
     public ForceRoster WithLoadouts(IReadOnlyDictionary<string, LoadoutPlan> plans) =>
         new(ForceName, Mechs.Select(mech => plans.TryGetValue(mech.Id, out var plan) ? mech.WithLoadout(plan) : new OwnedMech(mech.Snapshot(), mech.Definition)),
-            Warriors.Select(warrior => new RosterWarrior(warrior.Snapshot())), _storage);
+            Warriors.Select(warrior => new RosterWarrior(warrior.Snapshot())), _storage, LanceCount);
     /// <summary>Commits a mech's loadout: items taken out join storage, except destroyed ones, which are scrapped, and newly
     /// installed items leave it. Bought items join storage first, so they install like spares. An overweight loadout, or one
     /// needing spares storage lacks, is refused.</summary>
@@ -355,7 +381,7 @@ public sealed class ForceRoster
         foreach (var warrior in Warriors.Where(item => item.Health == WarriorHealth.Injured && item.RecoveryDate <= today))
         { warrior.Health = WarriorHealth.Healthy; warrior.RecoveryDate = null; }
     }
-    public RosterSnapshot Snapshot() => new(ForceName, Mechs.Select(item => item.Snapshot()).ToArray(), Warriors.Select(item => item.Snapshot()).ToArray(), Storage.ToArray());
+    public RosterSnapshot Snapshot() => new(ForceName, Mechs.Select(item => item.Snapshot()).ToArray(), Warriors.Select(item => item.Snapshot()).ToArray(), Storage.ToArray(), LanceCount);
     /// <summary>Multiplies saved armor and structure, leaving malformed entries for Restore to reject.</summary>
     internal static RosterSnapshot Rescale(RosterSnapshot save, int factor)
     {
@@ -372,8 +398,14 @@ public sealed class ForceRoster
     public static ForceRoster Restore(RosterSnapshot save, DateOnly date)
     {
         if (!InitialDraft.ValidName(save.ForceName) || save.ForceName != save.ForceName.Trim() || save.Mechs is null || save.Warriors is null
-            || save.Mechs.Length == 0 || save.Warriors.Length == 0)
+            || save.Mechs.Length == 0 || save.Warriors.Length == 0 || save.Lances is < 1 or > MaxLances)
             throw new ArgumentException("Invalid roster.");
+        // Saves from before lances form one lance from the first four mechs; the rest join the lance pool.
+        var lances = save.Lances ?? 1;
+        if (save.Lances is null) save = save with { Mechs = save.Mechs.Select((mech, i) => mech is null ? null! : mech with { Lance = i < LanceSize ? 0 : null }).ToArray() };
+        if (save.Mechs.Any(mech => mech?.Lance is { } lance && (lance < 0 || lance >= lances))
+            || save.Mechs.Where(mech => mech?.Lance is not null).GroupBy(mech => mech.Lance).Any(group => group.Count() > LanceSize))
+            throw new ArgumentException("Invalid lance.");
         var warriorIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var warrior in save.Warriors)
         {
@@ -423,7 +455,7 @@ public sealed class ForceRoster
         if (save.Storage is { } storage && (storage.Any(item => item is null || item.Count <= 0 || item.Id is null || StorageCatalog.Describe(item.Id) is null)
             || storage.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != storage.Length))
             throw new ArgumentException("Invalid equipment storage.");
-        return new(save.ForceName, mechs.Select(item => new OwnedMech(item)), save.Warriors.Select(item => new RosterWarrior(item)), save.Storage);
+        return new(save.ForceName, mechs.Select(item => new OwnedMech(item)), save.Warriors.Select(item => new RosterWarrior(item)), save.Storage, lances);
     }
     /// <summary>Saves from before heat sinks and jump jets were individual items record one condition per group; each item inherits it.</summary>
     private static MechSnapshot Migrate(MechSnapshot mech, MechSpec stock)

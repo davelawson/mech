@@ -151,6 +151,8 @@ public sealed partial class CombatUnit
     public MechSpec Spec { get; }
     public WarriorSpec Warrior { get; }
     public CombatSide Side { get; }
+    /// <summary>The lance a friendly mech deployed from, which is the player slot that commands it; null for enemies.</summary>
+    public int? Lance { get; }
     public IReadOnlyDictionary<MechLocation, CombatLocation> Locations { get; }
     public IReadOnlyList<CombatWeapon> Weapons { get; }
     public IReadOnlyDictionary<string, ComponentCondition> Equipment { get; }
@@ -185,9 +187,9 @@ public sealed partial class CombatUnit
     public int InterferenceAimModifier => InterferenceRemaining > 0 ? CombatRules.InterferenceModifier : 0;
     internal CombatUnit(string id, MechSpec spec, WarriorSpec warrior, CombatSide side,
         IEnumerable<LocationCondition> locations, IEnumerable<EquipmentCondition> equipment,
-        IEnumerable<AmmoCondition> ammo, Vector2 position)
+        IEnumerable<AmmoCondition> ammo, Vector2 position, int? lance = null)
     {
-        Id = id; Spec = spec; Warrior = warrior; Side = side; Position = Destination = position;
+        Id = id; Spec = spec; Warrior = warrior; Side = side; Position = Destination = position; Lance = side == CombatSide.Friendly ? lance ?? 0 : null;
         Facing = side == CombatSide.Friendly ? Vector2.Up : Vector2.Down;
         Locations = locations.ToDictionary(item => item.Location, item => new CombatLocation(item));
         Equipment = equipment.ToDictionary(item => item.Id, item => item.Condition);
@@ -335,7 +337,18 @@ public sealed partial class CombatSimulation
 {
     public IReadOnlyList<CombatUnit> Units { get; }
     public BattlefieldTerrain Terrain { get; }
-    public bool Paused { get; set; } = true;
+    /// <summary>Paused while any player holds a pause, or the game is waiting for a player to reconnect. Setting it holds or
+    /// releases every player's pause at once, as single-player pausing does.</summary>
+    public bool Paused
+    {
+        get => _pauseHolds.Count > 0;
+        set { _pauseHolds.Clear(); if (value) _pauseHolds.UnionWith(Players); }
+    }
+    /// <summary>The player slots commanding friendly lances in this battle.</summary>
+    public IReadOnlyList<int> Players { get; }
+    /// <summary>The player slots whose pause toggle is on. Every toggle starts on.</summary>
+    public IReadOnlySet<int> PauseHolds => _pauseHolds;
+    private readonly HashSet<int> _pauseHolds = [];
     public double Elapsed { get; private set; }
     public CombatOutcome Outcome { get; private set; }
     /// <summary>Simulation time at which a wind-down started by a side's defeat decides the outcome.</summary>
@@ -358,6 +371,7 @@ public sealed partial class CombatSimulation
     public static string? UnavailableReason(ForceRoster roster, OwnedMech mech)
     {
         var reasons = new List<string>(); var warrior = roster.Pilot(mech);
+        if (mech.Lance is null) reasons.Add("In the lance pool");
         if (!mech.Operational) reasons.Add("BattleMech not operational");
         if (warrior is null) reasons.Add("No assigned MechWarrior");
         else if (!warrior.Ready) reasons.Add(warrior.Status);
@@ -397,24 +411,28 @@ public sealed partial class CombatSimulation
     private static OwnedMech[] DeployedForce(ForceRoster roster, IEnumerable<string> selected)
     {
         var ids = selected.ToArray();
-        if (ids.Length is < 1 or > 4 || ids.Distinct().Count() != ids.Length)
+        if (ids.Length == 0 || ids.Distinct().Count() != ids.Length)
             throw new ArgumentException("Select one to four different BattleMechs.");
-        return ids.Select(id =>
+        var force = ids.Select(id =>
         {
             var source = roster.Mechs.SingleOrDefault(item => item.Id == id)
                 ?? throw new ArgumentException("Unknown BattleMech.");
             if (UnavailableReason(roster, source) is { } reason) throw new ArgumentException(reason);
             return source;
         }).ToArray();
+        // Each lance deploys from its own mechs, at most a lance's worth.
+        if (force.GroupBy(item => item.Lance).Any(group => group.Count() > ForceRoster.LanceSize))
+            throw new ArgumentException("Select one to four different BattleMechs.");
+        return force;
     }
 
     /// <summary>A mech ready to deploy, keyed by its owned id; enemies are renumbered on deployment.</summary>
     private sealed record DeployedMech(string Id, MechSpec Spec, WarriorSpec Pilot, IEnumerable<LocationCondition> Locations,
-        IEnumerable<EquipmentCondition> Equipment, IEnumerable<AmmoCondition> Ammo);
+        IEnumerable<EquipmentCondition> Equipment, IEnumerable<AmmoCondition> Ammo, int? Lance = null);
 
     private static DeployedMech Deployed(OwnedMech source, WarriorSpec pilot, bool pristine) => pristine
-        ? Stock(source.Spec, pilot) with { Id = source.Id }
-        : new(source.Id, source.Spec, pilot, source.Locations, source.Equipment, source.Ammo);
+        ? Stock(source.Spec, pilot) with { Id = source.Id, Lance = source.Lance }
+        : new(source.Id, source.Spec, pilot, source.Locations, source.Equipment, source.Ammo, source.Lance);
 
     private static DeployedMech Stock(MechSpec spec, WarriorSpec pilot) => new(spec.Id, spec, pilot,
         spec.Locations.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)),
@@ -436,7 +454,7 @@ public sealed partial class CombatSimulation
         }
         return new CombatSimulation(units, seed, terrain);
         static CombatUnit Unit(DeployedMech mech, string id, CombatSide side, Vector2 position) =>
-            new(id, mech.Spec, mech.Pilot, side, mech.Locations, mech.Equipment, mech.Ammo, position);
+            new(id, mech.Spec, mech.Pilot, side, mech.Locations, mech.Equipment, mech.Ammo, position, mech.Lance);
     }
 
     /// <summary>The battlefield facts of a fought mission. Only victory succeeds; defeat, a draw or withdrawing fails.</summary>
@@ -475,6 +493,9 @@ public sealed partial class CombatSimulation
         var climate = Terrain.Biome is { } biome ? Biomes.Spec(biome) : null;
         foreach (var unit in Units) unit.Climate = climate;
         History = _history.AsReadOnly(); _random = new Random(seed); RefreshDetection();
+        var players = Units.Where(item => item.Side == CombatSide.Friendly).Select(item => item.Lance!.Value).Distinct().Order().ToArray();
+        Players = players.Length > 0 ? players : [Campaign.LeaderSlot];
+        Paused = true;
     }
     public CombatUnit Unit(string id) => Units.Single(item => item.Id == id);
     public IReadOnlyDictionary<string, CombatContact> Contacts(CombatSide side) => _contacts[side];

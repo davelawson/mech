@@ -88,6 +88,28 @@ public sealed class Campaign
         }
     }
 
+    /// <summary>The leader's player slot; the other slots number on from it, one per lance.</summary>
+    public const int LeaderSlot = 0;
+    /// <summary>Player slots: one per lance, fixed when the campaign begins.</summary>
+    public int Players => Roster?.LanceCount ?? 1;
+
+    /// <summary>Carries out a player slot's command, refusing leader-only commands from other slots.</summary>
+    public void Execute(CampaignCommand command, int slot = LeaderSlot) => Run(command, slot);
+    public TResult Execute<TResult>(CampaignCommand<TResult> command, int slot = LeaderSlot) => (TResult)Run(command, slot)!;
+    private object? Run(CampaignCommand command, int slot)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (slot < 0 || slot >= Players) throw new ArgumentOutOfRangeException(nameof(slot), "The campaign has no such player slot.");
+        if (command.LeaderOnly && slot != LeaderSlot) throw new InvalidOperationException("Only the leader can do that.");
+        return command.Run(this, slot);
+    }
+    internal ForceRoster RequireRoster() => Roster ?? throw new InvalidOperationException("No company has been established.");
+    internal static void RequireControl(ForceRoster roster, int slot, string mechId)
+    {
+        var mech = roster.Mechs.SingleOrDefault(item => item.Id == mechId) ?? throw new ArgumentException("Unknown owned BattleMech.");
+        if (!roster.Controls(slot, mech)) throw new InvalidOperationException("That BattleMech belongs to another player's lance.");
+    }
+
     public bool PlotJourney(string destination) { RequireTravelAccess(); return Travel.Plot(destination); }
     public void Embark() { RequireTravelAccess(); Travel.Embark(); }
     public void CancelJourney() { RequireTravelAccess(); Travel.Cancel(); }

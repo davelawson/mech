@@ -8,7 +8,17 @@ The persistent mercenary organization and the forces it commands in the BattleTe
 The persistent player-controlled organization, which continues through personnel deaths and departures.
 
 **Lance**:
-A formation of four BattleMechs.
+A formation of up to four BattleMechs, commanded by one player. A company has one lance per player slot, and only lance mechs deploy. A MechWarrior belongs to the lance of the BattleMech they are assigned to.
+
+**Lance pool**:
+The company's BattleMechs in no lance, together with their assigned MechWarriors. Any player may act on them; none deploy.
+
+**Player slot**:
+One player's seat in a campaign, numbered from 0 and matching the lance that player commands. The number of slots is fixed when the campaign begins.
+
+**Leader**:
+The player in slot 0, whose machine hosts the campaign. Only the leader travels, accepts and abandons contracts, advances time, settles company finances and saves or loads.
+_Avoid_: Host, commander
 
 **Company**:
 A formation of three lances, used as a rough scale for the game rather than a strict roster or deployment limit.

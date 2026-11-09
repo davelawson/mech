@@ -897,6 +897,12 @@ public partial class SmokeTests : Node
         await Click(DialogButton("Cancel")); Check(roster.Mechs[1].WarriorId == before, "cancel swap leaves both assignments intact");
         await Click(_app.Hangar.AssignButton); await Click(DialogButton("Swap"));
         Check(roster.Mechs[1].WarriorId == roster.Warriors[0].Id && roster.Mechs[0].WarriorId == before, "confirmed swap updates both assignments");
+        Check(_app.Hangar.LanceText.Text == "Lance 1 · 4/4" && _app.Hangar.LanceButton.Text == "Move to lance pool", "hangar shows the selected mech's lance");
+        await Click(_app.Hangar.LanceButton);
+        Check(roster.Mechs[1].Lance is null && roster.Mechs[1].WarriorId == roster.Warriors[0].Id && _app.Hangar.LanceText.Text == "Lance pool"
+            && _app.Hangar.RosterButtons[1].Text.EndsWith(" · Pool"), "hangar moves a mech to the lance pool with its MechWarrior");
+        await Click(_app.Hangar.LanceButton);
+        Check(roster.Mechs[1].Lance == 0 && _app.Hangar.LanceButton.Text == "Move to lance pool", "hangar adds a lance pool mech back to the player's lance");
         foreach (var size in new[] { new Vector2I(1440, 900), new Vector2I(900, 500) })
         {
             GetWindow().Size = size; await Frames(); await Capture($"hangar-{size.X}x{size.Y}");

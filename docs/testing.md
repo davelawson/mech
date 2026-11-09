@@ -35,7 +35,7 @@ Run `scripts/mech unit` alongside the Godot groups when changing a file covered 
 | `office` | Office artwork, wall chart, missing artwork | `OfficeScreen`, `ArtworkHotspot` |
 | `map` | Map transform, star map zoom/pan/mouse, DropShip locator, travel UI and model, system owners | `MapScreen`, `MapViewport`, `MapTransform`, `StarChart`, `Travel`, `Data/system-factions.json` |
 | `roster` | Roster model, rolodex, injured and memorial records | `RolodexPanel`, `RosterUi`, `Roster` |
-| `hangar` | Hangar model, assignments and swaps, hangar board and location panels, loadout removal and installation (drag and drop), weapon mount slots, over-tonnage, Apply/Reset and pending changes, Inventory/Market tabs and pending purchases | `HangarScreen`, `HangarLocationPanel`, `HangarStorageLine`, `HangarDragItem`, `HangarConditionBar`, `MechPreview`, `Equipment` |
+| `hangar` | Hangar model, assignments and swaps, lance pool moves, hangar board and location panels, loadout removal and installation (drag and drop), weapon mount slots, over-tonnage, Apply/Reset and pending changes, Inventory/Market tabs and pending purchases | `HangarScreen`, `HangarLocationPanel`, `HangarStorageLine`, `HangarDragItem`, `HangarConditionBar`, `MechPreview`, `Equipment` |
 | `missions` | Mission board model, reputation, and phone overlay | `MissionsPanel`, `Missions`, `Reputation`, `Factions` |
 | `finance` | Campaign model, calendar, quarterly payments, save/load, bankruptcy | `Campaign` (time and money) |
 | `catalog` | Mech and weapon definitions | `CatalogLoader`, `GameDefinitions`, `WeaponDefinitions`, `DefinitionText`, `Data/` |

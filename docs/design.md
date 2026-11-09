@@ -258,7 +258,7 @@ The [combat design](combat-design.md) records the initial pausable real-time com
 
 A **Quick Launch** button in the hangar, beside **Simulate Deployment**, deploys straight to the current mission, wherever the DropShip is: there is no travel. Accept the mission on the office phone first. The button is disabled, its tooltip saying why, with no accepted mission, while the hangar holds pending loadout changes (the battle's damage must land on applied loadouts), or while a quarterly payment is due.
 
-- **Force selection** is the simulation's: choose 1–4 BattleMechs with ready MechWarriors and a terrain seed. The biome is fixed to the mission system's (Valley for a system without one). There is no opponent choice.
+- **Force selection** is the simulation's: choose 1–4 BattleMechs from your lance with ready MechWarriors and a terrain seed. The biome is fixed to the mission system's (Valley for a system without one). There is no opponent choice.
 - **The battle** sets the selected mechs in their current condition against the offer's exact opposition: stock, undamaged and fully supplied, each pilot skilled by rank (see [combat tuning](combat-tuning.md#mission-opposition)). The combat menu's **Withdraw** ends the battle early.
 - **Outcome.** Victory succeeds. Defeat, a draw or withdrawing fails.
 - **Settlement** happens once, when the results appear, and the results list it:
@@ -268,3 +268,15 @@ A **Quick Launch** button in the hangar, beside **Simulate Deployment**, deploys
   - Reputation changes by the [mission conduct](#reputation-confirmed-november-5-2026) table, with the armor the force lost and the enemy MechWarriors who survived. Fleeing, buildings and salvage count as zero.
   - The mission is finished, and the calendar advances one day, with that day's events and any quarterly payment presented on returning to the hangar.
 - Insurance and salvage are not settled yet. Backing out of force selection, or leaving a battle for the main menu before the results, settles nothing: the mission stays current.
+
+## Lances and player slots (confirmed November 9, 2026)
+
+Co-op multiplayer is planned in [ADR 0003](adr/0003-cooperative-multiplayer.md). Its first step is in place: lances, player slots and campaign commands, used by single-player.
+
+- **Lances.** A company has one lance per player slot, fixed when it forms; a single-player company has one. A lance holds up to four BattleMechs. Mechs in no lance are in the **lance pool**. A new company's mechs fill the lances in order, and saves from before lances form one lance from their first four mechs.
+- **Deployment.** Only lance mechs deploy. Force selection offers the player's own lance and lists lance pool mechs as unavailable (*In the lance pool*).
+- **Hangar.** The summary panel shows the selected mech's lance, with **Move to lance pool**, or **Add to Lance 1** for a lance pool mech. The button is disabled when the lance is full. Lance pool mechs are tagged *· Pool* on the roster buttons. A mech keeps its MechWarrior when it moves.
+- **Commands.** Every campaign change a screen makes is a command sent from the local player's slot:
+  - **Leader only:** travel, accepting and abandoning missions, advancing time, quarterly payments and mission settlement.
+  - **Any player:** loadouts, pilot assignments and lance moves, but only on mechs in the player's own lance or the lance pool. Moving a MechWarrior off another mech needs control of both mechs.
+  - A player adds mechs only to their own lance.

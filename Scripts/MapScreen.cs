@@ -7,6 +7,8 @@ public partial class MapScreen : Control
     public event Action<Texture2D?>? TextureChanged;
     public event Action? TravelChanged;
     public Button EmbarkButton { get; private set; } = null!;
+    /// <summary>The local player's slot, which sends the travel commands.</summary>
+    public int Slot { get; set; } = Campaign.LeaderSlot;
     public Button CancelButton { get; private set; } = null!;
     public Label LocationLabel { get; private set; } = null!;
     public Label CandidateLabel { get; private set; } = null!;
@@ -125,10 +127,10 @@ public partial class MapScreen : Control
         Destinations.ItemSelected += index => { if (index > 0) SelectSystem(_destinationIds[(int)index - 1]); };
         CandidateLabel = TravelLabel(box, "", new Color("62b9ff"));
         EmbarkButton = Ui.Button(box, "Embark");
-        EmbarkButton.Pressed += () => { _campaign!.Embark(); _notice = null; RefreshTravel(); TravelChanged?.Invoke(); };
+        EmbarkButton.Pressed += () => { _campaign!.Execute(new EmbarkCommand(), Slot); _notice = null; RefreshTravel(); TravelChanged?.Invoke(); };
         JourneyLabel = TravelLabel(box, "", new Color("61de95"));
         CancelButton = Ui.Button(box, "Cancel Journey");
-        CancelButton.Pressed += () => { _campaign!.CancelJourney(); _notice = null; RefreshTravel(); TravelChanged?.Invoke(); };
+        CancelButton.Pressed += () => { _campaign!.Execute(new CancelJourneyCommand(), Slot); _notice = null; RefreshTravel(); TravelChanged?.Invoke(); };
         TravelLabel(box, "Blue: candidate · Green: embarked\nAdvance time from the office.\nTransit: 2,000 C-bills/day, billed quarterly.", Ui.Muted, 12);
         PopulateDestinations();
     }
@@ -147,7 +149,7 @@ public partial class MapScreen : Control
     public void SelectSystem(string id)
     {
         if (_campaign is null || !_campaign.Travel.InOrbit || _campaign.RequiresDraft || _campaign.Bankrupt) return;
-        var found = _campaign.PlotJourney(id);
+        var found = _campaign.Execute(new PlotJourneyCommand(id), Slot);
         _notice = found ? null : id == _campaign.Travel.OrbitSystemId ? "You are already in orbit here."
             : $"No route to {StarChart.Instance[id].Name} using jumps of 30 light-years or less.";
         RefreshTravel(); TravelChanged?.Invoke();

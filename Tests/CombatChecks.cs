@@ -25,6 +25,35 @@ internal static partial class CombatChecks
         Friendly(sim).Facing = Vector2.Right; Enemy(sim).Facing = Vector2.Left;
         sim.RefreshDetection();
     }
+    private static void CheckLances(Action<bool, string> check, Action<Action, string> reject)
+    {
+        var pooled = Roster(4); pooled.SetLance("mech-4", null);
+        check(CombatSimulation.UnavailableReason(pooled, pooled.Mechs[3]) == "In the lance pool", "lance pool mechs cannot deploy");
+        reject(() => Deploy(pooled, ["mech-1", "mech-4"]), "a deployment with a lance pool mech is rejected");
+
+        var roster = ForceRoster.Create("Two lances", Enumerable.Repeat(DraftCatalog.Mech("awesome"), 5), DraftCatalog.Warriors.Take(5), lances: 2);
+        for (var i = 0; i < 5; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
+        var sim = Deploy(roster, roster.Mechs.Select(item => item.Id));
+        var (leader, player) = (sim.Unit("mech-1"), sim.Unit("mech-5"));
+        check(sim.Players.SequenceEqual([0, 1]) && leader.Lance == 0 && player.Lance == 1 && sim.Units.Where(item => item.Side == CombatSide.Enemy).All(item => item.Lance is null),
+            "each lance deploys under its own player slot");
+        check(sim.Paused && sim.PauseHolds.SetEquals([0, 1]), "every player's pause toggle starts on");
+        sim.Execute(new PauseCommand(false), 0);
+        check(sim.Paused && sim.PauseHolds.SetEquals([1]), "the battle stays paused while any player holds a pause");
+        sim.Execute(new PauseCommand(false), 1);
+        check(!sim.Paused, "the battle runs once every player releases their pause");
+        sim.Execute(new PauseCommand(true), 1);
+        check(sim.Paused && sim.PauseHolds.SetEquals([1]), "any player pauses the battle");
+        sim.Execute(new MovementCommand(["mech-1", "mech-5"], MovementMode.Run), 1);
+        check(leader.Movement == MovementMode.Walk && player.Movement == MovementMode.Run, "a player's orders reach only their own lance");
+        sim.Execute(new HoldCommand(["mech-1"]), 1);
+        sim.Execute(new MoveCommand(["mech-1"], new Vector2(0, 100)), 0);
+        check(leader.Order == CombatOrder.Move, "the leader orders their own lance");
+        reject(() => sim.Execute(new PauseCommand(false), 2), "a player with no lance in the battle sends no commands");
+        reject(() => Deploy(roster, roster.Mechs.Take(4).Append(roster.Mechs[4]).Select(item => item.Id).Prepend("mech-1")), "duplicates stay rejected across lances");
+        sim.Paused = false;
+        check(!sim.Paused && sim.PauseHolds.Count == 0, "unpausing outright releases every player's toggle");
+    }
     public static void Run(Action<bool, string> check)
     {
         void Reject(Action action, string message)
@@ -40,6 +69,7 @@ internal static partial class CombatChecks
         check(sim.Units.Where(item => item.Side == CombatSide.Enemy).Zip(sim.Units.Where(item => item.Side == CombatSide.Friendly))
             .All(pair => pair.First.Spec == pair.Second.Spec && pair.First.Warrior == pair.Second.Warrior), "opposition mirrors definitions and warrior skills");
         Reject(() => Deploy(roster, []), "empty deployment rejected");
+        CheckLances(check, Reject);
         Reject(() => Deploy(roster, ["mech-1", "mech-1"]), "duplicate deployment rejected");
         Reject(() => Deploy(roster, ["unknown"]), "unknown deployment rejected");
         var tooMany = Roster(5);

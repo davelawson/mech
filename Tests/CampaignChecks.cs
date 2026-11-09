@@ -84,6 +84,51 @@ internal static class CampaignChecks
         Throws(() => Campaign.Restore(campaign.Snapshot() with { NextQuarter = campaign.Date }), check, "reject invalid payment recurrence");
 
         TestStorage(check);
+        TestLances(check);
+    }
+
+    /// <summary>A two-player company: the draft's first two mechs in the leader's lance, the last two in the second player's.</summary>
+    internal static Campaign TwoPlayerCompany()
+    {
+        var save = NewCompany(7).Snapshot();
+        var roster = save.Roster!;
+        return Campaign.Restore(save with { Roster = roster with { Lances = 2, Mechs = roster.Mechs.Select((mech, i) => mech with { Lance = i < 2 ? 0 : 1 }).ToArray() } });
+    }
+
+    private static void TestLances(Action<bool, string> check)
+    {
+        var solo = NewCompany();
+        check(solo.Players == 1 && solo.Roster!.LanceCount == 1 && solo.Roster.Mechs.All(mech => mech.Lance == 0),
+            "a single-player company forms one lance from its four drafted mechs");
+        Throws(() => solo.Execute(new AdvanceDayCommand(), 1), check, "a single-player campaign has no second player slot");
+        check(solo.Execute(new AdvanceDayCommand()).Advanced, "the leader advances time through a command");
+
+        var campaign = TwoPlayerCompany();
+        var roster = campaign.Roster!;
+        var (leaderMech, playerMech) = (roster.Mechs[0], roster.Mechs[2]);
+        check(campaign.Players == 2 && roster.LanceMechs(0).Count() == 2 && roster.LanceMechs(1).Count() == 2, "a two-player company has two lances");
+        var offer = campaign.Missions.Available.First(item => campaign.DeadlineDays(item) is not null);
+        Throws(() => campaign.Execute(new AcceptMissionCommand(offer.Id), 1), check, "only the leader accepts missions");
+        Throws(() => campaign.Execute(new AdvanceDayCommand(), 1), check, "only the leader advances time");
+        Throws(() => campaign.Execute(new PlotJourneyCommand(campaign.Travel.OrbitSystemId), 1), check, "only the leader plots travel");
+        var date = campaign.Date;
+        campaign.Execute(new AcceptMissionCommand(offer.Id), Campaign.LeaderSlot);
+        check(campaign.Missions.Current?.Id == offer.Id && campaign.Date == date, "the leader accepts a mission");
+
+        Throws(() => campaign.Execute(new SetLanceCommand(leaderMech.Id, null), 1), check, "a player cannot move another player's mech to the lance pool");
+        Throws(() => campaign.Execute(new ApplyLoadoutCommand(leaderMech.Id, leaderMech.Plan, []), 1), check, "a player cannot refit another player's mech");
+        Throws(() => campaign.Execute(new AssignWarriorCommand(playerMech.Id, leaderMech.WarriorId, true), 1), check,
+            "a player cannot take a MechWarrior from another player's mech");
+        campaign.Execute(new SetLanceCommand(playerMech.Id, null), 1);
+        check(playerMech.Lance is null && roster.Pool.Single() == playerMech, "a player moves their own mech to the lance pool, MechWarrior and all");
+        Throws(() => campaign.Execute(new SetLanceCommand(playerMech.Id, Campaign.LeaderSlot), 1), check, "a player only adds mechs to their own lance");
+        campaign.Execute(new AssignWarriorCommand(playerMech.Id, null), Campaign.LeaderSlot);
+        check(playerMech.WarriorId is null, "any player acts on lance pool mechs");
+        campaign.Execute(new SetLanceCommand(playerMech.Id, Campaign.LeaderSlot), Campaign.LeaderSlot);
+        check(playerMech.Lance == 0 && roster.LanceMechs(0).Count() == 3, "the leader takes a lance pool mech into their lance");
+        var restored = Campaign.Restore(campaign.Snapshot());
+        check(restored.Players == 2 && restored.Roster!.Mechs.Select(mech => mech.Lance).SequenceEqual(roster.Mechs.Select(mech => mech.Lance)),
+            "lances survive a save round trip");
     }
 
     /// <summary>The snapshot as an older version would have saved it: whole stock points of armor and structure.</summary>

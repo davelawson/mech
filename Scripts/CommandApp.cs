@@ -16,6 +16,8 @@ public partial class CommandApp : Control
     public MissionsPanel Missions { get; private set; } = null!;
     public Campaign State { get; private set; } = new();
     public bool IsAdvancing { get; private set; }
+    /// <summary>The local player's slot. Single-player is a one-slot campaign whose only player is the leader.</summary>
+    public int LocalSlot { get; private set; } = Campaign.LeaderSlot;
     public CommandNavigator Navigation { get; private set; } = null!;
     public bool HasUnsavedChanges => !State.RequiresDraft && (_savedSnapshot is null || CampaignData() != _savedSnapshot);
     [Export] public string SavePath { get; set; } = "user://campaign.json";
@@ -58,6 +60,7 @@ public partial class CommandApp : Control
         AddChild(Dialog);
         UnsavedDialog = new CampaignDialog { Name = "UnsavedChanges" };
         AddChild(UnsavedDialog);
+        StarMap.Slot = Hangar.Slot = Tactical.Slot = LocalSlot;
         CreateNavigator();
         MainMenu.NewRequested += () => ConfirmUnsaved("Start a new company?", "New Company", StartNewCompany);
         MainMenu.LoadRequested += RequestLoad;
@@ -69,18 +72,19 @@ public partial class CommandApp : Control
         Rolodex.Closed += CloseWarriors;
         Office.MissionsRequested += ShowMissions;
         Missions.Closed += ShowOffice;
-        Missions.AcceptRequested += id => { State.AcceptMission(id); ShowOffice(); };
+        Missions.AcceptRequested += id => { Execute(new AcceptMissionCommand(id)); ShowOffice(); };
         Missions.AbandonRequested += () => Confirm("Abandon mission?",
             $"Abandon {State.Missions.Current!.Name}?\n\nThere is no penalty, but the mission will be gone for good.",
             () =>
             {
-                State.Missions.Abandon(); Missions.Refresh(); RefreshCampaign();
+                Execute(new AbandonMissionCommand()); Missions.Refresh(); RefreshCampaign();
                 Navigation.Close(CommandScreen.Dialog, Missions.MissionButtons.First());
             }, CloseDialog, "Abandon Mission");
         Hangar.BackRequested += LeaveHangar;
         Hangar.ApplyRequested += ApplyLoadout;
         Hangar.WarriorDetailsRequested += ShowWarriors;
         Hangar.AssignmentRequested += AssignWarrior;
+        Hangar.LanceRequested += (mechId, lance) => { Execute(new SetLanceCommand(mechId, lance)); Hangar.Refresh(); RefreshCampaign(); };
         Hangar.DeploymentRequested += ShowDeployment;
         Hangar.QuickLaunchRequested += ShowQuickLaunch;
         Tactical.Closed += CloseTactical;
@@ -218,7 +222,7 @@ public partial class CommandApp : Control
         _dayElapsed += delta;
         if (_dayElapsed < .1) return;
         _dayElapsed -= .1;
-        var result = State.AdvanceOneDay();
+        var result = Execute(new AdvanceDayCommand());
         RefreshCampaign();
         if (!_untilEvent || result.QuarterReached || result.Events.Count > 0 || !result.Advanced) StopAdvancing();
         if (State.Bankrupt) ShowBankruptcy();
@@ -253,7 +257,7 @@ public partial class CommandApp : Control
 
     private void PayNow()
     {
-        var events = State.PayNow();
+        var events = Execute(new PayNowCommand());
         RefreshCampaign();
         CloseDialog();
         PresentEvents(events);
@@ -263,7 +267,7 @@ public partial class CommandApp : Control
         $"The full {Money(State.PaymentDue)} bill will remain unpaid.\n\nAt the start of the next quarter, you must pay this debt and the new quarterly bill in full. Failure to do so will result in bankruptcy.\n\nNo cash will be collected now.",
         () =>
         {
-            var events = State.DeferPayment();
+            var events = Execute(new DeferPaymentCommand());
             RefreshCampaign();
             CloseDialog();
             PresentEvents(events);
@@ -370,6 +374,10 @@ public partial class CommandApp : Control
     private static bool IsStorageError(Exception error) => error is System.IO.IOException or UnauthorizedAccessException
         or System.Text.Json.JsonException or ArgumentException or NotSupportedException;
 
+    /// <summary>Sends a command to the campaign as the local player.</summary>
+    private void Execute(CampaignCommand command) => State.Execute(command, LocalSlot);
+    private TResult Execute<TResult>(CampaignCommand<TResult> command) => State.Execute(command, LocalSlot);
+
     private void Confirm(string title, string message, Action accept, Action cancel, string acceptText = "Confirm")
     {
         StopAdvancing();
@@ -436,7 +444,7 @@ public partial class CommandApp : Control
 
     private string SettleMission(CombatSimulation simulation)
     {
-        var result = _settlement = State.SettleMission(simulation.MissionReport());
+        var result = _settlement = Execute(new SettleMissionCommand(simulation.MissionReport()));
         RefreshCampaign();
         var lines = new List<string> { result.Payment > 0 ? $"Payment received: {Money(result.Payment)}" : "No payment" };
         lines.AddRange(result.Reputation.OrderBy(pair => pair.Key).Select(pair =>
@@ -483,7 +491,7 @@ public partial class CommandApp : Control
         if (Navigation.CurrentScreen != CommandScreen.Hangar || !Hangar.SelectedCanApply) return;
         void Commit()
         {
-            State.ApplyLoadout(Hangar.SelectedMech.Id, Hangar.SelectedPlan, Hangar.SelectedPurchases);
+            Execute(new ApplyLoadoutCommand(Hangar.SelectedMech.Id, Hangar.SelectedPlan, [.. Hangar.SelectedPurchases]));
             Hangar.Cash = State.Cash; Hangar.CommitSelected();
             if (Navigation.CurrentScreen == CommandScreen.Dialog) CloseDialog();
             Navigation.RestoreFocus(Hangar.BackButton);
@@ -501,7 +509,7 @@ public partial class CommandApp : Control
         var previous = warriorId is null ? null : roster.Assignment(warriorId);
         void Apply(bool confirmed)
         {
-            roster.Assign(mechId, warriorId, confirmed); Hangar.Refresh(); RefreshCampaign();
+            Execute(new AssignWarriorCommand(mechId, warriorId, confirmed)); Hangar.Refresh(); RefreshCampaign();
             Navigation.Close(CommandScreen.Dialog, Hangar.PilotPicker);
             Navigation.RestoreFocus(Hangar.PilotPicker);
         }

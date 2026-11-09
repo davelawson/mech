@@ -266,6 +266,9 @@ internal static class CatalogChecks
             }
             // Older saves gain the company's spare equipment, stocked once from its mechs.
             expected["Roster"]!["Storage"] = System.Text.Json.JsonSerializer.SerializeToNode(StorageCatalog.Stock(campaign.Roster.Mechs.Select(m => m.Spec)).ToArray());
+            // Saves from before lances form one lance from their first four mechs.
+            expected["Roster"]!["Lances"] = 1;
+            foreach (var (saved, i) in expected["Roster"]!["Mechs"]!.AsArray().Select((item, i) => (item, i))) saved!["Lance"] = i < ForceRoster.LanceSize ? 0 : null;
             check(JsonNode.DeepEquals(expected, resaved),
                 "a version-four save keeps its shape and values when resaved, with protection rescaled and storage stocked");
             campaign.AdvanceOneDay(); campaign.AdvanceOneDay();

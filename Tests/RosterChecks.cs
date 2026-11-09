@@ -57,6 +57,7 @@ internal static class RosterChecks
         check(generatedNames.Count > 1 && generatedChoices.All(choices => choices.SetEquals([0, 1, 2])),
             "seeded samples vary company names and reach every candidate in every pool");
         check(seenMechs.SetEquals(DraftCatalog.AllMechs.Select(m => m.Id)) && seenWarriors.SetEquals(DraftCatalog.Warriors.Select(w => w.Id)), "all catalogued mechs and pilots can appear in the draft");
+        CheckLances(check, Reject);
         var fresh = new Campaign();
         check(fresh.RequiresDraft && !fresh.CanAdvance && !fresh.AdvanceOneDay().Advanced, "undrafted campaign cannot advance");
         Reject(() => fresh.EstablishCompany(new InitialDraft()), "incomplete draft cannot establish a force");
@@ -125,5 +126,30 @@ internal static class RosterChecks
             check(loaded.Roster!.ForceName == roster.ForceName && loaded.Roster.Warriors[0].Health == WarriorHealth.Dead, "disk round trip retains roster and memorials");
         }
         finally { if (System.IO.File.Exists(storePath)) System.IO.File.Delete(storePath); }
+    }
+
+    private static void CheckLances(Action<bool, string> check, Action<Action, string> reject)
+    {
+        var roster = ForceRoster.Create("Lance checks", Enumerable.Repeat(DraftCatalog.Mech("jenner"), 6), DraftCatalog.Warriors.Take(6));
+        check(roster.LanceCount == 1 && roster.LanceMechs(0).Count() == 4 && roster.Pool.Select(mech => mech.Id).SequenceEqual(["mech-5", "mech-6"]),
+            "a new company fills its lance with its first four mechs; the rest start in the lance pool");
+        reject(() => roster.SetLance("mech-5", 0), "a full lance takes no fifth mech");
+        reject(() => roster.SetLance("mech-1", 1), "a mech cannot join a lance the company does not have");
+        roster.SetLance("mech-1", null); roster.SetLance("mech-5", 0);
+        check(roster.Mechs[0].Lance is null && roster.Mechs[4].Lance == 0, "mechs move between the lance and the lance pool");
+        var save = roster.Snapshot();
+        check(save.Lances == 1 && ForceRoster.Restore(save, Campaign.StartDate).Mechs.Select(mech => mech.Lance).SequenceEqual(roster.Mechs.Select(mech => mech.Lance)),
+            "lance membership survives a save round trip");
+        var legacy = ForceRoster.Restore(save with { Lances = null, Mechs = save.Mechs.Select(mech => mech with { Lance = null }).ToArray() }, Campaign.StartDate);
+        check(legacy.LanceCount == 1 && legacy.LanceMechs(0).Select(mech => mech.Id).SequenceEqual(["mech-1", "mech-2", "mech-3", "mech-4"]) && legacy.Pool.Count() == 2,
+            "saves from before lances form one lance from their first four mechs");
+        reject(() => ForceRoster.Restore(save with { Mechs = save.Mechs.Select(mech => mech with { Lance = 0 }).ToArray() }, Campaign.StartDate),
+            "a saved lance of more than four mechs is rejected");
+        reject(() => ForceRoster.Restore(save with { Mechs = save.Mechs.Select((mech, i) => i == 0 ? mech with { Lance = 1 } : mech).ToArray() }, Campaign.StartDate),
+            "a saved mech in a lance the company does not have is rejected");
+        reject(() => ForceRoster.Restore(save with { Lances = 4 }, Campaign.StartDate), "a company has at most three lances");
+        var three = ForceRoster.Create("Company", Enumerable.Repeat(DraftCatalog.Mech("jenner"), 12), DraftCatalog.Warriors.Take(12), lances: 3);
+        check(three.LanceCount == 3 && Enumerable.Range(0, 3).All(lance => three.LanceMechs(lance).Count() == 4) && !three.Pool.Any()
+            && three.Controls(1, three.Mechs[4]) && !three.Controls(1, three.Mechs[0]), "each player controls their own lance and no other");
     }
 }

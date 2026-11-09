@@ -347,3 +347,11 @@ Jump is an explicit order, not a movement mode. The Jump button beside Walk/Run,
 Every combat distance, range, speed and size is expressed in metres, and one world unit is one metre. Earlier values convert at 30 metres per former distance unit, so ranges, speeds, sensors, the arena, terrain features and follow spacing play exactly as before. Each stock catalog range point becomes 90 metres in combat: the existing threefold [engagement spacing](#engagement-spacing-confirmed-october-29-2026) at a nominal 30 metres per point. Weapon readouts, the preferred-distance control, sensor and range overlays and the battle log all show metres.
 
 Mech models are half their former size relative to the battlefield, at 15 metres per authored model unit, so they stand roughly 36–55 metres tall instead of 72–108. Everything tied to a mech's body shrinks with it: occupied radius (9.75 metres), the detection and firing height (22.5 metres), rock clearance, group-move spacing, battlefield markers and every weapon and destruction effect. Mechs therefore pack closer together, and hills and rocks block sight more often than before. Legs cycle twice as fast at the same ground speed, so feet stay planted. The hangar preview frames the model as before. See [current tuning values](combat-tuning.md).
+
+## Lances, commands and pause toggles (confirmed November 9, 2026)
+
+The first step of [co-op multiplayer](adr/0003-cooperative-multiplayer.md):
+
+- **Lances in battle.** Each friendly mech fights for the lance it deployed from. That lance's player slot commands it, and each lance deploys at most four mechs.
+- **Commands.** Orders and settings (move, attack, follow, jump, hold, priority target, movement mode, firing, heat policy, preferred distance and weapon toggles) are commands sent from the local player's slot. A command acts only on that slot's own lance and ignores other ids.
+- **Pausing.** Each player in the battle has a pause toggle, and every toggle starts on. The battle runs only while every toggle is off. The pause button shows the local player's own toggle, and opening the combat menu turns it on until **Resume** restores it.
