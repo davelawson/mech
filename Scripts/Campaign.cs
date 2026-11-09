@@ -6,6 +6,9 @@ public enum CampaignEventKind { Arrival, RepairCompletion, MissionResult, Contra
 
 public sealed record CampaignEvent(string Id, DateOnly Date, CampaignEventKind Kind, string Title);
 public sealed record DayResult(bool Advanced, bool QuarterReached, IReadOnlyList<CampaignEvent> Events);
+/// <summary>What settling a mission did: payment received, reputation changes in tenths, MechWarriors killed, and the day it took.</summary>
+public sealed record MissionSettlement(MissionOffer Mission, MissionOutcome Outcome, long Payment, IReadOnlyDictionary<Faction, int> Reputation,
+    string[] Killed, DayResult Day);
 public sealed record CampaignSnapshot(int Version, DateOnly Date, long Cash, long PaymentDue,
     long DeferredDebt, DateOnly NextQuarter, bool Bankrupt, CampaignEvent[] Events, RosterSnapshot? Roster = null, MissionSnapshot? Missions = null,
     TravelSnapshot? Travel = null, int AccruedTransitDays = 0, int BilledTransitDays = 0, ReputationSnapshot? Reputation = null);
@@ -150,6 +153,31 @@ public sealed class Campaign
         if (cost > Cash) throw new InvalidOperationException("The purchase must be affordable.");
         Roster.ApplyLoadout(mechId, plan, bought);
         Cash -= cost;
+    }
+
+    /// <summary>Settles the current mission from its battle: deployed mechs keep their damage and refill their ammunition,
+    /// MechWarriors whose head was destroyed die, success pays, reputation changes, and the mission's day passes.</summary>
+    public MissionSettlement SettleMission(MissionReport report)
+    {
+        if (Roster is null || Missions.Current is not { } offer) throw new InvalidOperationException("There is no current mission to settle.");
+        if (!CanAdvance) throw new InvalidOperationException("Resolve the quarterly payment before settling a mission.");
+        if (report.Mechs.Length == 0 || report.Mechs.Any(item => Roster.Mechs.All(mech => mech.Id != item.MechId)))
+            throw new ArgumentException("The report must name deployed BattleMechs.", nameof(report));
+        var killed = new List<string>();
+        foreach (var item in report.Mechs)
+        {
+            var mech = Roster.Mechs.Single(owned => owned.Id == item.MechId);
+            var pilot = Roster.Pilot(mech);
+            mech.ApplyBattle(item.Locations, item.Equipment);
+            if (item.WarriorKilled && pilot is not null) { Roster.SetHealth(pilot.Id, WarriorHealth.Dead, null, Date); killed.Add(pilot.Id); }
+        }
+        var payment = report.Outcome == MissionOutcome.Success ? offer.Payment : 0;
+        Cash += payment;
+        var conduct = new MissionConduct(report.Outcome, report.Mechs.Select(item => Roster.Mechs.Single(mech => mech.Id == item.MechId).Definition.Id).ToArray(),
+            report.Mechs.Sum(item => item.ArmorLost), report.EnemyWarriorsSpared, 0, 0, 0);
+        var reputation = Reputation.ApplyMissionOutcome(offer, conduct, StarChart.Instance);
+        Missions.Complete();
+        return new(offer, report.Outcome, payment, reputation, killed.ToArray(), AdvanceOneDay());
     }
 
     public IReadOnlyList<CampaignEvent> DeferPayment()

@@ -75,6 +75,7 @@ internal static partial class CombatChecks
         }
         check(JsonSerializer.Serialize(damagedRoster.Snapshot()) == damagedBefore, "neither simulation mode repairs or damages the campaign roster");
         CheckRandomizedOpposition(check);
+        CheckMissionDeployment(check);
         var nonoperational = ForceRoster.Restore(saved with { Mechs = [stock with { Locations = stock.Locations.Select(loc => loc.Location == MechLocation.LeftLeg ? loc with { Structure = 0 } : loc).ToArray() }] }, Campaign.StartDate);
         check(CombatSimulation.UnavailableReason(nonoperational, nonoperational.Mechs[0])!.Contains("not operational"), "nonoperational mech explains exclusion");
 
@@ -175,6 +176,38 @@ internal static partial class CombatChecks
             .All(pair => pair.First.Spec == pair.Second.Spec && pair.First.Warrior == expected.Pilot(pair.Second)!.Spec),
             "random opposition uses the same fresh candidate pools and random selections as a player draft");
     }
+    private static void CheckMissionDeployment(Action<bool, string> check)
+    {
+        var chart = StarChart.Instance;
+        var system = chart.Systems.First(item => item.Biome is not null && item.Biome != Biome.Valley);
+        var offer = new MissionOffer("offer-1", "Checks", "Briefing", "Objective", system.Id, new DateOnly(3025, 1, 1),
+            [new("locust", EnemyPilotRank.Green), new("atlas", EnemyPilotRank.Regular), new("jenner", EnemyPilotRank.Veteran), new("awesome", EnemyPilotRank.Elite)],
+            100_000, 0, 0, Party.Pirates, new(PartyKind.LocalForces, null, "Checks Guard"), true);
+        var roster = Roster(1);
+        var sim = CombatSimulation.DeployMission(roster, [roster.Mechs[0].Id], offer, 5, 183);
+        var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
+        var enemies = sim.Units.Where(unit => unit.Side == CombatSide.Enemy).ToArray();
+        check(friends.Length == 1 && enemies.Select(unit => unit.Spec.Id).SequenceEqual(offer.Opposition.Select(item => item.MechId))
+            && enemies.Select(unit => unit.Id).SequenceEqual(["enemy-1", "enemy-2", "enemy-3", "enemy-4"]) && friends[0].Id == roster.Mechs[0].Id,
+            "a mission deploys the selected force against its exact opposition");
+        check(enemies.Zip(offer.Opposition).All(pair => pair.First.Warrior.Gunnery == MissionTuning.EnemySkill[(int)pair.Second.Rank]
+                && pair.First.Warrior.Piloting == pair.First.Warrior.Gunnery && pair.First.Warrior.Sensors == pair.First.Warrior.Gunnery)
+            && MissionTuning.EnemySkill.SequenceEqual([5, 4, 3, 2]), "enemy pilots are skilled by rank: Green 5, Regular 4, Veteran 3, Elite 2");
+        check(enemies.All(unit => unit.ArmorLost == 0 && unit.StructureLost == 0 && unit.Equipment.Values.All(item => item == ComponentCondition.Operational)
+            && unit.Ammo.All(bin => bin.Shots == unit.Spec.Ammo.Single(stock => stock.Id == bin.Id).Shots)), "mission opposition starts pristine");
+        check(sim.Terrain.Biome == system.Biome && sim.Terrain.Seed == 183, "a mission is fought on its system's biome");
+        check(Math.Abs(friends[0].Position.X) < 1e-3f && Math.Abs(enemies.Sum(unit => unit.Position.X)) < 1e-3f
+            && enemies.Zip(enemies.Skip(1)).All(pair => Math.Abs(pair.Second.Position.X - pair.First.Position.X - CombatRules.DeploymentSpacing) < 1e-3f),
+            "uneven sides are each centred on their own deployment line");
+
+        var worn = Roster(1);
+        var source = Deploy(worn, [worn.Mechs[0].Id]); source.Units[0].ApplyDamage(MechLocation.LeftArm, 30); source.End();
+        worn.Mechs[0].ApplyBattle(source.MissionReport().Mechs[0].Locations, source.MissionReport().Mechs[0].Equipment);
+        var rematch = CombatSimulation.DeployMission(worn, [worn.Mechs[0].Id], offer, 5, 183);
+        check(rematch.Units[0].Locations[MechLocation.LeftArm].Armor == worn.Mechs[0].Locations.Single(loc => loc.Location == MechLocation.LeftArm).Armor
+            && worn.Mechs[0].Damaged, "the force deploys to a mission as it stands, damage included");
+    }
+
     private static void CheckTargeting(Action<bool, string> check)
     {
         var sim = Battle(2); sim.EnemyAiEnabled = false;

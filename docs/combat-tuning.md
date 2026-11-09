@@ -98,6 +98,19 @@ The Arctic, Tropical and Grassland thresholds were widened on November 4, 2026 t
 
 Systems of 4,000,000,000 people or more (116) are also Urban.
 
+## Mission opposition
+
+A mission's enemy pilots are unnamed, called by rank and number ("Veteran 2"), with the same rating in Gunnery, Piloting and Sensors by rank (`MissionTuning.EnemySkill`):
+
+| Rank | Skill |
+| --- | --- |
+| Green | 5 |
+| Regular | 4 |
+| Veteran | 3 |
+| Elite | 2 |
+
+Their mechs are stock designs, undamaged with full ammunition.
+
 ## Weapons and hit rolls
 
 | Weapon | Cooldown |

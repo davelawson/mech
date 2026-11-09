@@ -250,6 +250,57 @@ public partial class SmokeTests
         Check(_app.Hangar.Visible && JsonSerializer.Serialize(_app.State.Snapshot()) == before, "result Escape preserves campaign and returns to hangar");
         await PressKey(Key.Escape);
     }
+    /// <summary>Quick Launch fights the accepted mission from the hangar and settles it into the campaign.</summary>
+    private async Task TestQuickLaunchUi()
+    {
+        var hangar = _app.Hangar; var tactical = _app.Tactical; var state = _app.State;
+        if (!hangar.Visible) { if (!_app.Office.Visible) _app.ShowOffice(); await Frames(); await Click(_app.Office.HangarButton); }
+        Check(hangar.Visible && hangar.QuickLaunchButton.Disabled && hangar.QuickLaunchButton.TooltipText.Contains("office phone"),
+            "Quick Launch waits for an accepted mission");
+        await PressKey(Key.Escape);
+        var offer = state.Missions.Available[0]; state.AcceptMission(offer.Id);
+        await Click(_app.Office.HangarButton);
+        Check(!hangar.QuickLaunchButton.Disabled, "an accepted mission can be launched from the hangar wherever the DropShip is");
+        GetWindow().Size = new Vector2I(900, 500); await Frames();
+        Check(new[] { hangar.ResetButton, hangar.ApplyButton, hangar.BackButton, hangar.QuickLaunchButton, hangar.DeploymentButton }
+            .All(button => hangar.GetGlobalRect().Encloses(button.GetGlobalRect())), "hangar actions fit the minimum window");
+        await Capture("hangar-quick-launch-900x500");
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        var weapon = hangar.SelectedMech.Spec.Weapons.First(item => item.AmmoKind is null);
+        var (panel, block) = FindBlock(hangar, item => item.ItemId == weapon.Id);
+        await RightClick(BlockCentre(panel, block));
+        Check(hangar.HasPendingChanges && hangar.QuickLaunchButton.Disabled && hangar.QuickLaunchButton.TooltipText.Contains("loadout changes"),
+            "pending loadout changes block Quick Launch");
+        await Click(hangar.ResetButton);
+        Check(!hangar.QuickLaunchButton.Disabled, "resetting the changes allows Quick Launch again");
+
+        await Click(hangar.QuickLaunchButton);
+        var biome = StarChart.Instance[offer.SystemId].Biome ?? Biome.Valley;
+        Check(tactical.Visible && tactical.MissionMode && tactical.Modal == CombatModal.ForceSelection && tactical.BiomePicker.Disabled
+            && tactical.BiomePicker.Selected == 1 + Biomes.All.ToList().FindIndex(spec => spec.Biome == biome) && tactical.LaunchButton.Text == "Launch mission",
+            "Quick Launch goes straight to force selection on the mission system's biome");
+        await PressKey(Key.Escape);
+        Check(hangar.Visible && state.Missions.Current == offer && hangar.QuickLaunchButton.HasFocus(), "backing out keeps the mission and restores focus");
+
+        var date = state.Date; var cash = state.Cash;
+        await Click(hangar.QuickLaunchButton); await Click(tactical.LaunchButton);
+        var sim = tactical.Simulation!;
+        Check(sim.Units.Count(unit => unit.Side == CombatSide.Enemy) == offer.Opposition.Length && sim.Terrain.Biome == biome,
+            "the mission fields its opposition");
+        var friend = sim.Units.First(unit => unit.Side == CombatSide.Friendly); friend.ApplyDamage(MechLocation.LeftArm, 20);
+        await PressKey(Key.Escape);
+        Check(tactical.EndButton.Text == "Withdraw", "the combat menu offers withdrawal from a mission");
+        await Click(tactical.EndButton);
+        Check(tactical.Modal == CombatModal.Results && TacticalText().Any(text => text.Contains("Mission failed"))
+            && TacticalText().Any(text => text.Contains("No payment") && text.Contains(state.DateText)), "withdrawing fails the mission and shows its settlement");
+        Check(state.Missions.Current is null && state.Date == date.AddDays(1) && state.Cash == cash
+            && state.Roster!.Mechs.Single(mech => mech.Id == friend.Id).Damaged, "the settlement keeps damage, pays nothing and takes a day");
+        await Capture("mission-results");
+        await Click(tactical.ReturnButton);
+        Check(hangar.Visible && !tactical.Visible && hangar.BackButton.HasFocus() && hangar.QuickLaunchButton.Disabled && _app.HasUnsavedChanges,
+            "returning to the hangar shows the settled campaign");
+        await PressKey(Key.Escape);
+    }
     private string[] TacticalText() => _app.Tactical.FindChildren("*", "Label", true, false).OfType<Label>()
         .Where(label => label.IsVisibleInTree()).Select(label => label.Text).ToArray();
     /// <summary>The highest passable grid point: the generated relief's hilltop.</summary>

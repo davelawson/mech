@@ -11,6 +11,11 @@ public enum CombatOutcome { Ongoing, Victory, Defeat, Draw, Ended }
 public enum CombatStatus { Active, Shutdown, Disabled, Destroyed }
 public enum ContactLevel { Lost, Identified, Detailed }
 
+/// <summary>A deployed mech's condition after a mission battle, keyed by its owned id. Armor lost is front plus rear.</summary>
+public sealed record DeployedMechReport(string MechId, LocationCondition[] Locations, EquipmentCondition[] Equipment, bool WarriorKilled, int ArmorLost);
+/// <summary>What a mission battle reports to the campaign. Enemy MechWarriors spared are those whose head survived.</summary>
+public sealed record MissionReport(MissionOutcome Outcome, DeployedMechReport[] Mechs, int EnemyWarriorsSpared);
+
 /// <summary>Authored tactical values. Distances are metres, time is seconds.</summary>
 public static partial class CombatRules
 {
@@ -369,37 +374,81 @@ public sealed partial class CombatSimulation
         BattlefieldTerrain? terrain, SimulationOpponent opponent, Biome biome)
     {
         if (!Enum.IsDefined(opponent)) throw new ArgumentOutOfRangeException(nameof(opponent));
+        var force = DeployedForce(roster, selected);
+        var combatSeed = seed ?? Random.Shared.Next();
+        var enemies = opponent == SimulationOpponent.Randomized ? DraftOpposition(force, new Random(combatSeed)) : null;
+        var friendly = force.Select(source => Deployed(source, roster.Pilot(source)!.Spec, pristine: opponent == SimulationOpponent.Mirror)).ToArray();
+        var enemy = force.Select((source, i) => enemies is null ? Deployed(source, roster.Pilot(source)!.Spec, pristine: true)
+            : Deployed(enemies[i].Mech, enemies[i].Pilot, pristine: true)).ToArray();
+        return Deploy(friendly, enemy, combatSeed, terrain ?? BattlefieldTerrain.Generate(terrainSeed ?? Random.Shared.Next(), biome));
+    }
+
+    /// <summary>Fights a mission: the selected mechs as they stand against its opposition, stock and fully supplied,
+    /// with pilots skilled by rank, on the biome of the mission's system.</summary>
+    public static CombatSimulation DeployMission(ForceRoster roster, IEnumerable<string> selected, MissionOffer offer, int? seed = null, int? terrainSeed = null)
+    {
+        var force = DeployedForce(roster, selected);
+        var friendly = force.Select(source => Deployed(source, roster.Pilot(source)!.Spec, pristine: false)).ToArray();
+        var enemy = offer.Opposition.Select((item, i) => Stock(DraftCatalog.Mech(item.MechId), MissionTuning.EnemyPilot(item.Rank, i + 1))).ToArray();
+        var biome = StarChart.Instance[offer.SystemId].Biome ?? Biome.Valley;
+        return Deploy(friendly, enemy, seed ?? Random.Shared.Next(), BattlefieldTerrain.Generate(terrainSeed ?? Random.Shared.Next(), biome));
+    }
+
+    private static OwnedMech[] DeployedForce(ForceRoster roster, IEnumerable<string> selected)
+    {
         var ids = selected.ToArray();
         if (ids.Length is < 1 or > 4 || ids.Distinct().Count() != ids.Length)
             throw new ArgumentException("Select one to four different BattleMechs.");
-        var force = ids.Select(id =>
+        return ids.Select(id =>
         {
             var source = roster.Mechs.SingleOrDefault(item => item.Id == id)
                 ?? throw new ArgumentException("Unknown BattleMech.");
             if (UnavailableReason(roster, source) is { } reason) throw new ArgumentException(reason);
             return source;
         }).ToArray();
-        var combatSeed = seed ?? Random.Shared.Next();
-        var enemies = opponent == SimulationOpponent.Randomized ? DraftOpposition(force, new Random(combatSeed)) : null;
-        var units = new List<CombatUnit>();
-        for (var i = 0; i < force.Length; i++)
-        {
-            var source = force[i];
-            var pilot = roster.Pilot(source)!.Spec;
-            var x = (i - (ids.Length - 1) / 2f) * CombatRules.DeploymentSpacing;
-            units.Add(DeploymentUnit(source.Id, source, pilot, CombatSide.Friendly, new Vector2(x, CombatRules.DeploymentDepth),
-                pristine: opponent == SimulationOpponent.Mirror));
-            var enemy = enemies is null ? (Mech: source, Pilot: pilot) : enemies[i];
-            units.Add(DeploymentUnit($"enemy-{i + 1}", enemy.Mech, enemy.Pilot, CombatSide.Enemy,
-                new Vector2(x, -CombatRules.DeploymentDepth), pristine: true));
-        }
-        return new CombatSimulation(units, combatSeed, terrain ?? BattlefieldTerrain.Generate(terrainSeed ?? Random.Shared.Next(), biome));
     }
-    private static CombatUnit DeploymentUnit(string id, OwnedMech source, WarriorSpec pilot, CombatSide side, Vector2 position, bool pristine) =>
-        new(id, source.Spec, pilot, side,
-            pristine ? source.Spec.Locations.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)) : source.Locations,
-            pristine ? source.Equipment.Select(item => new EquipmentCondition(item.Id, ComponentCondition.Operational)) : source.Equipment,
-            pristine ? source.Spec.Ammo.Select(item => new AmmoCondition(item.Id, item.Shots)) : source.Ammo, position);
+
+    /// <summary>A mech ready to deploy, keyed by its owned id; enemies are renumbered on deployment.</summary>
+    private sealed record DeployedMech(string Id, MechSpec Spec, WarriorSpec Pilot, IEnumerable<LocationCondition> Locations,
+        IEnumerable<EquipmentCondition> Equipment, IEnumerable<AmmoCondition> Ammo);
+
+    private static DeployedMech Deployed(OwnedMech source, WarriorSpec pilot, bool pristine) => pristine
+        ? Stock(source.Spec, pilot) with { Id = source.Id }
+        : new(source.Id, source.Spec, pilot, source.Locations, source.Equipment, source.Ammo);
+
+    private static DeployedMech Stock(MechSpec spec, WarriorSpec pilot) => new(spec.Id, spec, pilot,
+        spec.Locations.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)),
+        spec.Weapons.Select(item => item.Id).Concat(spec.Components.Select(item => item.Id)).Concat(spec.Ammo.Select(item => item.Id))
+            .Select(id => new EquipmentCondition(id, ComponentCondition.Operational)),
+        spec.Ammo.Select(item => new AmmoCondition(item.Id, item.Shots)));
+
+    /// <summary>Each side is spread across its own deployment line, so uneven sides stay centred.</summary>
+    private static CombatSimulation Deploy(IReadOnlyList<DeployedMech> friendly, IReadOnlyList<DeployedMech> enemy, int seed, BattlefieldTerrain terrain)
+    {
+        static float X(int i, int count) => (i - (count - 1) / 2f) * CombatRules.DeploymentSpacing;
+        var units = new List<CombatUnit>();
+        for (var i = 0; i < Math.Max(friendly.Count, enemy.Count); i++)
+        {
+            if (i < friendly.Count)
+                units.Add(Unit(friendly[i], friendly[i].Id, CombatSide.Friendly, new Vector2(X(i, friendly.Count), CombatRules.DeploymentDepth)));
+            if (i < enemy.Count)
+                units.Add(Unit(enemy[i], $"enemy-{i + 1}", CombatSide.Enemy, new Vector2(X(i, enemy.Count), -CombatRules.DeploymentDepth)));
+        }
+        return new CombatSimulation(units, seed, terrain);
+        static CombatUnit Unit(DeployedMech mech, string id, CombatSide side, Vector2 position) =>
+            new(id, mech.Spec, mech.Pilot, side, mech.Locations, mech.Equipment, mech.Ammo, position);
+    }
+
+    /// <summary>The battlefield facts of a fought mission. Only victory succeeds; defeat, a draw or withdrawing fails.</summary>
+    public MissionReport MissionReport()
+    {
+        if (Outcome == CombatOutcome.Ongoing) throw new InvalidOperationException("The battle is still being fought.");
+        return new(Outcome == CombatOutcome.Victory ? MissionOutcome.Success : MissionOutcome.Failure,
+            Units.Where(unit => unit.Side == CombatSide.Friendly).Select(unit => new DeployedMechReport(unit.Id,
+                unit.Locations.Values.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)).ToArray(),
+                unit.Equipment.Select(item => new EquipmentCondition(item.Key, item.Value)).ToArray(), unit.WarriorKilled, unit.ArmorLost)).ToArray(),
+            Units.Count(unit => unit.Side == CombatSide.Enemy && !unit.WarriorKilled));
+    }
 
     private static (OwnedMech Mech, WarriorSpec Pilot)[] DraftOpposition(IReadOnlyList<OwnedMech> force, Random random)
     {

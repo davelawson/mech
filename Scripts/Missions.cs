@@ -38,6 +38,8 @@ public static class MissionTuning
     public static readonly int[] WeightOdds = [40, 35, 18, 7];
     public static readonly int[] RankOdds = [20, 50, 22, 8];
     public static readonly double[] RankMultiplier = [.8, 1, 1.25, 1.5];
+    /// <summary>Gunnery, piloting and sensors of an enemy pilot, by EnemyPilotRank order.</summary>
+    public static readonly int[] EnemySkill = [5, 4, 3, 2];
     public const long CBillsPerDifficulty = 4_000;
     public const double RewardVariation = .2;
     public const double MinPaymentShare = .4;
@@ -57,6 +59,13 @@ public static class MissionTuning
     public const double RaidChance = .5;
     /// <summary>Two Houses border each other at a location when the other holds a system this many jumps from it.</summary>
     public const int BorderJumps = 2;
+
+    /// <summary>The unnamed pilot of the numbered enemy mech, skilled by rank.</summary>
+    public static WarriorSpec EnemyPilot(EnemyPilotRank rank, int number)
+    {
+        var skill = EnemySkill[(int)rank];
+        return new($"enemy-pilot-{number}", $"{rank} pilot", $"{rank} {number}", skill, skill, skill, WarriorExperience.Regular, WarriorSpecialty.None);
+    }
 }
 
 /// <summary>SplitMix64: its whole state is one number, so a save reproduces every later roll.</summary>
@@ -275,6 +284,14 @@ public sealed class MissionBoard
     public void Abandon()
     {
         if (Current is null) throw new InvalidOperationException("There is no current mission to abandon.");
+        _seen.Remove(Current.Id);
+        Current = null; Deadline = null;
+    }
+
+    /// <summary>A settled mission is finished; it cannot be settled again.</summary>
+    public void Complete()
+    {
+        if (Current is null) throw new InvalidOperationException("There is no current mission to complete.");
         _seen.Remove(Current.Id);
         Current = null; Deadline = null;
     }

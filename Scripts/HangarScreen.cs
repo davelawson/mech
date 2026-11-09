@@ -12,10 +12,16 @@ public partial class HangarScreen : Control
     public event Action<string, string?>? AssignmentRequested;
     public event Action? WarriorDetailsRequested;
     public event Action? DeploymentRequested;
+    public event Action? QuickLaunchRequested;
     public event Action? ApplyRequested;
     public Button BackButton { get; private set; } = null!;
     public Button WarriorsButton { get; private set; } = null!;
     public Button DeploymentButton { get; private set; } = null!;
+    public Button QuickLaunchButton { get; private set; } = null!;
+    /// <summary>Why the current mission cannot be launched apart from pending loadout changes, or null when it can.</summary>
+    public string? QuickLaunchBlock { get => _quickLaunchBlock; set { _quickLaunchBlock = value; UpdateQuickLaunch(); } }
+    private string? _quickLaunchBlock = "Accept a mission from the office phone first.";
+    public bool CanQuickLaunch => QuickLaunchBlock is null && !HasPendingChanges;
     public Button ApplyButton { get; private set; } = null!;
     public Button ResetButton { get; private set; } = null!;
     public OptionButton PilotPicker { get; private set; } = null!;
@@ -146,6 +152,8 @@ public partial class HangarScreen : Control
 
         DeploymentButton = Ui.Button(this, "Simulate Deployment");
         DeploymentButton.Pressed += () => DeploymentRequested?.Invoke();
+        QuickLaunchButton = Ui.Button(this, "Quick Launch");
+        QuickLaunchButton.Pressed += () => { if (CanQuickLaunch) QuickLaunchRequested?.Invoke(); };
         ResetButton = Ui.Button(this, "Reset"); ResetButton.Pressed += ResetSelected;
         ApplyButton = Ui.Button(this, "Apply"); ApplyButton.Pressed += () => { if (SelectedCanApply) ApplyRequested?.Invoke(); };
         _rosterScroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Auto, VerticalScrollMode = ScrollContainer.ScrollMode.Disabled };
@@ -375,7 +383,7 @@ public partial class HangarScreen : Control
         PilotPicker.Select(current >= 0 ? current : _pilotIds.Count > 0 ? 0 : -1);
         PilotPicker.Disabled = _pilotIds.Count == 0; UpdateAssignmentAction();
         var pending = SelectedHasPendingChanges; var applicable = SelectedCanApply;
-        ResetButton.Disabled = !pending; ApplyButton.Disabled = !applicable;
+        ResetButton.Disabled = !pending; ApplyButton.Disabled = !applicable; UpdateQuickLaunch();
         ResetButton.FocusMode = pending ? FocusModeEnum.All : FocusModeEnum.None;
         ApplyButton.FocusMode = applicable ? FocusModeEnum.All : FocusModeEnum.None;
         var bought = SelectedPurchases.Count; var cost = SelectedPurchaseCost;
@@ -438,6 +446,12 @@ public partial class HangarScreen : Control
             foreach (var line in group.OrderBy(line => line.Item.Name, StringComparer.Ordinal)) list.AddChild(line);
         }
     }
+    private void UpdateQuickLaunch()
+    {
+        if (QuickLaunchButton is null) return;
+        QuickLaunchButton.Disabled = !CanQuickLaunch;
+        QuickLaunchButton.TooltipText = QuickLaunchBlock ?? (HasPendingChanges ? "Apply or reset loadout changes first." : "Deploy to the current mission.");
+    }
     private void UpdateAssignmentAction()
     {
         var valid = PilotPicker.Selected >= 0 && PilotPicker.Selected < _pilotIds.Count;
@@ -459,11 +473,12 @@ public partial class HangarScreen : Control
         Ui.Place(Preview, centreX, top - 8, centreWidth, bottom - top + 8);
         Ui.Place(Board, centreX, top, centreWidth, bottom - top - 8);
         LayoutBoard(centreWidth, bottom - top - 8, compact);
-        Ui.Place(_rosterScroll, 24, Size.Y - 70, Size.X - 48 - 230 - 158 - 236, 62);
-        Ui.Place(ResetButton, Size.X - 392 - 236, Size.Y - 66, 110, 54);
-        Ui.Place(ApplyButton, Size.X - 392 - 118, Size.Y - 66, 110, 54);
-        Ui.Place(BackButton, Size.X - 234 - 158, Size.Y - 66, 150, 54);
-        Ui.Place(DeploymentButton, Size.X - 234, Size.Y - 66, 210, 54);
+        // Bottom actions, right to left; compact windows narrow them to leave the roster strip room.
+        var actionX = Size.X - 24f;
+        Button[] actions = [DeploymentButton, QuickLaunchButton, BackButton, ApplyButton, ResetButton];
+        float[] widths = compact ? [185, 125, 125, 80, 80] : [210, 140, 150, 110, 110];
+        for (var i = 0; i < actions.Length; i++) { actionX -= widths[i]; Ui.Place(actions[i], actionX, Size.Y - 66, widths[i], 54); actionX -= 8; }
+        Ui.Place(_rosterScroll, 24, Size.Y - 70, actionX - 24 - 8, 62);
     }
 
     /// <summary>Places each body-part panel roughly over its part of a front-facing mech: its right side on the viewer's left.</summary>

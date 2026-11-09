@@ -24,6 +24,7 @@ public partial class CommandApp : Control
     private double _dayElapsed;
     private bool _untilEvent;
     private string? _savedSnapshot;
+    private MissionSettlement? _settlement;
 
     /// <summary>The stretch mode scales the 1440 × 900 base layout to fit the window; cancel any shrink so smaller windows keep full-size text and their compact layouts.</summary>
     private void ScaleInterface()
@@ -81,7 +82,8 @@ public partial class CommandApp : Control
         Hangar.WarriorDetailsRequested += ShowWarriors;
         Hangar.AssignmentRequested += AssignWarrior;
         Hangar.DeploymentRequested += ShowDeployment;
-        Tactical.Closed += () => Navigation.Close(CommandScreen.Tactical, Hangar.DeploymentButton);
+        Hangar.QuickLaunchRequested += ShowQuickLaunch;
+        Tactical.Closed += CloseTactical;
         Drafting.Completed += () =>
         {
             State.EstablishCompany(Drafting.Draft); ShowOffice(); RefreshCampaign();
@@ -416,6 +418,43 @@ public partial class CommandApp : Control
         if (State.RequiresDraft || Navigation.CurrentScreen is not (CommandScreen.Office or CommandScreen.Map or CommandScreen.Hangar)) return;
         Navigation.NavigateFromOffice(CommandScreen.Hangar, Office.HangarButton);
         Hangar.Open(State.Roster!, State.Travel.InOrbit ? State.Travel.OrbitSystemId : null, State.Cash);
+        UpdateQuickLaunch();
+    }
+
+    private void UpdateQuickLaunch() => Hangar.QuickLaunchBlock = State.Missions.Current is null ? "Accept a mission from the office phone first."
+        : !State.CanAdvance ? "Settle the quarterly payment first." : null;
+
+    /// <summary>Deploys to the current mission wherever the DropShip is. Its result is settled into the campaign when the battle ends.</summary>
+    public void ShowQuickLaunch()
+    {
+        if (State.RequiresDraft || Navigation.CurrentScreen != CommandScreen.Hangar || State.Missions.Current is not { } mission
+            || Hangar.HasPendingChanges || !State.CanAdvance) return;
+        _settlement = null;
+        Navigation.Push(CommandScreen.Tactical, Hangar.QuickLaunchButton);
+        Tactical.OpenMission(State.Roster!, mission, Hangar.SelectedMech.Id, SettleMission);
+    }
+
+    private string SettleMission(CombatSimulation simulation)
+    {
+        var result = _settlement = State.SettleMission(simulation.MissionReport());
+        RefreshCampaign();
+        var lines = new List<string> { result.Payment > 0 ? $"Payment received: {Money(result.Payment)}" : "No payment" };
+        lines.AddRange(result.Reputation.OrderBy(pair => pair.Key).Select(pair =>
+            $"{Factions.Name(pair.Key)} reputation {(pair.Value > 0 ? "+" : "−")}{(Math.Abs(pair.Value) / (double)ReputationTuning.Scale).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}"));
+        lines.AddRange(result.Killed.Select(id => $"{State.Roster!.Warriors.Single(item => item.Id == id).Spec.DisplayName} was killed"));
+        lines.Add($"Date: {State.DateText}");
+        return string.Join("\n", lines);
+    }
+
+    private void CloseTactical()
+    {
+        var settled = _settlement; _settlement = null;
+        if (settled is null) { Navigation.Close(CommandScreen.Tactical, Tactical.MissionMode ? Hangar.QuickLaunchButton : Hangar.DeploymentButton); return; }
+        // The settled mission is gone, so Quick Launch is disabled and cannot take focus.
+        Hangar.Cash = State.Cash; Hangar.Refresh(); UpdateQuickLaunch();
+        Navigation.Close(CommandScreen.Tactical, Hangar.BackButton);
+        if (State.Bankrupt) ShowBankruptcy();
+        else PresentEvents(settled.Day.Events);
     }
 
     public void ShowDeployment()

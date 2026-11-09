@@ -232,6 +232,17 @@ public sealed class OwnedMech
         Ammo = Array.AsReadOnly(Ammo.Where(item => !gone.Contains(item.Id))
             .Concat(Spec.Ammo.Where(bin => added.Any(item => item.Id == bin.Id)).Select(bin => new AmmoCondition(bin.Id, bin.Shots))).ToArray());
     }
+    /// <summary>Keeps a battle's damage. Every installed bin refills for free afterwards.</summary>
+    internal void ApplyBattle(IEnumerable<LocationCondition> locations, IEnumerable<EquipmentCondition> equipment)
+    {
+        var after = locations.ToArray(); var items = equipment.ToArray();
+        if (!after.Select(item => item.Location).Order().SequenceEqual(Locations.Select(item => item.Location).Order())
+            || !items.Select(item => item.Id).Order(StringComparer.Ordinal).SequenceEqual(Equipment.Select(item => item.Id).Order(StringComparer.Ordinal)))
+            throw new ArgumentException("Battle damage does not match the BattleMech.");
+        Locations = Array.AsReadOnly(Locations.Select(state => after.Single(item => item.Location == state.Location)).ToArray());
+        Equipment = Array.AsReadOnly(Equipment.Select(state => items.Single(item => item.Id == state.Id)).ToArray());
+        Ammo = Array.AsReadOnly(Spec.Ammo.Select(bin => new AmmoCondition(bin.Id, bin.Shots)).ToArray());
+    }
     public ComponentCondition Condition(string id) => Equipment.Single(item => item.Id == id).Condition;
     public bool LocationIntact(MechLocation location) => Locations.Single(item => item.Location == location).Structure > 0;
     private bool Functional(ComponentKind kind) => Spec.Components.Where(item => item.Kind == kind)

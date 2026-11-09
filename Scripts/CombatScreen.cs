@@ -40,6 +40,12 @@ public partial class CombatScreen : Control
     public bool SettingJump { get; private set; }
     public Button JumpButton { get; private set; } = null!;
     private ForceRoster _roster = null!;
+    private MissionOffer? _mission;
+    private Func<CombatSimulation, string>? _settle;
+    private string? _settlement;
+    private Label _title = null!;
+    /// <summary>Deployed to the current mission, whose result is settled into the campaign, rather than a simulation.</summary>
+    public bool MissionMode => _mission is not null;
     /// <summary>The roster this deployment was opened with: pending hangar loadouts included.</summary>
     public ForceRoster Roster => _roster;
     private readonly List<string> _selected = [];
@@ -85,7 +91,7 @@ public partial class CombatScreen : Control
         BattleLog = new CombatLogPanel(); AddChild(BattleLog);
         BattleLog.CloseRequested += ToggleBattleLog;
         _top = new Control(); AddChild(_top);
-        Ui.Label(_top, "SIMULATED DEPLOYMENT", 20, Ui.Gold).Position = new Vector2(20, 9);
+        _title = Ui.Label(_top, "SIMULATED DEPLOYMENT", 20, Ui.Gold); _title.Position = new Vector2(20, 9);
         _status = Ui.Label(_top, "Select your force", 13, Ui.Muted); _status.Position = new Vector2(20, 36);
         PauseButton = Ui.Button(_top, "Resume  [Space]"); PauseButton.Pressed += TogglePause;
         MenuButton = Ui.Button(_top, "Combat menu  [Esc]"); MenuButton.Pressed += OpenMenu;
@@ -156,10 +162,25 @@ public partial class CombatScreen : Control
     }
     public void Open(ForceRoster roster, string selectedMechId)
     {
-        _roster = roster; Simulation = null; _primary = null; _selected.Clear(); SettingPriority = SettingJump = false;
-        BattleLog.Hide(); Layout();
-        Show(); ShowOpponentSelection(selectedMechId);
+        Reset(roster, null, null);
+        ShowOpponentSelection(selectedMechId);
     }
+    /// <summary>Deploys to a mission: force selection straight away, on the mission system's biome. The battle's result is
+    /// passed to <paramref name="settle"/> once, which returns the settlement to show.</summary>
+    public void OpenMission(ForceRoster roster, MissionOffer offer, string selectedMechId, Func<CombatSimulation, string> settle)
+    {
+        Reset(roster, offer, settle);
+        ShowForceSelection(selectedMechId);
+    }
+    private void Reset(ForceRoster roster, MissionOffer? mission, Func<CombatSimulation, string>? settle)
+    {
+        _roster = roster; _mission = mission; _settle = settle; _settlement = null;
+        Simulation = null; _primary = null; _selected.Clear(); SettingPriority = SettingJump = false;
+        _title.Text = mission is null ? "SIMULATED DEPLOYMENT" : $"MISSION · {mission.Name.ToUpperInvariant()}";
+        BattleLog.Hide(); Layout();
+        Show();
+    }
+    private Biome MissionBiome => StarChart.Instance[_mission!.SystemId].Biome ?? Biome.Valley;
     private void BeginModal(CombatModal modal, string title)
     {
         Modal = modal; Battlefield.CommandsEnabled = false; Battlefield.CancelDrag();
@@ -186,8 +207,11 @@ public partial class CombatScreen : Control
     }
     private void ShowForceSelection(string selectedMechId)
     {
-        BeginModal(CombatModal.ForceSelection, Opponent == SimulationOpponent.Mirror ? "Mirror match" : "Randomized enemy");
-        RosterUi.Text(_modalContent, Opponent == SimulationOpponent.Mirror
+        BeginModal(CombatModal.ForceSelection, _mission?.Name ?? (Opponent == SimulationOpponent.Mirror ? "Mirror match" : "Randomized enemy"));
+        if (_mission is not null)
+            RosterUi.Text(_modalContent, $"Choose 1–4 BattleMechs. They deploy as they stand, and the battle's damage, losses and result are settled into your campaign.\nOpposition: "
+                + string.Join(", ", _mission.Opposition.Select(item => $"{DraftCatalog.Mech(item.MechId).DisplayName} ({item.Rank})")), 14);
+        else RosterUi.Text(_modalContent, Opponent == SimulationOpponent.Mirror
             ? "Choose 1–4 BattleMechs. Opposition mirrors your mechs and pilot skills. Both sides start fully repaired and supplied. Your campaign will be preserved."
             : "Choose 1–4 BattleMechs. A fresh enemy draft matches your count and weight categories. Your units keep their current condition. Your campaign will be preserved.", 14);
         RosterUi.Text(_modalContent, "Natural terrain · the same seed and biome recreate a battlefield. Combat rolls vary independently.", 12, Ui.Muted);
@@ -197,6 +221,8 @@ public partial class CombatScreen : Control
         BiomePicker.AddItem("Random");
         foreach (var biome in Biomes.All) BiomePicker.AddItem(biome.Name);
         biomeRow.AddChild(BiomePicker);
+        // A mission is fought on its system's biome.
+        if (_mission is not null) { BiomePicker.Select(1 + Biomes.All.ToList().FindIndex(spec => spec.Biome == MissionBiome)); BiomePicker.Disabled = true; }
         _biomeClimate = Ui.Label(biomeRow, "", 12, Ui.Muted);
         _biomeClimate.SizeFlagsHorizontal = SizeFlags.ExpandFill; _biomeClimate.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         BiomePicker.ItemSelected += _ => RefreshForceSelection();
@@ -221,7 +247,7 @@ public partial class CombatScreen : Control
         }
         _forceCount = RosterUi.Text(_modalContent, "", 13, Ui.Gold);
         var actions = ModalActions(); BackButton = Ui.Button(actions, "Back to hangar"); BackButton.Pressed += Exit;
-        LaunchButton = Ui.Button(actions, "Launch simulation"); LaunchButton.Pressed += Launch;
+        LaunchButton = Ui.Button(actions, _mission is null ? "Launch simulation" : "Launch mission"); LaunchButton.Pressed += Launch;
         RefreshForceSelection(); BackButton.CallDeferred(Control.MethodName.GrabFocus); RosterUi.TrapFocus(_shade);
     }
     private void RefreshForceSelection()
@@ -245,9 +271,11 @@ public partial class CombatScreen : Control
     private void Launch()
     {
         if (LaunchButton.Disabled) return;
-        Simulation = CombatSimulation.Deploy(_roster, _forceIds.Where((_, i) => ForceChoices[i].ButtonPressed),
-            terrainSeed: int.Parse(TerrainSeedInput.Text, System.Globalization.CultureInfo.InvariantCulture), opponent: Opponent,
-            biome: SelectedBiome ?? Biomes.All[Random.Shared.Next(Biomes.All.Count)].Biome);
+        var force = _forceIds.Where((_, i) => ForceChoices[i].ButtonPressed);
+        var terrainSeed = int.Parse(TerrainSeedInput.Text, System.Globalization.CultureInfo.InvariantCulture);
+        Simulation = _mission is not null ? CombatSimulation.DeployMission(_roster, force, _mission, terrainSeed: terrainSeed)
+            : CombatSimulation.Deploy(_roster, force, terrainSeed: terrainSeed, opponent: Opponent,
+                biome: SelectedBiome ?? Biomes.All[Random.Shared.Next(Biomes.All.Count)].Biome);
         Battlefield.Display(Simulation); _shade.Hide(); Modal = CombatModal.None; Battlefield.CommandsEnabled = true;
         BattleLog.Hide(); BattleLog.Display(Simulation); Layout();
         Battlefield.MouseFilter = MouseFilterEnum.Stop;
@@ -354,10 +382,11 @@ public partial class CombatScreen : Control
         RosterUi.Text(_modalContent, $"Terrain seed: {Simulation.Terrain.Seed} · {BiomeText(Simulation)}", 14, Ui.Gold);
         var seedCopy = new LineEdit { Text = Simulation.Terrain.Seed.ToString(System.Globalization.CultureInfo.InvariantCulture), Editable = false };
         _modalContent.AddChild(seedCopy);
-        RosterUi.Text(_modalContent, "Resume the simulation or end it and review damage. This practice battle has no campaign consequences.", 16);
+        RosterUi.Text(_modalContent, _mission is null ? "Resume the simulation or end it and review damage. This practice battle has no campaign consequences."
+            : "Resume the battle, or withdraw and fail the mission. Damage and losses so far are kept.", 16);
         var spacer = new Control { SizeFlagsVertical = SizeFlags.ExpandFill }; _modalContent.AddChild(spacer);
         var actions = ModalActions(); ResumeButton = Ui.Button(actions, "Resume"); ResumeButton.Pressed += Resume;
-        EndButton = Ui.Button(actions, "End Simulation"); EndButton.Pressed += EndSimulation;
+        EndButton = Ui.Button(actions, _mission is null ? "End Simulation" : "Withdraw"); EndButton.Pressed += EndSimulation;
         ResumeButton.CallDeferred(Control.MethodName.GrabFocus); RosterUi.TrapFocus(_shade);
     }
     public void Resume()
@@ -371,8 +400,12 @@ public partial class CombatScreen : Control
     private void ShowResults()
     {
         if (Simulation is null) return;
-        BeginModal(CombatModal.Results, Simulation.Outcome == CombatOutcome.Ended ? "Simulation ended" : Simulation.Outcome.ToString());
-        RosterUi.Text(_modalContent, $"Combat time {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss} · Campaign preserved", 15, Ui.Gold);
+        if (_mission is not null) _settlement ??= _settle!(Simulation);
+        var title = Simulation.Outcome == CombatOutcome.Ended ? (_mission is null ? "Simulation ended" : "Withdrew · Mission failed")
+            : _mission is null ? Simulation.Outcome.ToString() : $"{Simulation.Outcome} · Mission {(Simulation.Outcome == CombatOutcome.Victory ? "succeeded" : "failed")}";
+        BeginModal(CombatModal.Results, title);
+        RosterUi.Text(_modalContent, $"Combat time {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}{(_mission is null ? " · Campaign preserved" : "")}", 15, Ui.Gold);
+        if (_settlement is not null) RosterUi.Text(_modalContent, _settlement, 14);
         RosterUi.Text(_modalContent, $"Terrain seed: {Simulation.Terrain.Seed} · {BiomeText(Simulation)}", 14, Ui.Muted);
         var body = RosterUi.Scroll(_modalContent);
         foreach (var side in Enum.GetValues<CombatSide>())

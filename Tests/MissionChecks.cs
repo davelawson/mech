@@ -16,6 +16,7 @@ internal static class MissionChecks
             "starting offers lie within three jumps of Galatea");
         CheckOffers(board.Available, check);
         CheckSides(chart, check);
+        CheckSettlement(check);
 
         var unseen = Campaign.Restore(campaign.Snapshot());
         check(unseen.Missions.HasUnseenOffers && Json(unseen) == Json(campaign), "offers and unseen state survive save restoration");
@@ -211,6 +212,62 @@ internal static class MissionChecks
         var legacy = Campaign.Restore(campaign.Snapshot() with { Version = 7 });
         check(legacy.Missions.Available.Count == MissionTuning.BoardSize && legacy.Missions.HasUnseenOffers && legacy.Missions.Current is null,
             "version 7 saves receive a fresh board of offers with employers");
+    }
+
+    /// <summary>A quick-launched mission settles its battle into the campaign once.</summary>
+    private static void CheckSettlement(Action<bool, string> check)
+    {
+        var campaign = CampaignChecks.NewCompany(); var roster = campaign.Roster!;
+        Throws(() => campaign.SettleMission(new(MissionOutcome.Success, [], 0)), check, "settling without a current mission is refused");
+        var offer = campaign.Missions.Available[0]; campaign.AcceptMission(offer.Id);
+        var deployed = roster.Mechs.Take(2).ToArray(); var pilots = deployed.Select(mech => roster.Pilot(mech)!).ToArray();
+        var sim = CombatSimulation.DeployMission(roster, deployed.Select(mech => mech.Id), offer, 5, 183);
+        var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
+        friends[0].ApplyDamage(MechLocation.Head, 10000);
+        friends[1].ApplyDamage(MechLocation.LeftArm, 20);
+        sim.Units.First(unit => unit.Side == CombatSide.Enemy).ApplyDamage(MechLocation.Head, 10000);
+        sim.End();
+        var report = sim.MissionReport();
+        check(report.Outcome == MissionOutcome.Failure && report.EnemyWarriorsSpared == offer.Opposition.Length - 1
+            && report.Mechs.Select(item => item.MechId).SequenceEqual(deployed.Select(mech => mech.Id)) && report.Mechs[0].WarriorKilled && !report.Mechs[1].WarriorKilled,
+            "withdrawing reports failure, the deployed mechs and the enemy MechWarriors who survived");
+        var conduct = new MissionConduct(MissionOutcome.Failure, deployed.Select(mech => mech.Definition.Id).ToArray(), friends.Sum(unit => unit.ArmorLost), report.EnemyWarriorsSpared, 0, 0, 0);
+        var expected = Reputation.MissionChanges(offer, conduct);
+        var cash = campaign.Cash; var date = campaign.Date;
+        var result = campaign.SettleMission(report);
+        check(result.Payment == 0 && campaign.Cash == cash && campaign.Date == date.AddDays(1) && result.Day.Advanced, "a failed mission pays nothing and takes a day");
+        check(result.Reputation.OrderBy(pair => pair.Key).SequenceEqual(expected.OrderBy(pair => pair.Key))
+            && Factions.All.All(faction => campaign.Reputation.Tenths(faction.Faction) == expected.GetValueOrDefault(faction.Faction)),
+            "settlement applies the mission's reputation changes");
+        check(campaign.Missions.Current is null && campaign.Missions.Find(offer.Id) is null, "a settled mission is finished");
+        check(pilots[0].Health == WarriorHealth.Dead && deployed[0].WarriorId is null && result.Killed.SequenceEqual([pilots[0].Id])
+            && pilots[1].Health == WarriorHealth.Healthy && deployed[1].WarriorId == pilots[1].Id, "a MechWarrior whose head was destroyed dies and leaves the cockpit");
+        check(!deployed[0].LocationIntact(MechLocation.Head) && deployed[1].Damaged
+            && deployed[1].Locations.All(loc => friends[1].Locations[loc.Location] is var after
+                && (loc.Armor, loc.RearArmor, loc.Structure) == (after.Armor, after.RearArmor, after.Structure))
+            && deployed.All(mech => mech.Ammo.All(bin => bin.Shots == mech.Spec.Ammo.Single(stock => stock.Id == bin.Id).Shots))
+            && roster.Mechs.Skip(2).All(mech => !mech.Damaged), "deployed mechs keep their damage and refill ammunition; others are untouched");
+        Throws(() => campaign.SettleMission(report), check, "a mission settles only once");
+        var restored = Campaign.Restore(campaign.Snapshot());
+        check(Json(restored) == Json(campaign), "a settled campaign survives restoration");
+
+        var winner = CampaignChecks.NewCompany(); var won = winner.Missions.Available[1]; winner.AcceptMission(won.Id);
+        var mech = winner.Roster!.Mechs[0];
+        cash = winner.Cash;
+        var success = winner.SettleMission(new(MissionOutcome.Success, [new(mech.Id, mech.Locations.ToArray(), mech.Equipment.ToArray(), false, 0)], won.Opposition.Length));
+        check(success.Payment == won.Payment && winner.Cash == cash + won.Payment && success.Killed.Length == 0
+            && (won.Employer.Faction is not { } employer || winner.Reputation.Tenths(employer) > 0), "a successful mission pays and pleases the employer");
+        var broke = CampaignChecks.NewCompany(); broke.AcceptMission(broke.Missions.Available[0].Id);
+        while (!broke.PaymentPending) broke.AdvanceOneDay();
+        Throws(() => broke.SettleMission(new(MissionOutcome.Success, [new(mech.Id, mech.Locations.ToArray(), mech.Equipment.ToArray(), false, 0)], 0)), check,
+            "a mission cannot settle while the quarterly payment is pending");
+    }
+
+    private static void Throws(Action action, Action<bool, string> check, string message)
+    {
+        var thrown = false;
+        try { action(); } catch (InvalidOperationException) { thrown = true; }
+        check(thrown, message);
     }
 
     private static string Json(Campaign campaign) => JsonSerializer.Serialize(campaign.Snapshot());

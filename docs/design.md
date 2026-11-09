@@ -209,7 +209,7 @@ A silent flashing light on the office phone indicates new mission offers. Openin
 - a completion deadline of travel days to the location plus 14, shown as "N days after acceptance" and fixed as a date on acceptance. The travel estimate finishes the current jump first.
 - fixed rewards, with no negotiation yet. Difficulty is the enemy tonnage, each mech weighted by its pilot's rank (Green 0.8, Regular 1.0, Veteran 1.25, Elite 1.5). The budget is difficulty × 4,000 C-bills, ±20%, split at random: at least 40% to payment, the rest between salvage and the insurance limit. **Payment** is in C-bills. **Salvage** is a number of picks from wrecks and equipment after the battle: its share ÷ 100,000 C-bills, rounded, from 0 to 6. **Insurance** pays the lesser of the deployed mechs' repair costs, with destroyed mechs at their replacement value, and the offer's limit (a negotiated maximum once negotiation exists). Payment and the insurance limit are rounded to 1,000 C-bills.
 
-Rewards are only displayed for now: payment, salvage and insurance are settled once mission results reach the campaign. The deadline is recorded but missing it has no effect yet. The numbers live in `MissionTuning`.
+Payment is settled when a mission is fought through [Quick Launch](#quick-launch-confirmed-november-9-2026); salvage and insurance are only displayed until repair costs and salvage exist. The deadline is recorded but missing it has no effect yet. The numbers live in `MissionTuning`.
 
 Generation uses a seeded random number generator whose state is saved, so reloading and advancing repeats the same offers and removals. Saves before version 8 receive a freshly generated board and lose their accepted mission.
 
@@ -232,7 +232,7 @@ The mercenary force has a reputation with each **tracked faction**: the five Gre
 - **Local forces** are generated per offer, such as "Galatea Planetary Guard" or "Governor Brandt's Household Troops".
 - When the drawn employer has nothing suitable within reach, a random system's owner defends it against pirates; if that owner is untracked or hates you, pirates raid its local forces instead.
 
-**Mission conduct** (scored by `Reputation.MissionChanges`, applied once at settlement when settlement exists). Changes in points; they add up when a faction plays several roles, such as ComStar hiring the force.
+**Mission conduct** (scored by `Reputation.MissionChanges`, applied once when a mission is settled). Changes in points; they add up when a faction plays several roles, such as ComStar hiring the force.
 
 | Fact | Employer | Opponent | ComStar | System owner |
 |---|---|---|---|---|
@@ -252,4 +252,19 @@ The mercenary force has a reputation with each **tracked faction**: the five Gre
 
 ## Initial combat design (confirmed October 25, 2026)
 
-The [combat design](combat-design.md) records the initial pausable real-time combat slice. A **Simulated Deployment** button in the hangar offers a randomized enemy or mirror match before force selection and terrain setup. Randomized enemies use fresh legal drafts to match the selected count and weight categories, including repeated categories; mirror matches copy mech types and pilot skills with both sides pristine. Simulation reports outcomes without advancing time or modifying the campaign; campaign mission integration is deferred. The initial design was confirmed October 25, 2026, and these simulation choices October 29, 2026. Numerical defaults remain authoring and tuning work.
+The [combat design](combat-design.md) records the initial pausable real-time combat slice. A **Simulated Deployment** button in the hangar offers a randomized enemy or mirror match before force selection and terrain setup. Randomized enemies use fresh legal drafts to match the selected count and weight categories, including repeated categories; mirror matches copy mech types and pilot skills with both sides pristine. Simulation reports outcomes without advancing time or modifying the campaign; missions are fought through Quick Launch below. The initial design was confirmed October 25, 2026, and these simulation choices October 29, 2026. Numerical defaults remain authoring and tuning work.
+
+## Quick Launch (confirmed November 9, 2026)
+
+A **Quick Launch** button in the hangar, beside **Simulate Deployment**, deploys straight to the current mission, wherever the DropShip is: there is no travel. Accept the mission on the office phone first. The button is disabled, its tooltip saying why, with no accepted mission, while the hangar holds pending loadout changes (the battle's damage must land on applied loadouts), or while a quarterly payment is due.
+
+- **Force selection** is the simulation's: choose 1–4 BattleMechs with ready MechWarriors and a terrain seed. The biome is fixed to the mission system's (Valley for a system without one). There is no opponent choice.
+- **The battle** sets the selected mechs in their current condition against the offer's exact opposition: stock, undamaged and fully supplied, each pilot skilled by rank (see [combat tuning](combat-tuning.md#mission-opposition)). The combat menu's **Withdraw** ends the battle early.
+- **Outcome.** Victory succeeds. Defeat, a draw or withdrawing fails.
+- **Settlement** happens once, when the results appear, and the results list it:
+  - Deployed mechs keep their battle damage, and every installed bin refills.
+  - A MechWarrior whose head was destroyed dies and leaves the cockpit.
+  - Success pays the offer's payment; failure pays nothing.
+  - Reputation changes by the [mission conduct](#reputation-confirmed-november-5-2026) table, with the armor the force lost and the enemy MechWarriors who survived. Fleeing, buildings and salvage count as zero.
+  - The mission is finished, and the calendar advances one day, with that day's events and any quarterly payment presented on returning to the hangar.
+- Insurance and salvage are not settled yet. Backing out of force selection, or leaving a battle for the main menu before the results, settles nothing: the mission stays current.

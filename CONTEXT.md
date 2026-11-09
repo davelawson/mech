@@ -115,6 +115,9 @@ The position at which an enemy was last detected, which does not track its movem
 **Simulated deployment**:
 A practice battle launched from the mech hangar that reports a combat outcome without changing the mercenary force or campaign.
 
+**Quick Launch**:
+A deployment launched from the mech hangar straight to the current mission, wherever the DropShip is, whose mission result is settled into the campaign.
+
 **Force selection**:
 The choice of BattleMechs and assigned MechWarriors to participate in a deployment, including a simulated deployment.
 
