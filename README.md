@@ -2,7 +2,7 @@
 
 A standalone BattleTech mercenary company management game built with **Godot and C#**, targeting Windows 11 x64, Linux x64, and macOS on Apple Silicon and Intel.
 
-You draft a company of four BattleMechs and four MechWarriors, then run it from a painted DropShip office: advance the calendar, pay quarterly bills, travel the 3025 Inner Sphere map, accept missions, manage pilots in the hangar, and fight standalone real-time tactical simulations. Game rules live in [`docs/`](#structure-and-design), not in this README.
+You draft a company of four BattleMechs and four MechWarriors, alone or in co-op where each player drafts and commands their own lance, then run it from a painted DropShip office: advance the calendar, pay quarterly bills, travel the 3025 Inner Sphere map, accept missions from the phone, refit mechs and buy equipment in the hangar, and fight missions or practice simulations in real-time tactical combat. Game rules live in [`docs/`](#structure-and-design), not in this README.
 
 ## Development prerequisites
 
@@ -63,18 +63,25 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | Scroll, + / − | Zoom |
 | Home | Fit the complete chart |
 | **Find DropShip**, or the gold arrow | Center the DropShip |
+| **Mission phone** | |
+| Click an offer | Show its briefing |
+| **Accept Mission** / **Abandon Mission** (leader in co-op) | Take the selected offer / give up the current mission |
 | **Hangar** | |
 | Click a mech along the bottom | Select it |
+| **Assign warrior** / **Unassign** | Put the chosen MechWarrior in the selected mech / take its pilot out |
 | Right-drag the mech | Spin it; it springs back to front-on on release |
 | Space | Hide or show the location panels over the mech |
 | Tab | Cycle the mech preview: still, walking, running |
 | F6 / F7 (debug builds) | Select the previewed mech's next hardpoint / cycle its weapon visual |
 | Hover a critical slot | Item mass, slots and condition |
 | Right-click a weapon, ammo bin, heat sink or jump jet | Remove it (pending until applied) |
+| **Inventory** / **Market** tabs | Show spares in storage / systems for sale where the DropShip is in orbit |
 | Drag a storage line onto a location panel | Install the spare there (pending until applied); Escape or right-click cancels the drag |
+| Drag a market line onto a location panel | Buy and install it (a pending purchase until applied) |
 | **Apply** / **Reset** | Commit / discard the selected mech's pending loadout changes |
 | **Move to lance pool** / **Add to Lance N** | Take the selected mech out of your lance / put a lance pool mech into it |
 | **Simulate Deployment** | Choose Randomized enemy or Mirror match, then 1–4 mechs and a terrain seed |
+| **Quick Launch** (leader in co-op) | Fight the accepted mission: choose 1–4 mechs, then **Launch mission** |
 | **Ready** / **Not Ready** (co-op force selection) | Mark your chosen mechs ready for the leader to launch / unlock them |
 | **Combat** | |
 | Click / drag | Select friendly mechs |
@@ -86,6 +93,8 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | X / C | Walk / Run |
 | J or **Jump**, then right-click ground | Jump there (Escape cancels) |
 | G / F | Hold fire / Fire at will |
+| **Normal heat** / **Aggressive heat** | Set the selection's heat policy |
+| **Set priority target…**, then right-click an enemy | Set the selection's priority target; **Clear priority target** removes it |
 | Space | Pause or resume (in co-op, your own pause toggle) |
 | V (co-op) | Ping the ground under the cursor for every player |
 | **Stop Waiting** (co-op leader) | End the game while a player is disconnected; the campaign resumes from the mission-start save |
@@ -97,7 +106,7 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | Shift+backtick (~) | Toggle the battle log |
 | Hover a detected enemy | Show range lines from selected friendlies |
 | Hover a paperdoll location | List the systems installed there by condition |
-| Escape | Combat menu (End Simulation) |
+| Escape | Combat menu (End Simulation, or Withdraw from a mission) |
 
 ## Build and test
 
@@ -109,9 +118,9 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 ./scripts/mech capture [group...]
 ```
 
-Tests are split into screen-sized groups (`menu`, `draft`, `office`, `map`, `roster`, `hangar`, `missions`, `finance`, `catalog`, `combat-sim`, `combat-ui`, `mech-visuals`, `layout`). With no group named, the full suite runs. See [testing](docs/testing.md) for what each group covers and when to run the full suite.
+Tests are split into screen-sized groups (`menu`, `draft`, `office`, `map`, `roster`, `hangar`, `missions`, `finance`, `catalog`, `combat-sim`, `combat-ui`, `mech-visuals`, `multiplayer`, `layout`), plus `combat-layout`, a quick subset of `combat-ui` that the full run skips. With no group named, the full suite runs. See [testing](docs/testing.md) for what each group covers and when to run the full suite.
 
-`unit` runs the engine-free model checks with `dotnet test --project Tests.Unit`, without Godot; CI runs it on every push. `test` runs a C# headless Godot test scene with a nonzero exit code on failure. It checks all ten tactical acceptance scenarios, campaign isolation, deployment eligibility, simultaneous fire, location damage, shared detection, pursuit, targeting, AI, and actual combat controls, alongside star routing, travel, quarterly finances, saves, missions, drafting, assignments, health, navigation and resizing. Tests use isolated temporary saves. `capture` runs the same checks with a graphical display and saves deployment, combat, damage reports, draft, rolodex, hangar, office, mission, map, menu, finance, and payment screenshots to `TestResults/`.
+`unit` runs the engine-free model checks with `dotnet test --project Tests.Unit`, without Godot; CI runs it on every push. `test` runs a C# headless Godot test scene with a nonzero exit code on failure. It checks all ten tactical acceptance scenarios, campaign isolation, deployment eligibility, simultaneous fire, location damage, shared detection, pursuit, targeting, AI, and actual combat controls, heat and climate, jumping, terrain and biomes, alongside star routing, system owners, travel, quarterly finances, saves, missions, reputation, Quick Launch and mission settlement, drafting, assignments, loadouts and market purchases, health, navigation and resizing, and co-op sessions played over ENet loopback. Tests use isolated temporary saves. `capture` runs the same checks with a graphical display and saves deployment, combat, damage reports, draft, rolodex, hangar, office, mission, map, menu, finance, and payment screenshots to `TestResults/`.
 
 After building, the menu and unsaved-change checks can also run directly:
 
@@ -170,13 +179,13 @@ The native acceptance loop is: launch without a separately installed .NET runtim
 
 ## Structure and design
 
-`Scenes/` contains the command shell, office, and map scenes. `Scripts/` contains their C# behavior, native menus/dialogs, shared Control styling, map geometry, the scene-independent campaign model with atomic manual saves, and the isolated combat model plus procedural battlefield/UI. `Assets/` holds only active runtime artwork, prepared models, their required textures and import settings. Model preparation reads external MW5 source exports directly; see [mech models](docs/mech-models.md). `Tests/` contains the native acceptance scene and campaign/combat checks. There is no browser application or Node.js dependency.
+`Scenes/` contains the command shell, office, and map scenes. `Scripts/` contains their C# behavior, native menus/dialogs, shared Control styling, map geometry, the scene-independent campaign model with atomic manual saves, the isolated combat model plus procedural battlefield/UI, and the co-op session, protocol and ENet transport. `Assets/` holds only active runtime artwork, prepared models, their required textures and import settings. Model preparation reads external MW5 source exports directly; see [mech models](docs/mech-models.md). `Tests/` contains the native acceptance scene and campaign/combat checks; `Tests.Unit/` holds the engine-free model checks. There is no browser application or Node.js dependency.
 
 - [Confirmed design](docs/design.md)
 - [Tactical combat design](docs/combat-design.md) and [implementation defaults](docs/combat-tuning.md)
 - [Mech models and condition display](docs/mech-models.md)
 - [Domain glossary](CONTEXT.md)
-- [Strategy and combat boundary](docs/adr/0001-strategy-and-combat-boundary.md) and [continuous combat timing](docs/adr/0002-continuous-combat-timing.md)
+- [Strategy and combat boundary](docs/adr/0001-strategy-and-combat-boundary.md) and [continuous combat timing](docs/adr/0002-continuous-combat-timing.md), and [cooperative multiplayer](docs/adr/0003-cooperative-multiplayer.md)
 - [Artwork sources, image-edit prompts, and measured display regions](docs/artwork.md)
 - [Classic stock unit data, source revision and attribution](Data/README.md)
 
