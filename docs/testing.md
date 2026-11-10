@@ -20,11 +20,11 @@ The engine-free check suites also run as xUnit tests in `Tests.Unit/`, without s
 scripts/mech unit                   # same as dotnet test --project Tests.Unit
 ```
 
-Each test runs one suite from `Tests/` (`CatalogChecks`, `CampaignChecks`, `MissionChecks`, `ReputationChecks`, `RosterChecks`, `TravelChecks`, `HangarChecks`, `CombatChecks`, `TerrainChecks`) and reports every failed check, not only the first. The Godot groups still call the same suites. A run takes about two minutes, mostly generating terrain in every biome and the terrain engagements. GitHub Actions (`.github/workflows/unit-tests.yml`) runs it on every push and pull request.
+Each test runs one suite from `Tests/` (`CatalogChecks`, `CampaignChecks`, `MissionChecks`, `ReputationChecks`, `RosterChecks`, `TravelChecks`, `HangarChecks`, `NetworkChecks`, `CombatChecks`, `TerrainChecks`) and reports every failed check, not only the first. The Godot groups still call the same suites. A run takes about two minutes, mostly generating terrain in every biome and the terrain engagements. GitHub Actions (`.github/workflows/unit-tests.yml`) runs it on every push and pull request.
 
 These suites must stay engine-free: they may use Godot math structs (`Vector2`, `Vector3`, `Mathf`) but nothing that calls into the engine, such as `GD.Print`, nodes, resources, or static members of node classes that build meshes or materials. Write diagnostic output with `Console.WriteLine`. An engine call crashes the unit run with exit code 139 rather than failing a check. Hardpoint data therefore lives in `PreparedMechModels`, not on `MechModel`.
 
-Run `scripts/mech unit` alongside the Godot groups when changing a file covered by `catalog`, `finance`, `missions` (`Missions`, `Reputation`), `roster`, `map` (`Travel`), `hangar` (`Equipment`) or `combat-sim`, or a suite listed above.
+Run `scripts/mech unit` alongside the Godot groups when changing a file covered by `catalog`, `finance`, `missions` (`Missions`, `Reputation`), `roster`, `map` (`Travel`), `hangar` (`Equipment`), `multiplayer` (`CoopSession`, `NetProtocol`, `CombatState`) or `combat-sim`, or a suite listed above.
 
 ## Groups
 
@@ -43,6 +43,7 @@ Run `scripts/mech unit` alongside the Godot groups when changing a file covered 
 | `combat-ui` | Combat layouts, picking, detection overlay, shot effects, tactical screen, Quick Launch and mission settlement, jump targeting | `CombatScreen`, `CombatViewport`, `CombatPaperdoll`, `CombatLogPanel`, `BattlefieldTerrainView` |
 | `combat-layout` | Combat layout subset of `combat-ui` (freeze regression); not in the full run | as `combat-ui`, for a quick check |
 | `mech-visuals` | Imported models, gaits, jump poses and jets, damage hiding, blueprint framing, weapon hardpoints | `MechModel`, `JumpJets`, `PreparedMechModels`, `PreparedModelLoader`, `WeaponMounts`, `Assets/` models and weapon libraries, `Data/mech-models.json` |
+| `multiplayer` | Co-op protocol and sessions (engine-free), battle replicas matched field by field against a fought battle, then the app as leader and as a joined player over ENet loopback in one process: lobby, drafts, commands, sync, leader-only controls, disconnects, co-op force selection, battles, pings and results, waiting for a dropped player, Stop Waiting, Rejoin and the leader leaving | `CoopSession`, `NetProtocol`, `ENetTransport`, `LobbyScreen`, `HostAddress`, `RouterPort`, `CombatState`, co-op paths in `CommandApp` and `CombatScreen` |
 | `layout` | Window scaling and office hotspots at several window sizes | `Ui`, `NativeViewportContainer` |
 
 A test file under `Tests/` belongs to the group that calls it. When you change a test, run that group.

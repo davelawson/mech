@@ -11,7 +11,7 @@ Deterministic lockstep was rejected. Combat runs on float math, and the timing o
 - **Leader-only actions:** travelling on the star chart, accepting and abandoning contracts, advancing time, paying or deferring quarterly bills, settling missions, and saving and loading. Company dialogs are shown to everyone; other players see *Waiting for leader* in place of the buttons.
 - **Ownership:** a player may act on mechs in their own lance and in the lance pool: assign MechWarriors, refit, repair, sell, unassign, and move mechs between their lance and the pool. They may never act on another player's lance. Spare equipment and company cash are shared and open to everyone.
 - **Lances:** each lance holds up to four mechs. A MechWarrior belongs to the lance of their assigned mech.
-- **Initial draft:** each player drafts their own lance at the same time.
+- **Initial draft:** each player drafts their own lance at the same time. No MechWarrior candidate appears in two players' drafts, so each draft needs nine regular and three veteran MechWarriors of its own. Three-player campaigns wait until the catalog has 27 and 9.
 - **Scaling:** enemy forces and contract pay scale with the number of lances.
 
 ## Sessions
@@ -38,4 +38,4 @@ Deterministic lockstep was rejected. Combat runs on float math, and the timing o
 3. Combat networking: commands, snapshots, pause toggles, pings and lance scaling.
 4. Disconnect and reconnect handling everywhere.
 
-A `multiplayer` test group will run a host and clients as headless processes on localhost, with engine-free checks for the protocol and commands.
+The `multiplayer` test group runs in one process over real ENet on localhost. The app leads while an engine-free client session takes the other seat, then the app joins an engine-free leader. Engine-free checks over an in-memory transport cover the protocol and sessions. Separate processes were rejected as slower, flakier and harder to assert across.

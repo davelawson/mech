@@ -17,6 +17,7 @@ internal static class MissionChecks
         CheckOffers(board.Available, check);
         CheckSides(chart, check);
         CheckSettlement(check);
+        CheckLances(check);
 
         var unseen = Campaign.Restore(campaign.Snapshot());
         check(unseen.Missions.HasUnseenOffers && Json(unseen) == Json(campaign), "offers and unseen state survive save restoration");
@@ -139,6 +140,27 @@ internal static class MissionChecks
             if (!valid) { check(false, $"{offer.Name} has a 2–4 mech opposition and rewards scaled to its difficulty"); return; }
         }
         check(true, "offers have a 2–4 mech opposition and rewards scaled to their difficulty");
+    }
+
+    private static void CheckLances(Action<bool, string> check)
+    {
+        var chart = StarChart.Instance;
+        var single = MissionGenerator.Generate(new MissionRandom(77), 1, Campaign.StartDate, chart.StartingSystemId, chart);
+        check(JsonSerializer.Serialize(single) == JsonSerializer.Serialize(MissionGenerator.Generate(new MissionRandom(77), 1, Campaign.StartDate, chart.StartingSystemId, chart, lances: 1)),
+            "a one-lance offer is generated as before");
+        var offers = Enumerable.Range(0, 300).Select(i => MissionGenerator.Generate(new MissionRandom((ulong)i), 1, Campaign.StartDate, chart.StartingSystemId, chart, lances: 3)).ToArray();
+        check(offers.All(offer => offer.Opposition.Length is >= 3 * MissionTuning.MinOpposition and <= 3 * MissionTuning.MaxOpposition)
+            && offers.Any(offer => offer.Opposition.Length > MissionTuning.MaxOpposition * 2), "each lance faces its own two to four enemy mechs");
+        var board = MissionBoard.Create(5, Campaign.StartDate, chart.StartingSystemId, new Reputation(), lances: 2);
+        var restored = MissionBoard.Restore(board.Snapshot(), Campaign.StartDate);
+        check(board.Snapshot().Lances == 2 && restored.Lances == 2 && JsonSerializer.Serialize(restored.Snapshot()) == JsonSerializer.Serialize(board.Snapshot()),
+            "a board for several lances keeps its lance count through a save");
+        check(MissionBoard.Create(5, Campaign.StartDate, chart.StartingSystemId, new Reputation()).Snapshot().Lances is null, "a one-lance board saves as before");
+        Reject(() => MissionBoard.Restore(board.Snapshot() with { Lances = null }, Campaign.StartDate), check, "a board's offers must suit its lance count");
+        var mean = (double)offers.Average(offer => offer.Payment + offer.InsuranceLimit + offer.SalvagePicks * MissionTuning.CBillsPerSalvagePick);
+        var singles = Enumerable.Range(0, 300).Select(i => MissionGenerator.Generate(new MissionRandom((ulong)i), 1, Campaign.StartDate, chart.StartingSystemId, chart)).ToArray();
+        check(mean > 2 * singles.Average(offer => offer.Payment + offer.InsuranceLimit + offer.SalvagePicks * MissionTuning.CBillsPerSalvagePick),
+            "rewards grow with the opposition of every lance");
     }
 
     private static void CheckSides(StarChart chart, Action<bool, string> check)

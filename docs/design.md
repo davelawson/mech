@@ -205,7 +205,7 @@ A silent flashing light on the office phone indicates new mission offers. Openin
 - an employer and an opponent (see [Contract sides](#reputation-confirmed-november-5-2026)), and whether it is a **raid** (the employer attacks) or a **defense**. The placeholder name and briefing follow the kind ("Raid on Galatea", "Defense of Galatea") and name the employer; the objective is "Defeat the defending force" on a raid and "Defeat the attacking force" on a defense. The phone's offer list shows each offer's sides, as "Davion vs. Kurita", and the terms show the employer, opponent and contract kind with your reputation with each tracked faction.
 - a biome: the location's, shown in the terms. Missions will be fought on it once they launch battles.
 - a location: a named system within 3 jumps of the DropShip when the offer is posted, counted from the system being jumped to while in transit, chosen to suit the sides. It never changes.
-- its opposition: 2–4 BattleMechs, each a random stock catalog mech of a weight class drawn Light 40 / Medium 35 / Heavy 18 / Assault 7, piloted by an unnamed pilot of rank Green 20 / Regular 50 / Veteran 22 / Elite 8. The briefing shows exactly the force that will be fielded.
+- its opposition: 2–4 BattleMechs for each lance in the company (so 4–8 for a two-player company), each a random stock catalog mech of a weight class drawn Light 40 / Medium 35 / Heavy 18 / Assault 7, piloted by an unnamed pilot of rank Green 20 / Regular 50 / Veteran 22 / Elite 8. The briefing shows exactly the force that will be fielded.
 - a completion deadline of travel days to the location plus 14, shown as "N days after acceptance" and fixed as a date on acceptance. The travel estimate finishes the current jump first.
 - fixed rewards, with no negotiation yet. Difficulty is the enemy tonnage, each mech weighted by its pilot's rank (Green 0.8, Regular 1.0, Veteran 1.25, Elite 1.5). The budget is difficulty × 4,000 C-bills, ±20%, split at random: at least 40% to payment, the rest between salvage and the insurance limit. **Payment** is in C-bills. **Salvage** is a number of picks from wrecks and equipment after the battle: its share ÷ 100,000 C-bills, rounded, from 0 to 6. **Insurance** pays the lesser of the deployed mechs' repair costs, with destroyed mechs at their replacement value, and the offer's limit (a negotiated maximum once negotiation exists). Payment and the insurance limit are rounded to 1,000 C-bills.
 
@@ -280,3 +280,45 @@ Co-op multiplayer is planned in [ADR 0003](adr/0003-cooperative-multiplayer.md).
   - **Leader only:** travel, accepting and abandoning missions, advancing time, quarterly payments and mission settlement.
   - **Any player:** loadouts, pilot assignments and lance moves, but only on mechs in the player's own lance or the lance pool. Moving a MechWarrior off another mech needs control of both mechs.
   - A player adds mechs only to their own lance.
+
+## Co-op sessions (confirmed November 9, 2026)
+
+The second step of [co-op multiplayer](adr/0003-cooperative-multiplayer.md): the lobby, connection, drafts and strategy-layer sync.
+
+- **Hosting.** **Host Co-op** on the main menu opens a form: your name, the port (24525 by default), and either a new company for 2 players or the saved co-op campaign. The 3-player option is disabled until the catalog has enough MechWarriors. The lobby then lists one seat per lance, and **Start Campaign** is enabled once every seat is filled. The form and the lobby show where other players join: the internet address the home router reports over UPnP and this computer's local-network addresses, each with the port, plus **Copy address** for the internet one. Nothing outside the local network is asked. While the router is asked (up to about two seconds) the line reads *asking your router…*. If it does not answer, as when UPnP is off, the line says so and suggests finding the address on the router or by searching *what is my IP*. The router is asked once per run, and again on the next visit if it did not answer. Opening the lobby also asks the router over UPnP to forward the UDP port to this computer, and leaving the co-op game removes the forwarding (a crash can leave it behind, which is harmless). The form says the port is opened when you host; the lobby reads *Opening UDP port … on your router…*, then that the port is open, or that the router did not open it (UPnP may be off, or the port is forwarded to another computer) and the leader should forward it on the router.
+- **Joining.** **Join Co-op** asks for your name and the leader's address and port. A player on another build, or joining when every seat is taken, is refused with the reason. In the lobby, **Take seat** claims a free seat; a resumed campaign shows each seat's saved name until someone takes it.
+- **Drafts.** Every player drafts their own lance at the same time. The leader's draft names the company, and the others' show *Draft your lance* with no name field. **Confirm Lance** locks a draft until every player has confirmed. The company then forms with each lance's mechs piloted by the MechWarriors drafted in their columns, and every player goes to the office.
+- **Sync.** The leader's machine holds the campaign. Other players' changes are commands the leader carries out or refuses (refusals appear as *Not possible*). The campaign goes to every player at most five times a second while it changes. Pending hangar changes that still apply survive each update.
+- **Leader-only controls for the other players:**
+  - The calendar explains that only the leader advances time.
+  - The phone's Accept and Abandon buttons are disabled.
+  - The star map shows no Embark or Cancel Journey, and plotting explains that only the leader plots travel.
+  - The filing cabinet only explains that the leader saves and loads.
+  - When the quarterly bill falls due, it opens for them with a disabled *Waiting for leader* button, and it closes once the leader settles it.
+  - Scheduled events are shown to every player.
+- **Lances in the hangar.** The lance line names its player (*Lance 2 · Sam · 4/4*). Another player's lance mechs are read-only: no installing, removing, armor, Apply, pilot assignment or lance changes.
+- **Missions.** Co-op missions are fought as below. Simulated deployments stay available, as local practice on each player's own lance.
+- **Saving and loading.** The leader's save records the players' names. **Load Game** refuses a co-op save and points to Host Co-op. The leader cannot load mid-session.
+- **Disconnects.** When a player drops, every player is told. Time cannot advance until they reconnect, and they rejoin through the lobby to their empty seat, receiving the campaign. When the leader leaves, the others return to the main menu with the reason and keep no copy of the campaign. Leaving through the main menu or the draft asks first; for the leader it ends the game for everyone.
+
+## Co-op missions (confirmed November 9, 2026)
+
+The third step of [co-op multiplayer](adr/0003-cooperative-multiplayer.md): missions fought together. The battle itself is described in the [combat design](combat-design.md#co-op-battles-confirmed-november-9-2026).
+
+- **Scaling.** A co-op company's mission board is generated for all its lances: each lance adds its own two to four enemy mechs, and the reward follows the whole opposition's difficulty. The board is regenerated for every lance when the company forms.
+- **Quick Launch** belongs to the leader. It is disabled, its tooltip saying why, unless a mission is accepted, no quarterly payment is due and every player is present. The other players' button explains that only the leader launches missions.
+- **Force selection.** Quick Launch pulls every player into force selection, from wherever they are, by way of the hangar. Each player chooses 1–4 mechs from their own lance and presses **Ready**; a ready force is locked until **Not Ready**. The list under the choices shows every player's readiness. Only the leader sees the terrain seed and **Back to hangar**, which closes force selection for everyone. **Launch mission** is enabled once every other player is ready.
+- **During the mission** the campaign is held: other players' campaign commands are refused until the battle's results are closed.
+- **Autosave.** The leader's machine saves the campaign, over the manual save, when the mission launches and again once it is settled.
+- **Results.** Only the leader withdraws and settles. Every player sees the results and the leader's settlement; the others' return button reads *Waiting for leader*, and every player returns to the hangar when the leader leaves the results.
+- **Disconnects.** A player who leaves force selection is no longer ready, and the leader cannot launch until they return. A player who drops out of the battle holds it paused. A returning player takes their seat through the lobby and goes straight back into force selection or the battle as it stands. Disconnects are handled as described below.
+
+## Co-op disconnects (confirmed November 9, 2026)
+
+The fourth step of [co-op multiplayer](adr/0003-cooperative-multiplayer.md). A player who quits, closes the game or loses their connection counts as disconnected; a dropped connection is noticed within ten seconds.
+
+- **Outside a mission:** every player is told; time cannot advance and the leader cannot launch until the player returns. Everything else stays available.
+- **In force selection or a battle:** a banner over the screen reads *Waiting for Sam to reconnect…* for every player, and clears when they return. A disconnected player holds the battle paused.
+- **Stop Waiting.** During the battle the leader's banner offers **Stop Waiting**, which asks first and then ends the game for everyone. The battle is lost, but the campaign keeps the save made when the mission launched: Host Co-op and resume it to fight the mission again. The other players are told the leader stopped waiting.
+- **Rejoining.** A player whose connection dropped is offered **Rejoin**, which reconnects to the same leader under the same name and retakes their seat as soon as it is free. They return to the campaign, force selection or the battle as it stands. Joining through **Join Co-op** and **Take seat** works too.
+- **The leader leaving** (through the main menu, the draft or by quitting) ends the game for everyone. The other players return to the main menu told *The leader left the game.*, with no Rejoin; a dropped leader connection reads *The connection to the leader was lost.* Either way they keep no copy of the campaign.

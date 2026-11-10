@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Godot;
 
 namespace Mech;
@@ -315,7 +316,7 @@ public sealed record CombatShot(string AttackerId, string TargetId, Vector2 From
     public bool Burn { get; init; }
     /// <summary>A shell's or missile salvo's time from discharge to impact; its damage waits for the impact entry.</summary>
     public double FlightSeconds { get; init; }
-    public bool InFlight => FlightSeconds > 0 && !Impact;
+    [JsonIgnore] public bool InFlight => FlightSeconds > 0 && !Impact;
     /// <summary>True when a hit shell or salvo lands, logged separately from its discharge.</summary>
     public bool Impact { get; init; }
     /// <summary>A shell or salvo that reached a destroyed target explodes on the wreck without damage.</summary>
@@ -328,8 +329,8 @@ public sealed record CombatShot(string AttackerId, string TargetId, Vector2 From
     public string? SpotterId { get; init; }
     /// <summary>A PPC hit's splash damage, one entry per chunk in the adjacent location it was rolled to, applied with the primary damage.</summary>
     public IReadOnlyList<CombatSplash> Splashes { get; init; } = [];
-    public int Splash => Splashes.Sum(item => item.Damage);
-    public int TotalDamage => Damage + Splash;
+    [JsonIgnore] public int Splash => Splashes.Sum(item => item.Damage);
+    [JsonIgnore] public int TotalDamage => Damage + Splash;
 }
 
 /// <summary>Deterministic fixed-step combat with shared detection and simultaneous weapon resolution.</summary>
@@ -578,6 +579,7 @@ public sealed partial class CombatSimulation
     public void Advance(double delta)
     {
         if (!double.IsFinite(delta) || delta < 0) throw new ArgumentOutOfRangeException(nameof(delta));
+        if (Replica) { AdvanceReplica(delta); return; }
         if (Paused || Outcome != CombatOutcome.Ongoing) return;
         _accumulator += delta;
         while (_accumulator + 1e-9 >= CombatRules.StepSeconds && Outcome == CombatOutcome.Ongoing)

@@ -16,6 +16,9 @@ The company's BattleMechs in no lance, together with their assigned MechWarriors
 **Player slot**:
 One player's seat in a campaign, numbered from 0 and matching the lance that player commands. The number of slots is fixed when the campaign begins.
 
+**Lobby**:
+Where the players of a co-op campaign gather and take their player slots before it starts or resumes. A player who drops out returns through it to the empty slot.
+
 **Leader**:
 The player in slot 0, whose machine hosts the campaign. Only the leader travels, accepts and abandons contracts, advances time, settles company finances and saves or loads.
 _Avoid_: Host, commander

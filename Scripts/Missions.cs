@@ -96,12 +96,15 @@ public static class MissionGenerator
     private static readonly string[] LocalForceNames = ["{0} Planetary Guard", "{0} Militia", "Governor {1}'s Household Troops", "Duke {1}'s Retainers", "The {1} Family Guard"];
     private static readonly string[] Surnames = ["Halloran", "Vasquez", "Okonkwo", "Brandt", "Szabo", "Takeda", "Moreau", "Ivanova", "Castellan", "Whitlock"];
 
-    public static MissionOffer Generate(MissionRandom random, int number, DateOnly date, string originSystemId, StarChart chart, Reputation? reputation = null)
+    /// <summary>An offer for a company of this many lances: each lance faces its own two to four enemy mechs, and the reward follows
+    /// the whole opposition's difficulty.</summary>
+    public static MissionOffer Generate(MissionRandom random, int number, DateOnly date, string originSystemId, StarChart chart, Reputation? reputation = null, int lances = 1)
     {
         var area = chart.WithinJumps(originSystemId, MissionTuning.LocationJumps);
         var (systemId, employer, opponent, raid) = new Sides(random, chart, area, reputation ?? new()).Choose();
         var system = chart[systemId];
-        var count = MissionTuning.MinOpposition + random.Next(MissionTuning.MaxOpposition - MissionTuning.MinOpposition + 1);
+        var count = 0;
+        for (var lance = 0; lance < lances; lance++) count += MissionTuning.MinOpposition + random.Next(MissionTuning.MaxOpposition - MissionTuning.MinOpposition + 1);
         var opposition = new EnemyMech[count];
         for (var i = 0; i < count; i++)
         {
@@ -219,8 +222,9 @@ public static class MissionGenerator
     private static long Round(double value) => (long)Math.Round(value / MissionTuning.RewardRounding) * MissionTuning.RewardRounding;
 }
 
+/// <summary>Lances is the company's lance count when above one; offers are generated for it.</summary>
 public sealed record MissionSnapshot(MissionOffer[] Offers, MissionOffer? Current, DateOnly? Deadline, string[] SeenMissionIds,
-    int NextOfferNumber, ulong RandomState);
+    int NextOfferNumber, ulong RandomState, int? Lances = null);
 
 /// <summary>The offer board, browsing history, and single accepted mission, without scene dependencies.
 /// Offers are kept oldest first.</summary>
@@ -236,12 +240,15 @@ public sealed class MissionBoard
     public DateOnly? Deadline { get; private set; }
     public string? SelectedMissionId => Current?.Id;
     public bool HasUnseenOffers => _available.Any(item => !_seen.Contains(item.Id));
+    /// <summary>The company's lances, which every offer's opposition and reward scale with.</summary>
+    public int Lances { get; }
 
-    private MissionBoard(ulong seed, StarChart chart) { _random = new(seed); _chart = chart; }
+    private MissionBoard(ulong seed, StarChart chart, int lances) { _random = new(seed); _chart = chart; Lances = lances; }
 
-    public static MissionBoard Create(ulong seed, DateOnly date, string originSystemId, Reputation reputation, StarChart? chart = null)
+    public static MissionBoard Create(ulong seed, DateOnly date, string originSystemId, Reputation reputation, StarChart? chart = null, int lances = 1)
     {
-        var board = new MissionBoard(seed, chart ?? StarChart.Instance);
+        if (lances is < 1 or > ForceRoster.MaxLances) throw new ArgumentOutOfRangeException(nameof(lances));
+        var board = new MissionBoard(seed, chart ?? StarChart.Instance, lances);
         board.Refill(date, originSystemId, reputation);
         return board;
     }
@@ -262,7 +269,7 @@ public sealed class MissionBoard
     private void Refill(DateOnly date, string originSystemId, Reputation reputation)
     {
         while (_available.Count < MissionTuning.BoardSize)
-            _available.Add(MissionGenerator.Generate(_random, _nextOfferNumber++, date, originSystemId, _chart, reputation));
+            _available.Add(MissionGenerator.Generate(_random, _nextOfferNumber++, date, originSystemId, _chart, reputation, Lances));
     }
 
     public void MarkOffersSeen()
@@ -297,12 +304,13 @@ public sealed class MissionBoard
     }
 
     public MissionSnapshot Snapshot() => new(_available.ToArray(), Current, Deadline,
-        _seen.Order(StringComparer.Ordinal).ToArray(), _nextOfferNumber, _random.State);
+        _seen.Order(StringComparer.Ordinal).ToArray(), _nextOfferNumber, _random.State, Lances > 1 ? Lances : null);
 
     public static MissionBoard Restore(MissionSnapshot snapshot, DateOnly date, StarChart? chart = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        var board = new MissionBoard(snapshot.RandomState, chart ?? StarChart.Instance);
+        if (snapshot.Lances is < 2 or > ForceRoster.MaxLances) throw new ArgumentException("The mission save contains invalid state.", nameof(snapshot));
+        var board = new MissionBoard(snapshot.RandomState, chart ?? StarChart.Instance, snapshot.Lances ?? 1);
         var offers = snapshot.Offers ?? [];
         var all = snapshot.Current is null ? offers : offers.Append(snapshot.Current).ToArray();
         if (snapshot.Offers is null || offers.Length > MissionTuning.BoardSize
@@ -328,7 +336,7 @@ public sealed class MissionBoard
         && int.TryParse(offer.Id["offer-".Length..], out var number) && number >= 1 && number < nextOfferNumber
         && !string.IsNullOrWhiteSpace(offer.Name) && !string.IsNullOrWhiteSpace(offer.Briefing) && !string.IsNullOrWhiteSpace(offer.Objective)
         && offer.SystemId is not null && _chart.Contains(offer.SystemId) && offer.Posted <= date
-        && offer.Opposition is { Length: >= MissionTuning.MinOpposition and <= MissionTuning.MaxOpposition }
+        && offer.Opposition is { Length: var count } && count >= MissionTuning.MinOpposition * Lances && count <= MissionTuning.MaxOpposition * Lances
         && offer.Opposition.All(item => item is not null && Enum.IsDefined(item.Rank)
             && DraftCatalog.AllMechs.Any(mech => mech.Id == item.MechId))
         && offer.Payment > 0 && offer.SalvagePicks is >= 0 and <= MissionTuning.MaxSalvagePicks && offer.InsuranceLimit >= 0

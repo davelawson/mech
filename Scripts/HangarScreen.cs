@@ -21,6 +21,10 @@ public partial class HangarScreen : Control
     /// <summary>Adds the selected mech to the player's lance, or returns it to the lance pool.</summary>
     public Button LanceButton { get; private set; } = null!;
     public Label LanceText { get; private set; } = null!;
+    /// <summary>The players' names by slot in a co-op campaign, naming whose lance each is; null in single-player.</summary>
+    public IReadOnlyList<string>? LanceOwners { get; set; }
+    /// <summary>Whether the local player may change the selected mech: one in their own lance or the lance pool.</summary>
+    public bool SelectedControlled => _roster.Controls(Slot, SelectedMech);
     public Button BackButton { get; private set; } = null!;
     public Button WarriorsButton { get; private set; } = null!;
     public Button DeploymentButton { get; private set; } = null!;
@@ -53,7 +57,7 @@ public partial class HangarScreen : Control
     public long SelectedPurchaseCost => SelectedPurchases.Sum(EquipmentMarket.Price);
     public long PendingPurchaseCost => _purchases.Keys.Sum(id => Purchases(id).Sum(EquipmentMarket.Price));
     public bool SelectedAffordable => SelectedPurchaseCost <= Cash;
-    public bool SelectedCanApply => SelectedHasPendingChanges && !SelectedOverTonnage && SelectedAffordable;
+    public bool SelectedCanApply => SelectedHasPendingChanges && !SelectedOverTonnage && SelectedAffordable && SelectedControlled;
     public MechPreview Preview { get; private set; } = null!;
     public bool ArtworkLoaded => _background.Texture is not null;
     public IReadOnlyDictionary<MechLocation, HangarLocationPanel> LocationPanels => _locations;
@@ -178,6 +182,31 @@ public partial class HangarScreen : Control
     {
         if (!ReferenceEquals(_roster, roster)) { _selected = 0; AbandonPending(); }
         _roster = roster; MarketSystemId = marketSystemId; Cash = cash; _selected = Math.Clamp(_selected, 0, roster.Mechs.Count - 1); Board.Visible = true; Show();
+        BuildRosterButtons();
+        ShowStorage(); ShowMarket();
+        Select(_selected); Layout(); BackButton.CallDeferred(Control.MethodName.GrabFocus);
+    }
+    /// <summary>Takes a newer copy of the company, as a co-op player receives it from the leader, keeping the selection and the
+    /// pending changes that still apply to it.</summary>
+    public void Rebind(ForceRoster roster, string? marketSystemId, long cash)
+    {
+        if (_roster is null) return;
+        var selected = SelectedMech.Id;
+        _roster = roster; MarketSystemId = marketSystemId; Cash = cash; _previews.Clear();
+        foreach (var id in _pending.Keys.ToArray())
+        {
+            var mech = roster.Mechs.SingleOrDefault(item => item.Id == id);
+            var valid = mech is not null && roster.Controls(Slot, mech);
+            if (valid) try { _ = mech!.WithLoadout(_pending[id]); } catch (ArgumentException) { valid = false; }
+            if (!valid) { _pending.Remove(id); _purchases.Remove(id); }
+        }
+        _selected = Math.Max(0, roster.Mechs.ToList().FindIndex(item => item.Id == selected));
+        if (RosterButtons.Count != roster.Mechs.Count) BuildRosterButtons();
+        if (IsVisibleInTree()) { Refresh(); Layout(); }
+    }
+    private void BuildRosterButtons()
+    {
+        var roster = _roster;
         RosterUi.Clear(_rosterButtons); RosterButtons.Clear();
         for (var i = 0; i < roster.Mechs.Count; i++)
         {
@@ -186,8 +215,6 @@ public partial class HangarScreen : Control
             button.SizeFlagsHorizontal = SizeFlags.ExpandFill; button.CustomMinimumSize = new Vector2(150, 54);
             button.Pressed += () => Select(index); RosterButtons.Add(button);
         }
-        ShowStorage(); ShowMarket();
-        Select(_selected); Layout(); BackButton.CallDeferred(Control.MethodName.GrabFocus);
     }
     private OwnedMech Displayed(OwnedMech mech)
     {
@@ -242,12 +269,13 @@ public partial class HangarScreen : Control
     /// <summary>Why a spare from storage, or an item bought from the market, cannot go in a location of the selected mech as shown,
     /// or null when it can.</summary>
     public string? InstallProblem(string storageId, MechLocation location, bool purchase = false) =>
-        purchase ? (MarketSystemId is not { } system || !EquipmentMarket.Offers(system).Any(item => item.Id == storageId) ? "Not for sale here"
+        !SelectedControlled ? "Another player's lance" : purchase ? (MarketSystemId is not { } system || !EquipmentMarket.Offers(system).Any(item => item.Id == storageId) ? "Not for sale here"
                 : Loadout.InstallProblem(DisplayedMech, storageId, location))
             : StorageCounts().GetValueOrDefault(storageId) <= 0 ? "None in storage" : Loadout.InstallProblem(DisplayedMech, storageId, location);
     private void Change(LoadoutPlan plan)
     {
         var mech = SelectedMech;
+        if (!SelectedControlled) return;
         if (plan.SameAs(mech.Plan)) _pending.Remove(mech.Id); else _pending[mech.Id] = plan;
         // Purchases last only as long as their items stay in the pending loadout.
         if (_purchases.TryGetValue(mech.Id, out var bought))
@@ -392,9 +420,10 @@ public partial class HangarScreen : Control
         }
         var current = warrior is null ? _pilotIds.FindIndex(id => _roster.Assignment(id) is null) : _pilotIds.IndexOf(warrior.Id);
         PilotPicker.Select(current >= 0 ? current : _pilotIds.Count > 0 ? 0 : -1);
-        PilotPicker.Disabled = _pilotIds.Count == 0; UpdateAssignmentAction();
+        PilotPicker.Disabled = _pilotIds.Count == 0 || !SelectedControlled; UpdateAssignmentAction();
+        if (!SelectedControlled) UnassignButton.Disabled = true;
         var lanceFull = _roster.LanceMechs(Slot).Count() >= ForceRoster.LanceSize;
-        LanceText.Text = SelectedMech.Lance is { } lance ? $"{ForceRoster.LanceName(lance)} · {_roster.LanceMechs(lance).Count()}/{ForceRoster.LanceSize}" : "Lance pool";
+        LanceText.Text = SelectedMech.Lance is { } lance ? $"{ForceRoster.LanceName(lance)}{(LanceOwners is { } owners && lance < owners.Count ? $" · {owners[lance]}" : "")} · {_roster.LanceMechs(lance).Count()}/{ForceRoster.LanceSize}" : "Lance pool";
         LanceButton.Text = SelectedMech.Lance is null ? $"Add to {ForceRoster.LanceName(Slot)}" : "Move to lance pool";
         LanceButton.Disabled = !_roster.Controls(Slot, SelectedMech) || SelectedMech.Lance is null && lanceFull;
         LanceButton.TooltipText = !_roster.Controls(Slot, SelectedMech) ? "Another player's lance" : SelectedMech.Lance is null && lanceFull
@@ -472,7 +501,7 @@ public partial class HangarScreen : Control
     private void UpdateAssignmentAction()
     {
         var valid = PilotPicker.Selected >= 0 && PilotPicker.Selected < _pilotIds.Count;
-        AssignButton.Disabled = !valid || SelectedMech.WarriorId == _pilotIds[PilotPicker.Selected];
+        AssignButton.Disabled = !valid || SelectedMech.WarriorId == _pilotIds[PilotPicker.Selected] || !SelectedControlled;
         var other = valid ? _roster.Assignment(_pilotIds[PilotPicker.Selected]) : null;
         AssignButton.Text = other is null || other == SelectedMech ? "Assign warrior" : SelectedMech.WarriorId is null ? "Transfer warrior…" : "Swap warriors…";
     }

@@ -92,7 +92,8 @@ internal static class CampaignChecks
     {
         var save = NewCompany(7).Snapshot();
         var roster = save.Roster!;
-        return Campaign.Restore(save with { Roster = roster with { Lances = 2, Mechs = roster.Mechs.Select((mech, i) => mech with { Lance = i < 2 ? 0 : 1 }).ToArray() } });
+        return Campaign.Restore(save with { Roster = roster with { Lances = 2, Mechs = roster.Mechs.Select((mech, i) => mech with { Lance = i < 2 ? 0 : 1 }).ToArray() },
+            Missions = MissionBoard.Create(7, save.Date, StarChart.Instance.StartingSystemId, new Reputation(), lances: 2).Snapshot() });
     }
 
     private static void TestLances(Action<bool, string> check)

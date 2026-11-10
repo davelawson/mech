@@ -11,7 +11,8 @@ public sealed record MissionSettlement(MissionOffer Mission, MissionOutcome Outc
     string[] Killed, DayResult Day);
 public sealed record CampaignSnapshot(int Version, DateOnly Date, long Cash, long PaymentDue,
     long DeferredDebt, DateOnly NextQuarter, bool Bankrupt, CampaignEvent[] Events, RosterSnapshot? Roster = null, MissionSnapshot? Missions = null,
-    TravelSnapshot? Travel = null, int AccruedTransitDays = 0, int BilledTransitDays = 0, ReputationSnapshot? Reputation = null);
+    TravelSnapshot? Travel = null, int AccruedTransitDays = 0, int BilledTransitDays = 0, ReputationSnapshot? Reputation = null,
+    string[]? PlayerNames = null);
 
 /// <summary>Campaign time and obligations, independent of the scene tree and animation.</summary>
 public sealed class Campaign
@@ -72,6 +73,25 @@ public sealed class Campaign
     {
         if (!RequiresDraft) throw new InvalidOperationException("The initial draft is already complete.");
         Roster = draft.Establish();
+    }
+    /// <summary>Forms a co-op company from each player's draft, one lance per player, under the players' names.</summary>
+    public void EstablishCompany(IReadOnlyList<InitialDraft> drafts, IReadOnlyList<string> names)
+    {
+        if (!RequiresDraft) throw new InvalidOperationException("The initial draft is already complete.");
+        if (names.Count != drafts.Count || names.Any(name => !ValidPlayerName(name))) throw new ArgumentException("Every player needs a name.");
+        Roster = InitialDraft.EstablishCompany(drafts);
+        PlayerNames = [.. names];
+        // The offers so far were for one lance; the company's board is made for all of them.
+        Missions = MissionBoard.Create(NewSeed(), Date, MissionOrigin, Reputation, lances: Players);
+    }
+    /// <summary>The players' names by slot in a co-op campaign, as last played; null in single-player.</summary>
+    public IReadOnlyList<string>? PlayerNames { get; private set; }
+    public static bool ValidPlayerName(string? name) => !string.IsNullOrWhiteSpace(name) && name == name.Trim() && name.Length <= 24 && !name.Any(char.IsControl);
+    /// <summary>Records the names of the players resuming a co-op campaign.</summary>
+    public void RenamePlayers(IReadOnlyList<string> names)
+    {
+        if (PlayerNames is null || names.Count != Players || names.Any(name => !ValidPlayerName(name))) throw new ArgumentException("Every player needs a name.");
+        PlayerNames = [.. names];
     }
     public bool CanAdvance => !RequiresDraft && !PaymentPending && !Bankrupt && Date < new DateOnly(9998, 12, 31);
     public bool CanPay => !RequiresDraft && PaymentPending && !Bankrupt && Cash >= PaymentDue;
@@ -219,7 +239,7 @@ public sealed class Campaign
         return due;
     }
 
-    public CampaignSnapshot Snapshot() => new(SaveVersion, Date, Cash, PaymentDue, DeferredDebt, NextQuarter, Bankrupt, _events.ToArray(), Roster?.Snapshot(), Missions.Snapshot(), Travel.Snapshot(), AccruedTransitDays, BilledTransitDays, Reputation.Snapshot());
+    public CampaignSnapshot Snapshot() => new(SaveVersion, Date, Cash, PaymentDue, DeferredDebt, NextQuarter, Bankrupt, _events.ToArray(), Roster?.Snapshot(), Missions.Snapshot(), Travel.Snapshot(), AccruedTransitDays, BilledTransitDays, Reputation.Snapshot(), PlayerNames?.ToArray());
 
     public static Campaign Restore(CampaignSnapshot save)
     {
@@ -256,7 +276,14 @@ public sealed class Campaign
         // Saves before version 6 held the single authored offer, and offers before version 8 had no employer or opponent;
         // they receive a freshly generated board.
         campaign.Missions = save.Version >= 8 ? MissionBoard.Restore(save.Missions!, date)
-            : MissionBoard.Create(NewSeed(), date, campaign.MissionOrigin, campaign.Reputation);
+            : MissionBoard.Create(NewSeed(), date, campaign.MissionOrigin, campaign.Reputation, lances: campaign.Roster?.LanceCount ?? 1);
+        if (campaign.Missions.Lances != (campaign.Roster?.LanceCount ?? 1)) throw new ArgumentException("The mission save contains invalid state.");
+        if (save.PlayerNames is { } names)
+        {
+            if (campaign.Roster is null || names.Length != campaign.Roster.LanceCount || names.Length < 2 || names.Any(name => !ValidPlayerName(name)))
+                throw new ArgumentException("The campaign save contains invalid players.");
+            campaign.PlayerNames = names;
+        }
         foreach (var item in save.Events)
         {
             if (item is null || string.IsNullOrWhiteSpace(item.Id) || string.IsNullOrWhiteSpace(item.Title)

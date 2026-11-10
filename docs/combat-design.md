@@ -355,3 +355,14 @@ The first step of [co-op multiplayer](adr/0003-cooperative-multiplayer.md):
 - **Lances in battle.** Each friendly mech fights for the lance it deployed from. That lance's player slot commands it, and each lance deploys at most four mechs.
 - **Commands.** Orders and settings (move, attack, follow, jump, hold, priority target, movement mode, firing, heat policy, preferred distance and weapon toggles) are commands sent from the local player's slot. A command acts only on that slot's own lance and ignores other ids.
 - **Pausing.** Each player in the battle has a pause toggle, and every toggle starts on. The battle runs only while every toggle is off. The pause button shows the local player's own toggle, and opening the combat menu turns it on until **Resume** restores it.
+
+## Co-op battles (confirmed November 9, 2026)
+
+The third step of [co-op multiplayer](adr/0003-cooperative-multiplayer.md); deployment and settlement are in the [design](design.md#co-op-missions-confirmed-november-9-2026).
+
+- **One battle.** Only the leader's machine steps the battle. Every other player holds a replica: the same deployment, recreated from the leader's mechs and seeds, which never steps itself. Fifteen times a second the leader sends the battle's state: every mech's position, headings, orders, settings, heat, damage, ammunition, weapon cooldowns and jump arc, every contact, the pause toggles, and the log entries since the last state. A replica fires each new entry's shot effects and logs it once, in order. Between states its mechs glide toward their latest pose, so movement stays smooth. Pathing and enemy AI stay on the leader's machine.
+- **Orders.** A player's orders, settings and pause toggle go to the leader's battle, and their effect shows when the next state arrives. Each player selects and orders only their own lance: the unit cards and 1–4 keys cover it, and other players' mechs cannot be selected. Every player shares the company's vision and has their own camera and selection.
+- **Pausing.** The status line names whoever holds the battle paused (*PAUSED by Dave, Sam*). A player who disconnects holds it paused.
+- **Pings.** V marks the ground under the cursor for every player with pulsing rings and the player's name, fading after five seconds. Your own pings are gold, other players' blue.
+- **Leader controls.** Only the leader withdraws: the other players' **Withdraw** is disabled. Their results show *Waiting for the leader to settle the mission…* until the settlement arrives, and their return button reads *Waiting for leader*.
+- **The whole company** is listed on the results under *THE COMPANY*.

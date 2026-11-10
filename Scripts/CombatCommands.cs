@@ -1,9 +1,23 @@
+using System.Text.Json.Serialization;
 using Godot;
 
 namespace Mech;
 
 /// <summary>A battlefield order or setting from a player slot. Unit commands act only on the friendly mechs of the slot's own lance;
 /// any other ids are ignored.</summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$command")]
+[JsonDerivedType(typeof(MoveCommand), "move")]
+[JsonDerivedType(typeof(AttackCommand), "attack")]
+[JsonDerivedType(typeof(FollowCommand), "follow")]
+[JsonDerivedType(typeof(JumpCommand), "jump")]
+[JsonDerivedType(typeof(HoldCommand), "hold")]
+[JsonDerivedType(typeof(PriorityCommand), "priority")]
+[JsonDerivedType(typeof(MovementCommand), "movement")]
+[JsonDerivedType(typeof(FiringCommand), "firing")]
+[JsonDerivedType(typeof(HeatPolicyCommand), "heat-policy")]
+[JsonDerivedType(typeof(DistanceCommand), "distance")]
+[JsonDerivedType(typeof(WeaponCommand), "weapon")]
+[JsonDerivedType(typeof(PauseCommand), "pause")]
 public abstract record CombatCommand
 {
     internal abstract void Apply(CombatSimulation simulation, int slot);
@@ -12,7 +26,8 @@ public abstract record CombatCommand
 public abstract record UnitCommand(string[] Units) : CombatCommand
 {
     internal sealed override void Apply(CombatSimulation simulation, int slot) =>
-        Apply(simulation, Units.Distinct().Select(simulation.Unit).Where(unit => simulation.Commands(slot, unit)).ToArray());
+        Apply(simulation, (Units ?? []).Distinct().Select(id => simulation.Units.FirstOrDefault(unit => unit.Id == id)).OfType<CombatUnit>()
+            .Where(unit => simulation.Commands(slot, unit)).ToArray());
     private protected abstract void Apply(CombatSimulation simulation, CombatUnit[] units);
     private protected static IEnumerable<string> Ids(CombatUnit[] units) => units.Select(unit => unit.Id);
 }
@@ -91,6 +106,7 @@ public sealed partial class CombatSimulation
     public void Execute(CombatCommand command, int slot = Campaign.LeaderSlot)
     {
         ArgumentNullException.ThrowIfNull(command);
+        if (Replica) throw new InvalidOperationException("Orders go to the leader's battle.");
         if (!Players.Contains(slot)) throw new ArgumentOutOfRangeException(nameof(slot), "That player has no lance in this battle.");
         command.Apply(this, slot);
     }

@@ -8,6 +8,8 @@ public partial class MissionsPanel : Control
     public event Action? Closed;
     public event Action<string>? AcceptRequested;
     public event Action? AbandonRequested;
+    /// <summary>Only the leader accepts and abandons missions; the other players browse the offers.</summary>
+    public bool LeaderControls { get; set; } = true;
     public Button CloseButton { get; private set; } = null!;
     public Button AcceptButton { get; private set; } = null!;
     public Button AbandonButton { get; private set; } = null!;
@@ -115,9 +117,10 @@ public partial class MissionsPanel : Control
         _briefing.Text = offer is null ? "Check the phone again when new offers arrive." : $"{offer.Briefing}\n\nOBJECTIVE\n{offer.Objective}";
         _terms.Text = offer is null ? "" : Terms(offer, isCurrent);
         AcceptButton.Visible = offer is not null && !isCurrent;
-        AcceptButton.Disabled = _board.Current is not null;
-        AcceptButton.TooltipText = AcceptButton.Disabled ? "Abandon the current mission before accepting another offer." : "Accept this mission and return to the office.";
-        AbandonButton.Visible = isCurrent;
+        AcceptButton.Disabled = _board.Current is not null || !LeaderControls;
+        AcceptButton.TooltipText = !LeaderControls ? "Only the leader accepts missions." : AcceptButton.Disabled ? "Abandon the current mission before accepting another offer." : "Accept this mission and return to the office.";
+        AbandonButton.Visible = isCurrent; AbandonButton.Disabled = !LeaderControls;
+        AbandonButton.TooltipText = LeaderControls ? "" : "Only the leader abandons missions.";
         _acceptHint.Text = isCurrent ? "Mission accepted. You can continue browsing other offers."
             : _board.Current is not null ? "Abandon your current mission before accepting another offer." : "Accept this mission to undertake it.";
         RosterUi.TrapFocus(this);

@@ -149,6 +149,8 @@ public partial class MapScreen : Control
     public void SelectSystem(string id)
     {
         if (_campaign is null || !_campaign.Travel.InOrbit || _campaign.RequiresDraft || _campaign.Bankrupt) return;
+        // Only the leader plots travel; the other players follow the leader's route.
+        if (Slot != Campaign.LeaderSlot) { _notice = "Only the leader plots travel."; RefreshTravel(); return; }
         var found = _campaign.Execute(new PlotJourneyCommand(id), Slot);
         _notice = found ? null : id == _campaign.Travel.OrbitSystemId ? "You are already in orbit here."
             : $"No route to {StarChart.Instance[id].Name} using jumps of 30 light-years or less.";
@@ -170,8 +172,8 @@ public partial class MapScreen : Control
         CandidateLabel.MouseFilter = MouseFilterEnum.Pass;
         JourneyLabel.TooltipText = travel.Journey is null ? "" : string.Join(" → ", travel.Journey.Select(id => StarChart.Instance[id].Name));
         JourneyLabel.MouseFilter = MouseFilterEnum.Pass;
-        EmbarkButton.Visible = travel.InOrbit && travel.Candidate is not null;
-        CancelButton.Visible = travel.InOrbit && travel.HasJourney;
+        EmbarkButton.Visible = Slot == Campaign.LeaderSlot && travel.InOrbit && travel.Candidate is not null;
+        CancelButton.Visible = Slot == Campaign.LeaderSlot && travel.InOrbit && travel.HasJourney;
         Viewport.RefreshTravel();
     }
 

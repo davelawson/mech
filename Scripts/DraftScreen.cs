@@ -62,7 +62,7 @@ public partial class DraftScreen : Control
             }
         }
         _progress = Ui.Label(this, "", 13, Ui.Muted);
-        EstablishButton = Ui.Button(this, "Establish Company"); EstablishButton.Pressed += () => { if (Draft.Complete) Completed?.Invoke(); };
+        EstablishButton = Ui.Button(this, "Establish Company"); EstablishButton.Pressed += () => { if (Draft.Complete && !Waiting) Completed?.Invoke(); };
         CreatePreview(); Resized += Layout; Layout(); Refresh(); Hide();
     }
     private void CreatePreview()
@@ -74,11 +74,24 @@ public partial class DraftScreen : Control
     }
     /// <summary>The draft's random source; unset, drafts use the shared one. Tests set it so every run drafts the same company.</summary>
     public Random? DraftRandom { get; set; }
-    public void Begin()
+    /// <summary>Waiting for the other players to confirm their drafts; the selections are locked.</summary>
+    public bool Waiting { get; private set; }
+    /// <summary>Begins a draft: a random single-player one, or a co-op player's own (whose draft only names the company if they lead).</summary>
+    public void Begin(InitialDraft? draft = null, bool coop = false)
     {
-        Draft = InitialDraft.CreateRandom(DraftRandom); NameInput.Text = Draft.ForceName; _preview.Hide(); RefreshCandidates(); Refresh(); Show();
-        RosterUi.TrapFocus(this); NameInput.CallDeferred(Control.MethodName.GrabFocus);
+        Draft = draft ?? InitialDraft.CreateRandom(DraftRandom); Waiting = false;
+        NameInput.Text = Draft.ForceName; NameInput.Visible = Draft.NamesCompany;
+        _title.Text = Draft.NamesCompany ? "ESTABLISH YOUR COMPANY" : "DRAFT YOUR LANCE";
+        EstablishButton.Text = coop ? "Confirm Lance" : "Establish Company";
+        _preview.Hide(); RefreshCandidates(); Refresh(); Show();
+        RosterUi.TrapFocus(this); (Draft.NamesCompany ? (Control)NameInput : EstablishButton).CallDeferred(Control.MethodName.GrabFocus);
     }
+    /// <summary>Locks the confirmed draft while the other players finish theirs.</summary>
+    public void Wait(string status)
+    {
+        Waiting = true; _waitingText = status; Refresh();
+    }
+    private string _waitingText = "";
     public void RefreshArtwork() => RefreshCandidates();
     private void RefreshCandidates()
     {
@@ -106,13 +119,14 @@ public partial class DraftScreen : Control
     private void Refresh()
     {
         if (EstablishButton is null) return;
+        NameInput.Editable = !Waiting;
         for (var p = 0; p < 8; p++) for (var c = 0; c < 3; c++)
         {
-            var chosen = Draft.Choice(p) == c; Choices[p, c].SetPressedNoSignal(chosen);
+            var chosen = Draft.Choice(p) == c; Choices[p, c].SetPressedNoSignal(chosen); Choices[p, c].Disabled = Waiting;
             Choices[p, c].AddThemeStyleboxOverride("normal", Ui.Box(chosen ? new Color("344431") : Ui.Background, chosen ? Ui.Gold : Ui.Line));
         }
-        EstablishButton.Disabled = !Draft.Complete;
-        _progress.Text = $"{Draft.SelectedCount}/8 selected · {(InitialDraft.ValidName(Draft.ForceName) ? "Company named" : "Enter a company name")} · Lower G/P/S is better";
+        EstablishButton.Disabled = !Draft.Complete || Waiting;
+        _progress.Text = Waiting ? _waitingText : $"{Draft.SelectedCount}/8 selected · {(!Draft.NamesCompany ? "The leader names the company" : InitialDraft.ValidName(Draft.ForceName) ? "Company named" : "Enter a company name")} · Lower G/P/S is better";
     }
     private void Preview(int pool, int choice, Control source)
     {
@@ -135,7 +149,8 @@ public partial class DraftScreen : Control
         }
         var actions = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End }; _previewBody.AddChild(actions);
         var back = Ui.Button(actions, "Back to draft"); back.Pressed += ClosePreview;
-        var select = Ui.Button(actions, "Select candidate"); select.Pressed += () => { Draft.Select(pool, choice); Refresh(); ClosePreview(); };
+        var select = Ui.Button(actions, "Select candidate"); select.Disabled = Waiting;
+        select.Pressed += () => { Draft.Select(pool, choice); Refresh(); ClosePreview(); };
         back.CustomMinimumSize = select.CustomMinimumSize = new Vector2(140, 40);
         _preview.Show(); Layout(); RosterUi.TrapFocus(_preview); back.CallDeferred(Control.MethodName.GrabFocus);
     }

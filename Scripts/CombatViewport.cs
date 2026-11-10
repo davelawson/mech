@@ -295,9 +295,16 @@ public partial class CombatViewport : Control
         var (sun, environment) = BattlefieldTerrainView.Lighting(biome);
         _world.AddChild(_sun = sun); _world.AddChild(_environment = new WorldEnvironment { Environment = environment });
     }
+    /// <summary>A player's marker on the battlefield, which fades after <see cref="PingSeconds"/>.</summary>
+    public sealed record BattlefieldPing(Vector2 Point, string Label, Color Color, double Placed);
+    public const double PingSeconds = 5;
+    private readonly List<BattlefieldPing> _pings = [];
+    public IReadOnlyList<BattlefieldPing> Pings => _pings;
+    private static double Now => Time.GetTicksMsec() / 1000d;
+    public void Ping(Vector2 point, string label, Color color) { _pings.Add(new(point, label, color, Now)); QueueRedraw(); }
     public void Display(CombatSimulation simulation)
     {
-        CancelDrag();
+        CancelDrag(); _pings.Clear();
         if (Simulation is not null) Simulation.ShotFired -= OnShot;
         foreach (var model in _models.Values) { _world.RemoveChild(model); model.QueueFree(); }
         for (var i = _effects.Count - 1; i >= 0; i--) RemoveEffect(i);
@@ -1013,6 +1020,7 @@ public partial class CombatViewport : Control
         var hovering = CommandsEnabled && _windowFocused && !_selecting && !_panning && !_rotating && !_rightDragging
             && GetViewport().GuiGetHoveredControl() == this;
         SetHovered(hovering ? PickMech(GetLocalMousePosition())?.Id : null);
+        _pings.RemoveAll(ping => Now - ping.Placed >= PingSeconds);
         QueueRedraw();
     }
     private void Pan(Vector2 amount)
@@ -1302,6 +1310,15 @@ public partial class CombatViewport : Control
         DrawString(font, new Vector2(12, 34), legend, HorizontalAlignment.Left, -1, 11, Ui.Text);
         var center = ScreenPoint(Vector2.Zero);
         DrawString(font, center + new Vector2(-42, -8), "ARENA CENTER", HorizontalAlignment.Left, -1, 12, new Color(Ui.Muted, .7f));
+        foreach (var ping in _pings)
+        {
+            // Two rings pulse outward from the marked ground while the marker fades.
+            var age = (float)(Now - ping.Placed); var fade = 1 - age / (float)PingSeconds; var at = ScreenPoint(ping.Point);
+            for (var ring = 0; ring < 2; ring++)
+                DrawArc(at, 8 + 26 * ((age + ring * .5f) % 1), 0, Mathf.Tau, 32, new Color(ping.Color, fade * (1 - (age + ring * .5f) % 1)), 2, true);
+            DrawCircle(at, 4, new Color(ping.Color, fade));
+            DrawString(font, at + new Vector2(10, -10), ping.Label, HorizontalAlignment.Left, -1, 13, new Color(ping.Color, fade));
+        }
         var ranges = DetectionRanges;
         if (ranges.Count > 0)
         {

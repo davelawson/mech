@@ -74,9 +74,14 @@ public static class DraftCatalog
     };
 }
 
+/// <summary>A draft as sent to the player who makes it: candidate ids pool by pool, the current choices, and whether this draft names
+/// the company.</summary>
+public sealed record DraftOffer(string[] Mechs, string[] Warriors, int[] Choices, string ForceName, bool NamesCompany);
+
 /// <summary>A reversible selection; nothing reaches the campaign until all eight pools and its name are confirmed.</summary>
 public sealed class InitialDraft
 {
+    private const int RegularPools = 3, Candidates = 3;
     private static readonly string[] NamePrefixes = ["Iron", "Ashen", "Crimson", "Silver", "Steel", "Ember", "Storm", "Obsidian"];
     private static readonly string[] NameSuffixes = ["Jackals", "Lancers", "Falcons", "Wolves", "Sentinels", "Dragoons", "Marauders", "Wardens"];
     private readonly int[] _choices = Enumerable.Repeat(-1, 8).ToArray();
@@ -95,6 +100,75 @@ public sealed class InitialDraft
         var values = source.ToArray();
         for (var i = values.Length - 1; i > 0; i--) { var j = random.Next(i + 1); (values[i], values[j]) = (values[j], values[i]); }
         return values;
+    }
+
+    /// <summary>The most players whose drafts can all offer different MechWarriors: each draft needs nine regulars and three
+    /// veterans of its own.</summary>
+    public static int MaxPlayers => Math.Min(ForceRoster.MaxLances, Math.Min(
+        DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Regular) / (RegularPools * Candidates),
+        DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Veteran) / Candidates));
+    /// <summary>Why a company of this many players cannot be drafted, or null when it can.</summary>
+    public static string? CompanyProblem(int players) => players is < 1 or > ForceRoster.MaxLances ? "A company has one to three players."
+        : players > MaxPlayers ? $"{players} players need {players * RegularPools * Candidates} regular and {players * Candidates} veteran MechWarriors in the catalog; it has "
+            + $"{DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Regular)} and {DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Veteran)}." : null;
+
+    /// <summary>One draft per player slot. Mech candidates are drawn for each player separately; MechWarrior candidates never repeat
+    /// between players, so every lance ends with MechWarriors of its own. Only the leader's draft names the company.</summary>
+    public static IReadOnlyList<InitialDraft> CreateCompany(int players, Random? random = null)
+    {
+        if (CompanyProblem(players) is { } problem) throw new ArgumentOutOfRangeException(nameof(players), problem);
+        random ??= Random.Shared;
+        var regulars = Shuffle(DraftCatalog.Warriors.Where(w => w.Rank == WarriorExperience.Regular), random);
+        var veterans = Shuffle(DraftCatalog.Warriors.Where(w => w.Rank == WarriorExperience.Veteran), random);
+        return Enumerable.Range(0, players).Select(slot =>
+        {
+            var draft = CreateRandom(random);
+            for (var p = 0; p < 4; p++) for (var c = 0; c < Candidates; c++)
+                draft._warriors[p, c] = p == 3 ? veterans[slot * Candidates + c] : regulars[slot * RegularPools * Candidates + p * Candidates + c];
+            if (slot > 0) { draft.NamesCompany = false; draft.ForceName = ""; }
+            return draft;
+        }).ToArray();
+    }
+
+    /// <summary>Whether this draft names the company: the leader's does; the other players' drafts only choose their lances.</summary>
+    public bool NamesCompany { get; private set; } = true;
+    public DraftOffer Offer() => new(Enumerable.Range(0, 4).SelectMany(p => Enumerable.Range(0, Candidates).Select(c => _mechs[p, c].Id)).ToArray(),
+        Enumerable.Range(0, 4).SelectMany(p => Enumerable.Range(0, Candidates).Select(c => _warriors[p, c].Id)).ToArray(), [.. _choices], ForceName, NamesCompany);
+    public static InitialDraft FromOffer(DraftOffer offer)
+    {
+        if (offer.Mechs is not { Length: 4 * Candidates } || offer.Warriors is not { Length: 4 * Candidates } || offer.Choices is not { Length: 8 })
+            throw new ArgumentException("Invalid draft.");
+        var draft = new InitialDraft { NamesCompany = offer.NamesCompany, ForceName = offer.ForceName ?? "" };
+        for (var p = 0; p < 4; p++) for (var c = 0; c < Candidates; c++)
+        {
+            draft._mechs[p, c] = DraftCatalog.Mech(offer.Mechs[p * Candidates + c]);
+            draft._warriors[p, c] = DraftCatalog.Warrior(offer.Warriors[p * Candidates + c]);
+            if ((int)draft._mechs[p, c].WeightClass != p || (draft._warriors[p, c].Rank == WarriorExperience.Veteran) != (p == 3))
+                throw new ArgumentException("Invalid draft.");
+        }
+        for (var pool = 0; pool < 8; pool++) if (offer.Choices[pool] >= 0) draft.Select(pool, offer.Choices[pool]);
+        return draft;
+    }
+    /// <summary>Takes a player's confirmed choices, and the company name if this draft names it.</summary>
+    public void Accept(int[] choices, string? forceName)
+    {
+        if (choices is not { Length: 8 } || choices.Any(choice => choice is < 0 or >= Candidates)) throw new ArgumentException("Select one candidate from each pool.");
+        for (var pool = 0; pool < 8; pool++) Select(pool, choices[pool]);
+        if (NamesCompany) ForceName = forceName ?? "";
+        if (!Complete) throw new ArgumentException("Name the company and select one candidate from each pool.");
+    }
+
+    /// <summary>Forms a company of one lance per draft, in slot order, each mech piloted by the MechWarrior drafted in its column.</summary>
+    public static ForceRoster EstablishCompany(IReadOnlyList<InitialDraft> drafts)
+    {
+        if (drafts.Count is < 1 or > ForceRoster.MaxLances || drafts.Any(draft => !draft.Complete) || !drafts[0].NamesCompany)
+            throw new InvalidOperationException("Every player must complete their draft, and the leader must name the company.");
+        var mechs = drafts.SelectMany(draft => Enumerable.Range(0, 4).Select(pool => draft.MechCandidate(pool, draft._choices[pool]))).ToArray();
+        var warriors = drafts.SelectMany(draft => Enumerable.Range(4, 4).Select(pool => draft.WarriorCandidate(pool, draft._choices[pool]))).ToArray();
+        if (warriors.Select(item => item.Id).Distinct().Count() != warriors.Length) throw new InvalidOperationException("Two lances drafted the same MechWarrior.");
+        var roster = ForceRoster.Create(drafts[0].ForceName.Trim(), mechs, warriors, drafts.Count);
+        for (var i = 0; i < mechs.Length; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
+        return roster;
     }
 
     public static InitialDraft CreateRandom(Random? random = null)
@@ -120,7 +194,7 @@ public sealed class InitialDraft
 
     public string ForceName { get; set; } = "";
     public int SelectedCount => _choices.Count(item => item >= 0);
-    public bool Complete => ValidName(ForceName) && SelectedCount == 8;
+    public bool Complete => (!NamesCompany || ValidName(ForceName)) && SelectedCount == 8;
     public int Choice(int pool) => _choices[pool];
     public void Select(int pool, int choice)
     {

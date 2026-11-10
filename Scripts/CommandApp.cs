@@ -14,12 +14,32 @@ public partial class CommandApp : Control
     public CombatScreen Tactical { get; private set; } = null!;
     public RolodexPanel Rolodex { get; private set; } = null!;
     public MissionsPanel Missions { get; private set; } = null!;
+    public LobbyScreen Lobby { get; private set; } = null!;
+    /// <summary>The co-op session this machine leads, or null.</summary>
+    public CoopHost? Host { get; private set; }
+    /// <summary>The co-op session this machine has joined, or null.</summary>
+    public CoopClient? Client { get; private set; }
+    public bool InSession => Host is not null || Client is not null;
+    /// <summary>Single-player and the hosting machine lead; a joined player does not.</summary>
+    public bool IsLeader => Client is null;
+    /// <summary>Opens the leader's connection: a port, and how many other players may join. Tests substitute loopback transports.</summary>
+    public Func<int, int, INetTransport> HostTransport { get; set; } = ENetTransport.Host;
+    public Func<string, int, INetTransport> JoinTransport { get; set; } = ENetTransport.Connect;
+    /// <summary>Asks the router for the internet address other players join at. Tests substitute a fixed answer.</summary>
+    public Func<Task<string?>> PublicAddressLookup { get; set; } = HostAddress.PublicAsync;
+    private Task<string?>? _addressLookup;
+    private string? _publicAddress;
+    /// <summary>Asks the router to forward the co-op port while the leader hosts; null when it does not.</summary>
+    public Func<int, Task<IDisposable?>> RouterPortOpener { get; set; } = RouterPort.OpenAsync;
+    private Task<IDisposable?>? _portOpening;
+    private IDisposable? _routerPort;
+    private RouterPortState _routerState;
     public Campaign State { get; private set; } = new();
     public bool IsAdvancing { get; private set; }
     /// <summary>The local player's slot. Single-player is a one-slot campaign whose only player is the leader.</summary>
-    public int LocalSlot { get; private set; } = Campaign.LeaderSlot;
+    public int LocalSlot => Client?.Slot ?? Campaign.LeaderSlot;
     public CommandNavigator Navigation { get; private set; } = null!;
-    public bool HasUnsavedChanges => !State.RequiresDraft && (_savedSnapshot is null || CampaignData() != _savedSnapshot);
+    public bool HasUnsavedChanges => IsLeader && !State.RequiresDraft && (_savedSnapshot is null || CampaignData() != _savedSnapshot);
     [Export] public string SavePath { get; set; } = "user://campaign.json";
     public event Action<CampaignEvent>? EventReached;
     private CampaignStore _store = null!;
@@ -56,16 +76,24 @@ public partial class CommandApp : Control
         AddChild(MainMenu);
         Rolodex = new RolodexPanel { Name = "Rolodex" }; AddChild(Rolodex);
         Missions = new MissionsPanel { Name = "Missions" }; AddChild(Missions);
+        Lobby = new LobbyScreen { Name = "Lobby" }; AddChild(Lobby);
         Dialog = new CampaignDialog { Name = "CampaignDialog" };
         AddChild(Dialog);
         UnsavedDialog = new CampaignDialog { Name = "UnsavedChanges" };
         AddChild(UnsavedDialog);
-        StarMap.Slot = Hangar.Slot = Tactical.Slot = LocalSlot;
         CreateNavigator();
+        SyncSlots();
         MainMenu.NewRequested += () => ConfirmUnsaved("Start a new company?", "New Company", StartNewCompany);
         MainMenu.LoadRequested += RequestLoad;
         MainMenu.QuitRequested += RequestQuit;
         MainMenu.ResumeRequested += ResumeCampaign;
+        MainMenu.HostRequested += () => ConfirmUnsaved("Host a co-op campaign?", "Continue", ShowHostLobby);
+        MainMenu.JoinRequested += () => ConfirmUnsaved("Join a co-op campaign?", "Continue", ShowJoinLobby);
+        Lobby.HostRequested += HostSession;
+        Lobby.JoinRequested += JoinSession;
+        Lobby.ClaimRequested += slot => Client?.Claim(slot);
+        Lobby.StartRequested += StartSession;
+        Lobby.BackRequested += LeaveLobby;
         Office.MenuRequested += ShowMainMenu;
         Office.WarriorsRequested += ShowWarriors;
         Office.HangarRequested += ShowHangar;
@@ -88,18 +116,23 @@ public partial class CommandApp : Control
         Hangar.DeploymentRequested += ShowDeployment;
         Hangar.QuickLaunchRequested += ShowQuickLaunch;
         Tactical.Closed += CloseTactical;
-        Drafting.Completed += () =>
+        Tactical.LaunchRequested += LaunchCoopMission;
+        Tactical.ForceChosen += (mechs, ready) => Client?.ChooseDeployment(mechs, ready);
+        Tactical.PingRequested += point => { Host?.Ping(point); Client?.Ping(point); };
+        Tactical.StopWaitingRequested += StopWaiting;
+        Drafting.Completed += CompleteDraft;
+        Drafting.AbandonRequested += () =>
         {
-            State.EstablishCompany(Drafting.Draft); ShowOffice(); RefreshCampaign();
+            if (InSession) Confirm("Leave co-op game?", IsLeader ? "The co-op game ends for every player." : "You leave the co-op game.", () => EndSession(null), CloseDialog, "Leave");
+            else Confirm("Abandon initial draft?", "Your company name and draft selections will be discarded. Your manual save will be preserved.", ShowMainMenu, CloseDialog, "Abandon draft");
         };
-        Drafting.AbandonRequested += () => Confirm("Abandon initial draft?", "Your company name and draft selections will be discarded. Your manual save will be preserved.", ShowMainMenu, CloseDialog, "Abandon draft");
         Office.MapRequested += ShowMap;
         Office.DayRequested += () => StartAdvancing(false);
         Office.EventRequested += () => StartAdvancing(true);
         Office.FinancesRequested += ShowFinances;
         Office.FilingRequested += ShowFiling;
         StarMap.BackRequested += ShowOffice;
-        StarMap.TravelChanged += RefreshCampaign;
+        StarMap.TravelChanged += () => { Host?.MarkDirty(); RefreshCampaign(); };
         foreach (var popup in new[] { Hangar.PilotPicker.GetPopup(), Rolodex.Section.GetPopup(),
             StarMap.Destinations.GetPopup(), StarMap.Search.GetMenu(), Drafting.NameInput.GetMenu() })
             Navigation.RegisterPopup(popup);
@@ -112,7 +145,7 @@ public partial class CommandApp : Control
     private void Layout()
     {
         if (MainMenu is null) return;
-        foreach (var screen in new Control[] { Office, StarMap, Hangar, Tactical, Drafting, MainMenu })
+        foreach (var screen in new Control[] { Office, StarMap, Hangar, Tactical, Drafting, MainMenu, Lobby })
             Ui.Place(screen, 0, 0, Size.X, Size.Y);
     }
 
@@ -125,6 +158,7 @@ public partial class CommandApp : Control
         Navigation.Register(CommandScreen.Map, StarMap, "Mech · Inner Sphere", false, () => StarMap.Viewport, ShowOffice);
         Navigation.Register(CommandScreen.Hangar, Hangar, "Mech · Mech Hangar", false, () => Hangar.BackButton, LeaveHangar,
             Hangar.Preview.Spin, Hangar.Preview.ReleaseSpin, Hangar.RightClick);
+        Navigation.Register(CommandScreen.Lobby, Lobby, "Mech · Co-op", false, () => Lobby.SeatsShown ? Lobby.BackButton : Lobby.NameInput, LeaveLobby);
         Navigation.Register(CommandScreen.Draft, Drafting, "Mech · Establish Company", false, () => Drafting.NameInput, Drafting.HandleEscape);
         Navigation.Register(CommandScreen.Tactical, Tactical, "Mech · Simulated Deployment", false, () => Tactical.Battlefield);
         Navigation.Register(CommandScreen.Rolodex, Rolodex, null, true, () => Rolodex.Section, CloseWarriors);
@@ -153,6 +187,7 @@ public partial class CommandApp : Control
     public void ShowMainMenu()
     {
         MainMenu.LoadButton.Disabled = !_store.Exists;
+        MainMenu.HostButton.Visible = MainMenu.JoinButton.Visible = !InSession;
         Navigation.ShowMainMenu(!State.RequiresDraft && !State.Bankrupt && !Navigation.Contains(CommandScreen.Tactical));
         MainMenu.ResumeButton.Visible = Navigation.CanResume;
         Navigation.RestoreFocus();
@@ -166,6 +201,7 @@ public partial class CommandApp : Control
 
     public void StartNewCompany()
     {
+        EndSession(null, menu: false);
         State = new Campaign();
         _savedSnapshot = null;
         Navigation.ClearResume();
@@ -177,6 +213,14 @@ public partial class CommandApp : Control
     {
         if (IsAdvancing) { StopAdvancing(); return; }
         if (!State.CanAdvance || Navigation.CurrentScreen != CommandScreen.Office) return;
+        if (!IsLeader || Host is { AllPresent: false })
+        {
+            Navigation.Push(CommandScreen.Dialog, Office.CalendarButton);
+            OpenDialog("Time cannot advance", !IsLeader ? "Only the leader advances time."
+                : $"Time cannot advance until {string.Join(" and ", Host!.Seats.Where(seat => !seat.Present).Select(seat => seat.Name))} reconnects.", CloseDialog,
+                new DialogAction("Close", CloseDialog));
+            return;
+        }
         IsAdvancing = true;
         _untilEvent = untilEvent;
         _dayElapsed = 0;
@@ -218,6 +262,22 @@ public partial class CommandApp : Control
 
     public override void _Process(double delta)
     {
+        Host?.Update(delta); Client?.Update();
+        if (_addressLookup is { IsCompleted: true } lookup)
+        {
+            _publicAddress = lookup.IsCompletedSuccessfully ? lookup.Result : null; _addressLookup = null;
+            ShowAddress();
+        }
+        if (_portOpening is { IsCompleted: true } opening)
+        {
+            var opened = opening.IsCompletedSuccessfully ? opening.Result : null; _portOpening = null;
+            // A session that ended while the router was asked leaves nothing forwarded.
+            if (Host is null) opened?.Dispose();
+            else { _routerPort = opened; _routerState = opened is null ? RouterPortState.Failed : RouterPortState.Opened; }
+            ShowAddress();
+        }
+        foreach (var closing in _closing) closing.Update(delta);
+        _closing.RemoveAll(closing => closing.Finished);
         if (!IsAdvancing) return;
         _dayElapsed += delta;
         if (_dayElapsed < .1) return;
@@ -246,7 +306,8 @@ public partial class CommandApp : Control
         else if (!State.CanPay) body += "\n\nInsufficient cash to pay the bill in full.";
         else if (State.DeferredDebt > 0) body += "\n\nBoth quarters must be paid in full. No further deferral is available.";
         var actions = new List<DialogAction> { new("Close", CloseDialog) };
-        if (State.PaymentPending)
+        if (State.PaymentPending && !IsLeader) actions.Add(new("Waiting for leader", () => { }, true));
+        else if (State.PaymentPending)
         {
             if (State.CanDefer) actions.Add(new("Pay Later", ConfirmDeferral));
             actions.Add(new("Pay Now", PayNow, !State.CanPay));
@@ -277,6 +338,7 @@ public partial class CommandApp : Control
     {
         if (events.Count == 0) return;
         StopAdvancing();
+        Host?.Broadcast("Scheduled event", string.Join("\n", events.Select(item => item.Title)));
         foreach (var item in events) EventReached?.Invoke(item);
         OpenDialog("Scheduled event", string.Join("\n", events.Select(item => item.Title)), CloseDialog,
             new DialogAction("Continue", CloseDialog));
@@ -287,19 +349,27 @@ public partial class CommandApp : Control
         StopAdvancing();
         OpenDialog("Company bankrupt",
             $"The company cannot cover its deferred debt and the new quarterly bill.\n\nCash: {Money(State.Cash)}\nRequired: {Money(State.PaymentDue)}\n\nThe company has been dissolved. Your manual save has been preserved.",
-            ShowMainMenu, new DialogAction("Main Menu", ShowMainMenu));
+            LeaveBankruptCompany, new DialogAction("Main Menu", LeaveBankruptCompany));
+        Host?.Flush();
     }
+    private void LeaveBankruptCompany() { EndSession(null, menu: false); ShowMainMenu(); }
 
     public void ShowFiling()
     {
         if (State.RequiresDraft || Navigation.Contains(CommandScreen.Draft)) return;
         StopAdvancing();
         Navigation.Push(CommandScreen.Dialog, Office.FilingButton);
+        if (!IsLeader)
+        {
+            OpenDialog("Campaign files", "Only the leader saves and loads the campaign.", CloseDialog, new DialogAction("Close", CloseDialog));
+            return;
+        }
         OpenDialog("Campaign files", _store.Exists
             ? "One manual campaign save is available. Saving replaces it; loading restores it."
             : "No campaign has been saved yet. Save your company to resume it later.", CloseDialog,
             new DialogAction("Close", CloseDialog),
-            new DialogAction("Load Game", RequestLoad, !_store.Exists),
+            // A co-op campaign is resumed from Host Co-op, so loading waits until the session ends.
+            new DialogAction("Load Game", RequestLoad, !_store.Exists || InSession),
             new DialogAction("Save Game", () =>
             {
                 if (_store.Exists) Confirm("Overwrite campaign save?", "This will replace your previous manual save with the current company.", SaveGame, ShowFiling, "Save Game");
@@ -328,6 +398,8 @@ public partial class CommandApp : Control
         try
         {
             var restored = _store.Load();
+            if (restored.PlayerNames is not null) throw new ArgumentException("This is a co-op campaign.");
+            EndSession(null, menu: false);
             StopAdvancing();
             State = restored;
             _savedSnapshot = CampaignData();
@@ -345,7 +417,8 @@ public partial class CommandApp : Control
                 else Navigation.Close(CommandScreen.UnsavedDialog, MainMenu.LoadButton);
             }
             Navigation.Push(errorDialog == Dialog ? CommandScreen.Dialog : CommandScreen.UnsavedDialog);
-            errorDialog.Open("Unable to load", "The campaign save is missing, unreadable, or invalid. Your current company has not been changed.", CloseError,
+            errorDialog.Open("Unable to load", error.Message == "This is a co-op campaign." ? "The saved campaign is a co-op campaign. Resume it from Host Co-op."
+                : "The campaign save is missing, unreadable, or invalid. Your current company has not been changed.", CloseError,
                 new DialogAction("Close", CloseError));
         }
     }
@@ -359,24 +432,42 @@ public partial class CommandApp : Control
     private void ConfirmUnsaved(string title, string actionText, Action accept)
     {
         if (Navigation.Contains(CommandScreen.UnsavedDialog)) return;
-        if (!HasUnsavedChanges) { accept(); return; }
+        if (!HasUnsavedChanges && !InSession) { accept(); return; }
         StopAdvancing();
         StarMap.Viewport.EndDrag();
         Navigation.Push(CommandScreen.UnsavedDialog);
         void Cancel() => Navigation.Close(CommandScreen.UnsavedDialog);
-        UnsavedDialog.Open(title, "Your company has unsaved changes. Continuing will discard them. Your manual save will be preserved.", Cancel,
+        var body = !InSession ? "Your company has unsaved changes. Continuing will discard them. Your manual save will be preserved."
+            : !IsLeader ? "Continuing leaves the co-op game." : HasUnsavedChanges ? "Continuing ends the co-op game for every player and discards unsaved changes. Your manual save will be preserved."
+            : "Continuing ends the co-op game for every player.";
+        UnsavedDialog.Open(title, body, Cancel,
             new DialogAction("Cancel", Cancel), new DialogAction(actionText, () => { Navigation.Close(CommandScreen.UnsavedDialog); accept(); }));
     }
 
-    public override void _ExitTree() { GetWindow().CloseRequested -= RequestQuit; GetWindow().FocusExited -= CancelRightDrag; }
+    public override void _ExitTree()
+    {
+        GetWindow().CloseRequested -= RequestQuit; GetWindow().FocusExited -= CancelRightDrag;
+        Host?.Shutdown(LeaderLeft); Host?.Dispose(); Client?.Dispose(); CloseRouterPort();
+        foreach (var closing in _closing) closing.Dispose();
+    }
     private void CancelRightDrag() => Navigation?.CancelRightDrag();
 
     private static bool IsStorageError(Exception error) => error is System.IO.IOException or UnauthorizedAccessException
         or System.Text.Json.JsonException or ArgumentException or NotSupportedException;
 
-    /// <summary>Sends a command to the campaign as the local player.</summary>
-    private void Execute(CampaignCommand command) => State.Execute(command, LocalSlot);
-    private TResult Execute<TResult>(CampaignCommand<TResult> command) => State.Execute(command, LocalSlot);
+    /// <summary>Sends a command as the local player: a joined player's go to the leader, which may refuse them.</summary>
+    private void Execute(CampaignCommand command)
+    {
+        if (Client is not null) { Client.Send(command); return; }
+        State.Execute(command, LocalSlot); Host?.MarkDirty();
+    }
+    /// <summary>Commands whose result is shown are the leader's alone.</summary>
+    private TResult Execute<TResult>(CampaignCommand<TResult> command)
+    {
+        if (Client is not null) throw new InvalidOperationException("Only the leader can do that.");
+        var result = State.Execute(command, LocalSlot); Host?.MarkDirty();
+        return result;
+    }
 
     private void Confirm(string title, string message, Action accept, Action cancel, string acceptText = "Confirm")
     {
@@ -429,7 +520,9 @@ public partial class CommandApp : Control
         UpdateQuickLaunch();
     }
 
-    private void UpdateQuickLaunch() => Hangar.QuickLaunchBlock = State.Missions.Current is null ? "Accept a mission from the office phone first."
+    private void UpdateQuickLaunch() => Hangar.QuickLaunchBlock = Client is not null ? "Only the leader launches missions."
+        : Host is not null ? Host.DeploymentProblem
+        : State.Missions.Current is null ? "Accept a mission from the office phone first."
         : !State.CanAdvance ? "Settle the quarterly payment first." : null;
 
     /// <summary>Deploys to the current mission wherever the DropShip is. Its result is settled into the campaign when the battle ends.</summary>
@@ -438,13 +531,66 @@ public partial class CommandApp : Control
         if (State.RequiresDraft || Navigation.CurrentScreen != CommandScreen.Hangar || State.Missions.Current is not { } mission
             || Hangar.HasPendingChanges || !State.CanAdvance) return;
         _settlement = null;
+        if (Host is not null)
+        {
+            // Every player is pulled into force selection; the leader launches once they are all ready.
+            if (Host.DeploymentProblem is not null) return;
+            Host.OpenDeployment();
+            Navigation.Push(CommandScreen.Tactical, Hangar.QuickLaunchButton);
+            Tactical.OpenMission(State.Roster!, mission, Hangar.SelectedMech.Id, SettleMission, coop: true);
+            Tactical.ShowDeployment(Host.Deployment!, Host.OthersReady); RefreshWaiting();
+            return;
+        }
         Navigation.Push(CommandScreen.Tactical, Hangar.QuickLaunchButton);
         Tactical.OpenMission(State.Roster!, mission, Hangar.SelectedMech.Id, SettleMission);
     }
 
+    /// <summary>The leader launches a co-op mission with every player's force, saving the campaign as the battle begins.</summary>
+    private void LaunchCoopMission(string[] force, int terrainSeed)
+    {
+        if (Host is null) return;
+        CombatSimulation battle;
+        try { battle = Host.Launch(force, terrainSeed); }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException) { Tactical.DeploymentStatus.Text = error.Message; return; }
+        Autosave();
+        Tactical.Begin(battle); RefreshWaiting();
+    }
+
+    /// <summary>A co-op campaign is saved on the leader's machine when a mission starts and when it ends.</summary>
+    private void Autosave()
+    {
+        if (Host is null) return;
+        try { _store.Save(State); _savedSnapshot = CampaignData(); }
+        catch (Exception error) when (IsStorageError(error)) { }
+    }
+
+    /// <summary>A joined player is pulled from wherever they are into the mission's force selection, by way of the hangar.</summary>
+    private void JoinDeployment()
+    {
+        if (Client is null || State.Roster is null || State.Missions.Current is not { } mission || Navigation.Contains(CommandScreen.Tactical) && Tactical.Coop) return;
+        if (Navigation.Contains(CommandScreen.Tactical)) Tactical.Close();
+        StopAdvancing(); _waitingDialog = false;
+        if (Navigation.CurrentScreen != CommandScreen.Hangar)
+        {
+            Navigation.ClearResume();
+            Navigation.NavigateFromOffice(CommandScreen.Hangar, Office.HangarButton);
+            Hangar.Open(State.Roster, State.Travel.InOrbit ? State.Travel.OrbitSystemId : null, State.Cash);
+            UpdateQuickLaunch();
+        }
+        Navigation.Push(CommandScreen.Tactical, Hangar.BackButton);
+        Tactical.OpenMission(State.Roster, mission, Hangar.SelectedMech.Id, null, coop: true);
+        Tactical.Orders = Client.Send; RefreshWaiting();
+    }
+
     private string SettleMission(CombatSimulation simulation)
     {
-        var result = _settlement = Execute(new SettleMissionCommand(simulation.MissionReport()));
+        var text = Settlement(_settlement = Execute(new SettleMissionCommand(simulation.MissionReport())));
+        Host?.FinishBattle(text); Autosave();
+        return text;
+    }
+
+    private string Settlement(MissionSettlement result)
+    {
         RefreshCampaign();
         var lines = new List<string> { result.Payment > 0 ? $"Payment received: {Money(result.Payment)}" : "No payment" };
         lines.AddRange(result.Reputation.OrderBy(pair => pair.Key).Select(pair =>
@@ -456,7 +602,11 @@ public partial class CommandApp : Control
 
     private void CloseTactical()
     {
+        // The leader leaving force selection or the results takes every player back to the hangar.
+        if (Host?.Battle is not null) Host.CloseBattle(); else Host?.CancelDeployment();
+        if (Client is not null && Tactical.Coop) { Navigation.Close(CommandScreen.Tactical, Hangar.BackButton); Hangar.Refresh(); UpdateQuickLaunch(); RefreshCompanyDialogs(); return; }
         var settled = _settlement; _settlement = null;
+        RefreshCompanyDialogs();
         if (settled is null) { Navigation.Close(CommandScreen.Tactical, Tactical.MissionMode ? Hangar.QuickLaunchButton : Hangar.DeploymentButton); return; }
         // The settled mission is gone, so Quick Launch is disabled and cannot take focus.
         Hangar.Cash = State.Cash; Hangar.Refresh(); UpdateQuickLaunch();
@@ -523,5 +673,234 @@ public partial class CommandApp : Control
             Confirm(current is null ? "Transfer MechWarrior?" : "Swap MechWarriors?", body, () => Apply(true), CloseDialog, current is null ? "Transfer" : "Swap");
         }
         else Apply(false);
+    }
+
+    private void ShowHostLobby()
+    {
+        int? saved = null;
+        try { if (_store.Exists && _store.Load().PlayerNames is { } names) saved = names.Count; }
+        catch (Exception error) when (IsStorageError(error)) { }
+        Lobby.ShowHost(saved);
+        // The router is asked once per run; a failed answer is asked again on the next visit.
+        if (_publicAddress is null && _addressLookup is null) _addressLookup = PublicAddressLookup();
+        Navigation.Push(CommandScreen.Lobby, MainMenu.HostButton); Navigation.RestoreFocus(Lobby.NameInput);
+        ShowAddress();
+    }
+
+    /// <summary>Shows the leader's addresses on the hosting screens.</summary>
+    private void ShowAddress()
+    {
+        if (!Navigation.Contains(CommandScreen.Lobby) || !Lobby.Hosting) return;
+        Lobby.ShowAddress(_publicAddress, HostAddress.Local(), looking: _addressLookup is not null, _routerState);
+    }
+
+    private void ShowJoinLobby()
+    {
+        Lobby.ShowJoin();
+        Navigation.Push(CommandScreen.Lobby, MainMenu.JoinButton); Navigation.RestoreFocus(Lobby.NameInput);
+    }
+
+    /// <summary>Opens the leader's lobby for a new campaign of this many players, or for the saved co-op campaign.</summary>
+    private void HostSession(string name, int port, int players, bool resume)
+    {
+        Campaign? resumed = null;
+        if (resume)
+        {
+            try { resumed = _store.Load(); }
+            catch (Exception error) when (IsStorageError(error)) { Lobby.ShowStatus("The saved campaign could not be loaded."); return; }
+            if (resumed.PlayerNames is null) { Lobby.ShowStatus("The saved campaign is not a co-op campaign."); return; }
+        }
+        INetTransport transport;
+        try { transport = HostTransport(port, (resumed?.Players ?? players) - 1); }
+        catch (IOException error) { Lobby.ShowStatus(error.Message); return; }
+        try { Host = new CoopHost(transport, name, players, resumed); }
+        catch (ArgumentException error) { transport.Dispose(); Lobby.ShowStatus(error.Message); return; }
+        Host.Changed += () => { RefreshLobby(); UpdateQuickLaunch(); RefreshWaiting(); if (Drafting.Waiting) Drafting.Wait(DraftWaitText()); };
+        Host.CampaignChanged += RefreshAfterSync;
+        Host.CompanyEstablished += () => { State = Host.Campaign!; _savedSnapshot = null; Navigation.ClearResume(); ShowOffice(); SyncSlots(); RefreshCampaign(); };
+        Host.PlayerLeft += left =>
+        {
+            StopAdvancing();
+            var body = Host.Phase == LobbyPhase.Playing ? $"{left} disconnected. Time cannot advance until they reconnect." : $"{left} disconnected. Their seat waits for them.";
+            Host.Broadcast("Player disconnected", body); Notify("Player disconnected", body);
+        };
+        Host.DeploymentChanged += () => { if (Host.Deployment is { } seats) Tactical.ShowDeployment(seats, Host.OthersReady); };
+        Host.Pinged += Tactical.ShowPing;
+        Host.PlayerJoined += joined => { Host.Broadcast("Player reconnected", $"{joined} has joined."); Notify("Player reconnected", $"{joined} has joined."); };
+        _routerState = RouterPortState.Opening; _portOpening = RouterPortOpener(port);
+        RefreshLobby(); ShowAddress();
+    }
+
+    /// <summary>Removes the co-op port's forwarding on the router. One still being asked for is removed once the router answers.</summary>
+    private void CloseRouterPort()
+    {
+        _routerPort?.Dispose(); _routerPort = null; _routerState = RouterPortState.NotHosting;
+    }
+
+    private void JoinSession(string name, string address, int port) => JoinSession(name, address, port, null);
+
+    /// <summary>Joins the leader's game, taking <paramref name="claim"/> as soon as it is free when rejoining.</summary>
+    private void JoinSession(string name, string address, int port, int? claim)
+    {
+        try { Client = new CoopClient(JoinTransport(address, port), name); }
+        catch (IOException error) { Lobby.ShowStatus(error.Message); return; }
+        _joined = (name, address, port);
+        var client = Client;
+        client.Changed += () =>
+        {
+            if (claim is { } slot && client.Slot is null && client.Seats.Any(seat => seat.Slot == slot && !seat.Present)) { client.Claim(slot); claim = null; }
+            RefreshLobby(); RefreshWaiting();
+        };
+        Client.DraftOffered += () => { Navigation.Reset(CommandScreen.Draft); Drafting.Begin(Client.Draft, coop: true); };
+        Client.CampaignReceived += ReceiveCampaign;
+        Client.CommandRefused += reason => Notify("Not possible", reason);
+        Client.Notice += Notify;
+        // A dropped connection may be rejoined straight to the same seat.
+        Client.Ended += reason => EndSession(reason, rejoin: client.LostConnection ? client.Slot : null);
+        Client.DeploymentChanged += () =>
+        {
+            if (Client.Deployment is not { } seats) return;
+            JoinDeployment(); Tactical.ShowDeployment(seats, false);
+        };
+        Client.BattleStarted += () => { JoinDeployment(); Tactical.Begin(Client.Battle!); Tactical.Orders = Client.Send; RefreshWaiting(); };
+        Client.BattleSettled += () => Tactical.ShowSettlement(Client.Settlement!);
+        Client.BattleClosed += () => { if (Navigation.Contains(CommandScreen.Tactical) && Tactical.Coop) Tactical.Close(); };
+        Client.Pinged += Tactical.ShowPing;
+        RefreshLobby();
+    }
+
+    private void StartSession()
+    {
+        if (Host is not { CanStart: true }) return;
+        Host.Start(Drafting.DraftRandom);
+        if (Host.Phase == LobbyPhase.Drafting) { Navigation.Reset(CommandScreen.Draft); Drafting.Begin(Host.LeaderDraft, coop: true); return; }
+        State = Host.Campaign!; _savedSnapshot = CampaignData(); Navigation.ClearResume(); SyncSlots(); ShowOffice(); RefreshCampaign();
+    }
+
+    private void LeaveLobby()
+    {
+        if (!Lobby.SeatsShown) { Navigation.Close(CommandScreen.Lobby, Lobby.Hosting ? MainMenu.HostButton : MainMenu.JoinButton); return; }
+        EndSession(null);
+    }
+
+    private void RefreshLobby()
+    {
+        if (!Navigation.Contains(CommandScreen.Lobby)) return;
+        if (Host is not null)
+            Lobby.ShowSeats(Host.Seats, Host.Phase, Campaign.LeaderSlot, Host.CanStart, Host.CanStart ? "Every seat is filled. Start when ready."
+                : $"Waiting for players to join on port {Lobby.PortInput.Value:0}…");
+        else if (Client is not null)
+            Lobby.ShowSeats(Client.Seats, Client.Phase, Client.Slot, false, !Client.Connected ? "Connecting…"
+                : Client.Slot is null ? "Take a free seat." : "Waiting for the leader to start…");
+    }
+
+    private void CompleteDraft()
+    {
+        if (Host is not null)
+        {
+            Host.SubmitLeaderDraft();
+            if (Host.Campaign is null) Drafting.Wait(DraftWaitText());
+        }
+        else if (Client is not null) { Client.SubmitDraft(); Drafting.Wait("Lance confirmed · waiting for the other players to confirm theirs…"); }
+        else { State.EstablishCompany(Drafting.Draft); ShowOffice(); RefreshCampaign(); }
+    }
+
+    private string DraftWaitText() => Host is null ? "" : $"Lance confirmed · waiting for {string.Join(" and ", Host.Seats.Where(seat => !seat.Drafted).Select(seat => seat.Name ?? ForceRoster.LanceName(seat.Slot)))}…";
+
+    /// <summary>A joined player's newer copy of the campaign: the first one leaves the lobby or draft for the office.</summary>
+    private void ReceiveCampaign()
+    {
+        State = Client!.Campaign!; SyncSlots();
+        if (Navigation.Contains(CommandScreen.Lobby) || Navigation.Contains(CommandScreen.Draft)) { Navigation.ClearResume(); ShowOffice(); }
+        RefreshAfterSync();
+    }
+
+    /// <summary>Shows a campaign changed by another player on every screen that reads it.</summary>
+    private void RefreshAfterSync()
+    {
+        RefreshCampaign();
+        if (State.Roster is { } roster) Hangar.Rebind(roster, State.Travel.InOrbit ? State.Travel.OrbitSystemId : null, State.Cash);
+        UpdateQuickLaunch();
+        if (Navigation.CurrentScreen == CommandScreen.Missions) Missions.Refresh();
+        RefreshCompanyDialogs();
+    }
+
+    private bool _waitingDialog;
+    /// <summary>A joined player sees the company's quarterly bill while the leader settles it, and the company's bankruptcy.</summary>
+    private void RefreshCompanyDialogs()
+    {
+        if (IsLeader || State.RequiresDraft || Navigation.Contains(CommandScreen.Tactical) || Navigation.Contains(CommandScreen.MainMenu)) return;
+        if (State.Bankrupt) { ShowBankruptcy(); return; }
+        if (State.PaymentPending && !_waitingDialog && !Navigation.Contains(CommandScreen.Dialog) && Navigation.CurrentScreen is CommandScreen.Office or CommandScreen.Map or CommandScreen.Hangar)
+        { _waitingDialog = true; ShowFinances(); }
+        else if (!State.PaymentPending && _waitingDialog) { _waitingDialog = false; if (Navigation.Contains(CommandScreen.Dialog)) CloseDialog(); }
+    }
+
+    /// <summary>Tells the local player something, unless they are in a battle.</summary>
+    private void Notify(string title, string body)
+    {
+        if (Navigation.Contains(CommandScreen.Tactical) || Navigation.Contains(CommandScreen.MainMenu) && !Navigation.Contains(CommandScreen.Lobby)) return;
+        OpenDialog(title, body, CloseDialog, new DialogAction("Continue", CloseDialog));
+    }
+
+    private const string LeaderLeft = "The leader left the game.";
+    private (string Name, string Address, int Port)? _joined;
+    private readonly List<CoopHost> _closing = [];
+
+    /// <summary>Ends the co-op session. A joined player's copy of the campaign, and a co-op campaign on the leader's machine, go with it.
+    /// The leader tells every other player why (<paramref name="farewell"/>). A player whose connection dropped may rejoin their seat.</summary>
+    private void EndSession(string? reason, bool menu = true, int? rejoin = null, string farewell = LeaderLeft)
+    {
+        if (!InSession) return;
+        // The ended session lingers until the other players have its farewell.
+        if (Host is not null) { Host.Shutdown(farewell); if (!Host.Finished) _closing.Add(Host); }
+        Host = null; Client?.Dispose(); Client = null; _waitingDialog = false; CloseRouterPort();
+        StopAdvancing(); State = new Campaign(); _savedSnapshot = null; Navigation.ClearResume(); SyncSlots();
+        if (!menu) return;
+        ShowMainMenu();
+        if (reason is null) return;
+        void Close() => Navigation.Close(CommandScreen.UnsavedDialog, MainMenu.JoinButton);
+        Navigation.Push(CommandScreen.UnsavedDialog);
+        if (rejoin is { } slot && _joined is { } joined)
+            UnsavedDialog.Open("Co-op game ended", reason + "\n\nRejoin to return to your seat.", Close, new DialogAction("Close", Close),
+                new DialogAction("Rejoin", () => { Close(); Rejoin(joined, slot); }));
+        else UnsavedDialog.Open("Co-op game ended", reason, Close, new DialogAction("Close", Close));
+    }
+
+    /// <summary>Reconnects to the leader as before and retakes the same seat.</summary>
+    private void Rejoin((string Name, string Address, int Port) joined, int slot)
+    {
+        Lobby.ShowJoin();
+        Lobby.NameInput.Text = joined.Name; Lobby.AddressInput.Text = joined.Address; Lobby.PortInput.Value = joined.Port;
+        Navigation.Push(CommandScreen.Lobby, MainMenu.JoinButton);
+        JoinSession(joined.Name, joined.Address, joined.Port, slot);
+    }
+
+    /// <summary>Shows, over a co-op mission, who has disconnected. The leader may stop waiting while the battle is fought.</summary>
+    private void RefreshWaiting()
+    {
+        if (!Navigation.Contains(CommandScreen.Tactical) || !Tactical.Coop) return;
+        var absent = Host?.Absent ?? Client?.Seats.Where(seat => !seat.Present && seat.Name is not null).Select(seat => seat.Name!).ToArray() ?? [];
+        Tactical.ShowWaiting(absent, Host?.Battle is { Outcome: CombatOutcome.Ongoing });
+    }
+
+    /// <summary>The leader gives up on a disconnected player: the game ends for everyone, and the campaign resumes from the save
+    /// made when the mission launched.</summary>
+    private void StopWaiting()
+    {
+        if (Host is not { Battle: { Outcome: CombatOutcome.Ongoing } } || Host.Absent.Count == 0) return;
+        var names = string.Join(" and ", Host.Absent);
+        Confirm("Stop waiting?", $"End the co-op game for every player? The battle is lost, and the campaign resumes from the save made when this mission launched: Host Co-op and resume it to fight the mission again.",
+            () => EndSession($"You stopped waiting for {names}. Host Co-op and resume the saved campaign to fight the mission again.",
+                farewell: $"The leader stopped waiting for {names}. The campaign resumes from the save made when the mission launched."),
+            CloseDialog, "Stop Waiting");
+    }
+
+    private void SyncSlots()
+    {
+        StarMap.Slot = Hangar.Slot = Tactical.Slot = LocalSlot;
+        Tactical.PlayerNames = State.PlayerNames;
+        Missions.LeaderControls = IsLeader;
+        Hangar.LanceOwners = State.PlayerNames;
     }
 }

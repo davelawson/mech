@@ -11,6 +11,7 @@ public partial class CampaignDialog : Control
     private VBoxContainer _content = null!;
     private Action? _cancel;
     public string Heading { get; private set; } = "";
+    public string Body { get; private set; } = "";
 
     public override void _Ready()
     {
@@ -30,7 +31,7 @@ public partial class CampaignDialog : Control
 
     public void Open(string heading, string body, Action? cancel, params DialogAction[] actions)
     {
-        Heading = heading;
+        Heading = heading; Body = body;
         _cancel = cancel;
         foreach (var child in _content.GetChildren())
         {
@@ -70,6 +71,8 @@ public partial class CampaignDialog : Control
         }
         Show();
         Layout();
+        // A long unbroken body measures at full width until it first wraps; lay out again once it has.
+        Callable.From(Layout).CallDeferred();
         first?.CallDeferred(Control.MethodName.GrabFocus);
     }
 

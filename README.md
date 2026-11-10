@@ -26,6 +26,8 @@ The script verifies the Godot version, builds C#, and imports assets before runn
 
 All artwork and the stock mech catalog are packaged locally. Running the game requires no network connection or separate .NET installation. The map source link optionally opens the original PDF in the system browser.
 
+Co-op games connect directly to the leader's computer on UDP port 24525 (changeable in the lobby). On a local network nothing else is needed. Over the internet, the game asks the leader's router to forward that port over UPnP; if the router does not, the leader forwards it by hand. The host menu shows the leader's internet address when the router supports UPnP, along with their local-network address. Every player must run the same build.
+
 ## Controls
 
 Behavior behind each input is specified in [docs/design.md](docs/design.md) (strategy screens) and [docs/combat-design.md](docs/combat-design.md) with [docs/combat-tuning.md](docs/combat-tuning.md) (tactical combat).
@@ -40,6 +42,13 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | Click candidate | Select it for that pool |
 | **…** | Inspect the full record without selecting |
 | **Establish Company** | Commit the company name and all eight choices |
+| **Confirm Lance** (co-op) | Commit your eight choices, then wait for the other players |
+| **Co-op lobby** | |
+| **Host Co-op** / **Join Co-op** (main menu) | Open a lobby for a new or saved co-op campaign / join one by address and port |
+| **Take seat** | Claim a free player slot |
+| **Start Campaign** (leader) | Begin once every seat is filled |
+| **Copy address** (host menu) | Copy the internet address and port for the other players |
+| **Rejoin** (after a dropped connection) | Reconnect to the same leader and retake your seat |
 | **Office** | |
 | Click wall chart, or Tab then Enter/Space | Open the star map |
 | Click calendar | Advance one day |
@@ -64,7 +73,9 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | Right-click a weapon, ammo bin, heat sink or jump jet | Remove it (pending until applied) |
 | Drag a storage line onto a location panel | Install the spare there (pending until applied); Escape or right-click cancels the drag |
 | **Apply** / **Reset** | Commit / discard the selected mech's pending loadout changes |
+| **Move to lance pool** / **Add to Lance N** | Take the selected mech out of your lance / put a lance pool mech into it |
 | **Simulate Deployment** | Choose Randomized enemy or Mirror match, then 1–4 mechs and a terrain seed |
+| **Ready** / **Not Ready** (co-op force selection) | Mark your chosen mechs ready for the leader to launch / unlock them |
 | **Combat** | |
 | Click / drag | Select friendly mechs |
 | Shift+click | Add to / remove from selection |
@@ -75,7 +86,9 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | X / C | Walk / Run |
 | J or **Jump**, then right-click ground | Jump there (Escape cancels) |
 | G / F | Hold fire / Fire at will |
-| Space | Pause or resume |
+| Space | Pause or resume (in co-op, your own pause toggle) |
+| V (co-op) | Ping the ground under the cursor for every player |
+| **Stop Waiting** (co-op leader) | End the game while a player is disconnected; the campaign resumes from the mission-start save |
 | WASD / arrows, middle-drag | Pan (hold Shift for 5× speed) |
 | Wheel | Zoom (scrolls the battle log while over it) |
 | Right-drag, Q/E, Shift+middle-drag | Rotate |

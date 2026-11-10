@@ -53,6 +53,11 @@ public partial class SmokeTests : Node
             await TestMechVisuals(); await TestChassisVisuals(); await TestAdditionalChassis(); await TestFinalChassis(); await TestAdditionalBatch(); await TestWeaponMounts(); await TestJumpVisuals();
         }),
         new("layout", Setup.Drafted, TestResizing),
+        new("multiplayer", Setup.Menu, async () =>
+        {
+            NetworkChecks.Run(Check); await TestHostingUi();
+            await StopApp(); await StartApp(false); await TestJoiningUi();
+        }),
     ];
 
     public override async void _Ready()

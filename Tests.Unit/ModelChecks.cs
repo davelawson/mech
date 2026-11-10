@@ -23,5 +23,6 @@ public sealed class Reputation { [Fact] public void Checks() => Suite.Run(Reputa
 public sealed class Roster { [Fact] public void Checks() => Suite.Run(RosterChecks.Run); }
 public sealed class Travel { [Fact] public void Checks() => Suite.Run(TravelChecks.Run); }
 public sealed class Hangar { [Fact] public void Checks() => Suite.Run(HangarChecks.Run); }
+public sealed class Network { [Fact] public void Checks() => Suite.Run(NetworkChecks.Run); }
 public sealed class Combat { [Fact] public void Checks() => Suite.Run(CombatChecks.Run); }
 public sealed class Terrain { [Fact] public void Checks() => Suite.Run(TerrainChecks.Run); }

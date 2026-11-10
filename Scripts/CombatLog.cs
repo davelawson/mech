@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 
 namespace Mech;
 
@@ -14,9 +15,9 @@ public sealed record CombatLogUnit(CombatSide Side, int Slot, string Chassis, st
 
 public sealed record CombatLogEntry(double Time, CombatShot Shot, CombatLogUnit Attacker, CombatLogUnit Target, CombatLogUnit? Spotter = null)
 {
-    public string? CombatText => Attacker.Side == CombatSide.Friendly || Attacker.Visibility != ContactLevel.Lost
+    [JsonIgnore] public string? CombatText => Attacker.Side == CombatSide.Friendly || Attacker.Visibility != ContactLevel.Lost
         || Shot.Hit && Target.Side == CombatSide.Friendly ? Format(false) : null;
-    public string DebugText => Format(true);
+    [JsonIgnore] public string DebugText => Format(true);
 
     private string Format(bool debug)
     {

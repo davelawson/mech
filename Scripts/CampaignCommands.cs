@@ -1,11 +1,26 @@
+using System.Text.Json.Serialization;
+
 namespace Mech;
 
 /// <summary>A change a player slot asks of the campaign. Every screen changes the campaign through commands, so the same rules hold
 /// whichever player sends one. Leader-only commands cover travel, contracts, time and company finances; the rest are open to every
 /// player but act only on mechs the slot controls: its own lance and the lance pool.</summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$command")]
+[JsonDerivedType(typeof(AcceptMissionCommand), "accept-mission")]
+[JsonDerivedType(typeof(AbandonMissionCommand), "abandon-mission")]
+[JsonDerivedType(typeof(PlotJourneyCommand), "plot-journey")]
+[JsonDerivedType(typeof(EmbarkCommand), "embark")]
+[JsonDerivedType(typeof(CancelJourneyCommand), "cancel-journey")]
+[JsonDerivedType(typeof(AdvanceDayCommand), "advance-day")]
+[JsonDerivedType(typeof(PayNowCommand), "pay-now")]
+[JsonDerivedType(typeof(DeferPaymentCommand), "defer-payment")]
+[JsonDerivedType(typeof(SettleMissionCommand), "settle-mission")]
+[JsonDerivedType(typeof(ApplyLoadoutCommand), "apply-loadout")]
+[JsonDerivedType(typeof(AssignWarriorCommand), "assign-warrior")]
+[JsonDerivedType(typeof(SetLanceCommand), "set-lance")]
 public abstract record CampaignCommand
 {
-    public virtual bool LeaderOnly => false;
+    [JsonIgnore] public virtual bool LeaderOnly => false;
     internal abstract object? Run(Campaign campaign, int slot);
 }
 

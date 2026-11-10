@@ -9,6 +9,10 @@ public partial class MainMenuScreen : Control
     public Button ResumeButton { get; private set; } = null!;
     [Signal] public delegate void LoadRequestedEventHandler();
     [Signal] public delegate void QuitRequestedEventHandler();
+    [Signal] public delegate void HostRequestedEventHandler();
+    [Signal] public delegate void JoinRequestedEventHandler();
+    public Button HostButton { get; private set; } = null!;
+    public Button JoinButton { get; private set; } = null!;
     public Button NewButton { get; private set; } = null!;
     public Button LoadButton { get; private set; } = null!;
     public Button QuitButton { get; private set; } = null!;
@@ -31,15 +35,19 @@ public partial class MainMenuScreen : Control
         NewButton.Pressed += () => EmitSignal(SignalName.NewRequested);
         LoadButton = Ui.Button(_menu, "Load Game");
         LoadButton.Pressed += () => EmitSignal(SignalName.LoadRequested);
+        HostButton = Ui.Button(_menu, "Host Co-op");
+        HostButton.Pressed += () => EmitSignal(SignalName.HostRequested);
+        JoinButton = Ui.Button(_menu, "Join Co-op");
+        JoinButton.Pressed += () => EmitSignal(SignalName.JoinRequested);
         QuitButton = Ui.Button(_menu, "Quit");
         QuitButton.Pressed += () => EmitSignal(SignalName.QuitRequested);
-        foreach (var button in new[] { ResumeButton, NewButton, LoadButton, QuitButton }) button.CustomMinimumSize = new Vector2(0, 48);
+        foreach (var button in new[] { ResumeButton, NewButton, LoadButton, HostButton, JoinButton, QuitButton }) button.CustomMinimumSize = new Vector2(0, 48);
         Resized += Layout;
         Layout();
     }
 
     private void Layout()
     {
-        if (_menu is not null) Ui.Place(_menu, (Size.X - 360) / 2, Math.Max(24, (Size.Y - 410) / 2), 360, 410);
+        if (_menu is not null) Ui.Place(_menu, (Size.X - 360) / 2, Math.Max(24, (Size.Y - 546) / 2), 360, 546);
     }
 }

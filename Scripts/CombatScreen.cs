@@ -37,6 +37,31 @@ public partial class CombatScreen : Control
     public IReadOnlyList<string> Selected => _selected;
     /// <summary>The local player's slot: force selection offers its lance, and its orders go to that lance's mechs.</summary>
     public int Slot { get; set; } = Campaign.LeaderSlot;
+    /// <summary>The players' names by slot in a co-op campaign; null in single-player.</summary>
+    public IReadOnlyList<string>? PlayerNames { get; set; }
+    /// <summary>Where the local player's orders go when the leader's machine steps the battle; null carries them out here.</summary>
+    public Action<CombatCommand>? Orders { get; set; }
+    /// <summary>A co-op mission: every player deploys from their own lance, and only the leader launches, withdraws and leaves the results.</summary>
+    public bool Coop { get; private set; }
+    /// <summary>The local player leads the battle: always so outside a co-op mission.</summary>
+    public bool Leading { get; private set; } = true;
+    /// <summary>A co-op player other than the leader has marked their force ready.</summary>
+    public bool ForceReady { get; private set; }
+    /// <summary>Every player's force selection, in a co-op mission.</summary>
+    public Label DeploymentStatus { get; private set; } = null!;
+    /// <summary>A co-op player other than the leader chose their force and readiness.</summary>
+    public event Action<string[], bool>? ForceChosen;
+    /// <summary>The co-op leader launches with their own force on this terrain seed.</summary>
+    public event Action<string[], int>? LaunchRequested;
+    /// <summary>The local player marked a point of the battlefield for everyone.</summary>
+    public event Action<Vector2>? PingRequested;
+    /// <summary>The co-op leader stops waiting for a disconnected player, ending the game.</summary>
+    public event Action? StopWaitingRequested;
+    /// <summary>Who the co-op game is waiting for, over the battlefield and force selection.</summary>
+    public PanelContainer WaitingBanner { get; private set; } = null!;
+    public Label WaitingText { get; private set; } = null!;
+    public Button StopWaitingButton { get; private set; } = null!;
+    private bool _othersReady;
     public bool SettingPriority { get; private set; }
     /// <summary>Jump targeting is armed: the next ground right-click sends the selection on a jump.</summary>
     public bool SettingJump { get; private set; }
@@ -135,12 +160,34 @@ public partial class CombatScreen : Control
         _systems = RosterUi.Text(body, "", 12);
         _unitBar = new HBoxContainer(); _unitBar.AddThemeConstantOverride("separation", 6); AddChild(_unitBar);
         _help = Ui.Label(this, "", 12, Ui.Muted); _help.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        WaitingBanner = new PanelContainer { Visible = false }; WaitingBanner.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Gold, 2));
+        var waiting = new HBoxContainer(); waiting.AddThemeConstantOverride("separation", 14); WaitingBanner.AddChild(waiting);
+        WaitingText = Ui.Label(waiting, "", 15, Ui.Gold); WaitingText.VerticalAlignment = VerticalAlignment.Center;
+        StopWaitingButton = Ui.Button(waiting, "Stop Waiting"); StopWaitingButton.Pressed += () => StopWaitingRequested?.Invoke();
+        StopWaitingButton.TooltipText = "End the co-op game. The campaign resumes from the save made when this mission launched.";
         _shade = new Control { MouseFilter = MouseFilterEnum.Stop }; _shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(_shade);
         var tint = new ColorRect { Color = new Color(0, 0, 0, .83f), MouseFilter = MouseFilterEnum.Stop };
         tint.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); _shade.AddChild(tint);
         _modalPanel = new PanelContainer(); _modalPanel.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Gold, 2)); _shade.AddChild(_modalPanel);
         _modalContent = new VBoxContainer(); _modalContent.AddThemeConstantOverride("separation", 12); _modalPanel.AddChild(_modalContent);
+        // The banner stays above force selection and the combat menu.
+        AddChild(WaitingBanner);
         Resized += Layout; Layout(); Hide();
+    }
+    /// <summary>Shows who the game is waiting for, or hides the banner when nobody is missing. Only the leader may stop waiting,
+    /// and only during the battle.</summary>
+    public void ShowWaiting(IReadOnlyList<string> absent, bool canStop)
+    {
+        WaitingBanner.Visible = absent.Count > 0;
+        WaitingText.Text = absent.Count == 0 ? "" : $"Waiting for {string.Join(" and ", absent)} to reconnect…";
+        StopWaitingButton.Visible = canStop;
+        PlaceBanner();
+    }
+    private void PlaceBanner()
+    {
+        WaitingBanner.Size = Vector2.Zero;
+        var banner = WaitingBanner.GetCombinedMinimumSize();
+        Ui.Place(WaitingBanner, (Size.X - banner.X) / 2, 72, banner.X, banner.Y);
     }
     private void Layout()
     {
@@ -159,6 +206,7 @@ public partial class CombatScreen : Control
         LayoutUnitCards();
         Ui.Place(_unitBar, 16, Size.Y - 46 - unitBar, Size.X - 32, unitBar);
         Ui.Place(_help, 16, Size.Y - 43, Size.X - 32, 40);
+        if (WaitingBanner is not null) PlaceBanner();
         var width = Math.Min(760, Size.X - 48); var height = Math.Min(650, Size.Y - 48);
         Ui.Place(_modalPanel, (Size.X - width) / 2, (Size.Y - height) / 2, width, height);
     }
@@ -169,14 +217,19 @@ public partial class CombatScreen : Control
     }
     /// <summary>Deploys to a mission: force selection straight away, on the mission system's biome. The battle's result is
     /// passed to <paramref name="settle"/> once, which returns the settlement to show.</summary>
-    public void OpenMission(ForceRoster roster, MissionOffer offer, string selectedMechId, Func<CombatSimulation, string> settle)
+    /// <summary>In a co-op mission the leader passes <paramref name="settle"/>; every other player passes null and is shown the
+    /// leader's settlement.</summary>
+    public void OpenMission(ForceRoster roster, MissionOffer offer, string selectedMechId, Func<CombatSimulation, string>? settle, bool coop = false)
     {
         Reset(roster, offer, settle);
+        Coop = coop; Leading = !coop || settle is not null;
         ShowForceSelection(selectedMechId);
     }
     private void Reset(ForceRoster roster, MissionOffer? mission, Func<CombatSimulation, string>? settle)
     {
         _roster = roster; _mission = mission; _settle = settle; _settlement = null;
+        WaitingBanner.Hide();
+        Coop = false; Leading = true; ForceReady = false; _othersReady = false; Orders = null;
         Simulation = null; _primary = null; _selected.Clear(); SettingPriority = SettingJump = false;
         _title.Text = mission is null ? "SIMULATED DEPLOYMENT" : $"MISSION · {mission.Name.ToUpperInvariant()}";
         BattleLog.Hide(); Layout();
@@ -236,6 +289,8 @@ public partial class CombatScreen : Control
         NewTerrainButton = Ui.Button(seedRow, "New terrain");
         NewTerrainButton.Pressed += () => { TerrainSeedInput.Text = Random.Shared.Next().ToString(System.Globalization.CultureInfo.InvariantCulture); RefreshForceSelection(); };
         TerrainSeedInput.TextChanged += _ => RefreshForceSelection();
+        // The leader's terrain seed recreates the battlefield on every player's machine.
+        seedRow.Visible = Leading;
         var body = RosterUi.Scroll(_modalContent); ForceChoices.Clear(); _forceIds.Clear();
         // The player's own lance deploys; lance pool mechs are listed so their absence is explained.
         var offered = _roster.Mechs.Where(item => item.Lance == Slot || item.Lance is null).ToArray();
@@ -250,20 +305,25 @@ public partial class CombatScreen : Control
             choice.Toggled += _ => RefreshForceSelection();
         }
         _forceCount = RosterUi.Text(_modalContent, "", 13, Ui.Gold);
+        DeploymentStatus = RosterUi.Text(_modalContent, "", 13, Ui.Muted); DeploymentStatus.Visible = Coop;
         var actions = ModalActions(); BackButton = Ui.Button(actions, "Back to hangar"); BackButton.Pressed += Exit;
-        LaunchButton = Ui.Button(actions, _mission is null ? "Launch simulation" : "Launch mission"); LaunchButton.Pressed += Launch;
+        // Only the leader closes force selection; it returns every player to the hangar.
+        BackButton.Visible = Leading;
+        LaunchButton = Ui.Button(actions, _mission is null ? "Launch simulation" : Leading ? "Launch mission" : "Ready"); LaunchButton.Pressed += Launch;
         RefreshForceSelection(); BackButton.CallDeferred(Control.MethodName.GrabFocus); RosterUi.TrapFocus(_shade);
     }
     private void RefreshForceSelection()
     {
         var count = ForceChoices.Count(item => item.ButtonPressed); _forceCount.Text = $"{count} / 4 selected · Starts paused";
+        if (Coop && !Leading) LaunchButton.Text = ForceReady ? "Not Ready" : "Ready";
         _biomeClimate.Text = SelectedBiome is { } chosen ? $"{Biomes.Spec(chosen).ClimateText} · {Biomes.Spec(chosen).Description}"
             : string.Join(" · ", Biomes.All.Select(biome => FormattableString.Invariant($"{biome.Name} {biome.Ambient:0}/{biome.EfficiencyText}")));
         var validSeed = int.TryParse(TerrainSeedInput.Text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out _);
         if (!validSeed) _forceCount.Text += " · Enter a seed from −2147483648 to 2147483647";
-        LaunchButton.Disabled = count is < 1 or > 4 || !validSeed;
+        LaunchButton.Disabled = !ForceReady && (count is < 1 or > 4 || !validSeed) || Coop && Leading && !_othersReady;
+        LaunchButton.TooltipText = Coop && Leading && !_othersReady ? "Every other player must be ready." : "";
         for (var i = 0; i < ForceChoices.Count; i++)
-            ForceChoices[i].Disabled = CombatSimulation.UnavailableReason(_roster, _roster.Mechs.Single(item => item.Id == _forceIds[i])) is not null
+            ForceChoices[i].Disabled = ForceReady || CombatSimulation.UnavailableReason(_roster, _roster.Mechs.Single(item => item.Id == _forceIds[i])) is not null
                 || (count >= ForceRoster.LanceSize && !ForceChoices[i].ButtonPressed);
     }
     private Biome? SelectedBiome => BiomePicker.Selected > 0 ? Biomes.All[BiomePicker.Selected - 1].Biome : null;
@@ -276,17 +336,37 @@ public partial class CombatScreen : Control
     private void Launch()
     {
         if (LaunchButton.Disabled) return;
-        var force = _forceIds.Where((_, i) => ForceChoices[i].ButtonPressed);
+        var force = _forceIds.Where((_, i) => ForceChoices[i].ButtonPressed).ToArray();
+        if (Coop && !Leading) { ForceReady = !ForceReady; RefreshForceSelection(); ForceChosen?.Invoke(force, ForceReady); return; }
         var terrainSeed = int.Parse(TerrainSeedInput.Text, System.Globalization.CultureInfo.InvariantCulture);
-        Simulation = _mission is not null ? CombatSimulation.DeployMission(_roster, force, _mission, terrainSeed: terrainSeed)
+        if (Coop) { LaunchRequested?.Invoke(force, terrainSeed); return; }
+        Begin(_mission is not null ? CombatSimulation.DeployMission(_roster, force, _mission, terrainSeed: terrainSeed)
             : CombatSimulation.Deploy(_roster, force, terrainSeed: terrainSeed, opponent: Opponent,
-                biome: SelectedBiome ?? Biomes.All[Random.Shared.Next(Biomes.All.Count)].Biome);
+                biome: SelectedBiome ?? Biomes.All[Random.Shared.Next(Biomes.All.Count)].Biome));
+    }
+    /// <summary>Shows every player's force selection. The leader may launch once every other player is ready.</summary>
+    public void ShowDeployment(IReadOnlyList<DeploymentSeat> seats, bool othersReady)
+    {
+        if (Modal != CombatModal.ForceSelection || !Coop) return;
+        _othersReady = othersReady;
+        if (!Leading && seats.FirstOrDefault(seat => seat.Slot == Slot) is { } own) ForceReady = own.Ready;
+        DeploymentStatus.Text = string.Join("\n", seats.Select(seat => $"{ForceRoster.LanceName(seat.Slot)} · {PlayerName(seat.Slot)} · "
+            + (seat.Slot == Campaign.LeaderSlot ? "launches when everyone is ready" : seat.Ready ? $"Ready · {seat.Mechs.Length} {(seat.Mechs.Length == 1 ? "mech" : "mechs")}" : "Choosing")));
+        RefreshForceSelection();
+    }
+    private string PlayerName(int slot) => PlayerNames?.ElementAtOrDefault(slot) ?? ForceRoster.LanceName(slot);
+    /// <summary>The local player's own lance in this battle, which they order.</summary>
+    private IEnumerable<CombatUnit> OwnUnits => Simulation!.Units.Where(unit => Simulation.Commands(Slot, unit));
+    /// <summary>Shows a battle: one launched here, or a replica of the leader's.</summary>
+    public void Begin(CombatSimulation simulation)
+    {
+        Simulation = simulation;
         Battlefield.Display(Simulation); _shade.Hide(); Modal = CombatModal.None; Battlefield.CommandsEnabled = true;
         BattleLog.Hide(); BattleLog.Display(Simulation); Layout();
         Battlefield.MouseFilter = MouseFilterEnum.Stop;
         RosterUi.Clear(_unitBar); UnitButtons.Clear(); UnitDolls.Clear();
         var number = 0;
-        foreach (var unit in Simulation.Units.Where(item => item.Side == CombatSide.Friendly))
+        foreach (var unit in OwnUnits)
         {
             number++;
             var button = Ui.Button(_unitBar, $"{number} · {unit.Warrior.Callsign}\n{unit.Spec.DisplayName}");
@@ -300,7 +380,7 @@ public partial class CombatScreen : Control
             button.Pressed += () => { Battlefield.InspectedEnemy = null; SelectUnits([unit.Id], Input.IsKeyPressed(Key.Shift)); Battlefield.GrabFocus(); };
         }
         LayoutUnitCards();
-        SelectUnits([Simulation.Units.First(item => item.Side == CombatSide.Friendly).Id], false);
+        SelectUnits([OwnUnits.First().Id], false);
         Battlefield.GrabFocus(); RefreshDetails();
     }
     public void SelectUnits(IReadOnlyList<string> ids, bool additive)
@@ -308,7 +388,8 @@ public partial class CombatScreen : Control
         if (!additive) _selected.Clear();
         foreach (var id in ids)
         {
-            if (Simulation?.Unit(id).Side != CombatSide.Friendly) continue;
+            // Every player sees the whole company, but selects and orders only their own lance.
+            if (Simulation is null || !Simulation.Commands(Slot, Simulation.Unit(id))) continue;
             if (additive && _selected.Contains(id)) _selected.Remove(id); else if (!_selected.Contains(id)) _selected.Add(id);
         }
         Battlefield.Selection = _selected; SettingPriority = SettingJump = false; RefreshDetails();
@@ -319,27 +400,32 @@ public partial class CombatScreen : Control
         if (SettingPriority)
         {
             if (target is not null && Simulation.Unit(target) is { Side: CombatSide.Enemy, Defeated: false })
-            { Simulation.Execute(new PriorityCommand([.. _selected], target), Slot); SettingPriority = false; }
+            { Order(new PriorityCommand([.. _selected], target)); SettingPriority = false; }
             RefreshDetails(); return;
         }
         if (SettingJump)
         {
             // Mechs are not landing points: a click on one keeps jump targeting armed.
-            if (target is null) { Simulation.Execute(new JumpCommand([.. _selected], ground), Slot); SettingJump = false; }
+            if (target is null) { Order(new JumpCommand([.. _selected], ground)); SettingJump = false; }
             RefreshDetails(); return;
         }
         // Alt/Ctrl+right-click keeps the chosen mode, exactly as the Walk/Run buttons do.
-        if (mode is { } movement) Simulation.Execute(new MovementCommand([.. _selected], movement), Slot);
-        Simulation.Execute(target is null ? new MoveCommand([.. _selected], ground)
-            : Simulation.Unit(target).Side == CombatSide.Friendly ? new FollowCommand([.. _selected], target) : new AttackCommand([.. _selected], target), Slot);
+        if (mode is { } movement) Order(new MovementCommand([.. _selected], movement));
+        Order(target is null ? new MoveCommand([.. _selected], ground)
+            : Simulation.Unit(target).Side == CombatSide.Friendly ? new FollowCommand([.. _selected], target) : new AttackCommand([.. _selected], target));
         RefreshDetails();
     }
     /// <summary>Sends a command as the local player, then shows its effect.</summary>
     private void Send(CombatCommand command)
     {
         if (Simulation is null) return;
-        Simulation.Execute(command, Slot);
+        Order(command);
         RefreshDetails();
+    }
+    /// <summary>Carries out a command as the local player, or sends it to the leader's battle.</summary>
+    private void Order(CombatCommand command)
+    {
+        if (Orders is { } send) send(command); else Simulation!.Execute(command, Slot);
     }
     /// <summary>Two text lines at the card font, with the margins above and below them.</summary>
     private float UnitCardTextHeight => UnitButtons.Count == 0 ? 0
@@ -382,7 +468,7 @@ public partial class CombatScreen : Control
     public void OpenMenu()
     {
         if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing) return;
-        _resumeRunning = !Simulation.PauseHolds.Contains(Slot); Simulation.Execute(new PauseCommand(true), Slot);
+        _resumeRunning = !Simulation.PauseHolds.Contains(Slot); Order(new PauseCommand(true));
         BeginModal(CombatModal.Menu, "Combat paused");
         RosterUi.Text(_modalContent, $"Terrain seed: {Simulation.Terrain.Seed} · {BiomeText(Simulation)}", 14, Ui.Gold);
         var seedCopy = new LineEdit { Text = Simulation.Terrain.Seed.ToString(System.Globalization.CultureInfo.InvariantCulture), Editable = false };
@@ -392,30 +478,44 @@ public partial class CombatScreen : Control
         var spacer = new Control { SizeFlagsVertical = SizeFlags.ExpandFill }; _modalContent.AddChild(spacer);
         var actions = ModalActions(); ResumeButton = Ui.Button(actions, "Resume"); ResumeButton.Pressed += Resume;
         EndButton = Ui.Button(actions, _mission is null ? "End Simulation" : "Withdraw"); EndButton.Pressed += EndSimulation;
+        EndButton.Disabled = !Leading; EndButton.TooltipText = Leading ? "" : "Only the leader withdraws from the battle.";
         ResumeButton.CallDeferred(Control.MethodName.GrabFocus); RosterUi.TrapFocus(_shade);
     }
     public void Resume()
     {
         if (Simulation is null || Modal != CombatModal.Menu) return;
-        Simulation.Execute(new PauseCommand(!_resumeRunning), Slot); Modal = CombatModal.None; _shade.Hide(); Battlefield.CommandsEnabled = true;
+        Order(new PauseCommand(!_resumeRunning)); Modal = CombatModal.None; _shade.Hide(); Battlefield.CommandsEnabled = true;
         Battlefield.MouseFilter = MouseFilterEnum.Stop;
         Battlefield.GrabFocus(); RefreshDetails();
     }
-    public void EndSimulation() { Simulation?.End(); ShowResults(); }
+    public void EndSimulation()
+    {
+        if (!Leading || Simulation is null || Simulation.Replica) return;
+        Simulation.End(); ShowResults();
+    }
+    /// <summary>The leader's settlement of a co-op mission, shown on the results.</summary>
+    public void ShowSettlement(string settlement)
+    {
+        _settlement = settlement;
+        if (Modal == CombatModal.Results) ShowResults();
+    }
     private void ShowResults()
     {
         if (Simulation is null) return;
-        if (_mission is not null) _settlement ??= _settle!(Simulation);
+        if (_mission is not null && _settle is not null) _settlement ??= _settle(Simulation);
         var title = Simulation.Outcome == CombatOutcome.Ended ? (_mission is null ? "Simulation ended" : "Withdrew · Mission failed")
             : _mission is null ? Simulation.Outcome.ToString() : $"{Simulation.Outcome} · Mission {(Simulation.Outcome == CombatOutcome.Victory ? "succeeded" : "failed")}";
+        // A finished battle has nothing left to wait for.
+        StopWaitingButton.Hide();
         BeginModal(CombatModal.Results, title);
         RosterUi.Text(_modalContent, $"Combat time {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}{(_mission is null ? " · Campaign preserved" : "")}", 15, Ui.Gold);
         if (_settlement is not null) RosterUi.Text(_modalContent, _settlement, 14);
+        else if (_mission is not null) RosterUi.Text(_modalContent, "Waiting for the leader to settle the mission…", 14, Ui.Muted);
         RosterUi.Text(_modalContent, $"Terrain seed: {Simulation.Terrain.Seed} · {BiomeText(Simulation)}", 14, Ui.Muted);
         var body = RosterUi.Scroll(_modalContent);
         foreach (var side in Enum.GetValues<CombatSide>())
         {
-            RosterUi.Text(body, side == CombatSide.Friendly ? "YOUR FORCE" : "OPPOSITION", 16, Ui.Gold);
+            RosterUi.Text(body, side == CombatSide.Enemy ? "OPPOSITION" : Coop ? "THE COMPANY" : "YOUR FORCE", 16, Ui.Gold);
             foreach (var unit in Simulation.Units.Where(item => item.Side == side))
             {
                 RosterUi.Text(body, $"{unit.Spec.DisplayName} · {unit.Warrior.Callsign} · {unit.Status}{(unit.WarriorKilled ? " · MechWarrior killed" : "")}", 14);
@@ -423,10 +523,19 @@ public partial class CombatScreen : Control
                     + string.Join("  ", unit.Locations.Values.Select(loc => $"{DraftCatalog.Abbreviation(loc.Location)} {loc.Armor}/{loc.Structure}")), 12, Ui.Muted);
             }
         }
-        ReturnButton = Ui.Button(ModalActions(), "Return to hangar"); ReturnButton.Pressed += Exit;
+        ReturnButton = Ui.Button(ModalActions(), Leading ? "Return to hangar" : "Waiting for leader"); ReturnButton.Pressed += Exit;
+        ReturnButton.Disabled = !Leading;
         ReturnButton.CallDeferred(Control.MethodName.GrabFocus); RosterUi.TrapFocus(_shade);
     }
-    private void Exit() { Battlefield.CancelDrag(); Hide(); Closed?.Invoke(); }
+    private void Exit()
+    {
+        if (!Leading) return;
+        Close();
+    }
+    /// <summary>Leaves the screen; a co-op player other than the leader leaves when the leader does.</summary>
+    public void Close() { Battlefield.CancelDrag(); Hide(); Closed?.Invoke(); }
+    /// <summary>Shows a player's ping on the battlefield.</summary>
+    public void ShowPing(int slot, Vector2 point) => Battlefield.Ping(point, PlayerName(slot), slot == Slot ? Ui.Gold : new Color("7fd4ff"));
     private void ToggleBattleLog()
     {
         if (Simulation is null || Modal != CombatModal.None) return;
@@ -451,7 +560,7 @@ public partial class CombatScreen : Control
         if (code is >= Key.Key1 and <= Key.Key4)
         {
             var slot = (int)code - (int)Key.Key1;
-            var unit = Simulation.Units.Where(item => item.Side == CombatSide.Friendly).ElementAtOrDefault(slot);
+            var unit = OwnUnits.ElementAtOrDefault(slot);
             if (unit is not null)
             {
                 Battlefield.CancelDrag(); Battlefield.InspectedEnemy = null;
@@ -469,6 +578,7 @@ public partial class CombatScreen : Control
                 Key.G => () => Send(new FiringCommand([.. _selected], FiringMode.HoldFire)),
                 Key.F => () => Send(new FiringCommand([.. _selected], FiringMode.FireAtWill)),
                 Key.J => ToggleJump,
+                Key.V => () => PingRequested?.Invoke(Battlefield.GroundPoint(Battlefield.GetLocalMousePosition())),
                 _ => null
             };
             if (order is not null) { order(); return true; }
@@ -492,7 +602,7 @@ public partial class CombatScreen : Control
     private void RefreshDetails()
     {
         if (Simulation is null) return;
-        _status.Text = $"{(Simulation.Paused ? "PAUSED · orders available" : "LIVE")}  |  {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}";
+        _status.Text = $"{(Simulation.Paused ? $"PAUSED{PauseHolders} · orders available" : "LIVE")}  |  {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}";
         // The button shows the local player's own toggle; the battle stays paused while any player holds one.
         PauseButton.Text = Simulation.PauseHolds.Contains(Slot) ? "Resume  [Space]" : "Pause  [Space]";
         // Jump targeting lapses once no selected unit can still jump.
@@ -500,8 +610,8 @@ public partial class CombatScreen : Control
         Battlefield.JumpArmed = SettingJump;
         _help.Text = SettingPriority ? "PRIORITY TARGET: right-click a detected enemy. This changes target preference without ordering pursuit. Escape cancels."
             : SettingJump ? "JUMP: right-click the ground to jump there, within each mech's range circle. Attack and Follow orders resume on landing. Escape cancels."
-            : "Click / drag / 1–4: select · Shift: toggle · Right-click: Move / Attack / Follow (Alt: walk · Ctrl: run) · Z: stop · X/C: walk/run · J: jump · G/F: hold/fire at will · Space: pause · WASD / arrows / middle-drag: pan (Shift: fast) · Wheel: zoom · Right-drag / Q/E: orbit · `: frame selection · ~: battle log · Home: arena";
-        var friends = Simulation.Units.Where(item => item.Side == CombatSide.Friendly).ToArray();
+            : $"Click / drag / 1–4: select · Shift: toggle · Right-click: Move / Attack / Follow (Alt: walk · Ctrl: run) · Z: stop · X/C: walk/run · J: jump · G/F: hold/fire at will · Space: pause{(Coop ? " · V: ping" : "")} · WASD / arrows / middle-drag: pan (Shift: fast) · Wheel: zoom · Right-drag / Q/E: orbit · `: frame selection · ~: battle log · Home: arena";
+        var friends = OwnUnits.ToArray();
         for (var i = 0; i < UnitButtons.Count; i++)
         {
             var friend = friends[i]; var button = UnitButtons[i];
@@ -615,6 +725,8 @@ public partial class CombatScreen : Control
         _systems.Text = SystemsReadout(unit);
 
     }
+    /// <summary>In co-op, who is holding the battle paused.</summary>
+    private string PauseHolders => !Coop || Simulation is null ? "" : $" by {string.Join(", ", Simulation.PauseHolds.Select(PlayerName))}";
     internal static string JumpReadout(CombatUnit unit) => unit.Spec.Jump == 0 ? "Jump: no jump jets"
         : FormattableString.Invariant($"Jump {unit.JumpRange:0} m · ") + (unit.Airborne ? "Airborne"
             : unit.JumpRecharge > 0 ? FormattableString.Invariant($"Recharging {Math.Ceiling(unit.JumpRecharge):0}s")
