@@ -73,7 +73,7 @@ public partial class SmokeTests
 
         // A menu confirmation must not replace the contents of a suspended strategic dialog.
         state.AdvanceOneDay();
-        new CampaignStore(_saveFile).Save(state);
+        SeedSave(state);
         _app.ShowFinances(); await Frames();
         var heading = _app.Dialog.Heading;
         var close = DialogButton("Close"); close.GrabFocus();
@@ -99,11 +99,10 @@ public partial class SmokeTests
     private async Task SaveMenuTestCompany()
     {
         _app.ShowOffice(); _app.ShowFiling(); await Frames();
-        await Click(DialogButton("Save Game"));
-        if (_app.Dialog.Heading == "Overwrite campaign save?") await Click(DialogButton("Save Game"));
-        Check(_app.Dialog.Heading == "Company saved" && !_app.HasUnsavedChanges,
+        await Click(SlotButton(0)); await Click(DialogButton("Save"));
+        Check(_app.Saves.Status.Text.StartsWith("Saved ") && !_app.HasUnsavedChanges,
             "successful manual save clears unsaved changes");
-        await Click(DialogButton("Close"));
+        await Click(_app.Saves.CloseButton);
     }
 
     private async Task TestUnsavedChangesUi()
@@ -138,43 +137,54 @@ public partial class SmokeTests
             && ReferenceEquals(state, _app.State) && _app.MainMenu.QuitButton.HasFocus(),
             "canceling Quit keeps the company, changes and menu focus");
         await Click(_app.MainMenu.LoadButton);
-        Check(_app.UnsavedDialog.Visible, "dirty menu Load requests confirmation");
+        Check(_app.Saves.Visible && !_app.SaveDialog.Visible && ReferenceEquals(state, _app.State), "menu Load opens the save grid without asking yet");
+        await Click(SlotButton(0));
+        Check(_app.SaveDialog.Visible && _app.SaveDialog.Body.Contains("unsaved changes"), "dirty menu Load requests confirmation on choosing a save");
         await Click(DialogButton("Cancel"));
-        Check(ReferenceEquals(state, _app.State) && _app.HasUnsavedChanges, "canceling Load retains unsaved progress");
-        await Click(_app.MainMenu.LoadButton); await Click(DialogButton("Load Game"));
-        Check(!ReferenceEquals(state, _app.State) && !_app.HasUnsavedChanges, "successful load establishes a clean comparison baseline");
-        _app.ShowMainMenu(); await Frames(); await Click(_app.MainMenu.LoadButton);
-        Check(_app.Office.Visible && !_app.UnsavedDialog.Visible && !_app.HasUnsavedChanges, "clean menu Load skips discard confirmation");
-        _app.ShowFiling(); await Frames(); await Click(DialogButton("Load Game"));
-        Check(_app.Office.Visible && !_app.Dialog.Visible && !_app.UnsavedDialog.Visible, "clean filing Load skips discard confirmation");
+        Check(ReferenceEquals(state, _app.State) && _app.HasUnsavedChanges && _app.Saves.Visible && SlotButton(0).HasFocus(),
+            "canceling Load retains unsaved progress and returns to the grid");
+        await Click(SlotButton(0)); await Click(DialogButton("Load Game"));
+        Check(!ReferenceEquals(state, _app.State) && !_app.HasUnsavedChanges && !_app.Saves.Visible && _app.Office.Visible,
+            "successful load establishes a clean comparison baseline");
+        _app.ShowMainMenu(); await Frames(); await Click(_app.MainMenu.LoadButton); await Click(SlotButton(0));
+        Check(_app.Office.Visible && !_app.SaveDialog.Visible && !_app.HasUnsavedChanges, "clean menu Load skips discard confirmation");
+        _app.ShowFiling(); await Frames(); await Click(_app.Saves.LoadTab); await Click(SlotButton(0));
+        Check(_app.Office.Visible && !_app.Saves.Visible && !_app.SaveDialog.Visible, "clean filing Load skips discard confirmation");
 
         _app.State.AdvanceOneDay();
         _app.ShowFinances(); await Frames();
         var close = DialogButton("Close");
-        var saved = System.IO.File.ReadAllText(_saveFile);
-        System.IO.File.WriteAllText(_saveFile, "invalid save");
+        var newest = _app.SoloSaves.PathOf(_app.SoloSaves.List()[0].Id);
+        var saved = System.IO.File.ReadAllText(newest);
+        System.IO.File.WriteAllText(newest, "invalid save");
         _app.ShowMainMenu(); await Frames();
         state = _app.State;
-        await Click(_app.MainMenu.LoadButton); await Click(DialogButton("Load Game"));
-        Check(_app.UnsavedDialog.Heading == "Unable to load" && ReferenceEquals(state, _app.State) && _app.HasUnsavedChanges,
+        await Click(_app.MainMenu.LoadButton); await Click(SlotNamed("Unreadable save")); await Click(DialogButton("Load Game"));
+        Check(_app.SaveDialog.Heading == "Unable to load" && ReferenceEquals(state, _app.State) && _app.HasUnsavedChanges,
             "failed menu load retains company and dirty baseline");
-        await Click(DialogButton("Close")); await Click(_app.MainMenu.ResumeButton);
+        await Click(DialogButton("Close")); await Click(_app.Saves.CloseButton);
+        Check(_app.MainMenu.Visible && _app.MainMenu.LoadButton.HasFocus(), "closing the grid returns to Load Game");
+        await Click(_app.MainMenu.ResumeButton);
         Check(_app.Dialog.Visible && _app.Dialog.Heading == "Quarterly finances" && GodotObject.IsInstanceValid(close),
             "failed menu load also preserves the suspended strategic dialog");
         await Click(close);
-        System.IO.File.WriteAllText(_saveFile, saved);
+        System.IO.File.WriteAllText(newest, saved);
 
-        // Replacing the save target with a directory forces a real, isolated storage failure.
-        System.IO.File.Delete(_saveFile); System.IO.Directory.CreateDirectory(_saveFile);
+        // Replacing the solo save folder with a file forces a real, isolated storage failure.
+        var folder = _app.SoloSaves.Directory; var aside = folder + "-aside";
+        System.IO.Directory.Move(folder, aside); System.IO.File.WriteAllText(folder, "");
         try
         {
-            _app.ShowFiling(); await Frames(); await Click(DialogButton("Save Game"));
-            Check(_app.Dialog.Heading == "Unable to save" && _app.HasUnsavedChanges, "failed save does not clear unsaved changes");
+            _app.ShowFiling(); await Frames(); await Click(SlotButton(0)); await Click(DialogButton("Save"));
+            Check(_app.SaveDialog.Heading == "Unable to save" && _app.HasUnsavedChanges, "failed save does not clear unsaved changes");
+            await Click(DialogButton("Back"));
+            Check(_app.Saves.Visible && !_app.SaveDialog.Visible, "Back from a failed save returns to the grid");
+            await Click(_app.Saves.CloseButton);
         }
         finally
         {
-            System.IO.Directory.Delete(_saveFile);
-            System.IO.File.WriteAllText(_saveFile, saved);
+            System.IO.File.Delete(folder);
+            System.IO.Directory.Move(aside, folder);
         }
         _app.ShowOffice();
         await SaveMenuTestCompany();

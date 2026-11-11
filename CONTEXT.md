@@ -75,6 +75,9 @@ A single-mission contract on the mission offer board, with fixed terms: location
 **Mission offer board**:
 The ten mission offers available at a time, oldest first. Each day the oldest may be taken off and the board is refilled.
 
+**Save slot**:
+One saved campaign in the save grid, with its own name, in-game date and balance. Single-player and co-op save slots are kept in separate folders and never shown together.
+
 **Initial draft**:
 The selection of four starting BattleMechs and four starting MechWarriors from eight simultaneously visible pools, with three options of similar caliber in each pool.
 

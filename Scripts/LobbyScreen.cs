@@ -39,7 +39,7 @@ public partial class LobbyScreen : Control
     private VBoxContainer _seats = null!;
     private VBoxContainer _box = null!;
     private HBoxContainer _addressRow = null!, _playersRow = null!, _campaignRow = null!;
-    private int? _savedPlayers;
+    private bool _hasSaves;
 
     public override void _Ready()
     {
@@ -81,19 +81,19 @@ public partial class LobbyScreen : Control
         return input;
     }
 
-    /// <summary>The hosting form. A saved co-op campaign with this many players may be resumed; null when there is none.</summary>
-    public void ShowHost(int? savedPlayers)
+    /// <summary>The hosting form. A saved co-op campaign may be resumed when there is one; it is chosen from the co-op saves.</summary>
+    public void ShowHost(bool hasSaves)
     {
-        Hosting = true; SeatsShown = false; _savedPlayers = savedPlayers; _title.Text = "HOST CO-OP CAMPAIGN";
+        Hosting = true; SeatsShown = false; _hasSaves = hasSaves; _title.Text = "HOST CO-OP CAMPAIGN";
         _addressRow.Hide(); _campaignRow.Show(); _playersRow.Show(); RefreshAddress();
-        CampaignPicker.SetItemDisabled(1, savedPlayers is null); CampaignPicker.Select(0);
-        CampaignPicker.SetItemTooltip(1, savedPlayers is null ? "The saved campaign is not a co-op campaign." : "");
+        CampaignPicker.SetItemDisabled(1, !hasSaves); CampaignPicker.Select(0);
+        CampaignPicker.SetItemTooltip(1, hasSaves ? "Choose a co-op save. Its players decide the seats." : "There are no co-op saves.");
         for (var i = 0; i < PlayersPicker.ItemCount; i++)
         {
             var problem = InitialDraft.CompanyProblem(i + 2);
             PlayersPicker.SetItemDisabled(i, problem is not null); PlayersPicker.SetItemTooltip(i, problem ?? "");
         }
-        PlayersPicker.Select(0); ConfirmButton.Text = "Open Lobby";
+        PlayersPicker.Select(0);
         Status.Text = "Other players join at one of the addresses above.";
         ShowForm();
     }
@@ -115,9 +115,9 @@ public partial class LobbyScreen : Control
 
     private void RefreshForm()
     {
-        var resume = Hosting && CampaignPicker.Selected == 1;
-        if (resume && _savedPlayers is { } players) PlayersPicker.Select(players - 2);
+        var resume = Hosting && CampaignPicker.Selected == 1 && _hasSaves;
         PlayersPicker.Disabled = resume;
+        ConfirmButton.Text = !Hosting ? "Connect" : resume ? "Choose Save" : "Open Lobby";
         ConfirmButton.Disabled = !Campaign.ValidPlayerName(NameInput.Text.Trim()) || Hosting && PlayersPicker.IsItemDisabled(PlayersPicker.Selected) && !resume;
     }
 

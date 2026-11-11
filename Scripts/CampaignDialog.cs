@@ -12,6 +12,8 @@ public partial class CampaignDialog : Control
     private Action? _cancel;
     public string Heading { get; private set; } = "";
     public string Body { get; private set; } = "";
+    /// <summary>The name field of a dialog opened with <see cref="OpenNamed"/>; null otherwise.</summary>
+    public LineEdit? NameInput { get; private set; }
 
     public override void _Ready()
     {
@@ -29,9 +31,14 @@ public partial class CampaignDialog : Control
         Hide();
     }
 
-    public void Open(string heading, string body, Action? cancel, params DialogAction[] actions)
+    public void Open(string heading, string body, Action? cancel, params DialogAction[] actions) => Open(heading, body, null, cancel, actions);
+
+    /// <summary>A dialog with a name field. The last action needs a name: it is disabled while the field is blank and Enter triggers it.</summary>
+    public void OpenNamed(string heading, string body, string name, Action? cancel, params DialogAction[] actions) => Open(heading, body, name, cancel, actions);
+
+    private void Open(string heading, string body, string? name, Action? cancel, DialogAction[] actions)
     {
-        Heading = heading; Body = body;
+        Heading = heading; Body = body; NameInput = null;
         _cancel = cancel;
         foreach (var child in _content.GetChildren())
         {
@@ -43,6 +50,12 @@ public partial class CampaignDialog : Control
         text.VerticalAlignment = VerticalAlignment.Top;
         text.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         text.SizeFlagsVertical = SizeFlags.ExpandFill;
+        if (name is not null)
+        {
+            NameInput = new LineEdit { Text = name, MaxLength = CampaignStore.MaxNameLength, PlaceholderText = "Save name", CustomMinimumSize = new Vector2(0, 40) };
+            NameInput.AddThemeFontSizeOverride("font_size", 18);
+            _content.AddChild(NameInput);
+        }
         var buttons = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End };
         buttons.AddThemeConstantOverride("separation", 12);
         _content.AddChild(buttons);
@@ -69,11 +82,20 @@ public partial class CampaignDialog : Control
             enabled[index].FocusNeighborTop = enabled[index].GetPath();
             enabled[index].FocusNeighborBottom = enabled[index].GetPath();
         }
+        if (NameInput is { } input && buttons.GetChildCount() > 0 && buttons.GetChild(-1) is Button submit && !submit.Disabled)
+        {
+            void Update(string value) => submit.Disabled = value.Trim().Length == 0;
+            input.TextChanged += Update;
+            input.TextSubmitted += value => { if (!submit.Disabled) submit.EmitSignal(BaseButton.SignalName.Pressed); };
+            input.FocusNeighborBottom = input.FocusNext = submit.GetPath();
+            Update(input.Text);
+        }
         Show();
         Layout();
         // A long unbroken body measures at full width until it first wraps; lay out again once it has.
         Callable.From(Layout).CallDeferred();
-        first?.CallDeferred(Control.MethodName.GrabFocus);
+        if (NameInput is { } field) { field.CallDeferred(Control.MethodName.GrabFocus); field.CallDeferred(LineEdit.MethodName.SelectAll); }
+        else first?.CallDeferred(Control.MethodName.GrabFocus);
     }
 
     public void RequestBack() => _cancel?.Invoke();

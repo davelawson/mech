@@ -239,7 +239,7 @@ internal static class CatalogChecks
             store.Save(campaign);
             // Resaving upgrades to the current version, which counts armor and structure in tenths of a point
             // and replaces the authored offer with a generated board.
-            var resaved = JsonNode.Parse(File.ReadAllText(path))!;
+            var resaved = JsonNode.Parse(File.ReadAllText(path))!["Campaign"]!;
             var expected = JsonNode.Parse(fixture)!; expected["Version"] = Campaign.SaveVersion;
             expected["Missions"] = resaved["Missions"]!.DeepClone();
             // Reputation arrived in version 7; older saves start neutral with every faction.

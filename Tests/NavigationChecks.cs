@@ -101,7 +101,7 @@ public partial class SmokeTests
         await PressKey(Key.Escape);
 
         await SaveMenuTestCompany();
-        var saved = System.IO.File.ReadAllText(_saveFile);
+        var saved = SaveFingerprint();
         _app.StartNewCompany(); await Frames();
         CheckRoute(CommandScreen.Draft, CommandScreen.Draft);
         var draft = _app.Drafting.Draft;
@@ -116,8 +116,8 @@ public partial class SmokeTests
             "canceling abandonment from the name field retains the draft and its focus");
         await PressKey(Key.Escape); await Click(DialogButton("Abandon draft"));
         CheckRoute(CommandScreen.MainMenu, CommandScreen.MainMenu);
-        Check(!_app.Navigation.CanResume && !_app.MainMenu.ResumeButton.Visible && System.IO.File.ReadAllText(_saveFile) == saved,
-            "abandoning a draft clears its route without creating Resume or changing the manual save");
+        Check(!_app.Navigation.CanResume && !_app.MainMenu.ResumeButton.Visible && SaveFingerprint() == saved,
+            "abandoning a draft clears its route without creating Resume or changing the saves");
         await Click(_app.MainMenu.NewButton); await FinishDraft();
 
         _app.ShowHangar(); await Frames(); _app.Hangar.Select(1);

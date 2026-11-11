@@ -9,6 +9,10 @@ public partial class CommandApp : Control
     public MainMenuScreen MainMenu { get; private set; } = null!;
     public CampaignDialog Dialog { get; private set; } = null!;
     public CampaignDialog UnsavedDialog { get; private set; } = null!;
+    /// <summary>The grid of save slots, for the filing cabinet, main menu Load Game and resuming a co-op save.</summary>
+    public SaveBrowser Saves { get; private set; } = null!;
+    /// <summary>Name prompts, load confirmations and errors over the save grid.</summary>
+    public CampaignDialog SaveDialog { get; private set; } = null!;
     public DraftScreen Drafting { get; private set; } = null!;
     public HangarScreen Hangar { get; private set; } = null!;
     public CombatScreen Tactical { get; private set; } = null!;
@@ -40,9 +44,23 @@ public partial class CommandApp : Control
     public int LocalSlot => Client?.Slot ?? Campaign.LeaderSlot;
     public CommandNavigator Navigation { get; private set; } = null!;
     public bool HasUnsavedChanges => IsLeader && !State.RequiresDraft && (_savedSnapshot is null || CampaignData() != _savedSnapshot);
-    [Export] public string SavePath { get; set; } = "user://campaign.json";
+    /// <summary>Holds the <c>solo</c> and <c>co-op</c> save folders.</summary>
+    [Export] public string SaveRoot { get; set; } = "user://saves";
+    /// <summary>The single save from before save slots; it is moved into the folder of its kind at startup.</summary>
+    [Export] public string LegacySavePath { get; set; } = "user://campaign.json";
+    public SaveLibrary SoloSaves { get; private set; } = null!;
+    public SaveLibrary CoopSaves { get; private set; } = null!;
+    /// <summary>Single-player games see only solo saves; a co-op game sees only co-op saves.</summary>
+    private SaveLibrary Library => InSession ? CoopSaves : SoloSaves;
+    /// <summary>The slot this company was last saved to, loaded or resumed from. Co-op autosaves overwrite it.</summary>
+    public string? SlotId { get; private set; }
     public event Action<CampaignEvent>? EventReached;
-    private CampaignStore _store = null!;
+    private enum SavePurpose { Filing, MenuLoad, HostResume }
+    private SavePurpose _savePurpose;
+    /// <summary>The leader's name and port while hosting, so loading a co-op save can reopen the lobby.</summary>
+    private (string Name, int Port)? _hosting;
+    /// <summary>A co-op save to host once the ended session has said goodbye and freed its port.</summary>
+    private (string Name, int Port, Campaign Campaign, string Slot)? _pendingHost;
     private double _dayElapsed;
     private bool _untilEvent;
     private string? _savedSnapshot;
@@ -68,7 +86,10 @@ public partial class CommandApp : Control
         StarMap = GetNode<MapScreen>("StarMap");
         StarMap.TextureChanged += Office.SetWallMap;
         Office.SetWallMap(StarMap.Viewport.Texture);
-        _store = new CampaignStore(ProjectSettings.GlobalizePath(SavePath));
+        var root = ProjectSettings.GlobalizePath(SaveRoot);
+        SoloSaves = new SaveLibrary(System.IO.Path.Combine(root, "solo"), coop: false);
+        CoopSaves = new SaveLibrary(System.IO.Path.Combine(root, "coop"), coop: true);
+        SaveLibrary.ImportLegacy(ProjectSettings.GlobalizePath(LegacySavePath), SoloSaves, CoopSaves);
         Hangar = new HangarScreen { Name = "Hangar" }; AddChild(Hangar);
         Tactical = new CombatScreen { Name = "Tactical" }; AddChild(Tactical);
         Drafting = new DraftScreen { Name = "InitialDraft" }; AddChild(Drafting);
@@ -79,17 +100,26 @@ public partial class CommandApp : Control
         Lobby = new LobbyScreen { Name = "Lobby" }; AddChild(Lobby);
         Dialog = new CampaignDialog { Name = "CampaignDialog" };
         AddChild(Dialog);
+        Saves = new SaveBrowser { Name = "SaveSlots" }; AddChild(Saves);
+        SaveDialog = new CampaignDialog { Name = "SaveDialog" }; AddChild(SaveDialog);
         UnsavedDialog = new CampaignDialog { Name = "UnsavedChanges" };
         AddChild(UnsavedDialog);
         CreateNavigator();
         SyncSlots();
         MainMenu.NewRequested += () => ConfirmUnsaved("Start a new company?", "New Company", StartNewCompany);
-        MainMenu.LoadRequested += RequestLoad;
+        MainMenu.LoadRequested += () => OpenSaves(SoloSaves, saving: false, tabs: false, SavePurpose.MenuLoad, MainMenu.LoadButton);
+        Saves.SlotChosen += ChooseSlot;
+        Saves.Closed += CloseSaves;
         MainMenu.QuitRequested += RequestQuit;
         MainMenu.ResumeRequested += ResumeCampaign;
         MainMenu.HostRequested += () => ConfirmUnsaved("Host a co-op campaign?", "Continue", ShowHostLobby);
         MainMenu.JoinRequested += () => ConfirmUnsaved("Join a co-op campaign?", "Continue", ShowJoinLobby);
-        Lobby.HostRequested += HostSession;
+        Lobby.HostRequested += (name, port, players, resume) =>
+        {
+            if (!resume) { HostSession(name, port, players, null, null); return; }
+            _hosting = (name, port);
+            OpenSaves(CoopSaves, saving: false, tabs: false, SavePurpose.HostResume, Lobby.ConfirmButton);
+        };
         Lobby.JoinRequested += JoinSession;
         Lobby.ClaimRequested += slot => Client?.Claim(slot);
         Lobby.StartRequested += StartSession;
@@ -124,7 +154,7 @@ public partial class CommandApp : Control
         Drafting.AbandonRequested += () =>
         {
             if (InSession) Confirm("Leave co-op game?", IsLeader ? "The co-op game ends for every player." : "You leave the co-op game.", () => EndSession(null), CloseDialog, "Leave");
-            else Confirm("Abandon initial draft?", "Your company name and draft selections will be discarded. Your manual save will be preserved.", ShowMainMenu, CloseDialog, "Abandon draft");
+            else Confirm("Abandon initial draft?", "Your company name and draft selections will be discarded. Your saves are kept.", ShowMainMenu, CloseDialog, "Abandon draft");
         };
         Office.MapRequested += ShowMap;
         Office.DayRequested += () => StartAdvancing(false);
@@ -166,6 +196,8 @@ public partial class CommandApp : Control
         Control? DialogFocus(CampaignDialog dialog) => dialog.FindChildren("*", "Button", true, false)
             .OfType<Button>().FirstOrDefault(button => !button.Disabled);
         Navigation.Register(CommandScreen.Dialog, Dialog, null, true, () => DialogFocus(Dialog), Dialog.RequestBack);
+        Navigation.Register(CommandScreen.Saves, Saves, null, true, () => Saves.FocusTarget, CloseSaves);
+        Navigation.Register(CommandScreen.SaveDialog, SaveDialog, null, true, () => SaveDialog.NameInput ?? DialogFocus(SaveDialog), SaveDialog.RequestBack);
         Navigation.Register(CommandScreen.UnsavedDialog, UnsavedDialog, null, true, () => DialogFocus(UnsavedDialog), UnsavedDialog.RequestBack);
     }
 
@@ -186,7 +218,7 @@ public partial class CommandApp : Control
 
     public void ShowMainMenu()
     {
-        MainMenu.LoadButton.Disabled = !_store.Exists;
+        MainMenu.LoadButton.Disabled = !SoloSaves.Any();
         MainMenu.HostButton.Visible = MainMenu.JoinButton.Visible = !InSession;
         Navigation.ShowMainMenu(!State.RequiresDraft && !State.Bankrupt && !Navigation.Contains(CommandScreen.Tactical));
         MainMenu.ResumeButton.Visible = Navigation.CanResume;
@@ -203,7 +235,7 @@ public partial class CommandApp : Control
     {
         EndSession(null, menu: false);
         State = new Campaign();
-        _savedSnapshot = null;
+        _savedSnapshot = null; SlotId = null;
         Navigation.ClearResume();
         ShowDraft(restart: true);
         RefreshCampaign();
@@ -278,6 +310,11 @@ public partial class CommandApp : Control
         }
         foreach (var closing in _closing) closing.Update(delta);
         _closing.RemoveAll(closing => closing.Finished);
+        if (_pendingHost is { } pending && _closing.Count == 0)
+        {
+            _pendingHost = null;
+            if (Navigation.Contains(CommandScreen.Lobby) && !InSession) HostSession(pending.Name, pending.Port, pending.Campaign.Players, pending.Campaign, pending.Slot);
+        }
         if (!IsAdvancing) return;
         _dayElapsed += delta;
         if (_dayElapsed < .1) return;
@@ -348,7 +385,7 @@ public partial class CommandApp : Control
     {
         StopAdvancing();
         OpenDialog("Company bankrupt",
-            $"The company cannot cover its deferred debt and the new quarterly bill.\n\nCash: {Money(State.Cash)}\nRequired: {Money(State.PaymentDue)}\n\nThe company has been dissolved. Your manual save has been preserved.",
+            $"The company cannot cover its deferred debt and the new quarterly bill.\n\nCash: {Money(State.Cash)}\nRequired: {Money(State.PaymentDue)}\n\nThe company has been dissolved. Your saves are kept.",
             LeaveBankruptCompany, new DialogAction("Main Menu", LeaveBankruptCompany));
         Host?.Flush();
     }
@@ -358,74 +395,151 @@ public partial class CommandApp : Control
     {
         if (State.RequiresDraft || Navigation.Contains(CommandScreen.Draft)) return;
         StopAdvancing();
-        Navigation.Push(CommandScreen.Dialog, Office.FilingButton);
         if (!IsLeader)
         {
+            Navigation.Push(CommandScreen.Dialog, Office.FilingButton);
             OpenDialog("Campaign files", "Only the leader saves and loads the campaign.", CloseDialog, new DialogAction("Close", CloseDialog));
             return;
         }
-        OpenDialog("Campaign files", _store.Exists
-            ? "One manual campaign save is available. Saving replaces it; loading restores it."
-            : "No campaign has been saved yet. Save your company to resume it later.", CloseDialog,
-            new DialogAction("Close", CloseDialog),
-            // A co-op campaign is resumed from Host Co-op, so loading waits until the session ends.
-            new DialogAction("Load Game", RequestLoad, !_store.Exists || InSession),
-            new DialogAction("Save Game", () =>
-            {
-                if (_store.Exists) Confirm("Overwrite campaign save?", "This will replace your previous manual save with the current company.", SaveGame, ShowFiling, "Save Game");
-                else SaveGame();
-            }));
+        OpenSaves(Library, saving: true, tabs: true, SavePurpose.Filing, Office.FilingButton);
     }
 
-    private void SaveGame()
+    private void OpenSaves(SaveLibrary library, bool saving, bool tabs, SavePurpose purpose, Control? returnFocus)
     {
+        if (Navigation.Contains(CommandScreen.Saves)) return;
+        StopAdvancing();
+        _savePurpose = purpose;
+        Navigation.Push(CommandScreen.Saves, returnFocus);
+        Saves.Open(library, saving, tabs);
+    }
+
+    private void CloseSaves()
+    {
+        Navigation.Close(CommandScreen.Saves);
+        if (Navigation.CurrentScreen == CommandScreen.MainMenu) MainMenu.LoadButton.Disabled = !SoloSaves.Any();
+    }
+
+    private void ChooseSlot(SaveSlot? slot)
+    {
+        if (Navigation.CurrentScreen != CommandScreen.Saves) return;
+        if (Saves.Saving) PromptSave(slot);
+        else if (slot is not null) RequestLoad(slot);
+    }
+
+    private void OpenSaveDialog(string heading, string body, params DialogAction[] actions)
+    {
+        Navigation.Push(CommandScreen.SaveDialog);
+        SaveDialog.Open(heading, body, CloseSaveDialog, actions);
+    }
+
+    private void CloseSaveDialog() => Navigation.Close(CommandScreen.SaveDialog);
+
+    /// <summary>Names the save before writing it: the empty slot starts with the company name, a saved slot with its own.</summary>
+    private void PromptSave(SaveSlot? slot)
+    {
+        var name = slot?.Info?.Name ?? State.Roster?.ForceName ?? "";
+        var body = slot is null ? "Name the new save."
+            : slot.Info is { } info ? $"This replaces {info.Name} · {SaveBrowser.DateText(info.Date)}." : "This replaces an unreadable save.";
+        Navigation.Push(CommandScreen.SaveDialog);
+        SaveDialog.OpenNamed(slot is null ? "Save game" : "Overwrite save?", body, name, CloseSaveDialog,
+            new DialogAction("Cancel", CloseSaveDialog), new DialogAction("Save", () => SaveGame(slot?.Id)));
+    }
+
+    private void SaveGame(string? id)
+    {
+        var library = Saves.Library!;
         try
         {
-            _store.Save(State);
+            var name = CampaignStore.CleanName(SaveDialog.NameInput?.Text, State);
+            SlotId = library.Save(State, name, id);
             _savedSnapshot = CampaignData();
-            OpenDialog("Company saved", $"{State.DateText}\n{Money(State.Cash)}\n\nYour campaign can now be loaded from the filing cabinet or main menu.", CloseDialog,
-                new DialogAction("Close", CloseDialog));
+            CloseSaveDialog();
+            Saves.SetMode(saving: true);
+            Saves.Status.Text = $"Saved {name}.";
         }
         catch (Exception error) when (IsStorageError(error))
         {
-            OpenDialog("Unable to save", "The campaign could not be written. Check available disk space and storage access, then try again.", ShowFiling,
-                new DialogAction("Back", ShowFiling));
+            SaveDialog.Open("Unable to save", "The campaign could not be written. Check available disk space and storage access, then try again.", CloseSaveDialog,
+                new DialogAction("Back", CloseSaveDialog));
         }
     }
 
-    private void LoadGame()
+    /// <summary>Loading asks first only when it would discard unsaved changes, or end a co-op game.</summary>
+    private void RequestLoad(SaveSlot slot)
     {
-        try
+        var name = slot.Info?.Name ?? "this save";
+        if (_savePurpose == SavePurpose.HostResume) { ResumeHosting(slot); return; }
+        if (InSession)
         {
-            var restored = _store.Load();
-            if (restored.PlayerNames is not null) throw new ArgumentException("This is a co-op campaign.");
-            EndSession(null, menu: false);
-            StopAdvancing();
-            State = restored;
-            _savedSnapshot = CampaignData();
-            Navigation.ClearResume();
-            ShowOffice();
-            RefreshCampaign();
-            if (State.Bankrupt) ShowBankruptcy();
+            OpenSaveDialog("Load co-op save?", $"Loading {name} ends the co-op game for every player and reopens the lobby with its seats."
+                + (HasUnsavedChanges ? " Unsaved changes will be discarded." : ""),
+                new DialogAction("Cancel", CloseSaveDialog), new DialogAction("Load Game", () => LoadCoop(slot)));
+            return;
         }
-        catch (Exception error) when (IsStorageError(error))
-        {
-            var errorDialog = Navigation.Contains(CommandScreen.MainMenu) ? UnsavedDialog : Dialog;
-            void CloseError()
-            {
-                if (errorDialog == Dialog) CloseDialog();
-                else Navigation.Close(CommandScreen.UnsavedDialog, MainMenu.LoadButton);
-            }
-            Navigation.Push(errorDialog == Dialog ? CommandScreen.Dialog : CommandScreen.UnsavedDialog);
-            errorDialog.Open("Unable to load", error.Message == "This is a co-op campaign." ? "The saved campaign is a co-op campaign. Resume it from Host Co-op."
-                : "The campaign save is missing, unreadable, or invalid. Your current company has not been changed.", CloseError,
-                new DialogAction("Close", CloseError));
-        }
+        if (HasUnsavedChanges)
+            OpenSaveDialog($"Load {name}?", "Your company has unsaved changes. Loading will discard them.",
+                new DialogAction("Cancel", CloseSaveDialog), new DialogAction("Load Game", () => LoadGame(slot)));
+        else LoadGame(slot);
+    }
+
+    private void ShowLoadError(Exception error)
+    {
+        var body = error.Message == SaveLibrary.CoopRefusal ? "The save is a co-op campaign. Resume it from Host Co-op."
+            : error.Message == SaveLibrary.SoloRefusal ? "The save is not a co-op campaign."
+            : "The save is missing, unreadable, or invalid. Your current company has not been changed.";
+        if (Navigation.Contains(CommandScreen.SaveDialog)) SaveDialog.Open("Unable to load", body, CloseSaveDialog, new DialogAction("Close", CloseSaveDialog));
+        else OpenSaveDialog("Unable to load", body, new DialogAction("Close", CloseSaveDialog));
+    }
+
+    private void LoadGame(SaveSlot slot)
+    {
+        Campaign restored;
+        try { restored = SoloSaves.Load(slot.Id); }
+        catch (Exception error) when (IsStorageError(error)) { ShowLoadError(error); return; }
+        EndSession(null, menu: false);
+        StopAdvancing();
+        State = restored;
+        SlotId = slot.Id;
+        _savedSnapshot = CampaignData();
+        Navigation.ClearResume();
+        ShowOffice();
+        RefreshCampaign();
+        if (State.Bankrupt) ShowBankruptcy();
+    }
+
+    /// <summary>The leader loads a co-op save mid-game: the game ends for everyone and the lobby reopens with the save's seats.</summary>
+    private void LoadCoop(SaveSlot slot)
+    {
+        Campaign restored;
+        try { restored = CoopSaves.Load(slot.Id); }
+        catch (Exception error) when (IsStorageError(error)) { ShowLoadError(error); return; }
+        if (_hosting is not { } hosting) return;
+        EndSession(null, farewell: "The leader loaded another save. Join again to take your seat.");
+        ShowHostLobby();
+        Lobby.NameInput.Text = hosting.Name; Lobby.PortInput.Value = hosting.Port;
+        HostWhenFree(hosting.Name, hosting.Port, restored, slot.Id);
+    }
+
+    /// <summary>Host Co-op's resume: the chosen co-op save is hosted with the name and port from the form.</summary>
+    private void ResumeHosting(SaveSlot slot)
+    {
+        if (_hosting is not { } hosting) return;
+        Campaign restored;
+        try { restored = CoopSaves.Load(slot.Id); }
+        catch (Exception error) when (IsStorageError(error)) { ShowLoadError(error); return; }
+        CloseSaves();
+        HostWhenFree(hosting.Name, hosting.Port, restored, slot.Id);
+    }
+
+    /// <summary>A session that is still saying goodbye holds the port; the new one opens once it is closed.</summary>
+    private void HostWhenFree(string name, int port, Campaign campaign, string slot)
+    {
+        if (_closing.Count == 0) { HostSession(name, port, campaign.Players, campaign, slot); return; }
+        _pendingHost = (name, port, campaign, slot);
+        Lobby.ShowStatus("Ending the previous game…");
     }
 
     private string CampaignData() => System.Text.Json.JsonSerializer.Serialize(State.Snapshot());
-
-    private void RequestLoad() => ConfirmUnsaved("Load saved company?", "Load Game", LoadGame);
 
     public void RequestQuit() => ConfirmUnsaved("Quit game?", "Quit Without Saving", () => GetTree().Quit());
 
@@ -437,8 +551,8 @@ public partial class CommandApp : Control
         StarMap.Viewport.EndDrag();
         Navigation.Push(CommandScreen.UnsavedDialog);
         void Cancel() => Navigation.Close(CommandScreen.UnsavedDialog);
-        var body = !InSession ? "Your company has unsaved changes. Continuing will discard them. Your manual save will be preserved."
-            : !IsLeader ? "Continuing leaves the co-op game." : HasUnsavedChanges ? "Continuing ends the co-op game for every player and discards unsaved changes. Your manual save will be preserved."
+        var body = !InSession ? "Your company has unsaved changes. Continuing will discard them. Your saves are kept."
+            : !IsLeader ? "Continuing leaves the co-op game." : HasUnsavedChanges ? "Continuing ends the co-op game for every player and discards unsaved changes. Your saves are kept."
             : "Continuing ends the co-op game for every player.";
         UnsavedDialog.Open(title, body, Cancel,
             new DialogAction("Cancel", Cancel), new DialogAction(actionText, () => { Navigation.Close(CommandScreen.UnsavedDialog); accept(); }));
@@ -556,11 +670,17 @@ public partial class CommandApp : Control
         Tactical.Begin(battle); RefreshWaiting();
     }
 
-    /// <summary>A co-op campaign is saved on the leader's machine when a mission starts and when it ends.</summary>
+    private string? SafeName(string id)
+    {
+        try { return CoopSaves.Info(id).Name; }
+        catch (Exception error) when (IsStorageError(error)) { return null; }
+    }
+
+    /// <summary>A co-op campaign is saved on the leader's machine when a mission starts and when it ends, over its own slot.</summary>
     private void Autosave()
     {
         if (Host is null) return;
-        try { _store.Save(State); _savedSnapshot = CampaignData(); }
+        try { SlotId = CoopSaves.Save(State, SlotId is null ? null : SafeName(SlotId), SlotId); _savedSnapshot = CampaignData(); }
         catch (Exception error) when (IsStorageError(error)) { }
     }
 
@@ -677,10 +797,8 @@ public partial class CommandApp : Control
 
     private void ShowHostLobby()
     {
-        int? saved = null;
-        try { if (_store.Exists && _store.Load().PlayerNames is { } names) saved = names.Count; }
-        catch (Exception error) when (IsStorageError(error)) { }
-        Lobby.ShowHost(saved);
+        _pendingHost = null;
+        Lobby.ShowHost(CoopSaves.Any());
         // The router is asked once per run; a failed answer is asked again on the next visit.
         if (_publicAddress is null && _addressLookup is null) _addressLookup = PublicAddressLookup();
         Navigation.Push(CommandScreen.Lobby, MainMenu.HostButton); Navigation.RestoreFocus(Lobby.NameInput);
@@ -701,23 +819,17 @@ public partial class CommandApp : Control
     }
 
     /// <summary>Opens the leader's lobby for a new campaign of this many players, or for the saved co-op campaign.</summary>
-    private void HostSession(string name, int port, int players, bool resume)
+    private void HostSession(string name, int port, int players, Campaign? resumed, string? slot)
     {
-        Campaign? resumed = null;
-        if (resume)
-        {
-            try { resumed = _store.Load(); }
-            catch (Exception error) when (IsStorageError(error)) { Lobby.ShowStatus("The saved campaign could not be loaded."); return; }
-            if (resumed.PlayerNames is null) { Lobby.ShowStatus("The saved campaign is not a co-op campaign."); return; }
-        }
         INetTransport transport;
         try { transport = HostTransport(port, (resumed?.Players ?? players) - 1); }
         catch (IOException error) { Lobby.ShowStatus(error.Message); return; }
         try { Host = new CoopHost(transport, name, players, resumed); }
         catch (ArgumentException error) { transport.Dispose(); Lobby.ShowStatus(error.Message); return; }
+        _hosting = (name, port); SlotId = slot;
         Host.Changed += () => { RefreshLobby(); UpdateQuickLaunch(); RefreshWaiting(); if (Drafting.Waiting) Drafting.Wait(DraftWaitText()); };
         Host.CampaignChanged += RefreshAfterSync;
-        Host.CompanyEstablished += () => { State = Host.Campaign!; _savedSnapshot = null; Navigation.ClearResume(); ShowOffice(); SyncSlots(); RefreshCampaign(); };
+        Host.CompanyEstablished += () => { State = Host.Campaign!; _savedSnapshot = null; SlotId = null; Navigation.ClearResume(); ShowOffice(); SyncSlots(); RefreshCampaign(); };
         Host.PlayerLeft += left =>
         {
             StopAdvancing();
@@ -854,8 +966,8 @@ public partial class CommandApp : Control
         if (!InSession) return;
         // The ended session lingers until the other players have its farewell.
         if (Host is not null) { Host.Shutdown(farewell); if (!Host.Finished) _closing.Add(Host); }
-        Host = null; Client?.Dispose(); Client = null; _waitingDialog = false; CloseRouterPort();
-        StopAdvancing(); State = new Campaign(); _savedSnapshot = null; Navigation.ClearResume(); SyncSlots();
+        Host = null; Client?.Dispose(); Client = null; _waitingDialog = false; CloseRouterPort(); _hosting = null;
+        StopAdvancing(); State = new Campaign(); _savedSnapshot = null; SlotId = null; Navigation.ClearResume(); SyncSlots();
         if (!menu) return;
         ShowMainMenu();
         if (reason is null) return;

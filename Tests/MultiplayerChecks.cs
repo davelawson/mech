@@ -110,7 +110,56 @@ public partial class SmokeTests
             finally { back.Dispose(); }
         }
         finally { sam.Dispose(); }
+        await TestCoopSaveSlots();
         void Hangar(OwnedMech mech) => _app.Hangar.Select(_app.State.Roster!.Mechs.ToList().IndexOf(mech));
+    }
+
+    /// <summary>Co-op saves stay apart from solo saves: Host Co-op resumes one chosen from the co-op saves, the leader's cabinet saves
+    /// and loads only co-op saves, and loading one mid-game ends the game and reopens the lobby with its seats.</summary>
+    private async Task TestCoopSaveSlots()
+    {
+        SeedSave(CampaignChecks.NewCompany(), "Solo only");
+        var autosave = _app.CoopSaves.List().Single(); var saveName = autosave.Info!.Name;
+        await Click(_app.MainMenu.HostButton);
+        var lobby = _app.Lobby;
+        Check(!lobby.CampaignPicker.IsItemDisabled(1), "a co-op save can be resumed");
+        lobby.NameInput.Text = "Dave"; lobby.NameInput.EmitSignal(LineEdit.SignalName.TextChanged, "Dave");
+        var port = FreePort(); lobby.PortInput.Value = port;
+        lobby.CampaignPicker.Select(1); lobby.CampaignPicker.EmitSignal(OptionButton.SignalName.ItemSelected, 1);
+        Check(lobby.ConfirmButton.Text == "Choose Save" && lobby.PlayersPicker.Disabled, "resuming chooses a save, whose players set the seats");
+        await Click(lobby.ConfirmButton);
+        Check(_app.Saves.Visible && _app.Saves.Heading.Text == "LOAD GAME · CO-OP" && !_app.Saves.SaveTab.IsVisibleInTree()
+            && _app.Saves.Entries.Count == 1 && SlotName(SlotButton(0)) == saveName, "hosting lists only the co-op saves");
+        await RightClick(_app.Saves.CloseButton.GetGlobalRect().GetCenter());
+        Check(!_app.Saves.Visible && lobby.Visible && !lobby.SeatsShown && !_app.InSession, "closing the co-op saves returns to the hosting form");
+        await Click(lobby.ConfirmButton); await Click(SlotButton(0));
+        Check(!_app.Saves.Visible && _app.Host is { Players: 2 } && lobby.SeatsShown && lobby.SeatLabels[1].Text.Contains("saved for Sam") && _app.SlotId == autosave.Id,
+            "choosing a co-op save opens its lobby");
+        var sam = new CoopClient(ENetTransport.Connect("127.0.0.1", port), "Sam");
+        try
+        {
+            await Exchange(() => sam.Seats.Count == 2, "the player joins the resumed lobby", client: sam);
+            sam.Claim(1);
+            await Exchange(() => !lobby.StartButton.Disabled, "the player retakes the saved seat", client: sam);
+            await Click(lobby.StartButton);
+            await Exchange(() => _app.Office.Visible && sam.Campaign is not null, "the resumed co-op campaign starts", client: sam);
+            await Click(_app.Office.FilingButton);
+            Check(_app.Saves.Heading.Text == "SAVE GAME · CO-OP" && _app.Saves.Entries.Count == 2 && SlotName(SlotButton(1)) == saveName,
+                "the leader's cabinet lists only co-op saves");
+            await Click(SlotButton(0)); _app.SaveDialog.NameInput!.Text = "Second"; await Click(DialogButton("Save"));
+            Check(_app.CoopSaves.List() is [{ Info.Name: "Second" } second, _] && _app.SoloSaves.List() is [{ Info.Name: "Solo only" }] && _app.SlotId == second.Id,
+                "a co-op save goes to the co-op folder");
+            await Click(_app.Saves.LoadTab); await Click(SlotNamed(saveName));
+            Check(_app.SaveDialog.Visible && _app.SaveDialog.Heading == "Load co-op save?" && _app.SaveDialog.Body.Contains("ends the co-op game for every player"),
+                "loading a co-op save mid-game asks first");
+            await Click(DialogButton("Load Game"));
+            await Exchange(() => sam.Closed && _app.Host is not null && lobby.SeatsShown, "the game ends for everyone and the lobby reopens", client: sam);
+            Check(_app.Host!.Players == 2 && _app.Host.Phase == LobbyPhase.Gathering && lobby.SeatLabels[1].Text.Contains("saved for Sam") && _app.SlotId == autosave.Id
+                && _app.State.RequiresDraft, "the reopened lobby holds the loaded save's seats");
+            await Click(lobby.BackButton);
+            Check(!_app.InSession && _app.MainMenu.Visible, "leaving the reopened lobby stops hosting");
+        }
+        finally { sam.Dispose(); }
     }
 
     /// <summary>A player drops out of the app's co-op battle: everyone waits until they rejoin, and when they drop again the leader stops
@@ -147,8 +196,9 @@ public partial class SmokeTests
         await Click(DialogButton("Stop Waiting"));
         Check(_app.MainMenu.Visible && !_app.InSession && _app.UnsavedDialog.Visible && _app.UnsavedDialog.Body.Contains("You stopped waiting for Sam"),
             "stopping the wait ends the co-op game for the leader");
-        Check(new CampaignStore(ProjectSettings.GlobalizePath(_app.SavePath)).Load() is { Missions.Current: not null, PlayerNames.Count: 2 },
-            "the campaign keeps the save made when the mission launched, to fight it again");
+        Check(_app.CoopSaves.List() is [{ } autosave] && _app.CoopSaves.Load(autosave.Id) is { Missions.Current: not null, PlayerNames.Count: 2 }
+            && autosave.Info!.Name == state.Roster!.ForceName && _app.SoloSaves.List().Count == 0,
+            "the campaign keeps the co-op save made when the mission launched, to fight it again");
         await Click(DialogButton("Close"));
     }
 

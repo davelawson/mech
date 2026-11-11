@@ -34,20 +34,20 @@ Generating a battlefield takes about 0.1 s. It used to take 2 s, before navigati
 
 | Group | Covers | Run it when changing |
 |---|---|---|
-| `menu` | Main menu start, back navigation (right-click/Escape), nested navigation routes, Resume, unsaved-change prompts | `MainMenuScreen`, `CommandNavigator`, `CampaignDialog`, `CampaignStore` |
+| `menu` | Main menu start, back navigation (right-click/Escape), nested navigation routes, Resume, unsaved-change prompts, loading from the save grid and failed saves and loads | `MainMenuScreen`, `CommandNavigator`, `CampaignDialog`, `CampaignStore`, `SaveBrowser` |
 | `draft` | Initial draft, legacy-save draft | `DraftScreen` |
 | `office` | Office artwork, wall chart, missing artwork | `OfficeScreen`, `ArtworkHotspot` |
 | `map` | Map transform, star map zoom/pan/mouse, DropShip locator, travel UI and model, system owners | `MapScreen`, `MapViewport`, `MapTransform`, `StarChart`, `Travel`, `Data/system-factions.json` |
 | `roster` | Roster model, rolodex, injured and memorial records | `RolodexPanel`, `RosterUi`, `Roster` |
 | `hangar` | Hangar model, assignments and swaps, lance pool moves, hangar board and location panels, loadout removal and installation (drag and drop), weapon mount slots, over-tonnage, Apply/Reset and pending changes, Inventory/Market tabs and pending purchases | `HangarScreen`, `HangarLocationPanel`, `HangarStorageLine`, `HangarDragItem`, `HangarConditionBar`, `MechPreview`, `Equipment` |
 | `missions` | Mission board model, reputation, and phone overlay | `MissionsPanel`, `Missions`, `Reputation`, `Factions` |
-| `finance` | Campaign model, calendar, quarterly payments, save/load, bankruptcy | `Campaign` (time and money) |
+| `finance` | Campaign model, calendar, quarterly payments, save slots (`SaveLibrary`) and the save grid (empty slot, name prompt, overwrite, paging), bankruptcy | `Campaign` (time and money), `SaveLibrary`, `SaveBrowser` |
 | `catalog` | Mech and weapon definitions (unit tests only) | `CatalogLoader`, `GameDefinitions`, `WeaponDefinitions`, `DefinitionText`, `Data/` |
 | `combat-sim` | Combat simulation (weapons, heat and climate, twisting, sensors, following, jumping, log) and terrain, biomes and buildings (unit tests only) | `Combat`, `Heat`, `Biome`, `Jumping`, `TorsoTwisting`, `BattlefieldTerrain`, `CircleUnion`, `CombatLog`, `MechLocomotion` |
 | `combat-ui` | Combat layouts, picking, detection overlay, shot effects, tactical screen, Quick Launch and mission settlement, jump targeting | `CombatScreen`, `CombatViewport`, `CombatPaperdoll`, `CombatLogPanel`, `BattlefieldTerrainView` |
 | `combat-layout` | Combat layout subset of `combat-ui` (freeze regression); not in the full run | as `combat-ui`, for a quick check |
 | `mech-visuals` | Imported models, gaits, jump poses and jets, damage hiding, blueprint framing, weapon hardpoints | `MechModel`, `JumpJets`, `PreparedMechModels`, `PreparedModelLoader`, `WeaponMounts`, `Assets/` models and weapon libraries, `Data/mech-models.json` |
-| `multiplayer` | Co-op protocol and sessions (engine-free), battle replicas matched field by field against a fought battle, then the app as leader and as a joined player over ENet loopback in one process: lobby, drafts, commands, sync, leader-only controls, disconnects, co-op force selection, battles, pings and results, waiting for a dropped player, Stop Waiting, Rejoin and the leader leaving | `CoopSession`, `NetProtocol`, `ENetTransport`, `LobbyScreen`, `HostAddress`, `RouterPort`, `CombatState`, co-op paths in `CommandApp` and `CombatScreen` |
+| `multiplayer` | Co-op protocol and sessions (engine-free), battle replicas matched field by field against a fought battle, then the app as leader and as a joined player over ENet loopback in one process: lobby, drafts, commands, sync, leader-only controls, disconnects, co-op force selection, battles, pings and results, waiting for a dropped player, Stop Waiting, Rejoin and the leader leaving, co-op save slots (resuming a chosen save, the cabinet in co-op, loading mid-game back to the lobby) | `CoopSession`, `NetProtocol`, `ENetTransport`, `LobbyScreen`, `HostAddress`, `RouterPort`, `CombatState`, co-op paths in `CommandApp` and `CombatScreen` |
 | `layout` | Window scaling and office hotspots at several window sizes | `Ui`, `NativeViewportContainer` |
 
 A test file under `Tests/` belongs to the group that calls it, or whose unit classes run it. When you change a test, run that group.
@@ -56,7 +56,7 @@ A test file under `Tests/` belongs to the group that calls it, or whose unit cla
 
 Run the full suite (`scripts/mech test` with no groups) when you change shared code:
 
-- `CommandApp.cs`, `Ui.cs`, `Campaign.cs` / `CampaignStore.cs` save formats
+- `CommandApp.cs`, `Ui.cs`, `Campaign.cs` / `CampaignStore.cs` / `SaveLibrary.cs` save formats
 - `WeaponDefinitions.cs`: catalog validation, hangar, combat and mounts all read it
 - `project.godot`, `Mech.csproj`, `global.json`, `Scenes/`, `Tests.Unit/`, `scripts/mech`
 - the harness in `Tests/SmokeTests.cs` (the group registry, `StartApp`, input helpers)

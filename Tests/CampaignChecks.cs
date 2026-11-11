@@ -83,7 +83,7 @@ internal static class CampaignChecks
         Throws(() => Campaign.Restore(campaign.Snapshot() with { Cash = -1 }), check, "reject corrupt finance state");
         Throws(() => Campaign.Restore(campaign.Snapshot() with { NextQuarter = campaign.Date }), check, "reject invalid payment recurrence");
 
-        TestStorage(check);
+        TestStorage(check); TestSaveLibrary(check);
         TestLances(check);
     }
 
@@ -182,6 +182,50 @@ internal static class CampaignChecks
         finally
         {
             if (System.IO.Directory.Exists(directory)) System.IO.Directory.Delete(directory, true);
+        }
+    }
+
+    private static void TestSaveLibrary(Action<bool, string> check)
+    {
+        var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"mech-saves-{Guid.NewGuid():N}");
+        try
+        {
+            var solo = new SaveLibrary(System.IO.Path.Combine(root, "solo"), coop: false);
+            var coop = new SaveLibrary(System.IO.Path.Combine(root, "coop"), coop: true);
+            check(solo.List().Count == 0 && !solo.Any(), "a missing save folder lists no saves");
+            var campaign = NewCompany();
+            var first = solo.Save(campaign, null);
+            campaign.AdvanceOneDay();
+            var second = solo.Save(campaign, "  Second  ");
+            var slots = solo.List();
+            check(slots.Select(slot => slot.Id).SequenceEqual([second, first]), "saves list the most recently written first");
+            check(slots[1].Info!.Name == campaign.Roster!.ForceName && slots[0].Info!.Name == "Second" && slots[0].Info!.Date == campaign.Date
+                && slots[0].Info!.Cash == campaign.Cash && slots[0].Info!.Players is null, "a slot records its name (defaulting to the company), date and balance");
+            check(solo.Save(campaign, "First again", first) == first && solo.List() is [{ Info.Name: "First again" } top, _] && top.Id == first,
+                "overwriting keeps the slot and moves it to the top");
+            check(solo.Load(second).Date == campaign.Date, "a slot loads its campaign");
+            check(solo.Save(campaign, new string('x', 60)) is var longId && solo.Info(longId).Name.Length == CampaignStore.MaxNameLength, "long names are cut to the limit");
+            Throws(() => coop.Save(campaign, null), check, "a solo campaign cannot be saved among co-op saves");
+            System.IO.Directory.CreateDirectory(coop.Directory);
+            System.IO.File.Copy(solo.PathOf(second), coop.PathOf("misplaced"));
+            Throws(() => coop.Load("misplaced"), check, "a co-op library refuses a solo save");
+            Throws(() => solo.PathOf("../escape"), check, "slot ids cannot leave the folder");
+            System.IO.File.WriteAllText(solo.PathOf("broken"), "{broken");
+            check(solo.List() is { Count: 4 } all && all[^1] is { Id: "broken", Info: null }, "an unreadable save is listed last, without information");
+
+            var legacyPath = System.IO.Path.Combine(root, "campaign.json");
+            System.IO.File.WriteAllText(legacyPath, System.Text.Json.JsonSerializer.Serialize(campaign.Snapshot(), CampaignStore.JsonOptions));
+            var written = System.IO.File.GetLastWriteTimeUtc(legacyPath);
+            var fresh = new SaveLibrary(System.IO.Path.Combine(root, "fresh-solo"), coop: false);
+            var freshCoop = new SaveLibrary(System.IO.Path.Combine(root, "fresh-coop"), coop: true);
+            SaveLibrary.ImportLegacy(legacyPath, fresh, freshCoop);
+            check(!System.IO.File.Exists(legacyPath) && fresh.List() is [{ Info: { } legacy } imported] && legacy.Name == campaign.Roster.ForceName
+                && legacy.SavedAt == written && fresh.Load(imported.Id).Date == campaign.Date && freshCoop.List().Count == 0,
+                "a save from before slots moves into the solo folder, keeping its time");
+        }
+        finally
+        {
+            if (System.IO.Directory.Exists(root)) System.IO.Directory.Delete(root, true);
         }
     }
 

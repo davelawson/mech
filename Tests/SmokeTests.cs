@@ -7,7 +7,8 @@ public partial class SmokeTests : Node
     private CommandApp _app = null!;
     private int _checks;
     private bool _screenshots;
-    private string _saveFile = "";
+    /// <summary>The app's own save folder (holding <c>solo</c> and <c>coop</c>) and its pre-slot save path, both temporary.</summary>
+    private string _saveRoot = "", _legacyFile = "";
     // Every app drafts from this seed, so a failure in a drafted group reproduces; `--draft-seed=N` tries another company.
     private int _draftSeed = 3025;
 
@@ -104,7 +105,7 @@ public partial class SmokeTests : Node
         }
         finally
         {
-            if (System.IO.File.Exists(_saveFile)) System.IO.File.Delete(_saveFile);
+            DeleteSaves();
         }
     }
 
@@ -113,8 +114,9 @@ public partial class SmokeTests : Node
     {
         GetWindow().Size = new Vector2I(1440, 900);
         _app = ResourceLoader.Load<PackedScene>("res://Scenes/Command.tscn").Instantiate<CommandApp>();
-        _app.SavePath = $"user://smoke-{Guid.NewGuid():N}.json";
-        _saveFile = ProjectSettings.GlobalizePath(_app.SavePath);
+        var id = Guid.NewGuid().ToString("N");
+        _app.SaveRoot = $"user://smoke-{id}"; _app.LegacySavePath = $"user://smoke-{id}.json";
+        _saveRoot = ProjectSettings.GlobalizePath(_app.SaveRoot); _legacyFile = ProjectSettings.GlobalizePath(_app.LegacySavePath);
         AddChild(_app);
         _app.Drafting.DraftRandom = new Random(_draftSeed);
         await Frames();
@@ -126,7 +128,7 @@ public partial class SmokeTests : Node
         await Frames();
         _app.QueueFree();
         await Frames();
-        if (System.IO.File.Exists(_saveFile)) System.IO.File.Delete(_saveFile);
+        DeleteSaves();
         GetWindow().Size = new Vector2I(1440, 900);
     }
 
@@ -335,8 +337,10 @@ public partial class SmokeTests : Node
             Check(_app.Dialog.Heading == "Quarterly finances", $"painted safe opens finances at {size}");
             await Click(DialogButton("Close"));
             await Click(office.FilingButton);
-            Check(_app.Dialog.Heading == "Campaign files", $"filing cabinet opens files at {size}");
-            await Click(DialogButton("Close"));
+            Check(_app.Saves.Visible && GetViewport().GetVisibleRect().Encloses(_app.Saves.CloseButton.GetGlobalRect())
+                && GetViewport().GetVisibleRect().Encloses(SlotButton(SaveBrowser.PageSize - 1).GetGlobalRect()), $"filing cabinet opens the save grid on screen at {size}");
+            await Capture($"save-grid-{size.X}x{size.Y}");
+            await Click(_app.Saves.CloseButton);
         }
         GetWindow().Size = new Vector2I(1440, 900);
     }
@@ -381,7 +385,7 @@ public partial class SmokeTests : Node
         Check(board.Current == oldest && !_app.Missions.Visible && office.Visible && office.PhoneButton.HasFocus(),
             "acceptance returns to office with selected mission");
         Check(_app.State.Cash == cash && _app.State.Date == date, "acceptance changes neither money nor time");
-        await Click(office.FilingButton); await Click(DialogButton("Save Game")); await Click(DialogButton("Close"));
+        await SaveFromFiling();
         await Click(office.PhoneButton);
         Check(_app.Missions.MissionButtons.Count == MissionTuning.BoardSize && _app.Missions.MissionName.Text == oldest.Name
             && _app.Missions.AbandonButton.Visible && !_app.Missions.AcceptButton.Visible,
@@ -398,7 +402,7 @@ public partial class SmokeTests : Node
             "confirmed abandonment removes the mission for good without flashing");
         Check(_app.State.Cash == cash && _app.State.Date == date, "abandonment has no penalty or time cost");
         await Click(_app.Missions.CloseButton);
-        await Click(office.FilingButton); await Click(DialogButton("Load Game")); await Click(DialogButton("Load Game"));
+        await LoadFromFiling();
         Check(_app.State.Missions.Current?.Id == oldest.Id && !office.PhoneFlashing, "manual load restores current mission and seen state");
         await Click(office.PhoneButton);
         var other = _app.State.Missions.Available[1];
@@ -410,7 +414,7 @@ public partial class SmokeTests : Node
         _app.State.Missions.Abandon(); _app.State.AdvanceOneDay(); _app.ShowOffice(); await Frames();
         Check(_app.State.Missions.Available.Count == MissionTuning.BoardSize && office.PhoneFlashing,
             "the next day refills the board and the phone flashes for the new offer");
-        System.IO.File.Delete(_saveFile);
+        ClearSaves();
     }
 
     private async Task TestBackNavigationUi()
@@ -459,16 +463,18 @@ public partial class SmokeTests : Node
         Check(!_app.Missions.Visible && _app.Office.PhoneButton.HasFocus(), "mission right-click returns to phone in office");
         _app.ShowFinances(); await Frames(); await RightClick(DialogButton("Close").GetGlobalRect().GetCenter());
         Check(!_app.Dialog.Visible && _app.Office.SafeButton.HasFocus(), "finance right-click closes without taking an action");
-        var store = new CampaignStore(_saveFile); store.Save(_app.State);
-        var saved = System.IO.File.ReadAllText(_saveFile);
-        _app.ShowFiling(); await Frames(); await Click(DialogButton("Save Game"));
-        Check(_app.Dialog.Heading == "Overwrite campaign save?", "filing confirmation forms a second navigation level");
-        await RightClick(DialogButton("Save Game").GetGlobalRect().GetCenter());
-        Check(_app.Dialog.Visible && _app.Dialog.Heading == "Campaign files" && System.IO.File.ReadAllText(_saveFile) == saved,
-            "right-click cancels overwrite and returns only to filing without changing save");
-        await RightClick(DialogButton("Close").GetGlobalRect().GetCenter());
-        Check(!_app.Dialog.Visible && _app.Office.FilingButton.HasFocus(), "another right-click closes filing and restores cabinet focus");
-        System.IO.File.Delete(_saveFile);
+        SeedSave(_app.State);
+        var saved = SaveFingerprint();
+        _app.ShowFiling(); await Frames(); await Click(SlotButton(1));
+        Check(_app.SaveDialog.Visible && _app.SaveDialog.Heading == "Overwrite save?" && _app.Saves.Visible, "the save name prompt forms a second navigation level");
+        await RightClick(DialogButton("Save").GetGlobalRect().GetCenter());
+        Check(!_app.SaveDialog.Visible && _app.Saves.Visible && SaveFingerprint() == saved && SlotButton(1).HasFocus(),
+            "right-click cancels the overwrite and returns only to the save grid without changing the save");
+        await Click(SlotButton(0)); await PressKey(Key.Escape);
+        Check(!_app.SaveDialog.Visible && _app.Saves.Visible && SaveFingerprint() == saved, "Escape in the name field cancels only the prompt");
+        await RightClick(_app.Saves.CloseButton.GetGlobalRect().GetCenter());
+        Check(!_app.Saves.Visible && _app.Office.FilingButton.HasFocus(), "another right-click closes the save grid and restores cabinet focus");
+        ClearSaves();
         await Click(_app.Office.JacketButton);
         Check(_app.MainMenu.Visible && !_app.Office.Visible, "jacket opens the main menu");
         await RightClick(new Vector2(20, 20));
@@ -678,7 +684,7 @@ public partial class SmokeTests : Node
         GetWindow().Size = new Vector2I(1440, 900);
         await Frames();
         await Click(DialogButton("Close"));
-        Check(!System.IO.File.Exists(_saveFile), "UI advancement does not autosave");
+        Check(SaveFingerprint() == "", "UI advancement does not autosave");
 
         while (_app.State.Date < new DateOnly(3025, 3, 31)) _app.State.AdvanceOneDay();
         _app.Office.RefreshCampaign(_app.State);
@@ -695,11 +701,7 @@ public partial class SmokeTests : Node
         Check(_app.Office.SafeReadout.Modulate == Colors.White, "digital balance returns to its bright phase");
         Check(_app.Office.QuarterText.GetThemeColor("font_color") == new Color("ff6c63"), "payment due is red");
         await Capture("payment-due");
-        await Click(_app.Office.FilingButton);
-        Check(_app.Dialog.Heading == "Campaign files", "cabinet opens save/load menu");
-        await Click(DialogButton("Save Game"));
-        Check(System.IO.File.Exists(_saveFile) && _app.Dialog.Heading == "Company saved", "first manual save writes campaign");
-        await Click(DialogButton("Close"));
+        await TestSaveGridUi();
         await Click(_app.Office.SafeButton);
         await Click(DialogButton("Pay Later"));
         Check(_app.Dialog.Heading == "Defer quarterly payment?" && _app.State.PaymentPending, "warning precedes deferral");
@@ -713,9 +715,10 @@ public partial class SmokeTests : Node
         Check(_app.Office.SafeReadout.Modulate == Colors.White && _app.Office.SafeReadout.Text == "₡ 2,500,000", "safe stops blinking and preserves balance after deferral");
         await Capture("payment-deferred");
 
-        await Click(_app.Office.FilingButton);
-        await Click(DialogButton("Load Game"));
-        Check(_app.UnsavedDialog.Heading == "Load saved company?", "load asks before discarding progress");
+        await Click(_app.Office.FilingButton); await Click(_app.Saves.LoadTab);
+        Check(_app.Saves.Heading.Text == "LOAD GAME" && _app.Saves.Entries.Count == 1 && SlotButton(1).Disabled, "the Load tab lists only the saves");
+        await Click(SlotButton(0));
+        Check(_app.SaveDialog.Visible && _app.SaveDialog.Heading == "Load Payment due?", "load asks before discarding progress");
         await Click(DialogButton("Load Game"));
         Check(_app.State.PaymentPending && _app.State.DeferredDebt == 0 && _app.Office.QuarterText.Text == "Payment Due", "load restores unpaid quarter and calendar block");
         await Click(_app.Office.SafeButton);
@@ -723,22 +726,22 @@ public partial class SmokeTests : Node
         Check(_app.State.Cash == 2_400_000 && _app.State.CanAdvance && !_app.Dialog.Visible, "Pay Now collects full bill and unlocks time");
         Check(_app.Office.SafeReadout.Text == "₡ 2,400,000" && _app.Office.SafeButton.TooltipText.Contains("₡ 2,400,000"), "payment refreshes safe balance and tooltip");
         Check(_app.Office.QuarterText.GetThemeColor("font_color") == Ui.Gold, "full payment restores normal countdown color");
-        await Click(_app.Office.FilingButton);
-        await Click(DialogButton("Save Game"));
-        Check(_app.Dialog.Heading == "Overwrite campaign save?", "overwrite requires confirmation");
-        await Click(DialogButton("Save Game"));
-        Check(new CampaignStore(_saveFile).Load().Cash == 2_400_000, "confirmed overwrite persists changed finances");
-        await Click(DialogButton("Close"));
+        var slot = _app.SoloSaves.List().Single().Id;
+        await Click(_app.Office.FilingButton); await Click(SlotButton(1));
+        Check(_app.SaveDialog.Heading == "Overwrite save?" && _app.SaveDialog.NameInput!.Text == "Payment due", "overwriting keeps the slot's own name");
+        await Click(DialogButton("Save"));
+        Check(_app.SoloSaves.List() is [{ Info.Name: "Payment due" } only] && only.Id == slot && _app.SoloSaves.Load(slot).Cash == 2_400_000,
+            "confirmed overwrite replaces the slot with the changed finances");
+        await Click(_app.Saves.CloseButton);
 
         var deadline = Campaign.Restore(CampaignChecks.NewCompany().Snapshot() with
         {
             Date = new DateOnly(3025, 6, 30), Cash = 199_999,
             DeferredDebt = 100_000, NextQuarter = new DateOnly(3025, 7, 1)
         });
-        new CampaignStore(_saveFile).Save(deadline);
-        var beforeBankruptcy = System.IO.File.ReadAllText(_saveFile);
-        await Click(_app.Office.FilingButton);
-        await Click(DialogButton("Load Game"));
+        SeedSave(deadline, "Deadline");
+        var beforeBankruptcy = SaveFingerprint();
+        await LoadFromFiling();
         Check(_app.Office.SafeReadout.Text == "₡ 199,999", "loading a different company balance refreshes the safe");
         await Click(_app.Office.CalendarButton);
         await Delay(.15);
@@ -746,9 +749,12 @@ public partial class SmokeTests : Node
         await Capture("bankruptcy");
         await Click(DialogButton("Main Menu"));
         Check(_app.MainMenu.Visible && !_app.Office.Visible && !_app.StarMap.Visible, "bankruptcy dismissal returns to menu");
-        Check(System.IO.File.ReadAllText(_saveFile) == beforeBankruptcy, "bankruptcy preserves manual save");
+        Check(SaveFingerprint() == beforeBankruptcy, "bankruptcy preserves the saves");
         await Click(_app.MainMenu.LoadButton);
-        await Click(DialogButton("Load Game"));
+        Check(_app.Saves.Visible && _app.MainMenu.Visible && !_app.Saves.SaveTab.IsVisibleInTree() && _app.Saves.Heading.Text == "LOAD GAME"
+            && SlotName(SlotButton(0)) == "Deadline" && SlotName(SlotButton(1)) == "Payment due", "main menu Load Game lists solo saves, newest first");
+        await Click(SlotButton(0));
+        if (_app.SaveDialog.Visible) await Click(DialogButton("Load Game"));
         Check(_app.Office.Visible && _app.State.Date == deadline.Date && _app.State.DeferredDebt == 100_000, "main menu loads complete saved campaign");
         _app.ShowMainMenu();
         await Frames();
@@ -756,14 +762,16 @@ public partial class SmokeTests : Node
         await FinishDraft();
         Check(_app.State.Date == Campaign.StartDate && _app.State.Cash == Campaign.StartingCash, "New Company resets state");
         Check(_app.Office.SafeReadout.Text == "₡ 2,500,000" && _app.Office.SafeReadout.Modulate == Colors.White, "New Company resets the painted balance and stops blinking");
-        Check(System.IO.File.ReadAllText(_saveFile) == beforeBankruptcy, "New Company preserves manual save");
-        System.IO.File.WriteAllText(_saveFile, "invalid save");
+        Check(SaveFingerprint() == beforeBankruptcy, "New Company preserves the saves");
+        System.IO.File.WriteAllText(_app.SoloSaves.PathOf(_app.SoloSaves.List()[0].Id), "invalid save");
         var live = _app.State;
-        await Click(_app.Office.FilingButton);
-        await Click(DialogButton("Load Game"));
-        await Click(DialogButton("Load Game"));
-        Check(_app.Dialog.Heading == "Unable to load" && ReferenceEquals(_app.State, live), "corrupt load keeps live company intact");
+        await Click(_app.Office.FilingButton); await Click(_app.Saves.LoadTab);
+        Check(SlotName(SlotButton(1)) == "Unreadable save", "an unreadable save is listed last");
+        await Click(SlotButton(1)); await Click(DialogButton("Load Game"));
+        Check(_app.SaveDialog.Heading == "Unable to load" && ReferenceEquals(_app.State, live), "corrupt load keeps live company intact");
         await Click(DialogButton("Close"));
+        Check(_app.Saves.Visible && !_app.SaveDialog.Visible, "closing the load error returns to the save grid");
+        await Click(_app.Saves.CloseButton);
     }
 
     private async Task FinishDraft()
@@ -830,7 +838,7 @@ public partial class SmokeTests : Node
         await Click(DialogButton("Cancel"));
         Check(_app.Drafting.Draft.Choice(0) == 1 && _app.Drafting.Visible && _app.Drafting.NameInput.Text == "Edited Company"
             && _app.Drafting.Draft.ForceName == "Edited Company", "cancel abandonment preserves selections and the edited name");
-        Check(!System.IO.File.Exists(_saveFile), "partial draft never writes a save");
+        Check(SaveFingerprint() == "", "partial draft never writes a save");
         var inspect = _app.Drafting.FindChildren("*", "Button", true, false).OfType<Button>().First(button => button.Text == "…");
         await Click(inspect);
         Check(_app.Drafting.FindChildren("*", "Control", true, false).OfType<MechDetails>().Any(), "candidate can be inspected before selection");
@@ -933,20 +941,27 @@ public partial class SmokeTests : Node
             Version = 1, Roster = null, Missions = null, Cash = 1_234_567, Date = new DateOnly(3025, 2, 10),
             Events = [new("legacy-arrival", new DateOnly(3025, 2, 12), CampaignEventKind.Arrival, "Legacy arrival")]
         };
-        System.IO.File.WriteAllText(_saveFile, System.Text.Json.JsonSerializer.Serialize(legacy));
-        var original = System.IO.File.ReadAllText(_saveFile);
-        _app.ShowMainMenu(); await Frames(); await Click(_app.MainMenu.LoadButton); await Click(DialogButton("Load Game"));
+        var legacyFile = _app.SoloSaves.PathOf("legacy");
+        System.IO.Directory.CreateDirectory(_app.SoloSaves.Directory);
+        System.IO.File.WriteAllText(legacyFile, System.Text.Json.JsonSerializer.Serialize(legacy));
+        var original = System.IO.File.ReadAllText(legacyFile);
+        _app.ShowMainMenu(); await Frames(); await Click(_app.MainMenu.LoadButton);
+        Check(SlotName(SlotButton(0)) == "Company" && SlotButton(0).GetNode<Label>("Lines/SlotDate").Text == "10 FEB 3025",
+            "a save from before slots is listed with its date");
+        await Click(SlotButton(0));
+        if (_app.SaveDialog.Visible) await Click(DialogButton("Load Game"));
         Check(_app.Drafting.Visible && _app.State.RequiresDraft && _app.State.Cash == legacy.Cash, "loading a legacy save routes through mandatory draft");
         var abandonedDraft = _app.Drafting.Draft;
         Check(abandonedDraft.Complete && !_app.Drafting.EstablishButton.Disabled && _app.Drafting.NameInput.Text == abandonedDraft.ForceName,
             "legacy draft also starts with valid random defaults");
-        Check(System.IO.File.ReadAllText(_saveFile) == original, "loading a legacy save does not rewrite it");
+        Check(System.IO.File.ReadAllText(legacyFile) == original, "loading a legacy save does not rewrite it");
         await PressKey(Key.Escape);
         Check(_app.Dialog.Visible && _app.Dialog.Heading == "Abandon initial draft?", "Escape from focused company-name field still offers abandonment");
         await Click(DialogButton("Abandon draft"));
-        Check(_app.MainMenu.Visible && !_app.MainMenu.ResumeButton.Visible && System.IO.File.ReadAllText(_saveFile) == original,
+        Check(_app.MainMenu.Visible && !_app.MainMenu.ResumeButton.Visible && System.IO.File.ReadAllText(legacyFile) == original,
             "abandon legacy draft hides Resume and preserves the save");
-        await Click(_app.MainMenu.LoadButton);
+        await Click(_app.MainMenu.LoadButton); await Click(SlotButton(0));
+        if (_app.SaveDialog.Visible) await Click(DialogButton("Load Game"));
         Check(!ReferenceEquals(abandonedDraft, _app.Drafting.Draft) && _app.Drafting.Draft.Complete
             && _app.Drafting.NameInput.Text == _app.Drafting.Draft.ForceName && !_app.Drafting.EstablishButton.Disabled,
             "entering a new draft creates fresh valid defaults");
@@ -958,17 +973,61 @@ public partial class SmokeTests : Node
             "establishment commits the displayed random defaults without requiring edits");
         Check(_app.State.Cash == legacy.Cash && _app.State.Date == legacy.Date && _app.State.NextEventDate == legacy.Events[0].Date,
             "completing legacy draft preserves finances and calendar");
-        Check(System.IO.File.ReadAllText(_saveFile) == original, "completing legacy draft waits for a manual save");
-        _app.ShowFiling(); await Frames(); await Click(DialogButton("Save Game"));
-        Check(_app.Dialog.Heading == "Overwrite campaign save?", "legacy upgrade asks before replacing the save");
-        await Click(DialogButton("Save Game"));
-        Check(_app.Dialog.Heading == "Company saved", "legacy upgrade reports a successful manual save");
-        Check(new CampaignStore(_saveFile).Load().Roster!.Warriors.Count == 4, "explicit save upgrades legacy roster");
-        await Click(DialogButton("Close"));
+        Check(System.IO.File.ReadAllText(legacyFile) == original, "completing legacy draft waits for a manual save");
+        _app.ShowFiling(); await Frames(); await Click(SlotButton(1));
+        Check(_app.SaveDialog.Heading == "Overwrite save?", "legacy upgrade asks before replacing the save");
+        await Click(DialogButton("Save"));
+        Check(_app.Saves.Status.Text.StartsWith("Saved "), "legacy upgrade reports a successful save");
+        Check(_app.SoloSaves.Load("legacy").Roster!.Warriors.Count == 4, "explicit save upgrades legacy roster");
+        await Click(_app.Saves.CloseButton);
     }
 
-    private Button DialogButton(string text) => (_app.UnsavedDialog.Visible ? _app.UnsavedDialog : _app.Dialog).FindChildren("*", "Button", true, false)
-        .OfType<Button>().Single(button => button.Text == text && button.IsInsideTree());
+    private Button DialogButton(string text) => (_app.UnsavedDialog.Visible ? _app.UnsavedDialog : _app.SaveDialog.Visible ? _app.SaveDialog : _app.Dialog)
+        .FindChildren("*", "Button", true, false).OfType<Button>().Single(button => button.Text == text && button.IsInsideTree());
+
+    private void DeleteSaves()
+    {
+        if (_saveRoot.Length > 0 && System.IO.Directory.Exists(_saveRoot)) System.IO.Directory.Delete(_saveRoot, true);
+        if (_saveRoot.Length > 0 && System.IO.File.Exists(_saveRoot)) System.IO.File.Delete(_saveRoot);
+        if (_legacyFile.Length > 0 && System.IO.File.Exists(_legacyFile)) System.IO.File.Delete(_legacyFile);
+    }
+
+    /// <summary>Removes every save, solo and co-op.</summary>
+    private void ClearSaves() { if (System.IO.Directory.Exists(_saveRoot)) System.IO.Directory.Delete(_saveRoot, true); }
+
+    /// <summary>Writes a save straight to disk, as if saved earlier, and returns its slot id.</summary>
+    private string SeedSave(Campaign campaign, string? name = null) =>
+        (campaign.PlayerNames is null ? _app.SoloSaves : _app.CoopSaves).Save(campaign, name);
+
+    /// <summary>Every save file's name and contents, to show that nothing on disk changed.</summary>
+    private string SaveFingerprint() => !System.IO.Directory.Exists(_saveRoot) ? ""
+        : string.Join("\n", System.IO.Directory.GetFiles(_saveRoot, "*", System.IO.SearchOption.AllDirectories).Order(StringComparer.Ordinal)
+            .Select(file => file + "=" + System.IO.File.ReadAllText(file)));
+
+    private string SlotName(Button slot) => slot.GetNode<Label>("Lines/SlotName").Text;
+
+    private Button SlotButton(int index) => _app.Saves.SlotButtons[index];
+
+    private Button SlotNamed(string name) => _app.Saves.SlotButtons.First(button => !button.Disabled && SlotName(button) == name);
+
+    /// <summary>Saves through the filing cabinet into <paramref name="slot"/> (0 is the empty slot), then closes the grid.</summary>
+    private async Task SaveFromFiling(int slot = 0, string? name = null)
+    {
+        _app.ShowOffice(); await Click(_app.Office.FilingButton);
+        await Click(SlotButton(slot));
+        if (name is not null) _app.SaveDialog.NameInput!.Text = name;
+        await Click(DialogButton("Save"));
+        Check(!_app.SaveDialog.Visible && _app.Saves.Status.Text.StartsWith("Saved ") && !_app.HasUnsavedChanges, "the filing cabinet saves into the chosen slot");
+        await Click(_app.Saves.CloseButton);
+    }
+
+    /// <summary>Loads <paramref name="slot"/> through the filing cabinet, confirming when asked.</summary>
+    private async Task LoadFromFiling(int slot = 0)
+    {
+        _app.ShowOffice(); await Click(_app.Office.FilingButton);
+        await Click(_app.Saves.LoadTab); await Click(SlotButton(slot));
+        if (_app.SaveDialog.Visible) await Click(DialogButton("Load Game"));
+    }
 
     private async Task RightClick(Vector2 at)
     {
