@@ -19,7 +19,6 @@ public partial class DraftScreen : Control
     private readonly Label[,] _candidateStats = new Label[8, 3];
     private Label _title = null!;
     private Label _progress = null!;
-    private Label _instructions = null!;
     private Control _preview = null!;
     private PanelContainer _previewPanel = null!;
     private VBoxContainer _previewBody = null!;
@@ -29,14 +28,14 @@ public partial class DraftScreen : Control
     {
         var background = new ColorRect { Color = new Color("101713") };
         background.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); background.MouseFilter = MouseFilterEnum.Ignore; AddChild(background);
-        _title = Ui.Label(this, "ESTABLISH YOUR COMPANY", 24, Ui.Gold);
-        _instructions = Ui.Label(this, "Review one selection per pool · Inspect with … · Selections remain editable until confirmation", 12, Ui.Muted);
+        _title = Ui.Label(this, "SELECT INITIAL MECHS AND PILOTS", 24, Ui.Gold);
         NameInput = new LineEdit { PlaceholderText = "Company name", MaxLength = 40, SelectAllOnFocus = true };
         AddChild(NameInput); NameInput.TextChanged += value => { Draft.ForceName = value; Refresh(); };
         for (var pool = 0; pool < 8; pool++)
         {
             var panel = new Panel(); panel.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Line)); AddChild(panel); _pools[pool] = panel;
             _poolTitles[pool] = Ui.Label(panel, DraftCatalog.PoolNames[pool], 13, Ui.Gold);
+            _poolTitles[pool].HorizontalAlignment = HorizontalAlignment.Center;
             for (var choice = 0; choice < 3; choice++)
             {
                 var p = pool; var c = choice; var index = (pool % 4) * 3 + choice;
@@ -53,15 +52,15 @@ public partial class DraftScreen : Control
                 }
                 _candidateNames[pool, choice] = Ui.Label(button, isMech ? DraftCatalog.Mechs[index].Chassis : $"“{DraftCatalog.Warriors[index].Callsign}”", 15);
                 _candidateNames[pool, choice].ClipText = true;
-                var spec = isMech ? DraftCatalog.Mechs[index] : null;
-                _candidateStats[pool, choice] = Ui.Label(button, spec is not null ? $"{spec.Variant} · {spec.Walk}/{spec.Run}/{spec.Jump}" : $"G{DraftCatalog.Warriors[index].Gunnery} / P{DraftCatalog.Warriors[index].Piloting} / S{DraftCatalog.Warriors[index].Sensors}", 11, Ui.Muted);
+                _candidateStats[pool, choice] = Ui.Label(button, "", 10, Ui.Muted);
+                _candidateStats[pool, choice].VerticalAlignment = VerticalAlignment.Top;
                 _candidateStats[pool, choice].ClipText = true;
-                button.TooltipText = spec is not null ? $"{spec.DisplayName}\n{spec.Role} · Armor {spec.ArmorTotal} · {spec.HeatSinks} heat sinks\nSelect this candidate; … opens the complete record." : $"{DraftCatalog.Warriors[index].DisplayName}\n{DraftCatalog.Warriors[index].Experience}\n{RosterUi.SkillText(DraftCatalog.Warriors[index])}\n{RosterUi.SkillBudgetText(DraftCatalog.Warriors[index])}\nSkills 2–6; lower is better.";
+                _candidateStats[pool, choice].AddThemeConstantOverride("line_spacing", -2);
                 var inspect = Ui.Button(panel, "…"); inspect.TooltipText = "Inspect candidate without changing your selection";
                 _inspect[pool, choice] = inspect; inspect.Pressed += () => Preview(p, c, inspect);
             }
         }
-        _progress = Ui.Label(this, "", 13, Ui.Muted);
+        _progress = Ui.Label(this, "", 13, Ui.Muted); _progress.HorizontalAlignment = HorizontalAlignment.Right; _progress.ClipText = true;
         EstablishButton = Ui.Button(this, "Establish Company"); EstablishButton.Pressed += () => { if (Draft.Complete && !Waiting) Completed?.Invoke(); };
         CreatePreview(); Resized += Layout; Layout(); Refresh(); Hide();
     }
@@ -81,9 +80,9 @@ public partial class DraftScreen : Control
     {
         Draft = draft ?? InitialDraft.CreateRandom(DraftRandom); Waiting = false;
         NameInput.Text = Draft.ForceName; NameInput.Visible = Draft.NamesCompany;
-        _title.Text = Draft.NamesCompany ? "ESTABLISH YOUR COMPANY" : "DRAFT YOUR LANCE";
+        _title.Text = Draft.NamesCompany ? "SELECT INITIAL MECHS AND PILOTS" : "DRAFT YOUR LANCE";
         EstablishButton.Text = coop ? "Confirm Lance" : "Establish Company";
-        _preview.Hide(); RefreshCandidates(); Refresh(); Show();
+        _preview.Hide(); RefreshCandidates(); Refresh(); Layout(); Show();
         RosterUi.TrapFocus(this); (Draft.NamesCompany ? (Control)NameInput : EstablishButton).CallDeferred(Control.MethodName.GrabFocus);
     }
     /// <summary>Locks the confirmed draft while the other players finish theirs.</summary>
@@ -103,7 +102,7 @@ public partial class DraftScreen : Control
                 var owned = ForceRoster.Create("Preview", [spec], []).Mechs[0];
                 _mechPreviews[pool, choice].Display(owned);
                 _candidateNames[pool, choice].Text = spec.Chassis;
-                _candidateStats[pool, choice].Text = $"{spec.Variant} · {spec.Tonnage}t · {spec.Walk}/{spec.Run}/{spec.Jump}";
+                _candidateStats[pool, choice].Text = $"{spec.Variant}\n{spec.Tonnage} tons\n{spec.Walk}/{spec.Run}/{spec.Jump}";
                 Choices[pool, choice].TooltipText = $"{spec.DisplayName}\n{spec.Role} · Armor {spec.ArmorTotal} · {spec.HeatSinks} heat sinks\nSelect this candidate; … opens the complete record.";
             }
             else
@@ -111,7 +110,7 @@ public partial class DraftScreen : Control
                 var spec = Draft.WarriorCandidate(pool, choice);
                 _portraits[pool, choice].Texture = Ui.LoadTexture(spec.Artwork);
                 _candidateNames[pool, choice].Text = $"“{spec.Callsign}”";
-                _candidateStats[pool, choice].Text = $"G{spec.Gunnery} / P{spec.Piloting} / S{spec.Sensors}";
+                _candidateStats[pool, choice].Text = $"Gunnery: {WarriorSkills.Descriptor(spec.Gunnery)}\nPiloting: {WarriorSkills.Descriptor(spec.Piloting)}\nSensors: {WarriorSkills.Descriptor(spec.Sensors)}";
                 Choices[pool, choice].TooltipText = $"{spec.DisplayName}\n{spec.Experience}\n{RosterUi.SkillText(spec)}\n{RosterUi.SkillBudgetText(spec)}\nSkills 2–6; lower is better.";
             }
         }
@@ -126,7 +125,7 @@ public partial class DraftScreen : Control
             Choices[p, c].AddThemeStyleboxOverride("normal", Ui.Box(chosen ? new Color("344431") : Ui.Background, chosen ? Ui.Gold : Ui.Line));
         }
         EstablishButton.Disabled = !Draft.Complete || Waiting;
-        _progress.Text = Waiting ? _waitingText : $"{Draft.SelectedCount}/8 selected · {(!Draft.NamesCompany ? "The leader names the company" : InitialDraft.ValidName(Draft.ForceName) ? "Company named" : "Enter a company name")} · Lower G/P/S is better";
+        _progress.Text = _waitingText; _progress.Visible = Waiting; NameInput.Visible = Draft.NamesCompany && !Waiting;
     }
     private void Preview(int pool, int choice, Control source)
     {
@@ -158,27 +157,35 @@ public partial class DraftScreen : Control
     private void Layout()
     {
         if (_title is null) return;
-        Ui.Place(_title, 24, 10, Size.X - 390, 34); Ui.Place(NameInput, Size.X - 354, 14, 330, 36);
-        Ui.Place(_instructions, 24, 48, Size.X - 48, 24);
-        var width = (Size.X - 72) / 4; var height = (Size.Y - 144) / 2;
+        // Header: title, the company name and the confirm button; while waiting, the co-op status replaces the locked name.
+        var buttonLeft = Size.X - 24 - 170; var nameLeft = buttonLeft - 10 - Math.Clamp(Size.X * .22f, 180, 300);
+        Ui.Place(EstablishButton, buttonLeft, 12, 170, 36); Ui.Place(NameInput, nameLeft, 12, buttonLeft - 10 - nameLeft, 36);
+        var titleWidth = Math.Min(_title.GetMinimumSize().X + 8, nameLeft - 34);
+        Ui.Place(_title, 24, 8, titleWidth, 40);
+        Ui.Place(_progress, 24 + titleWidth + 10, 8, buttonLeft - 10 - (24 + titleWidth + 10), 40);
+        const float top = 58, bottom = 12;
+        var width = (Size.X - 72) / 4; var height = (Size.Y - top - bottom - 8) / 2;
         for (var pool = 0; pool < 8; pool++)
         {
-            Ui.Place(_pools[pool], 24 + pool % 4 * (width + 8), 82 + pool / 4 * (height + 8), width, height);
-            Ui.Place(_poolTitles[pool], 10, 2, width - 20, 24);
-            var rowHeight = (height - 34) / 3;
+            Ui.Place(_pools[pool], 24 + pool % 4 * (width + 8), top + pool / 4 * (height + 8), width, height);
+            Ui.Place(_poolTitles[pool], 10, 1, width - 20, 22);
+            var rowHeight = (height - 28) / 3;
             for (var choice = 0; choice < 3; choice++)
             {
-                var buttonWidth = width - 48; var y = 29 + choice * rowHeight;
+                var inspectWidth = Math.Max(28, _inspect[pool, choice].GetCombinedMinimumSize().X);
+                var buttonWidth = width - inspectWidth - 16; var y = 24 + choice * rowHeight;
                 Ui.Place(Choices[pool, choice], 6, y, buttonWidth, rowHeight - 4);
-                Ui.Place(_inspect[pool, choice], width - 38, y, 32, rowHeight - 4);
-                var imageWidth = Math.Clamp(rowHeight - 8, 30, 100);
+                Ui.Place(_inspect[pool, choice], width - 6 - inspectWidth, y, inspectWidth, rowHeight - 4);
+                // The picture gives way so the longest stat line ("Piloting: Legendary") keeps its room.
+                var imageWidth = Math.Clamp(Math.Min(rowHeight - 8, buttonWidth - 20 - 100), 30, 100);
                 Ui.Place(_portraits[pool, choice], 3, 2, imageWidth, rowHeight - 8);
                 if (pool < 4) Ui.Place(_mechPreviews[pool, choice], 3, 2, imageWidth, rowHeight - 8);
-                Ui.Place(_candidateNames[pool, choice], imageWidth + 8, Math.Max(1, (rowHeight - 44) / 2), buttonWidth - imageWidth - 12, 24);
-                Ui.Place(_candidateStats[pool, choice], imageWidth + 8, Math.Max(22, (rowHeight - 44) / 2 + 24), buttonWidth - imageWidth - 12, 18);
+                // Name, then three stat lines, centred in the card when it has room.
+                var textTop = Math.Max(1, (rowHeight - 4 - 62) / 2);
+                Ui.Place(_candidateNames[pool, choice], imageWidth + 8, textTop, buttonWidth - imageWidth - 12, 20);
+                Ui.Place(_candidateStats[pool, choice], imageWidth + 8, textTop + 19, buttonWidth - imageWidth - 12, Math.Max(0, rowHeight - 4 - textTop - 19));
             }
         }
-        Ui.Place(_progress, 24, Size.Y - 45, Size.X - 250, 34); Ui.Place(EstablishButton, Size.X - 214, Size.Y - 46, 190, 36);
         Ui.Place(_previewPanel, 36, 24, Size.X - 72, Size.Y - 48);
     }
     public void HandleEscape()

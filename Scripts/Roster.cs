@@ -9,6 +9,12 @@ public static class WarriorSkills
     public const int RegularBudget = 6, VeteranBudget = 8;
     public static int Cost(int rating) => rating is >= Expert and <= Novice ? Novice - rating
         : throw new ArgumentOutOfRangeException(nameof(rating), "Pilot skills must be between 2 and 6.");
+    /// <summary>The word shown for a skill rating: 6 Green through 2 Legendary.</summary>
+    public static string Descriptor(int rating) => rating switch
+    {
+        6 => "Green", 5 => "Regular", 4 => "Veteran", 3 => "Elite", 2 => "Legendary",
+        _ => throw new ArgumentOutOfRangeException(nameof(rating), "Pilot skills must be between 2 and 6."),
+    };
 }
 
 public static class DraftCatalog
@@ -49,7 +55,7 @@ public static class DraftCatalog
         new("anton-mercer", "Anton Mercer", "Longshot", 2, 3, 5, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
         new("zara-okoro", "Zara Okoro", "Dancer", 3, 2, 5, WarriorExperience.Veteran, WarriorSpecialty.Piloting)
     });
-    public static readonly ImmutableArray<string> PoolNames = ["Light · 20–35 tons", "Medium · 40–55 tons", "Heavy · 60–75 tons", "Assault · 80–100 tons",
+    public static readonly ImmutableArray<string> PoolNames = ["Light", "Medium", "Heavy", "Assault",
         "MechWarriors · I", "MechWarriors · II", "MechWarriors · III", "MechWarriors · Veterans"];
 
     private static GameCatalog LoadMechs()

@@ -809,12 +809,15 @@ public partial class SmokeTests : Node
                 var button = _app.Drafting.Choices[pool, choice];
                 Check(button.IsVisibleInTree() && _app.Drafting.GetGlobalRect().Encloses(button.GetGlobalRect()) && button.Size.Y >= 36,
                     $"all 24 draft candidates visible and clickable at {size}");
-                if (pool >= 4)
-                {
-                    var stats = button.GetChildren().OfType<Label>().Single(label => label.Text.StartsWith("G") && label.Text.Contains("/ S"));
-                    var width = stats.GetThemeFont("font").GetStringSize(stats.Text, fontSize: stats.GetThemeFontSize("font_size")).X;
-                    Check(width <= stats.Size.X, $"Gunnery, Piloting and Sensors fit on the draft card at {size}");
-                }
+                var panel = (Control)button.GetParent();
+                Check(panel.GetChildren().OfType<Button>().Where(other => other.Text == "…").All(inspect => panel.GetGlobalRect().Encloses(inspect.GetGlobalRect())),
+                    $"draft inspect buttons stay inside their pool at {size}");
+                var stats = button.GetChildren().OfType<Label>().Single(label => label.Text.Split('\n').Length == 3);
+                Check(pool < 4 ? stats.Text.Contains(" tons\n") : stats.Text.StartsWith("Gunnery: ") && stats.Text.Contains("\nPiloting: ") && stats.Text.Contains("\nSensors: "),
+                    "draft cards list one stat per line");
+                var font = stats.GetThemeFont("font"); var fontSize = stats.GetThemeFontSize("font_size");
+                Check(stats.Text.Split('\n').All(line => font.GetStringSize(line, fontSize: fontSize).X <= stats.Size.X)
+                    && stats.GetLineCount() == 3 && stats.GetVisibleLineCount() == 3, $"every draft card stat line fits at {size}");
             }
             await Capture($"draft-{size.X}x{size.Y}");
         }
