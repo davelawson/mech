@@ -80,7 +80,11 @@ internal static class RosterChecks
         check(a.WarriorId == first.Id && b.WarriorId is null, "transfer to empty mech clears former assignment");
         roster.SetHealth(first.Id, WarriorHealth.Injured, fresh.Date.AddDays(2), fresh.Date);
         check(a.WarriorId == first.Id && roster.ReadyWarriors == 3, "injury retains assignment and reduces ready count");
+        first.Deployments = 3; first.Kills = 5;
         var restored = Campaign.Restore(fresh.Snapshot());
+        check(restored.Roster!.Warriors[0].Deployments == 3 && restored.Roster.Warriors[0].Kills == 5, "save restores deployments and kills");
+        var careerless = fresh.Snapshot(); careerless = careerless with { Roster = careerless.Roster! with { Warriors = careerless.Roster.Warriors.Select(w => new WarriorSnapshot(w.DefinitionId, w.Health, w.RecoveryDate)).ToArray() } };
+        check(Campaign.Restore(careerless).Roster!.Warriors.All(w => w.Deployments == 0 && w.Kills == 0), "saves without a career record load with none");
         check(restored.Roster!.Mechs[1].WarriorId is null, "loading an established company preserves deliberately empty assignments");
         check(restored.Roster!.Warriors.All(w => w.Spec.Sensors == DraftCatalog.Warrior(w.Id).Sensors
             && w.Spec.SkillPoints == w.Spec.SkillBudget), "existing ID-based saves resolve budgeted Sensors ratings without a schema change");

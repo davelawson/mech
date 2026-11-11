@@ -228,7 +228,8 @@ public sealed record AmmoCondition(string Id, int Shots);
 public sealed record MechSnapshot(string Id, string DefinitionId, string? WarriorId, LocationCondition[] Locations,
     EquipmentCondition[] Equipment, AmmoCondition[] Ammo, string[]? Removed = null, InstalledItem[]? Installed = null, ArmorFit[]? Armor = null,
     int? Lance = null);
-public sealed record WarriorSnapshot(string DefinitionId, WarriorHealth Health, DateOnly? RecoveryDate);
+/// <summary>Deployments and Kills are the warrior's career record; saves from before it have none.</summary>
+public sealed record WarriorSnapshot(string DefinitionId, WarriorHealth Health, DateOnly? RecoveryDate, int Deployments = 0, int Kills = 0);
 /// <summary>Lances is the company's lance count; saves from before lances have none.</summary>
 public sealed record RosterSnapshot(string ForceName, MechSnapshot[] Mechs, WarriorSnapshot[] Warriors, StorageEntry[]? Storage = null, int? Lances = null);
 
@@ -355,10 +356,18 @@ public sealed class RosterWarrior
     public string Id => Spec.Id;
     public WarriorHealth Health { get; internal set; }
     public DateOnly? RecoveryDate { get; internal set; }
-    internal RosterWarrior(WarriorSnapshot save) { Spec = DraftCatalog.Warrior(save.DefinitionId); Health = save.Health; RecoveryDate = save.RecoveryDate; }
+    /// <summary>Settled missions this warrior fought in, won or lost.</summary>
+    public int Deployments { get; internal set; }
+    /// <summary>Enemy BattleMechs this warrior disabled or destroyed.</summary>
+    public int Kills { get; internal set; }
+    internal RosterWarrior(WarriorSnapshot save)
+    {
+        Spec = DraftCatalog.Warrior(save.DefinitionId); Health = save.Health; RecoveryDate = save.RecoveryDate;
+        Deployments = Math.Max(0, save.Deployments); Kills = Math.Max(0, save.Kills);
+    }
     public bool Ready => Health == WarriorHealth.Healthy;
     public string Status => Health switch { WarriorHealth.Healthy => "Healthy · ready for deployment", WarriorHealth.Injured => $"Injured · recovers {RecoveryDate:dd MMM yyyy}", _ => "In memoriam" };
-    internal WarriorSnapshot Snapshot() => new(Id, Health, RecoveryDate);
+    internal WarriorSnapshot Snapshot() => new(Id, Health, RecoveryDate, Deployments, Kills);
 }
 
 /// <summary>Owned assets and personnel; assignments are independent of any future mission deployment.</summary>

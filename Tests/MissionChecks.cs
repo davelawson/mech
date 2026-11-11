@@ -264,6 +264,8 @@ internal static class MissionChecks
         check(campaign.Missions.Current is null && campaign.Missions.Find(offer.Id) is null, "a settled mission is finished");
         check(pilots[0].Health == WarriorHealth.Dead && deployed[0].WarriorId is null && result.Killed.SequenceEqual([pilots[0].Id])
             && pilots[1].Health == WarriorHealth.Healthy && deployed[1].WarriorId == pilots[1].Id, "a MechWarrior whose head was destroyed dies and leaves the cockpit");
+        check(pilots.All(pilot => pilot.Deployments == 1 && pilot.Kills == 0) && roster.Warriors.Except(pilots).All(warrior => warrior.Deployments == 0),
+            "settlement counts a deployment for each deployed pilot, the fallen included");
         check(!deployed[0].LocationIntact(MechLocation.Head) && deployed[1].Damaged
             && deployed[1].Locations.All(loc => friends[1].Locations[loc.Location] is var after
                 && (loc.Armor, loc.RearArmor, loc.Structure) == (after.Armor, after.RearArmor, after.Structure))
@@ -276,7 +278,9 @@ internal static class MissionChecks
         var winner = CampaignChecks.NewCompany(); var won = winner.Missions.Available[1]; winner.AcceptMission(won.Id);
         var mech = winner.Roster!.Mechs[0];
         cash = winner.Cash;
-        var success = winner.SettleMission(new(MissionOutcome.Success, [new(mech.Id, mech.Locations.ToArray(), mech.Equipment.ToArray(), false, 0)], won.Opposition.Length));
+        var success = winner.SettleMission(new(MissionOutcome.Success, [new(mech.Id, mech.Locations.ToArray(), mech.Equipment.ToArray(), false, 0, 2)], won.Opposition.Length));
+        var victor = winner.Roster.Pilot(mech)!;
+        check(victor.Deployments == 1 && victor.Kills == 2, "settlement adds the reported kills to the pilot's record");
         check(success.Payment == won.Payment && winner.Cash == cash + won.Payment && success.Killed.Length == 0
             && (won.Employer.Faction is not { } employer || winner.Reputation.Tenths(employer) > 0), "a successful mission pays and pleases the employer");
         var broke = CampaignChecks.NewCompany(); broke.AcceptMission(broke.Missions.Available[0].Id);

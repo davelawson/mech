@@ -12,7 +12,7 @@ public sealed record CombatUnitState(string Id, Vector2 Position, Vector2 Destin
     double InterferenceRemaining, double Heat, HeatPolicy HeatPolicy, bool Shutdown, bool Airborne, Vector2 JumpFrom, Vector2 JumpTo,
     float JumpDuration, float JumpElapsed, float JumpFromHeight, float JumpToHeight, float JumpApexHeight, float Altitude, double JumpRecharge,
     double? LandedAt, float TorsoTwist, bool TorsoTurning, CombatLocationState[] Locations, bool[] WeaponsEnabled, double[] WeaponsRemaining,
-    int[] Ammo);
+    int[] Ammo, int Kills = 0);
 
 public sealed record CombatContactState(CombatSide Side, string UnitId, ContactLevel Level, Vector2 LastKnownPosition, double LastSeenAt);
 
@@ -27,7 +27,7 @@ public sealed partial class CombatUnit
         InterferenceRemaining, Heat, HeatPolicy, Shutdown, Airborne, JumpFrom, JumpTo, JumpDuration, JumpElapsed, JumpFromHeight, JumpToHeight,
         JumpApexHeight, Altitude, JumpRecharge, LandedAt, TorsoTwist, TorsoTurning,
         Locations.Values.Select(item => new CombatLocationState(item.Location, item.Armor, item.RearArmor, item.Structure)).ToArray(),
-        Weapons.Select(item => item.Enabled).ToArray(), Weapons.Select(item => item.Remaining).ToArray(), _ammo.Select(item => item.Shots).ToArray());
+        Weapons.Select(item => item.Enabled).ToArray(), Weapons.Select(item => item.Remaining).ToArray(), _ammo.Select(item => item.Shots).ToArray(), Kills);
 
     /// <summary>Takes on the leader's state, except the pose, which <see cref="CombatSimulation"/> blends toward it.</summary>
     internal void Apply(CombatUnitState state)
@@ -38,7 +38,7 @@ public sealed partial class CombatUnit
         Destination = state.Destination; Moving = state.Moving; CurrentSpeed = state.CurrentSpeed; AngularVelocity = state.AngularVelocity;
         Order = state.Order; AttackTarget = state.AttackTarget; FollowTarget = state.FollowTarget; PriorityTarget = state.PriorityTarget;
         CurrentTarget = state.CurrentTarget; CurrentRearTarget = state.CurrentRearTarget; Movement = state.Movement; Firing = state.Firing;
-        PreferredDistance = state.PreferredDistance; ShotsFired = state.ShotsFired; Hits = state.Hits; DamageDealt = state.DamageDealt;
+        PreferredDistance = state.PreferredDistance; ShotsFired = state.ShotsFired; Hits = state.Hits; DamageDealt = state.DamageDealt; Kills = state.Kills;
         InterferenceRemaining = state.InterferenceRemaining; Heat = state.Heat; HeatPolicy = state.HeatPolicy; Shutdown = state.Shutdown;
         Airborne = state.Airborne; JumpFrom = state.JumpFrom; JumpTo = state.JumpTo; JumpDuration = state.JumpDuration;
         JumpElapsed = state.JumpElapsed; JumpFromHeight = state.JumpFromHeight; JumpToHeight = state.JumpToHeight;

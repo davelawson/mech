@@ -13,7 +13,7 @@ public enum CombatStatus { Active, Shutdown, Disabled, Destroyed }
 public enum ContactLevel { Lost, Identified, Detailed }
 
 /// <summary>A deployed mech's condition after a mission battle, keyed by its owned id. Armor lost is front plus rear.</summary>
-public sealed record DeployedMechReport(string MechId, LocationCondition[] Locations, EquipmentCondition[] Equipment, bool WarriorKilled, int ArmorLost);
+public sealed record DeployedMechReport(string MechId, LocationCondition[] Locations, EquipmentCondition[] Equipment, bool WarriorKilled, int ArmorLost, int Kills = 0);
 /// <summary>What a mission battle reports to the campaign. Enemy MechWarriors spared are those whose head survived.</summary>
 public sealed record MissionReport(MissionOutcome Outcome, DeployedMechReport[] Mechs, int EnemyWarriorsSpared);
 
@@ -183,6 +183,8 @@ public sealed partial class CombatUnit
     public int ShotsFired { get; internal set; }
     public int Hits { get; internal set; }
     public int DamageDealt { get; internal set; }
+    /// <summary>Enemies this unit's hits left disabled or destroyed.</summary>
+    public int Kills { get; internal set; }
     /// <summary>Seconds of electro-interference left from the last PPC hit.</summary>
     public double InterferenceRemaining { get; internal set; }
     public int InterferenceAimModifier => InterferenceRemaining > 0 ? CombatRules.InterferenceModifier : 0;
@@ -230,7 +232,8 @@ public sealed partial class CombatUnit
     public bool Active => Status == CombatStatus.Active;
     /// <summary>The MechWarrior dies only when the head is destroyed, including by overkill carried up from the center torso.</summary>
     public bool WarriorKilled => !Intact(MechLocation.Head);
-    public bool Defeated => Status is CombatStatus.Disabled or CombatStatus.Destroyed;
+    public bool Defeated => IsDefeated(Status);
+    internal static bool IsDefeated(CombatStatus status) => status is CombatStatus.Disabled or CombatStatus.Destroyed;
     private float Mobility => Defeated ? 0 : (!Intact(MechLocation.LeftLeg) || !Intact(MechLocation.RightLeg)) ? .5f : 1;
     public float UnheatedWalkingSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Walk) * Mobility;
     public float UnheatedRunningSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Run) * Mobility;
@@ -465,7 +468,7 @@ public sealed partial class CombatSimulation
         return new(Outcome == CombatOutcome.Victory ? MissionOutcome.Success : MissionOutcome.Failure,
             Units.Where(unit => unit.Side == CombatSide.Friendly).Select(unit => new DeployedMechReport(unit.Id,
                 unit.Locations.Values.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)).ToArray(),
-                unit.Equipment.Select(item => new EquipmentCondition(item.Key, item.Value)).ToArray(), unit.WarriorKilled, unit.ArmorLost)).ToArray(),
+                unit.Equipment.Select(item => new EquipmentCondition(item.Key, item.Value)).ToArray(), unit.WarriorKilled, unit.ArmorLost, unit.Kills)).ToArray(),
             Units.Count(unit => unit.Side == CombatSide.Enemy && !unit.WarriorKilled));
     }
 
@@ -702,6 +705,8 @@ public sealed partial class CombatSimulation
                 .Concat(target.Spec.Ammo.Select(item => (item.Id, item.Name, item.Location)))
                 .Where(item => destroyed.Contains(item.Location) && target.Equipment[item.Id] != ComponentCondition.Destroyed)
                 .Select(item => $"{DraftCatalog.Abbreviation(item.Location)} {item.Name}").ToArray();
+            // The hit that disables or destroys an enemy earns its shooter the kill.
+            if (!CombatUnit.IsDefeated(status) && target.Defeated && Unit(shot.AttackerId).Side != target.Side) Unit(shot.AttackerId).Kills++;
             shots[i] = shot with { DamageApplied = Array.AsReadOnly(damage), SystemsLost = Array.AsReadOnly(systems),
                 TargetStatus = target.Status != status ? target.Status : null };
         }

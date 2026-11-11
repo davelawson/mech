@@ -858,6 +858,13 @@ public partial class SmokeTests : Node
         await Click(_app.Office.RolodexButton);
         Check(_app.Rolodex.Visible && _app.Office.Visible && !_app.Hangar.Visible, "rolodex overlays the office");
         _app.StartAdvancing(false); Check(!_app.IsAdvancing, "rolodex pauses company time");
+        var heading = _app.Rolodex.FindChildren("*", nameof(Label), true, false).OfType<Label>().Select(label => label.Text).ToArray();
+        Check(heading.Contains("PERSONNEL") && !heading.Any(text => text.Contains("ROLODEX") || text.Contains(_app.State.Roster!.ForceName)),
+            "personnel heading drops the rolodex label and company line");
+        var record = heading.First(text => text.Contains("Deployments:"));
+        var pilot = _app.State.Roster!.Warriors[0];
+        Check(record.Contains($"Piloting: {_app.State.Roster.Assignment(pilot.Id)!.Spec.DisplayName}\nDeployments: 0\nKills: 0") && !record.Contains("Skill points"),
+            "personnel card shows the piloted mech, deployments and kills without skill points");
         var first = _app.Rolodex.CardName.Text; await Click(_app.Rolodex.NextButton);
         Check(first != _app.Rolodex.CardName.Text, "rolodex flips between personnel cards");
         await Capture("rolodex");

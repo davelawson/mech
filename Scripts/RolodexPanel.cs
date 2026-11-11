@@ -14,7 +14,6 @@ public partial class RolodexPanel : Control
     private PanelContainer _panel = null!;
     private VBoxContainer _index = null!;
     private VBoxContainer _card = null!;
-    private Label _summary = null!;
     private TextureRect _portrait = null!;
     private Label _record = null!;
     private Label _position = null!;
@@ -28,9 +27,8 @@ public partial class RolodexPanel : Control
         _panel = new PanelContainer(); _panel.AddThemeStyleboxOverride("panel", Ui.Box(new Color("25291f"), Ui.Gold, 2)); AddChild(_panel);
         var body = new VBoxContainer(); body.AddThemeConstantOverride("separation", 12); _panel.AddChild(body);
         var top = new HBoxContainer(); body.AddChild(top);
-        var heading = Ui.Label(top, "PERSONNEL / ROLODEX", 22, Ui.Gold); heading.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        var heading = Ui.Label(top, "PERSONNEL", 22, Ui.Gold); heading.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         BackButton = Ui.Button(top, "Back to office"); BackButton.Pressed += RequestBack; BackButton.CustomMinimumSize = new Vector2(135, 38);
-        _summary = Ui.Label(body, "", 13, Ui.Muted);
         var content = new HBoxContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; content.AddThemeConstantOverride("separation", 24); body.AddChild(content);
         var left = new VBoxContainer { CustomMinimumSize = new Vector2(180, 0) }; content.AddChild(left);
         Section = new OptionButton(); Section.AddItem("Active personnel"); Section.AddItem("In memoriam"); left.AddChild(Section);
@@ -76,14 +74,13 @@ public partial class RolodexPanel : Control
     }
     private void ShowCard()
     {
-        _summary.Text = $"{_roster.ForceName}  ·  {_roster.ReadyWarriors} ready  ·  {_roster.Warriors.Count(item => item.Health == WarriorHealth.Injured)} injured  ·  {_roster.Warriors.Count(item => item.Health == WarriorHealth.Dead)} in memoriam";
         PreviousButton.Disabled = NextButton.Disabled = _visible.Length < 2;
         if (_visible.Length == 0)
         { CardName.Text = Section.Selected == 1 ? "No memorial records" : "No active personnel"; _portrait.Texture = null; _record.Text = Section.Selected == 1 ? "No MechWarriors have been lost." : "All personnel records are in the memorial section."; _position.Text = "0 / 0"; return; }
         _selected = Math.Clamp(_selected, 0, _visible.Length - 1);
         var warrior = _visible[_selected]; var assignment = _roster.Assignment(warrior.Id);
         _portrait.Texture = Ui.LoadTexture(warrior.Spec.Artwork); CardName.Text = $"“{warrior.Spec.Callsign}”\n{warrior.Spec.Name}";
-        _record.Text = $"{warrior.Spec.Experience}\n\n{RosterUi.SkillLines(warrior.Spec)}\n{RosterUi.SkillBudgetText(warrior.Spec)}\n\n{warrior.Status}\n\nAssigned BattleMech\n{assignment?.Spec.DisplayName ?? "Unassigned"}";
+        _record.Text = $"{RosterUi.SkillLines(warrior.Spec)}\n\n{warrior.Status}\n\nPiloting: {assignment?.Spec.DisplayName ?? "Unassigned"}\nDeployments: {warrior.Deployments}\nKills: {warrior.Kills}";
         _position.Text = $"{_selected + 1} / {_visible.Length}";
     }
     private void Layout()

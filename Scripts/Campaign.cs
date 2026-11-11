@@ -211,6 +211,7 @@ public sealed class Campaign
             var mech = Roster.Mechs.Single(owned => owned.Id == item.MechId);
             var pilot = Roster.Pilot(mech);
             mech.ApplyBattle(item.Locations, item.Equipment);
+            if (pilot is not null) { pilot.Deployments++; pilot.Kills += Math.Max(0, item.Kills); }
             if (item.WarriorKilled && pilot is not null) { Roster.SetHealth(pilot.Id, WarriorHealth.Dead, null, Date); killed.Add(pilot.Id); }
         }
         var payment = report.Outcome == MissionOutcome.Success ? offer.Payment : 0;

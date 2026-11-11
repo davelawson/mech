@@ -457,6 +457,8 @@ internal static partial class CombatChecks
         var simultaneous = new CombatSimulation(lethal, 5) { EnemyAiEnabled = false, Paused = false };
         simultaneous.Advance(CombatRules.StepSeconds + CombatRules.PpcLongRangeSeconds + CombatRules.WindDownSeconds);
         check(simultaneous.Outcome == CombatOutcome.Draw && lethal.All(item => item.ShotsFired == 1), "same-instant lethal return shots resolve before outcome");
+        check(lethal.All(item => item.Kills == 1) && simultaneous.MissionReport().Mechs.All(item => item.Kills == 1),
+            "the hit that defeats an enemy credits its shooter with the kill, and the mission report carries it");
         var ended = Battle(); ended.End(); ended.Advance(2);
         check(ended.Outcome == CombatOutcome.Ended && ended.Elapsed == 0, "End Simulation works before any combat and freezes state");
     }
