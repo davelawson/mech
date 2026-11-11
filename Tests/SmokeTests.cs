@@ -17,6 +17,8 @@ public partial class SmokeTests : Node
     /// <summary>A screen-sized slice of the suite. Each group must pass alone; see docs/testing.md.</summary>
     private sealed record TestGroup(string Name, Setup Setup, Func<Task> Run, bool InFullRun = true);
 
+    // Engine-free suites (catalog, combat-sim and the model checks behind several groups) run only in Tests.Unit;
+    // scripts/mech test runs them alongside these groups. See docs/testing.md.
     private TestGroup[] Groups() =>
     [
         new("menu", Setup.Menu, async () =>
@@ -33,15 +35,13 @@ public partial class SmokeTests : Node
         new("office", Setup.Drafted, async () => { await TestOfficeUi(); TestMissingArtwork(); }),
         new("map", Setup.Drafted, async () =>
         {
-            TestGeometry(); TravelChecks.Run(Check);
+            TestGeometry();
             await TestStarMapUi(); await TestShipLocatorUi(); await TestTravelUi();
         }),
-        new("roster", Setup.Drafted, async () => { RosterChecks.Run(Check); await TestRosterUi(); }),
-        new("hangar", Setup.Drafted, async () => { HangarChecks.Run(Check); await TestHangarAssignmentsUi(); await TestHangarScreen(); await TestHangarLoadout(); await TestHangarInstall(); await TestHangarArmor(); await TestHangarMarket(); }),
-        new("missions", Setup.Menu, async () => { MissionChecks.Run(Check); ReputationChecks.Run(Check); await TestMissionsUi(); }),
-        new("finance", Setup.Menu, async () => { CampaignChecks.Run(Check); await TestCampaignUi(); }),
-        new("catalog", Setup.None, () => { CatalogChecks.Run(Check); return Task.CompletedTask; }),
-        new("combat-sim", Setup.None, () => { CombatChecks.Run(Check); TerrainChecks.Run(Check); return Task.CompletedTask; }),
+        new("roster", Setup.Drafted, TestRosterUi),
+        new("hangar", Setup.Drafted, async () => { await TestHangarAssignmentsUi(); await TestHangarScreen(); await TestHangarLoadout(); await TestHangarInstall(); await TestHangarArmor(); await TestHangarMarket(); }),
+        new("missions", Setup.Menu, TestMissionsUi),
+        new("finance", Setup.Menu, TestCampaignUi),
         new("combat-layout", Setup.None, TestCombatLayouts, InFullRun: false),
         new("combat-ui", Setup.Drafted, async () =>
         {
@@ -55,7 +55,7 @@ public partial class SmokeTests : Node
         new("layout", Setup.Drafted, TestResizing),
         new("multiplayer", Setup.Menu, async () =>
         {
-            NetworkChecks.Run(Check); await TestHostingUi();
+            await TestHostingUi();
             await StopApp(); await StartApp(false); await TestJoiningUi();
         }),
     ];

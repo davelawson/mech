@@ -110,8 +110,8 @@ public partial class DraftScreen : Control
                 var spec = Draft.WarriorCandidate(pool, choice);
                 _portraits[pool, choice].Texture = Ui.LoadTexture(spec.Artwork);
                 _candidateNames[pool, choice].Text = $"“{spec.Callsign}”";
-                _candidateStats[pool, choice].Text = $"Gunnery: {WarriorSkills.Descriptor(spec.Gunnery)}\nPiloting: {WarriorSkills.Descriptor(spec.Piloting)}\nSensors: {WarriorSkills.Descriptor(spec.Sensors)}";
-                Choices[pool, choice].TooltipText = $"{spec.DisplayName}\n{spec.Experience}\n{RosterUi.SkillText(spec)}\n{RosterUi.SkillBudgetText(spec)}\nSkills 2–6; lower is better.";
+                _candidateStats[pool, choice].Text = RosterUi.SkillLines(spec);
+                Choices[pool, choice].TooltipText = $"{spec.DisplayName}\n{spec.Experience}\n{RosterUi.SkillLines(spec)}\n{RosterUi.SkillBudgetText(spec)}";
             }
         }
     }
@@ -144,7 +144,7 @@ public partial class DraftScreen : Control
             var spec = Draft.WarriorCandidate(pool, choice);
             var image = RosterUi.Picture(_previewBody, spec.Artwork, new Vector2(180, 180)); image.SizeFlagsVertical = SizeFlags.ExpandFill;
             RosterUi.Text(_previewBody, spec.DisplayName, 22, Ui.Gold);
-            RosterUi.Text(_previewBody, $"{spec.Experience}\n{RosterUi.SkillText(spec)}\n{RosterUi.SkillBudgetText(spec)}\nHealthy · Ready for deployment\nSkills 2–6; lower is better.", 16);
+            RosterUi.Text(_previewBody, $"{spec.Experience}\n{RosterUi.SkillLines(spec)}\n{RosterUi.SkillBudgetText(spec)}\nHealthy · Ready for deployment", 16);
         }
         var actions = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End }; _previewBody.AddChild(actions);
         var back = Ui.Button(actions, "Back to draft"); back.Pressed += ClosePreview;

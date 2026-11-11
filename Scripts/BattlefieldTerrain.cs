@@ -119,26 +119,42 @@ public sealed class BattlefieldTerrain
         }
         for (var i = 0; i < cells.Length; i++) _solidCells[i] = cells[i].ToArray();
         _neighbors = Enumerable.Range(0, _heights.Length).Select(_ => new List<NavigationEdge>(8)).ToArray();
-        // Terrain never changes: evaluate traversal speeds once instead of for every A* expansion.
+        // Terrain never changes: evaluate traversal speeds once instead of for every A* expansion. Rows run in
+        // parallel: every check only reads the finished heights and solids, and each row writes its own nodes.
         var speeds = new float[_heights.Length];
-        for (var z = 0; z < GridSize; z++) for (var x = 0; x < GridSize; x++)
+        Parallel.For(0, GridSize, z =>
         {
-            var index = Index(x, z);
-            var point = Point(index);
-            _walkable[index] = Passable(point);
-            if (_walkable[index]) speeds[index] = SpeedFactor(point);
-        }
-        for (var z = 1; z < GridSize - 1; z++) for (var x = 1; x < GridSize - 1; x++)
-        {
-            var index = Index(x, z);
-            if (!_walkable[index]) continue;
-            for (var dz = -1; dz <= 1; dz++) for (var dx = -1; dx <= 1; dx++)
+            for (var x = 0; x < GridSize; x++)
             {
-                var next = Index(x + dx, z + dz);
-                if ((dx != 0 || dz != 0) && _walkable[next] && CanTraverse(Point(index), Point(next)))
-                    _neighbors[index].Add(new(next, Point(index).DistanceTo(Point(next)) / speeds[next]));
+                var index = Index(x, z);
+                var point = Point(index);
+                _walkable[index] = Passable(point);
+                if (_walkable[index]) speeds[index] = SpeedFactor(point);
             }
-        }
+        });
+        // Each pair of neighbouring nodes is tested once, in one direction, and gives the edge both ways. Edges are kept
+        // in the order of a dz-then-dx scan around each node, so A* breaks ties as it always has. Only interior nodes
+        // have edges. Every pair owns its two slots, so rows run in parallel and the result never depends on timing.
+        var slots = new NavigationEdge?[_heights.Length * 8];
+        static int Slot(int dx, int dz) { var slot = (dz + 1) * 3 + dx + 1; return slot > 4 ? slot - 1 : slot; }
+        static bool Interior(int x, int z) => x > 0 && z > 0 && x < GridSize - 1 && z < GridSize - 1;
+        foreach (var (dx, dz) in new[] { (1, 0), (-1, 1), (0, 1), (1, 1) })
+            Parallel.For(0, GridSize, z =>
+            {
+                for (var x = 0; x < GridSize; x++)
+                {
+                    int nextX = x + dx, nextZ = z + dz;
+                    if (nextX < 0 || nextX >= GridSize || nextZ >= GridSize) continue;
+                    int index = Index(x, z), next = Index(nextX, nextZ);
+                    bool inner = Interior(x, z), nextInner = Interior(nextX, nextZ);
+                    if ((!inner && !nextInner) || !_walkable[index] || !_walkable[next] || !CanTraverseBetweenWalkable(Point(index), Point(next))) continue;
+                    var distance = Point(index).DistanceTo(Point(next));
+                    if (inner) slots[index * 8 + Slot(dx, dz)] = new(next, distance / speeds[next]);
+                    if (nextInner) slots[next * 8 + Slot(-dx, -dz)] = new(index, distance / speeds[index]);
+                }
+            });
+        for (var index = 0; index < _heights.Length; index++)
+            for (var slot = 0; slot < 8; slot++) if (slots[index * 8 + slot] is { } edge) _neighbors[index].Add(edge);
         var component = 0;
         for (var index = 0; index < _heights.Length; index++)
         {
@@ -478,6 +494,14 @@ public sealed class BattlefieldTerrain
         if (_flat) return Passable(to);
         var steps = Math.Max(1, (int)MathF.Ceiling(from.DistanceTo(to) / 7.5f));
         for (var i = 0; i <= steps; i++) if (!Passable(from.Lerp(to, i / (float)steps))) return false;
+        return true;
+    }
+    /// <summary><see cref="CanTraverse"/> for two points already known to be passable: samples only between them.</summary>
+    private bool CanTraverseBetweenWalkable(Vector2 from, Vector2 to)
+    {
+        if (_flat) return true;
+        var steps = Math.Max(1, (int)MathF.Ceiling(from.DistanceTo(to) / 7.5f));
+        for (var i = 1; i < steps; i++) if (!Passable(from.Lerp(to, i / (float)steps))) return false;
         return true;
     }
     // Ice is flat and gives no cover: it neither slows nor screens.

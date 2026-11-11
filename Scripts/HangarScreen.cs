@@ -408,15 +408,15 @@ public partial class HangarScreen : Control
         CoolingBar.SetRatio(sunk / generated, CoolingText(sunk / generated),
             $"Heat generated {Rate(generated)}/s\nHeat sunk {Rate(sunk)}/s\nEvery weapon firing as soon as it is ready, while running");
         _portrait.Texture = warrior is null ? null : Ui.LoadTexture(warrior.Spec.Artwork);
-        _pilot.Text = warrior is null ? "No pilot assigned" : $"“{warrior.Spec.Callsign}”\n{warrior.Spec.Name}\nG{warrior.Spec.Gunnery} / P{warrior.Spec.Piloting} / S{warrior.Spec.Sensors}";
-        _pilot.TooltipText = warrior is null ? "" : RosterUi.SkillText(warrior.Spec);
+        _pilot.Text = warrior is null ? "No pilot assigned" : $"“{warrior.Spec.Callsign}”\n{warrior.Spec.Name}\n{RosterUi.SkillLines(warrior.Spec)}";
+        _pilot.TooltipText = warrior is null ? "" : RosterUi.SkillBudgetText(warrior.Spec);
         UnassignButton.Disabled = warrior is null;
         PilotPicker.Clear(); _pilotIds.Clear();
         foreach (var candidate in _roster.Warriors.Where(item => item.Health != WarriorHealth.Dead))
         {
             var assignment = _roster.Assignment(candidate.Id);
-            _pilotIds.Add(candidate.Id); PilotPicker.AddItem($"{candidate.Spec.Callsign} · G{candidate.Spec.Gunnery}/P{candidate.Spec.Piloting}/S{candidate.Spec.Sensors}{(candidate.Ready ? "" : " · injured")}{(assignment is null ? "" : $" · {assignment.Spec.Chassis}")}");
-            PilotPicker.SetItemTooltip(_pilotIds.Count - 1, $"{candidate.Spec.DisplayName}\n{candidate.Status}\n{assignment?.Spec.DisplayName ?? "Unassigned"}");
+            _pilotIds.Add(candidate.Id); PilotPicker.AddItem($"{candidate.Spec.Callsign}{(candidate.Ready ? "" : " · injured")}{(assignment is null ? "" : $" · {assignment.Spec.Chassis}")}");
+            PilotPicker.SetItemTooltip(_pilotIds.Count - 1, $"{candidate.Spec.DisplayName}\n{RosterUi.SkillLines(candidate.Spec)}\n{candidate.Status}\n{assignment?.Spec.DisplayName ?? "Unassigned"}");
         }
         var current = warrior is null ? _pilotIds.FindIndex(id => _roster.Assignment(id) is null) : _pilotIds.IndexOf(warrior.Id);
         PilotPicker.Select(current >= 0 ? current : _pilotIds.Count > 0 ? 0 : -1);

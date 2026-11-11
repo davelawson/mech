@@ -72,6 +72,74 @@ test_args() {
   if [[ $# -gt 0 ]]; then printf '%s\n' "--groups=$*"; fi
 }
 
+# The engine-free suites run only in Tests.Unit. A group lists the unit test classes covering its models;
+# catalog and combat-sim are nothing but unit classes. Keep this table in step with docs/testing.md.
+unit_classes() {
+  case "$1" in
+    map) echo Travel ;;
+    roster) echo Roster ;;
+    hangar) echo Hangar ;;
+    missions) echo Missions Reputation ;;
+    finance) echo Campaign ;;
+    catalog) echo Catalog ;;
+    combat-sim) echo Combat 'Terrain*' ;;
+    multiplayer) echo 'Network*' ;;
+  esac
+}
+unit_only() { [[ "$1" == catalog || "$1" == combat-sim ]]; }
+# The slowest groups start first so the parallel run finishes soonest.
+slow_groups='combat-ui multiplayer mech-visuals menu'
+
+# One job of a parallel test run: "unit" or a Godot group. Prints a single result line; the full output is in its log.
+run_job() {
+  local job="$1" log="TestResults/test-logs/$1.log" start=$SECONDS status=0
+  if [[ "$job" == unit ]]; then
+    # shellcheck disable=SC2086 # the filter list is split on purpose
+    dotnet test --project Tests.Unit --no-build $MECH_UNIT_FILTERS >"$log" 2>&1 || status=$?
+  else
+    "$engine" --headless --path . --scene res://Tests/SmokeTests.tscn -- "--groups=$job" >"$log" 2>&1 || status=$?
+  fi
+  local seconds=$((SECONDS - start))
+  if [[ $status -eq 0 ]]; then
+    if [[ "$job" == unit ]]; then printf '  unit: %s (%ss)\n' "$(grep -Eo 'succeeded: [0-9]+' "$log" | tail -1)" "$seconds"
+    else printf '  %s (%ss)\n' "$(grep -E "^  $job: " "$log" | sed 's/^  //')" "$seconds"; fi
+  else
+    printf '  %s: FAILED after %ss, see %s\n' "$job" "$seconds" "$log"
+    grep -E 'FAIL|failed|error' "$log" | grep -v '0 Error' | head -5 | sed 's/^/      /' || true
+  fi
+  return $status
+}
+
+# Runs the named groups, or every group in the full run, as parallel processes alongside their unit classes.
+run_tests() {
+  local groups=() godot=() filters='' jobs=() group class
+  if [[ $# -eq 0 ]]; then
+    # Group names alone on a line; subsets (marked "(subset…)") and Godot's banner are skipped.
+    while IFS= read -r group; do [[ "$group" =~ ^[a-z-]+$ ]] && groups+=("$group"); done \
+      < <("$engine" --headless --path . --scene res://Tests/SmokeTests.tscn -- --list-groups 2>/dev/null | tr -d '\r')
+    groups+=(catalog combat-sim)
+  else
+    groups=("$@")
+  fi
+  for group in "${groups[@]}"; do
+    unit_only "$group" || godot+=("$group")
+    for class in $(unit_classes "$group"); do filters+=" --filter-class Mech.Tests.Unit.$class"; done
+  done
+  # With no groups named, the whole unit suite runs rather than the classes the groups list.
+  [[ $# -eq 0 ]] && filters=''
+  if [[ $# -eq 0 || -n "$filters" ]]; then jobs+=(unit); fi
+  for group in $slow_groups; do
+    for named in "${godot[@]}"; do [[ "$named" == "$group" ]] && jobs+=("$group"); done
+  done
+  for group in "${godot[@]}"; do [[ " $slow_groups " == *" $group "* ]] || jobs+=("$group"); done
+  rm -rf TestResults/test-logs; mkdir -p TestResults/test-logs
+  if [[ " ${jobs[*]} " == *' unit '* ]]; then dotnet build Tests.Unit --nologo -v q >TestResults/test-logs/unit-build.log 2>&1 \
+    || { cat TestResults/test-logs/unit-build.log; return 1; }; fi
+  local start=$SECONDS status=0
+  printf '%s\n' "${jobs[@]}" | MECH_UNIT_FILTERS="$filters" GODOT_BIN="$engine" xargs -P "${MECH_TEST_JOBS:-4}" -n 1 "$PWD/scripts/mech" _job || status=$?
+  if [[ $status -eq 0 ]]; then echo "PASS: ${jobs[*]} in $((SECONDS - start))s"; else echo "FAIL: logs in TestResults/test-logs/"; return 1; fi
+}
+
 command="${1:-run}"
 [[ $# -gt 0 ]] && shift
 case "$command" in
@@ -79,8 +147,12 @@ case "$command" in
   run) build; exec "$engine" --path . ;;
   editor) exec "$engine" --editor --path . ;;
   test)
-    if [[ "${1:-}" == --list ]]; then build; exec "$engine" --headless --path . --scene res://Tests/SmokeTests.tscn -- --list-groups; fi
-    build; exec "$engine" --headless --path . --scene res://Tests/SmokeTests.tscn -- $(test_args "$@") ;;
+    if [[ "${1:-}" == --list ]]; then
+      build; "$engine" --headless --path . --scene res://Tests/SmokeTests.tscn -- --list-groups
+      echo 'catalog (unit tests only)'; echo 'combat-sim (unit tests only)'; exit 0
+    fi
+    build; run_tests "$@" ;;
+  _job) run_job "$1" ;;
   capture) build; exec "$engine" --path . --scene res://Tests/SmokeTests.tscn -- --screenshots $(test_args "$@") ;;
   export-linux) build; export_linux ;;
   export-macos) build; export_macos ;;

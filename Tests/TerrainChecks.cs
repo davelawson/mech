@@ -18,10 +18,17 @@ internal static class TerrainChecks
         foreach (var unit in simulation.Units) unit.Firing = FiringMode.HoldFire;
         return simulation;
     }
+    /// <summary>Every part in turn. The unit tests run the parts separately, in parallel.</summary>
     public static void Run(Action<bool, string> check)
     {
-        // Seed 183 in every biome, generated once: generation dominates this suite's run time.
-        var standard = Biomes.All.ToDictionary(spec => spec.Biome, spec => BattlefieldTerrain.Generate(183, spec.Biome));
+        RunGeneration(check); RunFeatures(check); RunEngagements(check); RunLanceEngagement(check);
+    }
+    /// <summary>Seed 183 in every biome.</summary>
+    private static Dictionary<Biome, BattlefieldTerrain> Standard() => Biomes.All.ToDictionary(spec => spec.Biome, spec => BattlefieldTerrain.Generate(183, spec.Biome));
+    /// <summary>Generated maps: seeds, biomes, buildings, spawns and routes, and deployment onto them.</summary>
+    public static void RunGeneration(Action<bool, string> check)
+    {
+        var standard = Standard();
         var first = standard[Biome.Valley]; var repeat = BattlefieldTerrain.Generate(183); var other = BattlefieldTerrain.Generate(184);
         check(first.Patches.SequenceEqual(repeat.Patches) && first.Buildings.SequenceEqual(repeat.Buildings) && SameRelief(first, repeat),
             "terrain seed recreates all geometry");
@@ -54,6 +61,10 @@ internal static class TerrainChecks
         var lunar = CombatSimulation.Deploy(roster, roster.Mechs.Select(unit => unit.Id), 42, 183, biome: Biome.Lunar);
         check(lunar.Terrain.Biome == Biome.Lunar && lunar.Terrain.Patches.SequenceEqual(standard[Biome.Lunar].Patches)
             && lunar.Units.All(unit => unit.Climate == Biomes.Spec(Biome.Lunar)), "deployment generates the chosen biome and gives every mech its climate");
+    }
+    /// <summary>Hand-built rocks, hills, vegetation, water and lava: clearance, sight, navigation and movement.</summary>
+    public static void RunFeatures(Action<bool, string> check)
+    {
         var rocks = new BattlefieldTerrain(1, [new(TerrainKind.Rock, Vector2.Zero, 60, 120)], []);
         check(!rocks.Passable(new Vector2(71, 0)) && rocks.Passable(new Vector2(72, 0)), "rocks reserve space for mech radius");
         check(!rocks.ClearSight(new Vector2(-240, 0), new Vector2(240, 0)) && rocks.ClearSight(new Vector2(-240, 120), new Vector2(240, 120)), "rocks block intersecting sight and firing rays");
@@ -94,14 +105,21 @@ internal static class TerrainChecks
         var dry = Travel(BattlefieldTerrain.Flat); var wet = Travel(water);
         check(wet > 0 && wet < dry * .7f, "water slowdown affects actual movement rather than only navigation cost");
         Console.WriteLine($"Terrain checks: movement on dry ground {dry:0.00}, water {wet:0.00}");
-        CheckEngagement(first, new[] { "jenner" }, check);
-        CheckEngagement(other, new[] { "awesome" }, check);
-        CheckEngagement(first, new[] { "firestarter", "griffin", "catapult", "awesome" }, check);
+    }
+    /// <summary>One-on-one battles fought to a result on generated maps.</summary>
+    public static void RunEngagements(Action<bool, string> check)
+    {
+        var standard = Standard();
+        CheckEngagement(standard[Biome.Valley], new[] { "jenner" }, check);
+        CheckEngagement(BattlefieldTerrain.Generate(184), new[] { "awesome" }, check);
         CheckEngagement(standard[Biome.Arctic], new[] { "griffin" }, check);
         CheckEngagement(standard[Biome.Lunar], new[] { "catapult" }, check);
         CheckEngagement(standard[Biome.Archipelago], new[] { "jenner" }, check);
         CheckEngagement(standard[Biome.Volcanic], new[] { "jenner" }, check);
     }
+    /// <summary>A four-on-four battle on the seed-183 valley, the longest single simulation.</summary>
+    public static void RunLanceEngagement(Action<bool, string> check) =>
+        CheckEngagement(BattlefieldTerrain.Generate(183), new[] { "firestarter", "griffin", "catapult", "awesome" }, check);
     private static bool SameRelief(BattlefieldTerrain a, BattlefieldTerrain b)
     {
         for (var z = -2880f; z <= 2880; z += 90) for (var x = -2880f; x <= 2880; x += 90)

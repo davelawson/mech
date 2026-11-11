@@ -9,11 +9,10 @@ public static class WarriorSkills
     public const int RegularBudget = 6, VeteranBudget = 8;
     public static int Cost(int rating) => rating is >= Expert and <= Novice ? Novice - rating
         : throw new ArgumentOutOfRangeException(nameof(rating), "Pilot skills must be between 2 and 6.");
-    /// <summary>The word shown for a skill rating: 6 Green through 2 Legendary.</summary>
-    public static string Descriptor(int rating) => rating switch
+    /// <summary>The word shown for a skill rating: 6 Green through 2 Legendary. Ratings outside 2–6 (test-only units) take the nearest word.</summary>
+    public static string Descriptor(int rating) => Math.Clamp(rating, Expert, Novice) switch
     {
-        6 => "Green", 5 => "Regular", 4 => "Veteran", 3 => "Elite", 2 => "Legendary",
-        _ => throw new ArgumentOutOfRangeException(nameof(rating), "Pilot skills must be between 2 and 6."),
+        6 => "Green", 5 => "Regular", 4 => "Veteran", 3 => "Elite", _ => "Legendary",
     };
 }
 

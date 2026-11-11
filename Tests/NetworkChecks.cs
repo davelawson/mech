@@ -39,16 +39,24 @@ internal static class NetworkChecks
         }
     }
 
+    /// <summary>Every part in turn. The unit tests run the parts separately, in parallel.</summary>
     public static void Run(Action<bool, string> check)
+    {
+        RunSessions(check);
+        RunReplica(check);
+    }
+    /// <summary>Protocol, sessions, resuming, co-op battles and the host address.</summary>
+    public static void RunSessions(Action<bool, string> check)
     {
         CheckProtocol(check);
         CheckSession(check);
         CheckResume(check);
         CheckCombatProtocol(check);
-        CheckReplica(check);
         CheckBattle(check);
         CheckHostAddress(check);
     }
+    /// <summary>A whole battle replayed on a replica and matched field by field, the longest single check.</summary>
+    public static void RunReplica(Action<bool, string> check) => CheckReplica(check);
 
     private static void CheckHostAddress(Action<bool, string> check)
     {
