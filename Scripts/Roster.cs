@@ -342,8 +342,14 @@ public sealed class OwnedMech
     public bool Operational => Functional(ComponentKind.Cockpit) && Functional(ComponentKind.FusionEngine) && Functional(ComponentKind.Gyro)
         && Functional(ComponentKind.Hip) && Functional(ComponentKind.UpperLegActuator) && Functional(ComponentKind.LowerLegActuator)
         && LocationIntact(MechLocation.LeftLeg) && LocationIntact(MechLocation.RightLeg) && Spec.Weapons.Any(WeaponUsable);
-    public bool Damaged => Locations.Any(item => { var spec = Spec.Locations.Single(loc => loc.Location == item.Location); return item.Armor < spec.Armor || item.RearArmor < spec.RearArmor || item.Structure < spec.Structure; })
-        || Equipment.Any(item => item.Condition != ComponentCondition.Operational);
+    private LocationSpec LocationSpec(MechLocation location) => Spec.Locations.Single(loc => loc.Location == location);
+    /// <summary>Front or rear armor below the installed amount somewhere.</summary>
+    public bool ArmorDamaged => Locations.Any(item => item.Armor < LocationSpec(item.Location).Armor || item.RearArmor < LocationSpec(item.Location).RearArmor);
+    /// <summary>Internal structure below stock somewhere.</summary>
+    public bool InternalsDamaged => Locations.Any(item => item.Structure < LocationSpec(item.Location).Structure);
+    /// <summary>A component, weapon or ammunition bin damaged or destroyed. Spent ammunition is not damage.</summary>
+    public bool SystemsDamaged => Equipment.Any(item => item.Condition != ComponentCondition.Operational);
+    public bool Damaged => ArmorDamaged || InternalsDamaged || SystemsDamaged;
     public string Status => !Operational ? "Not operational" : Damaged ? "Operational · damaged" : "Operational";
     internal MechSnapshot Snapshot() => new(Id, Definition.Id, WarriorId, Locations.ToArray(), Equipment.ToArray(), Ammo.ToArray(),
         Removed.Count == 0 ? null : Removed.Order(StringComparer.Ordinal).ToArray(), Installed.IsEmpty ? null : Installed.ToArray(),

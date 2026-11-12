@@ -33,10 +33,14 @@ internal static class HangarChecks
         var arm = DraftCatalog.Mech("wolverine").Locations.Single(item => item.Location == MechLocation.LeftArm);
         check(EquipmentRules.ArmorLimit(head) == head.Structure * 3 && EquipmentRules.ArmorLimit(arm) == arm.Structure * 2,
             "armor limits are three times head structure and twice elsewhere");
-        check(HangarScreen.KilometresPerHour(4) == 39 && HangarScreen.KilometresPerHour(6) == 58, "4/6 movement reads 39/58 km/h");
+        check(CombatRules.KilometresPerHour(4) == 40 && CombatRules.KilometresPerHour(6) == 60, "4/6 movement reads 40/60 km/h");
         var spec = DraftCatalog.Mech("wolverine");
-        check(HangarScreen.SpeedSummary(spec) == "Walk 49 km/h\nRun 78 km/h\nJump 49 km/h", "summary lists walk, run and jump speeds");
-        check(!HangarScreen.SpeedSummary(DraftCatalog.Mech("victor") with { Jump = 0 }).Contains("Jump"), "mechs without jump jets show no jump speed");
+        check(HangarScreen.SpeedSummary(spec) == "Walk 50 km/h\nRun 80 km/h\nJump 225 m", "hangar lists walk and run speeds and jump range");
+        check(CombatRules.MovementSummary(spec) == "Walk 50 km/h  ·  Run 80 km/h  ·  Jump 225 m", "long movement form joins on one line");
+        check(CombatRules.CompactMovement(spec) == "50/80 km/h · J 225 m", "compact movement form for draft cards");
+        var grounded = DraftCatalog.Mech("victor") with { Jump = 0 };
+        check(!HangarScreen.SpeedSummary(grounded).Contains("Jump") && !CombatRules.CompactMovement(grounded).Contains("Jump"),
+            "mechs without jump jets show no jump range");
 
         var draft = new InitialDraft { ForceName = "Storage Test" };
         for (var pool = 0; pool < 8; pool++) draft.Select(pool, 0);
@@ -72,12 +76,38 @@ internal static class HangarChecks
         }
         LoadoutChecks(check);
         InstallChecks(check);
+        DamageNoticeChecks(check);
         check(StorageCatalog.Describe(StorageCatalog.JumpJetId(55))!.Tons == .5f && StorageCatalog.Describe(StorageCatalog.JumpJetId(60))!.Tons == 1
             && StorageCatalog.Describe(StorageCatalog.JumpJetId(90))!.Tons == 2 && StorageCatalog.Describe(StorageCatalog.HeatSinkId(HeatSinkKind.Double))!.Slots == 3,
             "jump jet mass follows mech weight; double heat sinks take three slots");
     }
 
     /// <summary>Installing spares: placement after the stock items, mounts, location and compatibility rules, storage, tonnage and saves.</summary>
+    private static void DamageNoticeChecks(Action<bool, string> check)
+    {
+        var snapshot = ForceRoster.Create("Damage Test", [DraftCatalog.Mech("wolverine")], DraftCatalog.Warriors.Take(1)).Snapshot();
+        var mech = snapshot.Mechs[0];
+        OwnedMech With(MechSnapshot changed) => ForceRoster.Restore(snapshot with { Mechs = [changed] }, Campaign.StartDate).Mechs[0];
+        MechSnapshot Torso(Func<LocationCondition, LocationCondition> change) => mech with
+        {
+            Locations = [.. mech.Locations.Select(item => item.Location == MechLocation.CenterTorso ? change(item) : item)]
+        };
+        var intact = With(mech);
+        check(!intact.Damaged && HangarScreen.DamageNotice(intact) is null && HangarScreen.DamageBorder(intact) is null,
+            "an undamaged mech has no damage line or border");
+        var armor = With(Torso(item => item with { RearArmor = item.RearArmor - 10 }));
+        check(armor.ArmorDamaged && !armor.InternalsDamaged && !armor.SystemsDamaged && HangarScreen.DamageNotice(armor) == "Armour Damaged"
+            && HangarScreen.DamageBorder(armor) == HangarLocationPanel.Warning, "armor damage alone reads Armour Damaged with a yellow border");
+        var internals = With(Torso(item => item with { Armor = 0, Structure = item.Structure - 10 }));
+        check(internals.InternalsDamaged && HangarScreen.DamageNotice(internals) == "Internals Damaged"
+            && HangarScreen.DamageBorder(internals) == HangarLocationPanel.Destroyed, "structure damage reads Internals Damaged with a red border");
+        var systems = With(mech with { Equipment = [mech.Equipment[0] with { Condition = ComponentCondition.Damaged }, .. mech.Equipment[1..]] });
+        check(systems.SystemsDamaged && !systems.ArmorDamaged && HangarScreen.DamageNotice(systems) == "Systems Damaged"
+            && HangarScreen.DamageBorder(systems) == HangarLocationPanel.Destroyed, "a damaged component reads Systems Damaged with a red border");
+        var both = With(Torso(item => item with { Armor = 0, Structure = item.Structure - 10 }) with { Equipment = systems.Snapshot().Equipment });
+        check(HangarScreen.DamageNotice(both) == "Internals Damaged", "internal damage takes the line over systems and armor");
+    }
+
     private static void InstallChecks(Action<bool, string> check)
     {
         var wolverine = DraftCatalog.Mech("wolverine");
@@ -611,6 +641,10 @@ public partial class SmokeTests
             Check(back.Position.Y > board.End.Y && back.End.X <= deploy.Position.X && back.Position.X >= rosterScroll.End.X
                 && Mathf.IsEqualApprox(back.Position.Y, deploy.Position.Y),
                 $"Back to office sits between the mech buttons and Simulate Deployment at {size}");
+            var strip = hangar.RosterButtons[0]; var text = strip.Text; strip.Text = text + "\nInternals Damaged"; await Frames();
+            Check(strip.GetCombinedMinimumSize().Y <= strip.CustomMinimumSize.Y && rosterScroll.Encloses(strip.GetGlobalRect()),
+                $"a mech button with its damage line still fits the roster strip at {size}");
+            strip.Text = text;
             if (size.X < HangarScreen.CompactWidth)
                 Check(hangar.Compact && hangar.Board.GetVScrollBar().MaxValue > hangar.Board.Size.Y, "compact blueprint scrolls its location panels");
             else

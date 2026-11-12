@@ -213,6 +213,8 @@ public partial class HangarScreen : Control
             var index = i; var mech = roster.Mechs[i];
             var button = Ui.Button(_rosterButtons, "");
             button.SizeFlagsHorizontal = SizeFlags.ExpandFill; button.CustomMinimumSize = new Vector2(150, 54);
+            // Small enough for a third line, the damage notice, inside the 54-pixel button.
+            button.AddThemeFontSizeOverride("font_size", RosterFontSize); button.AddThemeConstantOverride("line_spacing", -3);
             button.Pressed += () => Select(index); RosterButtons.Add(button);
         }
     }
@@ -439,21 +441,29 @@ public partial class HangarScreen : Control
         else ApplyButton.RemoveThemeStyleboxOverride("normal");
         for (var i = 0; i < RosterButtons.Count; i++)
         {
-            var design = _roster.Mechs[i].Definition;
-            RosterButtons[i].Text = $"{design.Chassis}\n{design.Variant} · {design.Tonnage}t{(_pending.ContainsKey(_roster.Mechs[i].Id) ? " •" : "")}{(_roster.Mechs[i].Lance is null ? " · Pool" : "")}";
+            var owned = _roster.Mechs[i]; var design = owned.Definition; var damage = DamageNotice(owned);
+            RosterButtons[i].Text = $"{design.Chassis}\n{design.Variant} · {design.Tonnage}t{(_pending.ContainsKey(owned.Id) ? " •" : "")}{(owned.Lance is null ? " · Pool" : "")}"
+                + (damage is null ? "" : $"\n{damage}");
+            var fill = i == index ? new Color("344431") : Ui.Panel;
+            var (border, width) = DamageBorder(owned) is { } colour ? (colour, DamageBorderWidth) : (i == index ? Ui.Gold : Ui.Line, 1);
+            RosterButtons[i].AddThemeStyleboxOverride("normal", RosterBox(fill, border, width));
+            RosterButtons[i].AddThemeStyleboxOverride("hover", RosterBox(fill.Lightened(.08f), border, width));
+            RosterButtons[i].AddThemeStyleboxOverride("pressed", RosterBox(fill.Lightened(.15f), border, width));
         }
-        for (var i = 0; i < RosterButtons.Count; i++) RosterButtons[i].AddThemeStyleboxOverride("normal", Ui.Box(i == index ? new Color("344431") : Ui.Panel, i == index ? Ui.Gold : Ui.Line));
     }
-
-    /// <summary>Movement points converted with the combat movement rule, shown in km/h.</summary>
-    public static int KilometresPerHour(int movementPoints) => Mathf.RoundToInt(movementPoints * CombatRules.MovementScale * 3.6f);
-    public static string SpeedSummary(MechSpec spec)
+    public const int RosterFontSize = 12, DamageBorderWidth = 3;
+    private static StyleBoxFlat RosterBox(Color fill, Color border, int width)
     {
-        string Speed(string name, int mp) => $"{name} {KilometresPerHour(mp)} km/h";
-        var lines = new List<string> { Speed("Walk", spec.Walk), Speed("Run", spec.Run) };
-        if (spec.Jump > 0) lines.Add(Speed("Jump", spec.Jump));
-        return string.Join("\n", lines);
+        var box = Ui.Box(fill, border, width); box.ContentMarginTop = box.ContentMarginBottom = 4; return box;
     }
+    /// <summary>The roster button's third line, the worst damage first: internals, then systems, then armor.</summary>
+    public static string? DamageNotice(OwnedMech mech) => mech.InternalsDamaged ? "Internals Damaged"
+        : mech.SystemsDamaged ? "Systems Damaged" : mech.ArmorDamaged ? "Armour Damaged" : null;
+    /// <summary>Red for internal or systems damage, yellow for armor damage alone, or none for an undamaged mech.</summary>
+    public static Color? DamageBorder(OwnedMech mech) => mech.InternalsDamaged || mech.SystemsDamaged ? HangarLocationPanel.Destroyed
+        : mech.ArmorDamaged ? HangarLocationPanel.Warning : null;
+
+    public static string SpeedSummary(MechSpec spec) => CombatRules.MovementSummary(spec, "\n");
     public static string TonnageSummary(OwnedMech mech) =>
         $"{mech.Tons.ToString("0.##", CultureInfo.InvariantCulture)} / {mech.Definition.Tonnage} t";
     /// <summary>The most heat per second the mech can sustain (every usable weapon firing on cooldown, while running) and the

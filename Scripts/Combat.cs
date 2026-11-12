@@ -35,13 +35,22 @@ public static partial class CombatRules
     public static float DetectionRadius(CombatUnit observer, CombatUnit target) => DetectionRadius(observer.Warrior.Sensors, target.Spec.Tonnage);
     public const float UnitRadius = 9.75f;
     public const float FollowDistance = 90;
-    /// <summary>Metres per second per stock movement point.</summary>
-    public const float MovementScale = 2.7f;
+    /// <summary>Metres per second per stock movement point: exactly 10 km/h.</summary>
+    public const float MovementScale = 25f / 9;
     public const int AimModifier = 3;
     public const double StepSeconds = .05;
     // Shared by combat, hangar previews and future chassis; catalog MP remain stock.
     public static float MovementSpeed(MechSpec spec, MovementMode mode) =>
         (mode == MovementMode.Run ? spec.Run : spec.Walk) * MovementScale;
+    public static int KilometresPerHour(int movementPoints) => Mathf.RoundToInt(movementPoints * MovementScale * 3.6f);
+    public static int JumpMetres(int jumpPoints) => Mathf.RoundToInt(jumpPoints * JumpMetresPerMp);
+    /// <summary>Walk and run in km/h and jump range in metres, the jump left out without jump jets. Screens never show MP.</summary>
+    public static string MovementSummary(MechSpec spec, string separator = "  ·  ") => string.Join(separator,
+        new[] { $"Walk {KilometresPerHour(spec.Walk)} km/h", $"Run {KilometresPerHour(spec.Run)} km/h" }
+            .Concat(spec.Jump > 0 ? [$"Jump {JumpMetres(spec.Jump)} m"] : Array.Empty<string>()));
+    /// <summary>The short form for small cards: "40/60 km/h · J 120 m".</summary>
+    public static string CompactMovement(MechSpec spec) =>
+        $"{KilometresPerHour(spec.Walk)}/{KilometresPerHour(spec.Run)} km/h" + (spec.Jump > 0 ? $" · J {JumpMetres(spec.Jump)} m" : "");
     public static float Cooldown(WeaponSpec weapon) => WeaponDefinitions.Of(weapon.Kind).Cooldown;
     public static int Damage(WeaponSpec weapon) => weapon.DamageProfile.PacketDamage;
     /// <summary>Armor, structure and damage count tenths of a stock point, so every value stays whole.</summary>

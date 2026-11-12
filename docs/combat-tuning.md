@@ -12,7 +12,7 @@ The first tactical slice implements [the confirmed combat design](combat-design.
 | Occupied radius | 9.75 metres, with swept-disc collision checks |
 | Identification range | `1500 × (1 + (6 − Sensors) / 4) × (0.5 + (target tons − 20) / 160)` metres |
 | Detailed status range | Half identification range; same terrain sight requirement |
-| Movement limits | Stock Walk / Run MP × 2.7 metres per second for every chassis |
+| Movement limits | Stock Walk / Run MP × 25/9 metres per second (exactly 10 km/h per MP) for every chassis |
 | Acceleration | Running speed × Walk MP / 9 metres per second² |
 | Braking | Twice acceleration |
 | Stationary turn rate | Walk MP × 15 degrees per second |
@@ -29,7 +29,7 @@ The first tactical slice implements [the confirmed combat design](combat-design.
 | Follow spacing | About 90 metres, with normal terrain and occupied-space clearance |
 | Position tolerances | 12 metres engagement distance; 6 metres arrival |
 
-All chassis, including future imports, move at 2.7 metres per second per MP, half the previous 5.4, so mechs take fewer steps at a more deliberate pace. `CombatRules.MovementSpeed` supplies the shared scale to combat and hangar previews without chassis exceptions. The Wolverine (5/8 MP) walks at 13.5 and runs at 21.6 metres per second. Catalog movement points and turn rates stay unchanged. Acceleration and braking scale with running speed, preserving their timing; reverse uses the walking limit and leg damage still halves both limits. The Awesome (3/5 MP) reaches full run in three seconds, stops from it in 1.5 seconds, and turns 180° in place in four seconds. The Jenner (7/11 MP) takes approximately 1.29, 0.64 and 1.71 seconds respectively. Walk/Run selects the speed limit; changing modes does not snap actual speed.
+All chassis, including future imports, move at 25/9 metres per second per MP, exactly 10 km/h, so a 4/6 mech walks at 40 and runs at 60 km/h. (It was 2.7 m/s, 9.72 km/h, before November 11, 2026, and 5.4 before that.) `CombatRules.MovementSpeed` supplies the shared scale to combat and hangar previews without chassis exceptions. The Wolverine (5/8 MP) walks at about 13.9 and runs at about 22.2 metres per second (50 and 80 km/h). Catalog movement points and turn rates stay unchanged. Acceleration and braking scale with running speed, preserving their timing; reverse uses the walking limit and leg damage still halves both limits. The Awesome (3/5 MP) reaches full run in three seconds, stops from it in 1.5 seconds, and turns 180° in place in four seconds. The Jenner (7/11 MP) takes approximately 1.29, 0.64 and 1.71 seconds respectively. Walk/Run selects the speed limit; changing modes does not snap actual speed.
 
 Mechs travel along their leg facing. Moving turns become wider as speed rises; direction changes of 60° or more command braking while the chassis turns. Destination approach uses braking distance to stop within the arrival tolerance. Stop clears the order immediately and brakes existing momentum. Attack orders reverse at up to walking speed to open engagement distance, maintaining facing toward the target; forward/reverse transitions brake to zero first. Stationary target-facing uses the same turn rate. Torso tracking and firing arcs follow the confirmed torso-twisting extension; stopped legs turn toward the aim target while the torso compensates independently. Collisions and arena boundaries can halt travel immediately.
 

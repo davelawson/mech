@@ -102,8 +102,8 @@ public partial class DraftScreen : Control
                 var owned = ForceRoster.Create("Preview", [spec], []).Mechs[0];
                 _mechPreviews[pool, choice].Display(owned);
                 _candidateNames[pool, choice].Text = spec.Chassis;
-                _candidateStats[pool, choice].Text = $"{spec.Variant}\n{spec.Tonnage} tons\n{spec.Walk}/{spec.Run}/{spec.Jump}";
-                Choices[pool, choice].TooltipText = $"{spec.DisplayName}\n{spec.Role} · Armor {spec.ArmorTotal} · {spec.HeatSinks} heat sinks\nSelect this candidate; … opens the complete record.";
+                _candidateStats[pool, choice].Text = $"{spec.Variant}\n{spec.Tonnage} tons\n{CombatRules.CompactMovement(spec)}";
+                Choices[pool, choice].TooltipText = $"{spec.DisplayName}\n{spec.Role} · Armor {spec.ArmorTotal} · {spec.HeatSinks} heat sinks\n{CombatRules.MovementSummary(spec)}\nSelect this candidate; … opens the complete record.";
             }
             else
             {

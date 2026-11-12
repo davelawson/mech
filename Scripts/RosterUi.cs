@@ -92,7 +92,7 @@ public partial class MechDetails : VBoxContainer
         AddChild(tabs);
         var overview = RosterUi.Scroll(tabs); overview.GetParent<Control>().Name = "Overview";
         RosterUi.Text(overview, unit?.Status ?? "Stock configuration · fully operational", 16, new Color("a5c4a5"));
-        RosterUi.Text(overview, $"MOVEMENT\nWalk {spec.Walk}  ·  Run {spec.Run}  ·  Jump {spec.Jump} MP");
+        RosterUi.Text(overview, $"MOVEMENT\n{CombatRules.MovementSummary(spec)}");
         RosterUi.Text(overview, $"PROTECTION\nArmor {unit?.Locations.Sum(item => item.Armor + item.RearArmor) ?? spec.ArmorTotal}/{spec.ArmorTotal}  ·  Structure {unit?.Locations.Sum(item => item.Structure) ?? spec.StructureTotal}/{spec.StructureTotal}");
         RosterUi.Text(overview, $"HEAT\n{spec.HeatSinks} {DefinitionText.HeatSinks(spec.HeatSinkType)} heat sinks · {spec.HeatSinks * spec.CoolingPerSink} heat dissipation\nAll weapons: {spec.Weapons.Sum(item => item.Heat)} heat before movement");
         RosterUi.Text(overview, $"ENGINE\n{spec.Engine}\nIntroduced {spec.Introduced}");
