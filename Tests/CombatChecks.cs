@@ -212,7 +212,7 @@ internal static partial class CombatChecks
         var system = chart.Systems.First(item => item.Biome is not null && item.Biome != Biome.Valley);
         var offer = new MissionOffer("offer-1", "Checks", "Briefing", "Objective", system.Id, new DateOnly(3025, 1, 1),
             [new("locust", EnemyPilotRank.Green), new("atlas", EnemyPilotRank.Regular), new("jenner", EnemyPilotRank.Veteran), new("awesome", EnemyPilotRank.Elite)],
-            100_000, 0, 0, Party.Pirates, new(PartyKind.LocalForces, null, "Checks Guard"), true);
+            100_000, 0, 0, Party.Pirates, new(PartyKind.LocalForces, null, "Checks Guard"), MissionKind.Raid);
         var roster = Roster(1);
         var sim = CombatSimulation.DeployMission(roster, [roster.Mechs[0].Id], offer, 5, 183);
         var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();

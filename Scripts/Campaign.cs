@@ -103,6 +103,8 @@ public sealed class Campaign
         get
         {
             var next = _events.Aggregate(NextQuarter, (date, item) => item.Date < date ? item.Date : date);
+            foreach (var order in Roster?.Mechs.Select(item => item.Repair).OfType<RepairOrder>() ?? [])
+                if (order.Completes is { } completes && completes < next) next = completes;
             return Travel.HasJourney && Travel.DaysToArrival < next.DayNumber - Date.DayNumber
                 ? Date.AddDays(Travel.DaysToArrival) : next;
         }
@@ -153,6 +155,7 @@ public sealed class Campaign
         if (!CanAdvance) return new(false, false, Array.Empty<CampaignEvent>());
         Date = Date.AddDays(1);
         Roster?.Recover(Date);
+        CompleteRepairs();
         if (Travel.HasJourney)
         {
             AccruedTransitDays++;
@@ -193,8 +196,66 @@ public sealed class Campaign
         if (Roster is null) throw new InvalidOperationException("No company has been established.");
         var cost = bought.Sum(EquipmentMarket.Price);
         if (cost > Cash) throw new InvalidOperationException("The purchase must be affordable.");
+        if (Roster.Mechs.SingleOrDefault(item => item.Id == mechId)?.Repair is not null)
+            throw new InvalidOperationException("A BattleMech with a repair order cannot change its loadout.");
         Roster.ApplyLoadout(mechId, plan, bought);
         Cash -= cost;
+    }
+
+    /// <summary>Repair orders working in a bay: at most <see cref="RepairTuning.Bays"/>.</summary>
+    public int ActiveRepairs => Roster?.Mechs.Count(item => item.UnderRepair) ?? 0;
+    /// <summary>Queued orders that start before this mech's.</summary>
+    public int RepairsAhead(OwnedMech mech) => mech.Repair is { Started: null } order
+        ? RequireRoster().Mechs.Count(item => item.Repair is { Started: null } other && other.Sequence < order.Sequence) : 0;
+
+    /// <summary>Orders a repair of a mech, fixing its days and cost now. It starts, and is paid for, as soon as a repair bay is free.</summary>
+    public void OrderRepair(string mechId, RepairScope scope)
+    {
+        var roster = RequireRoster();
+        var mech = roster.Mechs.SingleOrDefault(item => item.Id == mechId) ?? throw new ArgumentException("Unknown owned BattleMech.");
+        if (!Enum.IsDefined(scope)) throw new ArgumentOutOfRangeException(nameof(scope));
+        if (mech.Repair is not null) throw new InvalidOperationException("That BattleMech already has a repair order.");
+        var estimate = Repairs.Estimate(mech, scope) ?? throw new InvalidOperationException("That BattleMech has nothing to repair.");
+        if (estimate.Cost > Cash) throw new InvalidOperationException("The repair must be affordable.");
+        var sequence = roster.Mechs.Select(item => item.Repair?.Sequence ?? -1).Max() + 1;
+        mech.Repair = new(scope, estimate.Days, estimate.Cost, sequence);
+        StartRepairs();
+    }
+
+    /// <summary>Cancels a mech's repair order. A queued order costs nothing; work already started forfeits its payment and leaves
+    /// the damage.</summary>
+    public void CancelRepair(string mechId)
+    {
+        var mech = RequireRoster().Mechs.SingleOrDefault(item => item.Id == mechId) ?? throw new ArgumentException("Unknown owned BattleMech.");
+        if (mech.Repair is null) throw new InvalidOperationException("That BattleMech has no repair order.");
+        mech.Repair = null;
+        StartRepairs();
+    }
+
+    /// <summary>Free bays take queued orders, oldest first, paying for each; an order the company cannot afford waits, holding up
+    /// those behind it.</summary>
+    private void StartRepairs()
+    {
+        if (Roster is null) return;
+        while (ActiveRepairs < RepairTuning.Bays
+            && Roster.Mechs.Where(item => item.Repair is { Started: null }).MinBy(item => item.Repair!.Sequence) is { } next
+            && next.Repair!.Cost <= Cash)
+        {
+            Cash -= next.Repair.Cost;
+            next.Repair = next.Repair with { Started = Date };
+        }
+    }
+
+    /// <summary>Finished repairs restore their mechs and report; their bays take the next orders the same day.</summary>
+    private void CompleteRepairs()
+    {
+        if (Roster is null) return;
+        foreach (var mech in Roster.Mechs.Where(item => item.Repair?.Completes <= Date))
+        {
+            mech.Repaired(mech.Repair!.Scope); mech.Repair = null;
+            _events.Add(new($"repair-{mech.Id}-{Date.DayNumber}", Date, CampaignEventKind.RepairCompletion, $"Repair complete · {mech.Spec.DisplayName}"));
+        }
+        StartRepairs();
     }
 
     /// <summary>Settles the current mission from its battle: deployed mechs keep their damage and refill their ammunition,

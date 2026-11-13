@@ -4,12 +4,13 @@ using Godot;
 namespace Mech;
 
 public enum CombatSide { Friendly, Enemy }
-public enum SimulationOpponent { Mirror, Randomized }
+/// <summary>A simulated deployment's opposition: a mirror of the force, a fresh draft matched to it, or a patrol rolled from reputation.</summary>
+public enum SimulationOpponent { Mirror, Randomized, Patrol }
 public enum CombatOrder { Hold, Move, Attack, Follow }
 public enum MovementMode { Walk, Run }
 public enum FiringMode { FireAtWill, HoldFire }
 public enum CombatOutcome { Ongoing, Victory, Defeat, Draw, Ended }
-public enum CombatStatus { Active, Shutdown, Disabled, Destroyed }
+public enum CombatStatus { Active, Shutdown, Disabled, Destroyed, Extracted }
 public enum ContactLevel { Lost, Identified, Detailed }
 
 /// <summary>A deployed mech's condition after a mission battle, keyed by its owned id. Armor lost is front plus rear.</summary>
@@ -163,6 +164,10 @@ public sealed partial class CombatUnit
     public CombatSide Side { get; }
     /// <summary>The lance a friendly mech deployed from, which is the player slot that commands it; null for enemies.</summary>
     public int? Lance { get; }
+    /// <summary>A patrol's enemy group, which wakes and hunts together; null outside patrols and for friendlies.</summary>
+    public int? Group { get; }
+    /// <summary>Where the mech deployed, which a patrol group returns to after a fruitless search.</summary>
+    internal Vector2 Post { get; set; }
     public IReadOnlyDictionary<MechLocation, CombatLocation> Locations { get; }
     public IReadOnlyList<CombatWeapon> Weapons { get; }
     public IReadOnlyDictionary<string, ComponentCondition> Equipment { get; }
@@ -199,9 +204,10 @@ public sealed partial class CombatUnit
     public int InterferenceAimModifier => InterferenceRemaining > 0 ? CombatRules.InterferenceModifier : 0;
     internal CombatUnit(string id, MechSpec spec, WarriorSpec warrior, CombatSide side,
         IEnumerable<LocationCondition> locations, IEnumerable<EquipmentCondition> equipment,
-        IEnumerable<AmmoCondition> ammo, Vector2 position, int? lance = null)
+        IEnumerable<AmmoCondition> ammo, Vector2 position, int? lance = null, int? group = null)
     {
-        Id = id; Spec = spec; Warrior = warrior; Side = side; Position = Destination = position; Lance = side == CombatSide.Friendly ? lance ?? 0 : null;
+        Id = id; Spec = spec; Warrior = warrior; Side = side; Position = Destination = Post = position; Lance = side == CombatSide.Friendly ? lance ?? 0 : null;
+        Group = side == CombatSide.Enemy ? group : null;
         Facing = side == CombatSide.Friendly ? Vector2.Up : Vector2.Down;
         Locations = locations.ToDictionary(item => item.Location, item => new CombatLocation(item));
         Equipment = equipment.ToDictionary(item => item.Id, item => item.Condition);
@@ -235,14 +241,19 @@ public sealed partial class CombatUnit
         return true;
     }
     // Running out of ammunition withholds fire but, like a weapon toggle, is not physical weapon loss.
-    public CombatStatus Status => !Intact(MechLocation.Head) || !Intact(MechLocation.CenterTorso)
+    /// <summary>Left the battlefield through a patrol's extraction zone: out of the fight, but neither disabled nor destroyed.</summary>
+    public bool Extracted { get; internal set; }
+    public CombatStatus Status => Extracted ? CombatStatus.Extracted : !Intact(MechLocation.Head) || !Intact(MechLocation.CenterTorso)
         ? CombatStatus.Destroyed : (!Intact(MechLocation.LeftLeg) && !Intact(MechLocation.RightLeg))
             || !Weapons.Any(WeaponIntact) ? CombatStatus.Disabled : Shutdown ? CombatStatus.Shutdown : CombatStatus.Active;
     public bool Active => Status == CombatStatus.Active;
     /// <summary>The MechWarrior dies only when the head is destroyed, including by overkill carried up from the center torso.</summary>
     public bool WarriorKilled => !Intact(MechLocation.Head);
     public bool Defeated => IsDefeated(Status);
-    internal static bool IsDefeated(CombatStatus status) => status is CombatStatus.Disabled or CombatStatus.Destroyed;
+    /// <summary>Out of the fight. An extracted mech counts too: nothing can target, follow or order it any longer.</summary>
+    internal static bool IsDefeated(CombatStatus status) => status is CombatStatus.Disabled or CombatStatus.Destroyed or CombatStatus.Extracted;
+    /// <summary>Occupies ground: wrecks and extracted mechs do not.</summary>
+    public bool Solid => Status is not (CombatStatus.Destroyed or CombatStatus.Extracted);
     private float Mobility => Defeated ? 0 : (!Intact(MechLocation.LeftLeg) || !Intact(MechLocation.RightLeg)) ? .5f : 1;
     public float UnheatedWalkingSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Walk) * Mobility;
     public float UnheatedRunningSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Run) * Mobility;
@@ -385,6 +396,7 @@ public sealed partial class CombatSimulation
     {
         var reasons = new List<string>(); var warrior = roster.Pilot(mech);
         if (mech.Lance is null) reasons.Add("In the lance pool");
+        if (mech.Repair is { } repair) reasons.Add(repair.Started is null ? "Repair queued" : "Under repair");
         if (!mech.Operational) reasons.Add("BattleMech not operational");
         if (warrior is null) reasons.Add("No assigned MechWarrior");
         else if (!warrior.Ready) reasons.Add(warrior.Status);
@@ -400,7 +412,7 @@ public sealed partial class CombatSimulation
     private static CombatSimulation CreateDeployment(ForceRoster roster, IEnumerable<string> selected, int? seed, int? terrainSeed,
         BattlefieldTerrain? terrain, SimulationOpponent opponent, Biome biome)
     {
-        if (!Enum.IsDefined(opponent)) throw new ArgumentOutOfRangeException(nameof(opponent));
+        if (!Enum.IsDefined(opponent) || opponent == SimulationOpponent.Patrol) throw new ArgumentOutOfRangeException(nameof(opponent));
         var force = DeployedForce(roster, selected);
         var combatSeed = seed ?? Random.Shared.Next();
         var enemies = opponent == SimulationOpponent.Randomized ? DraftOpposition(force, new Random(combatSeed)) : null;
@@ -412,13 +424,17 @@ public sealed partial class CombatSimulation
 
     /// <summary>Fights a mission: the selected mechs as they stand against its opposition, stock and fully supplied,
     /// with pilots skilled by rank, on the biome of the mission's system.</summary>
-    public static CombatSimulation DeployMission(ForceRoster roster, IEnumerable<string> selected, MissionOffer offer, int? seed = null, int? terrainSeed = null)
+    /// <summary>A simulated deployment chooses its biome; a mission's comes from its system.</summary>
+    public static CombatSimulation DeployMission(ForceRoster roster, IEnumerable<string> selected, MissionOffer offer, int? seed = null, int? terrainSeed = null,
+        Biome? biome = null)
     {
         var force = DeployedForce(roster, selected);
         var friendly = force.Select(source => Deployed(source, roster.Pilot(source)!.Spec, pristine: false)).ToArray();
-        var enemy = offer.Opposition.Select((item, i) => Stock(DraftCatalog.Mech(item.MechId), MissionTuning.EnemyPilot(item.Rank, i + 1))).ToArray();
-        var biome = StarChart.Instance[offer.SystemId].Biome ?? Biome.Valley;
-        return Deploy(friendly, enemy, seed ?? Random.Shared.Next(), BattlefieldTerrain.Generate(terrainSeed ?? Random.Shared.Next(), biome));
+        var enemy = offer.Opposition.Select((item, i) => Stock(DraftCatalog.Mech(item.MechId), MissionTuning.EnemyPilot(item.Rank, i + 1)) with { Group = item.Group }).ToArray();
+        var world = biome ?? StarChart.Instance[offer.SystemId].Biome ?? Biome.Valley;
+        var combatSeed = seed ?? Random.Shared.Next(); var fieldSeed = terrainSeed ?? Random.Shared.Next();
+        if (offer.Kind == MissionKind.Patrol) return DeployPatrol(friendly, enemy, combatSeed, fieldSeed, world, offer.PatrolLocations);
+        return Deploy(friendly, enemy, combatSeed, BattlefieldTerrain.Generate(fieldSeed, world));
     }
 
     private static OwnedMech[] DeployedForce(ForceRoster roster, IEnumerable<string> selected)
@@ -441,7 +457,7 @@ public sealed partial class CombatSimulation
 
     /// <summary>A mech ready to deploy, keyed by its owned id; enemies are renumbered on deployment.</summary>
     private sealed record DeployedMech(string Id, MechSpec Spec, WarriorSpec Pilot, IEnumerable<LocationCondition> Locations,
-        IEnumerable<EquipmentCondition> Equipment, IEnumerable<AmmoCondition> Ammo, int? Lance = null);
+        IEnumerable<EquipmentCondition> Equipment, IEnumerable<AmmoCondition> Ammo, int? Lance = null, int? Group = null);
 
     private static DeployedMech Deployed(OwnedMech source, WarriorSpec pilot, bool pristine) => pristine
         ? Stock(source.Spec, pilot) with { Id = source.Id, Lance = source.Lance }
@@ -524,7 +540,7 @@ public sealed partial class CombatSimulation
             foreach (var target in Units.Where(item => item.Side != side))
             {
                 var level = ContactLevel.Lost;
-                foreach (var observer in observers)
+                foreach (var observer in target.Extracted ? [] : observers)
                 {
                     var radius = CombatRules.DetectionRadius(observer, target);
                     var distance = observer.Position.DistanceSquaredTo(target.Position);
@@ -601,7 +617,8 @@ public sealed partial class CombatSimulation
     {
         Elapsed += CombatRules.StepSeconds;
         RefreshDetection();
-        if (EnemyAiEnabled) UpdateAi();
+        if (Patrol is not null) UpdatePatrolAwareness();
+        if (EnemyAiEnabled) { UpdateAi(); if (Patrol is not null) UpdatePatrolAi(); }
         StopInvalidFollows();
         foreach (var unit in Units) { unit.Moving = unit.TorsoTurning = false; unit.AngularVelocity = 0; }
         foreach (var unit in Units.Where(item => item.Airborne)) AdvanceJump(unit, delta);
@@ -628,7 +645,7 @@ public sealed partial class CombatSimulation
             if (due > Elapsed + 1e-6) continue;
             _burns.RemoveAt(i--);
             var attacker = Unit(discharge.AttackerId); var target = Unit(discharge.TargetId);
-            if (target.Status == CombatStatus.Destroyed) continue;
+            if (!target.Solid) continue;
             shots.Add(discharge with { From = attacker.Position, To = target.Position, Location = discharge.SecondLocation!.Value,
                 Damage = discharge.SecondDamage, GeneratedHeat = 0, TargetHeat = 0, SecondLocation = null, SecondDamage = 0, Burn = true,
                 DamageApplied = [], SystemsLost = [], TargetStatus = null });
@@ -640,7 +657,7 @@ public sealed partial class CombatSimulation
             var (discharge, due) = _projectiles[i];
             if (due > Elapsed + 1e-6) continue;
             _projectiles.RemoveAt(i--);
-            var wreck = Unit(discharge.TargetId).Status == CombatStatus.Destroyed;
+            var wreck = !Unit(discharge.TargetId).Solid;
             shots.Add(discharge with { To = Unit(discharge.TargetId).Position, Damage = wreck ? 0 : discharge.Damage, Splashes = wreck ? [] : discharge.Splashes, GeneratedHeat = 0,
                 Impact = true, Wreck = wreck, DamageApplied = [], SystemsLost = [], TargetStatus = null });
             if (!wreck) Unit(discharge.AttackerId).DamageDealt += discharge.TotalDamage;
@@ -682,6 +699,7 @@ public sealed partial class CombatSimulation
                     Indirect = spotter is not null, SpotterId = spotter?.Id, Splashes = ppc && hit ? RollSplash(location, CombatRules.PpcSplash(weapon.Damage)) : []
                 };
                 shots.Add(shot);
+                if (Patrol is not null) HeardFire(unit, target, shot);
                 if (laser) _burns.Add((shot, Elapsed + CombatRules.LaserSecondHalfDelay));
                 if (shot.InFlight && hit) _projectiles.Add((shot, Elapsed + shot.FlightSeconds));
                 weapon.Remaining = CombatRules.Cooldown(weapon.Spec); unit.ShotsFired++;
@@ -736,6 +754,7 @@ public sealed partial class CombatSimulation
         // A burn lands in the step it comes due even if its shooter dies in that step; later destruction cuts it off.
         _burns.RemoveAll(burn => Unit(burn.Discharge.AttackerId).Status == CombatStatus.Destroyed);
         RefreshDetection();
+        if (Patrol is not null) { UpdatePatrolObjectives(); return; }
         var friendly = Units.Any(item => item.Side == CombatSide.Friendly && !item.Defeated);
         var enemy = Units.Any(item => item.Side == CombatSide.Enemy && !item.Defeated);
         // The first defeat starts an irrevocable wind-down; effects already in flight may still turn it into a draw.
@@ -753,7 +772,7 @@ public sealed partial class CombatSimulation
     }
     private void UpdateAi()
     {
-        foreach (var unit in Units.Where(item => item.Side == CombatSide.Enemy && item.Active))
+        foreach (var unit in Units.Where(item => item.Side == CombatSide.Enemy && item.Active && item.Group is null))
         {
             var nearest = Units.Where(item => item.Side != unit.Side && !item.Defeated && Detected(unit.Side, item.Id))
                 .OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
@@ -779,7 +798,7 @@ public sealed partial class CombatSimulation
                 {
                     var followGoal = Terrain.ReachableDestination(unit.Position,
                         leader.Position + away.Normalized().Rotated(angle) * CombatRules.FollowDistance);
-                    if (Units.Any(other => other != unit && other.Status != CombatStatus.Destroyed
+                    if (Units.Any(other => other != unit && other.Solid
                         && other.Position.DistanceTo(followGoal) < CombatRules.UnitRadius * 2.1f)) continue;
                     goal = followGoal;
                     reverse = yielding && unit.Facing.Dot((followGoal - unit.Position).Normalized()) < -.5f;
@@ -900,7 +919,7 @@ public sealed partial class CombatSimulation
         return direction;
     }
     // A jumping mech occupies only its landing point.
-    private bool Blocked(CombatUnit unit, Vector2 candidate) => !Terrain.CanTraverse(unit.Position, candidate) || Units.Any(other => other != unit && other.Status != CombatStatus.Destroyed
+    private bool Blocked(CombatUnit unit, Vector2 candidate) => !Terrain.CanTraverse(unit.Position, candidate) || Units.Any(other => other != unit && other.Solid
         && DistanceToSegment(other.Airborne ? other.JumpTo : other.Position, unit.Position, candidate) < CombatRules.UnitRadius * 2);
     private static float DistanceToSegment(Vector2 point, Vector2 from, Vector2 to)
     {
@@ -910,6 +929,7 @@ public sealed partial class CombatSimulation
     }
     public CombatUnit? SelectTarget(CombatUnit unit)
     {
+        if (Passive(unit)) return null;
         bool Engageable(CombatUnit target) => target.Side != unit.Side && !target.Defeated && Detected(unit.Side, target.Id)
             && Sight(unit, target)
             && unit.Weapons.Any(weapon => !weapon.Spec.Rear && weapon.Enabled && unit.WeaponUsable(weapon) && unit.Position.DistanceTo(target.Position) <= weapon.LongRange);

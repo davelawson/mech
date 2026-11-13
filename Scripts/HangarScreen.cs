@@ -16,6 +16,19 @@ public partial class HangarScreen : Control
     public event Action? ApplyRequested;
     /// <summary>Moves a mech into a lance, or into the lance pool (null).</summary>
     public event Action<string, int?>? LanceRequested;
+    /// <summary>Orders a repair of a mech.</summary>
+    public event Action<string, RepairScope>? RepairRequested;
+    /// <summary>Cancels a mech's repair order.</summary>
+    public event Action<string>? CancelRepairRequested;
+    /// <summary>The campaign, for the date and repair bays; null shows repair orders without dates or queue places.</summary>
+    public Campaign? Campaign { get; set; }
+    public Button RepairArmorButton { get; private set; } = null!;
+    public Button RepairAllButton { get; private set; } = null!;
+    public Button CancelRepairButton { get; private set; } = null!;
+    /// <summary>The selected mech's repair order: under repair until a date, or queued.</summary>
+    public Label RepairText { get; private set; } = null!;
+    /// <summary>A mech with a repair order cannot change its loadout.</summary>
+    public bool SelectedLocked => SelectedMech.Repair is not null;
     /// <summary>The local player's slot: its own lance is the one mechs join from the lance pool.</summary>
     public int Slot { get; set; } = Campaign.LeaderSlot;
     /// <summary>Adds the selected mech to the player's lance, or returns it to the lance pool.</summary>
@@ -57,7 +70,7 @@ public partial class HangarScreen : Control
     public long SelectedPurchaseCost => SelectedPurchases.Sum(EquipmentMarket.Price);
     public long PendingPurchaseCost => _purchases.Keys.Sum(id => Purchases(id).Sum(EquipmentMarket.Price));
     public bool SelectedAffordable => SelectedPurchaseCost <= Cash;
-    public bool SelectedCanApply => SelectedHasPendingChanges && !SelectedOverTonnage && SelectedAffordable && SelectedControlled;
+    public bool SelectedCanApply => SelectedHasPendingChanges && !SelectedOverTonnage && SelectedAffordable && SelectedControlled && !SelectedLocked;
     public MechPreview Preview { get; private set; } = null!;
     public bool ArtworkLoaded => _background.Texture is not null;
     public IReadOnlyDictionary<MechLocation, HangarLocationPanel> LocationPanels => _locations;
@@ -164,6 +177,15 @@ public partial class HangarScreen : Control
         ArmorBar = new HangarConditionBar(); summary.AddChild(ArmorBar);
         StructureBar = new HangarConditionBar(); summary.AddChild(StructureBar);
         CoolingBar = new HangarConditionBar(); summary.AddChild(CoolingBar);
+        var repairs = new HBoxContainer(); repairs.AddThemeConstantOverride("separation", 6); summary.AddChild(repairs);
+        RepairArmorButton = Ui.Button(repairs, "Repair Armor"); RepairArmorButton.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        RepairArmorButton.Pressed += () => RequestRepair(RepairScope.Armor);
+        RepairAllButton = Ui.Button(repairs, "Repair All"); RepairAllButton.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        RepairAllButton.Pressed += () => RequestRepair(RepairScope.All);
+        RepairText = RosterUi.Text(repairs, "", 13, HangarLocationPanel.Warning); RepairText.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        RepairText.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        CancelRepairButton = Ui.Button(repairs, "Cancel Repair");
+        CancelRepairButton.Pressed += () => { if (SelectedMech.Repair is not null && SelectedControlled) CancelRepairRequested?.Invoke(SelectedMech.Id); };
 
         DeploymentButton = Ui.Button(this, "Simulate Deployment");
         DeploymentButton.Pressed += () => DeploymentRequested?.Invoke();
@@ -174,6 +196,52 @@ public partial class HangarScreen : Control
         _rosterScroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Auto, VerticalScrollMode = ScrollContainer.ScrollMode.Disabled };
         AddChild(_rosterScroll); _rosterButtons = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; _rosterButtons.AddThemeConstantOverride("separation", 8); _rosterScroll.AddChild(_rosterButtons);
         Resized += Layout; Layout(); Hide();
+    }
+    private void RequestRepair(RepairScope scope)
+    {
+        if (RepairProblem(scope) is null) RepairRequested?.Invoke(SelectedMech.Id, scope);
+    }
+    /// <summary>Why the selected mech cannot be ordered this repair, or null when it can.</summary>
+    public string? RepairProblem(RepairScope scope)
+    {
+        var mech = SelectedMech;
+        if (!SelectedControlled) return "Another player's lance";
+        if (mech.Repair is not null) return "Already ordered";
+        if (SelectedHasPendingChanges) return "Apply or reset loadout changes first.";
+        if (Repairs.Estimate(mech, scope) is not { } estimate) return scope == RepairScope.Armor ? "No armor to repair" : "Nothing to repair";
+        return estimate.Cost > Cash ? $"Not enough C-bills · {Repairs.Text(estimate)}" : null;
+    }
+    private void UpdateRepair()
+    {
+        var mech = SelectedMech; var order = mech.Repair;
+        RepairArmorButton.Visible = RepairAllButton.Visible = order is null;
+        RepairText.Visible = CancelRepairButton.Visible = order is not null;
+        if (order is not null)
+        {
+            RepairText.Text = RepairStatus(mech);
+            CancelRepairButton.Disabled = !SelectedControlled;
+            CancelRepairButton.TooltipText = !SelectedControlled ? "Another player's lance"
+                : order.Started is null ? "Nothing has been paid yet" : $"Work has started: the {Money(order.Cost)} paid is forfeited";
+            return;
+        }
+        foreach (var (button, scope) in new[] { (RepairArmorButton, RepairScope.Armor), (RepairAllButton, RepairScope.All) })
+        {
+            var problem = RepairProblem(scope);
+            button.Disabled = problem is not null;
+            button.FocusMode = problem is null ? FocusModeEnum.All : FocusModeEnum.None;
+            button.TooltipText = problem ?? Repairs.Text(Repairs.Estimate(mech, scope)!.Value)
+                + (Campaign is { } campaign && campaign.ActiveRepairs >= RepairTuning.Bays ? "\nWaits for a free repair bay" : "\nPaid when work starts");
+        }
+    }
+    /// <summary>"Under repair · completes 12 JAN 3025", or where a queued order stands.</summary>
+    public string RepairStatus(OwnedMech mech)
+    {
+        if (mech.Repair is not { } order) return "";
+        if (order.Completes is { } done) return $"Under repair · completes {done.ToString("dd MMM yyyy", CultureInfo.InvariantCulture).ToUpperInvariant()}";
+        if (Campaign is not { } campaign) return "Repair queued";
+        var ahead = campaign.RepairsAhead(mech);
+        return ahead > 0 ? $"Repair queued · {ahead} ahead" : campaign.ActiveRepairs >= RepairTuning.Bays ? "Repair queued · next for a bay"
+            : $"Repair queued · needs {Money(order.Cost)}";
     }
     private PanelContainer Panel()
     { var panel = new PanelContainer(); panel.AddThemeStyleboxOverride("panel", Ui.Box(new Color(.045f, .07f, .065f, .9f), Ui.Line)); AddChild(panel); return panel; }
@@ -234,6 +302,7 @@ public partial class HangarScreen : Control
     /// pending purchase taken out is simply not bought.</summary>
     public bool Remove(string itemId)
     {
+        if (!SelectedControlled || SelectedLocked) return false;
         var plan = SelectedPlan;
         if (plan.Installed.FirstOrDefault(item => item.Id == itemId) is { } installed) Change(plan with { Installed = plan.Installed.Remove(installed) });
         else if (Loadout.Removable(SelectedMech.Definition, itemId) && !plan.Removed.Contains(itemId)) Change(plan with { Removed = plan.Removed.Add(itemId) });
@@ -256,6 +325,7 @@ public partial class HangarScreen : Control
     /// change, within zero and the location's armor limit. Returns whether the armor changed.</summary>
     public bool ChangeArmor(MechLocation location, bool rear, int points)
     {
+        if (!SelectedControlled || SelectedLocked) return false;
         var shown = DisplayedMech.Spec.Locations.Single(item => item.Location == location);
         if (rear && !EquipmentRules.HasRearArmor(location)) return false;
         var limit = EquipmentRules.ArmorLimit(shown);
@@ -271,13 +341,13 @@ public partial class HangarScreen : Control
     /// <summary>Why a spare from storage, or an item bought from the market, cannot go in a location of the selected mech as shown,
     /// or null when it can.</summary>
     public string? InstallProblem(string storageId, MechLocation location, bool purchase = false) =>
-        !SelectedControlled ? "Another player's lance" : purchase ? (MarketSystemId is not { } system || !EquipmentMarket.Offers(system).Any(item => item.Id == storageId) ? "Not for sale here"
+        !SelectedControlled ? "Another player's lance" : SelectedLocked ? "Under repair" : purchase ? (MarketSystemId is not { } system || !EquipmentMarket.Offers(system).Any(item => item.Id == storageId) ? "Not for sale here"
                 : Loadout.InstallProblem(DisplayedMech, storageId, location))
             : StorageCounts().GetValueOrDefault(storageId) <= 0 ? "None in storage" : Loadout.InstallProblem(DisplayedMech, storageId, location);
     private void Change(LoadoutPlan plan)
     {
         var mech = SelectedMech;
-        if (!SelectedControlled) return;
+        if (!SelectedControlled || SelectedLocked) return;
         if (plan.SameAs(mech.Plan)) _pending.Remove(mech.Id); else _pending[mech.Id] = plan;
         // Purchases last only as long as their items stay in the pending loadout.
         if (_purchases.TryGetValue(mech.Id, out var bought))
@@ -431,7 +501,7 @@ public partial class HangarScreen : Control
         LanceButton.TooltipText = !_roster.Controls(Slot, SelectedMech) ? "Another player's lance" : SelectedMech.Lance is null && lanceFull
             ? $"A lance holds at most {ForceRoster.LanceSize} BattleMechs" : SelectedMech.Lance is null ? "Only lance mechs deploy" : "Lance pool mechs do not deploy";
         var pending = SelectedHasPendingChanges; var applicable = SelectedCanApply;
-        ResetButton.Disabled = !pending; ApplyButton.Disabled = !applicable; UpdateQuickLaunch();
+        ResetButton.Disabled = !pending; ApplyButton.Disabled = !applicable; UpdateQuickLaunch(); UpdateRepair();
         ResetButton.FocusMode = pending ? FocusModeEnum.All : FocusModeEnum.None;
         ApplyButton.FocusMode = applicable ? FocusModeEnum.All : FocusModeEnum.None;
         var bought = SelectedPurchases.Count; var cost = SelectedPurchaseCost;
@@ -441,7 +511,7 @@ public partial class HangarScreen : Control
         else ApplyButton.RemoveThemeStyleboxOverride("normal");
         for (var i = 0; i < RosterButtons.Count; i++)
         {
-            var owned = _roster.Mechs[i]; var design = owned.Definition; var damage = DamageNotice(owned);
+            var owned = _roster.Mechs[i]; var design = owned.Definition; var damage = RosterNotice(owned);
             RosterButtons[i].Text = $"{design.Chassis}\n{design.Variant} · {design.Tonnage}t{(_pending.ContainsKey(owned.Id) ? " •" : "")}{(owned.Lance is null ? " · Pool" : "")}"
                 + (damage is null ? "" : $"\n{damage}");
             var fill = i == index ? new Color("344431") : Ui.Panel;
@@ -456,7 +526,10 @@ public partial class HangarScreen : Control
     {
         var box = Ui.Box(fill, border, width); box.ContentMarginTop = box.ContentMarginBottom = 4; return box;
     }
-    /// <summary>The roster button's third line, the worst damage first: internals, then systems, then armor.</summary>
+    /// <summary>The roster button's third line: the repair order, or else the damage.</summary>
+    public static string? RosterNotice(OwnedMech mech) => mech.Repair is { } order
+        ? order.Started is null ? "Repair Queued" : "Under Repair" : DamageNotice(mech);
+    /// <summary>The roster button's damage line, the worst damage first: internals, then systems, then armor.</summary>
     public static string? DamageNotice(OwnedMech mech) => mech.InternalsDamaged ? "Internals Damaged"
         : mech.SystemsDamaged ? "Systems Damaged" : mech.ArmorDamaged ? "Armour Damaged" : null;
     /// <summary>Red for internal or systems damage, yellow for armor damage alone, or none for an undamaged mech.</summary>

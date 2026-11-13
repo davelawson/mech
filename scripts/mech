@@ -82,7 +82,7 @@ unit_classes() {
     missions) echo Missions Reputation ;;
     finance) echo Campaign ;;
     catalog) echo Catalog ;;
-    combat-sim) echo Combat 'Terrain*' ;;
+    combat-sim) echo Combat Patrol 'Terrain*' ;;
     multiplayer) echo 'Network*' ;;
   esac
 }

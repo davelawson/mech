@@ -143,6 +143,8 @@ public partial class CommandApp : Control
         Hangar.WarriorDetailsRequested += ShowWarriors;
         Hangar.AssignmentRequested += AssignWarrior;
         Hangar.LanceRequested += (mechId, lance) => { Execute(new SetLanceCommand(mechId, lance)); Hangar.Refresh(); RefreshCampaign(); };
+        Hangar.RepairRequested += OrderRepair;
+        Hangar.CancelRepairRequested += CancelRepair;
         Hangar.DeploymentRequested += ShowDeployment;
         Hangar.QuickLaunchRequested += ShowQuickLaunch;
         Tactical.Closed += CloseTactical;
@@ -630,6 +632,7 @@ public partial class CommandApp : Control
     {
         if (State.RequiresDraft || Navigation.CurrentScreen is not (CommandScreen.Office or CommandScreen.Map or CommandScreen.Hangar)) return;
         Navigation.NavigateFromOffice(CommandScreen.Hangar, Office.HangarButton);
+        Hangar.Campaign = State;
         Hangar.Open(State.Roster!, State.Travel.InOrbit ? State.Travel.OrbitSystemId : null, State.Cash);
         UpdateQuickLaunch();
     }
@@ -694,6 +697,7 @@ public partial class CommandApp : Control
         {
             Navigation.ClearResume();
             Navigation.NavigateFromOffice(CommandScreen.Hangar, Office.HangarButton);
+            Hangar.Campaign = State;
             Hangar.Open(State.Roster, State.Travel.InOrbit ? State.Travel.OrbitSystemId : null, State.Cash);
             UpdateQuickLaunch();
         }
@@ -740,6 +744,7 @@ public partial class CommandApp : Control
         if (State.RequiresDraft || Navigation.CurrentScreen != CommandScreen.Hangar) return;
         Navigation.Push(CommandScreen.Tactical, Hangar.DeploymentButton);
         // Simulations deploy pending loadouts; the hangar keeps them pending for the return.
+        Tactical.Reputation = State.Reputation;
         Tactical.Open(Hangar.HasPendingChanges ? Hangar.PendingRoster() : State.Roster!, Hangar.SelectedMech.Id);
     }
 
@@ -770,6 +775,29 @@ public partial class CommandApp : Control
         void Cancel() { CloseDialog(); Navigation.RestoreFocus(Hangar.ApplyButton); }
         OpenDialog("Apply loadout?", "This loadout has items marked ⚠. Apply anyway?", Cancel,
             new DialogAction("Cancel", Cancel), new DialogAction("Apply anyway", Commit));
+    }
+
+    private void OrderRepair(string mechId, RepairScope scope)
+    {
+        if (Navigation.CurrentScreen != CommandScreen.Hangar) return;
+        Execute(new OrderRepairCommand(mechId, scope)); AfterRepairChange();
+    }
+
+    /// <summary>Cancelling work already started forfeits its payment, so it asks first; a queued order cancels at once.</summary>
+    private void CancelRepair(string mechId)
+    {
+        if (Navigation.CurrentScreen != CommandScreen.Hangar || State.Roster!.Mechs.Single(item => item.Id == mechId).Repair is not { } order) return;
+        void Cancel() { Execute(new CancelRepairCommand(mechId)); if (Navigation.CurrentScreen == CommandScreen.Dialog) CloseDialog(); AfterRepairChange(); }
+        if (order.Started is null) { Cancel(); return; }
+        void Keep() { CloseDialog(); Navigation.RestoreFocus(Hangar.CancelRepairButton); }
+        OpenDialog("Cancel repair?", $"Work has started. Cancelling forfeits the {HangarScreen.Money(order.Cost)} paid, and the damage stays.", Keep,
+            new DialogAction("Keep repairing", Keep), new DialogAction("Cancel repair", Cancel));
+    }
+
+    private void AfterRepairChange()
+    {
+        Hangar.Cash = State.Cash; Hangar.Refresh(); RefreshCampaign(); UpdateQuickLaunch();
+        Navigation.RestoreFocus(Hangar.BackButton);
     }
 
     private void AssignWarrior(string mechId, string? warriorId)
@@ -931,6 +959,7 @@ public partial class CommandApp : Control
     private void RefreshAfterSync()
     {
         RefreshCampaign();
+        Hangar.Campaign = State;
         if (State.Roster is { } roster) Hangar.Rebind(roster, State.Travel.InOrbit ? State.Travel.OrbitSystemId : null, State.Cash);
         UpdateQuickLaunch();
         if (Navigation.CurrentScreen == CommandScreen.Missions) Missions.Refresh();

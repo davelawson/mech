@@ -18,6 +18,8 @@ namespace Mech;
 [JsonDerivedType(typeof(ApplyLoadoutCommand), "apply-loadout")]
 [JsonDerivedType(typeof(AssignWarriorCommand), "assign-warrior")]
 [JsonDerivedType(typeof(SetLanceCommand), "set-lance")]
+[JsonDerivedType(typeof(OrderRepairCommand), "order-repair")]
+[JsonDerivedType(typeof(CancelRepairCommand), "cancel-repair")]
 public abstract record CampaignCommand
 {
     [JsonIgnore] public virtual bool LeaderOnly => false;
@@ -121,6 +123,28 @@ public sealed record SetLanceCommand(string MechId, int? Lance) : CampaignComman
         Campaign.RequireControl(roster, slot, MechId);
         if (Lance is { } lance && lance != slot) throw new InvalidOperationException("A player can only move mechs into their own lance.");
         roster.SetLance(MechId, Lance);
+        return null;
+    }
+}
+
+/// <summary>Orders a repair of a mech; it is paid for from the company's cash when a repair bay starts it.</summary>
+public sealed record OrderRepairCommand(string MechId, RepairScope Scope) : CampaignCommand
+{
+    internal override object? Run(Campaign campaign, int slot)
+    {
+        Campaign.RequireControl(campaign.RequireRoster(), slot, MechId);
+        campaign.OrderRepair(MechId, Scope);
+        return null;
+    }
+}
+
+/// <summary>Cancels a mech's repair order; work already started forfeits its payment.</summary>
+public sealed record CancelRepairCommand(string MechId) : CampaignCommand
+{
+    internal override object? Run(Campaign campaign, int slot)
+    {
+        Campaign.RequireControl(campaign.RequireRoster(), slot, MechId);
+        campaign.CancelRepair(MechId);
         return null;
     }
 }

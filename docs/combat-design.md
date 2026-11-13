@@ -129,7 +129,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 - This is a standalone simulation using existing mech and MechWarrior definitions. It reports damage and outcome without changing the campaign; launching from an accepted mission and applying permanent results are deferred.
 - Use a bounded 192 × 192 arena with procedural natural terrain and authored opposing starting positions, initially outside detection range. Keep spawns clear and connected. Expose a reproducible terrain seed independent of combat rolls.
 - Start paused and support one to four mechs per side. There is no deployment-placement phase.
-- Simulated Deployment first offers **Randomized enemy** or **Mirror match**, then opens the existing force-selection and terrain setup, including the [biome](#biomes-confirmed-november-4-2026) picker. Canceling returns to the hangar. Every deployment goes through force selection; this is also a general rule for eventual campaign deployments.
+- Simulated Deployment first offers **Randomized enemy**, **Mirror match** or **Patrol** (a [patrol](#patrols-confirmed-november-13-2026) whose opposition is rolled from the company's reputation, as an offer's would be, for the deployed lance), then opens the existing force-selection and terrain setup, including the [biome](#biomes-confirmed-november-4-2026) picker. Canceling returns to the hangar. Every deployment goes through force selection; this is also a general rule for eventual campaign deployments.
 - Select one to four operational roster mechs with healthy, assigned MechWarriors. Show why unavailable mechs cannot participate. Assignments remain managed in the hangar.
 - A mirror match copies the selected mech types and assigned MechWarrior skills, with both sides fully repaired and supplied inside the simulation.
 - Randomized opposition is generated on Launch using fresh candidate pools and uniformly random choices under the player's initial draft rules. Deploy the same number of enemies with the same weight categories as the selected player force, retaining their draft-assigned pilots. Generate another fresh legal draft whenever a category runs out, keeping unused pairs available for later slots. Enemy units start pristine; player units retain their current condition and ammunition in this mode. Repeating a terrain seed reproduces terrain independently of the enemy draft.
@@ -179,7 +179,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 - Physical projectile collision, friendly fire, melee, called shots, deliberate ammunition dumping, and other special actions.
 - Separate sensor/visual contacts, additional stances, formations, coordinated enemy tactics, additional time speeds, and automatic pause triggers.
 - Deployment placement, an opponent editor, tactical retreat/recovery mechanics, and saving in-progress simulations.
-- Campaign mission launch, persistent battle consequences, and other objective types.
+- Campaign mission launch, persistent battle consequences, and objective types beyond destroying the enemy and [patrols](#patrols-confirmed-november-13-2026).
 
 ## Acceptance scenarios
 
@@ -367,3 +367,18 @@ The third step of [co-op multiplayer](adr/0003-cooperative-multiplayer.md); depl
 - **Pings.** V marks the ground under the cursor for every player with pulsing rings and the player's name, fading after five seconds. Your own pings are gold, other players' blue.
 - **Leader controls.** Only the leader withdraws: the other players' **Withdraw** is disabled. Their results show *Waiting for the leader to settle the mission…* until the settlement arrives, and their return button reads *Waiting for leader*.
 - **The whole company** is listed on the results under *THE COMPANY*.
+
+## Patrols (confirmed November 13, 2026)
+
+A [patrol](design.md#patrols-confirmed-november-13-2026) is fought on its own layout. The numbers are in [combat tuning](combat-tuning.md#patrols).
+
+- **Layout.** The company deploys in its usual 240 m-spaced row, 960 m in from a random edge, at a random point along it, facing into the arena. The extraction zone touches a different edge. The patrol points lie at least 400 m from every edge and, where they fit, 800 m from each other, the start and the extraction zone. They are then visited in the order that walks least from the start, through every point, to extraction, measured along the battlefield's paths. Terrain generation keeps the start, every point and the extraction zone clear and connected. Everything follows from the terrain seed, so co-op replicas rebuild the same layout.
+- **Enemy groups.** One group guards each leg between consecutive locations, posted around the leg's midpoint, moved sideways by up to 300 m, each mech facing a random way. There is no group between the deployment and the first point.
+- **Passive.** A group starts passive: powered and ready, but unaware of the company. It stands still and neither turns, twists its torso nor fires, and it ignores what the rest of its side has detected.
+- **Waking.** A group becomes active, and stays active, when one of its own mechs detects a company mech, or one second after an attack on one of its mechs resolves, hit or miss, even from beyond its sensors. An attack resolves when the shot or salvo lands or reaches its miss point, at once for a laser. Only that group wakes.
+- **Hunting.** An active group's mechs act individually with the ordinary enemy AI on their side's shared contacts, attacking the nearest company mech it detects. With none detected, the group heads for its freshest unsearched lead: a company mech's last known position, or where fire on it came from. Once there it searches, each mech moving between random points within 500 m. If nothing is found within 30 seconds of arriving, the group returns to its posts, still active and ready to react to its side's contacts. Any new detection ends the search.
+- **Visiting.** A company mech within 100 m of the current patrol point visits it; points count only in order. The point turns from gold to green, and the log notes it.
+- **Extraction.** A company mech entering the extraction zone, at any time, leaves the battle for good with its current damage, as *Extracted*. It can no longer be seen, targeted or ordered, and an attack already on its way to it does no damage.
+- **Outcome.** The patrol is decided once no company mech remains on the field, after the usual three-second wind-down. It succeeds if every patrol point was visited and at least one mech extracted; it fails if the field emptied first through extraction (*Extracted before the patrol was complete*), and is a defeat if nobody extracted. Destroying every enemy does not end a patrol.
+- **Display.** Each patrol point is a numbered ring on the ground: gold for the current one, dim for later ones, green once visited. The extraction zone is a blue ring, dim until every point is visited. The status line adds *Patrol point 2 of 3*, then *Extract: 1 out · 2 still on the field*, and the battle log records each visited point and each extraction. The camera opens behind the company's start.
+- **Co-op.** The points are shared by the whole company, each mech extracts on its own, and visited points, extractions, awake groups and the patrol log reach every player's replica.

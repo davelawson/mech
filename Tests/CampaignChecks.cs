@@ -85,6 +85,93 @@ internal static class CampaignChecks
 
         TestStorage(check); TestSaveLibrary(check);
         TestLances(check);
+        TestRepairs(check);
+    }
+
+    /// <summary>Damages a mech: front armor stripped from every intact location, plus the given structure and component damage.</summary>
+    internal static void Damage(OwnedMech mech, int structure = 0, int damaged = 0, int destroyed = 0)
+    {
+        var locations = mech.Locations.Select(item => item with { Armor = 0,
+            Structure = item.Location == MechLocation.LeftArm ? Math.Max(0, item.Structure - structure) : item.Structure }).ToArray();
+        var equipment = mech.Equipment.Select((item, i) => item with { Condition = i < damaged ? ComponentCondition.Damaged
+            : i < damaged + destroyed ? ComponentCondition.Destroyed : item.Condition }).ToArray();
+        mech.ApplyBattle(locations, equipment);
+    }
+
+    private static void TestRepairs(Action<bool, string> check)
+    {
+        // Six mechs, so a fifth order finds every bay busy.
+        var company = NewCompany().Snapshot();
+        var spares = company.Roster!.Mechs.Take(2).Select((item, i) => item with { Id = $"mech-spare-{i}", WarriorId = null, Lance = null });
+        var campaign = Campaign.Restore(company with { Roster = company.Roster with { Mechs = [.. company.Roster.Mechs, .. spares] } });
+        var roster = campaign.Roster!; var mech = roster.Mechs[0];
+        check(Repairs.Estimate(mech, RepairScope.Armor) is null && Repairs.Estimate(mech, RepairScope.All) is null, "an intact mech has nothing to repair");
+        Throws(() => campaign.OrderRepair(mech.Id, RepairScope.All), check, "an intact mech cannot be ordered a repair");
+
+        // Armor: 4 t a day at 10,000 C-bills a ton; structure: 1 t a day at 40,000; a system half a day.
+        var front = mech.Spec.Locations.Sum(item => item.Armor); var armorTons = front / 160d;
+        Damage(mech);
+        var armor = Repairs.Estimate(mech, RepairScope.Armor)!.Value;
+        check(armor.Days == Math.Max(1, (int)Math.Ceiling(armorTons / 4 - 1e-9)) && armor.Cost == (long)Math.Ceiling(armorTons * 10_000 - 1e-6),
+            $"armor repairs take a day per 4 t and cost 10,000 C-bills a ton ({armor.Days} days, {armor.Cost})");
+        check(Repairs.Estimate(mech, RepairScope.All) == armor, "with only armor lost, both repairs cost the same");
+        var systems = roster.Mechs[1]; var arm = systems.Spec.Locations.Single(item => item.Location == MechLocation.LeftArm);
+        var structureTons = 10d / systems.Spec.StructureTotal * systems.Definition.Tonnage * .1;
+        Damage(systems, structure: 10, damaged: 3, destroyed: 1);
+        var all = Repairs.Estimate(systems, RepairScope.All)!.Value; var systemsArmorTons = systems.Spec.Locations.Sum(item => item.Armor) / 160d;
+        check(all.Days == (int)Math.Ceiling(systemsArmorTons / 4 + structureTons + 2 - 1e-9)
+            && all.Cost == (long)Math.Ceiling(systemsArmorTons * 10_000 + structureTons * 40_000 + 3 * 10_000 + 25_000 - 1e-6),
+            "a full repair adds structure by the ton and each damaged or destroyed system, rounding the days up");
+        var cut = roster.Mechs[2];
+        Damage(cut, structure: 1000);
+        var lostArm = cut.Spec.Locations.Single(item => item.Location == MechLocation.LeftArm);
+        check(Repairs.Estimate(cut, RepairScope.Armor)!.Value.Cost == (long)Math.Ceiling((cut.Spec.Locations.Sum(item => item.Armor) - lostArm.Armor) / 160d * 10_000 - 1e-6),
+            "an armor repair skips a destroyed location");
+
+        // Ordering: paid when a bay starts it; a fifth order waits for a bay.
+        var cash = campaign.Cash;
+        campaign.OrderRepair(mech.Id, RepairScope.Armor);
+        check(mech.UnderRepair && mech.Repair!.Started == campaign.Date && campaign.Cash == cash - armor.Cost && campaign.ActiveRepairs == 1,
+            "a repair starts at once in a free bay and is paid for then");
+        Throws(() => campaign.OrderRepair(mech.Id, RepairScope.All), check, "a mech holds one repair order");
+        check(CombatSimulation.UnavailableReason(roster, mech)!.Contains("Under repair"), "a mech under repair cannot deploy");
+        Throws(() => campaign.ApplyLoadout(mech.Id, mech.Plan with { Armor = [] }, []), check, "a mech under repair cannot change its loadout");
+        check(campaign.NextEventDate == mech.Repair!.Completes, "the calendar stops when a repair completes");
+        foreach (var other in roster.Mechs.Skip(1).Take(4).Where(item => item != systems && item != cut)) Damage(other);
+        foreach (var other in new[] { systems, cut }.Concat(roster.Mechs.Skip(3).Take(2))) campaign.OrderRepair(other.Id, RepairScope.All);
+        var queued = roster.Mechs[4];
+        check(campaign.ActiveRepairs == 4 && queued.Repair is { Started: null } && campaign.RepairsAhead(queued) == 0
+            && CombatSimulation.UnavailableReason(roster, queued)!.Contains("Repair queued"), "a fifth order queues for a bay");
+        var saved = Campaign.Restore(campaign.Snapshot());
+        check(saved.Roster!.Mechs.Select(item => item.Repair).SequenceEqual(roster.Mechs.Select(item => item.Repair)), "repair orders survive a save");
+        Throws(() => Campaign.Restore(campaign.Snapshot() with { Roster = campaign.Snapshot().Roster! with { Mechs = [.. campaign.Snapshot().Roster!.Mechs
+            .Select(item => item.Repair is null ? item : item with { Repair = item.Repair with { Started = campaign.Date } })] } }), check,
+            "a save cannot have more repairs started than bays");
+
+        // Cancelling: a queued order costs nothing; work in a bay forfeits its payment and frees the bay.
+        var before = campaign.Cash;
+        campaign.CancelRepair(queued.Id);
+        check(queued.Repair is null && campaign.Cash == before, "cancelling a queued repair costs nothing");
+        campaign.OrderRepair(queued.Id, RepairScope.All);
+        campaign.CancelRepair(cut.Id);
+        check(cut.Repair is null && cut.InternalsDamaged && queued.UnderRepair && campaign.Cash == before - queued.Repair!.Cost,
+            "cancelling started work keeps the damage and the payment, and the next order takes the bay");
+
+        // Completion restores the mech and reports.
+        var done = mech.Repair!.Completes!.Value; var systemsDone = systems.Repair!.Completes!.Value; CampaignEvent[] events = [];
+        while (campaign.Date < done) events = [.. campaign.AdvanceOneDay().Events];
+        check(mech.Repair is null && !mech.ArmorDamaged && events.Any(item => item.Kind == CampaignEventKind.RepairCompletion && item.Title.Contains(mech.Spec.DisplayName)),
+            "a finished repair restores the armor and reports on its day");
+        if (campaign.Date < systemsDone) AdvanceTo(campaign, systemsDone);
+        check(!systems.Damaged && systems.Operational, "a full repair returns the mech intact");
+
+        var poor = NewCompany(); Damage(poor.Roster!.Mechs[0]);
+        poor = Campaign.Restore(poor.Snapshot() with { Cash = 1 });
+        Throws(() => poor.OrderRepair(poor.Roster!.Mechs[0].Id, RepairScope.Armor), check, "a repair must be affordable to order");
+        var coop = TwoPlayerCompany(); Damage(coop.Roster!.Mechs[3]);
+        Throws(() => coop.Execute(new OrderRepairCommand(coop.Roster.Mechs[3].Id, RepairScope.All), 0), check, "a player cannot repair another player's lance");
+        coop.Execute(new OrderRepairCommand(coop.Roster.Mechs[3].Id, RepairScope.All), 1);
+        check(coop.Roster.Mechs[3].UnderRepair, "a player orders repairs for their own lance");
     }
 
     /// <summary>A two-player company: the draft's first two mechs in the leader's lance, the last two in the second player's.</summary>

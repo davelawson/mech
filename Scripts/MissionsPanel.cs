@@ -134,15 +134,19 @@ public partial class MissionsPanel : Control
         var opposition = string.Join("\n", offer.Opposition.Select(item =>
         {
             var spec = DraftCatalog.Mech(item.MechId);
-            return $"  {spec.DisplayName} · {spec.Tonnage}t — {item.Rank}";
+            return $"  {(item.Group is { } group ? $"Group {group + 1}: " : "")}{spec.DisplayName} · {spec.Tonnage}t — {item.Rank}";
         }));
         return $"EMPLOYER  {offer.Employer.Name}{Standing(offer.Employer)}\nOPPONENT  {offer.Opponent.Name}{Standing(offer.Opponent)}"
-            + $"\nCONTRACT  {(offer.Raid ? "Raid" : "Defense")}\nPOSTED  {DateText(offer.Posted)}\nPAYMENT  {CBills(offer.Payment)}\nSALVAGE  {offer.SalvagePicks} {(offer.SalvagePicks == 1 ? "pick" : "picks")}"
+            + $"\nCONTRACT  {offer.KindText}" + (offer.Kind == MissionKind.Patrol ? $"\nPATROL  {PatrolText(offer)}" : "") + $"\nPOSTED  {DateText(offer.Posted)}\nPAYMENT  {CBills(offer.Payment)}\nSALVAGE  {offer.SalvagePicks} {(offer.SalvagePicks == 1 ? "pick" : "picks")}"
             + $"\nINSURANCE  Up to {CBills(offer.InsuranceLimit)}\nLOCATION  {StarChart.Instance[offer.SystemId].Name}"
             + $"\nBIOME  {StarChart.Instance[offer.SystemId].BiomeText}"
             + $"\nTRAVEL ESTIMATE  {travel switch { null => "Unreachable", 0 => "In orbit", 1 => "1 day", _ => $"{travel} days" }}"
-            + $"\nDEADLINE  {deadline}\nEXPECTED OPPOSITION\n{opposition}\nABANDONMENT PENALTY  None";
+            + $"\nDEADLINE  {deadline}\nOPPOSITION  {offer.OppositionTonnage} t\nEXPECTED OPPOSITION\n{opposition}\nABANDONMENT PENALTY  None";
     }
+
+    /// <summary>"2 points + extraction · 3 enemy groups".</summary>
+    public static string PatrolText(MissionOffer offer) =>
+        $"{offer.PatrolPoints} {(offer.PatrolPoints == 1 ? "point" : "points")} + extraction · {offer.PatrolGroups} enemy {(offer.PatrolGroups == 1 ? "group" : "groups")}";
 
     /// <summary>" · Friendly +24" for a tracked faction; pirates and local forces hold no reputation.</summary>
     private string Standing(Party party) => party.Faction is { } faction ? $" · {_campaign.Reputation.Text(faction)}" : "";

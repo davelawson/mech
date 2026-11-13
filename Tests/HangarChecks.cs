@@ -566,6 +566,39 @@ public partial class SmokeTests
     }
 
     /// <summary>Armor −/+ buttons on every location's armor bars, Shift for ten points, and the torsos' rear armor bar.</summary>
+    /// <summary>Repair Armor and Repair All: estimates, ordering, the locked loadout, the roster line and cancelling.</summary>
+    private async Task TestHangarRepair()
+    {
+        var hangar = _app.Hangar;
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        hangar.Select(0); await Frames();
+        var mech = hangar.SelectedMech;
+        Check(hangar.RepairArmorButton.Visible && hangar.RepairArmorButton.Disabled && hangar.RepairAllButton.Disabled
+            && hangar.RepairArmorButton.TooltipText == "No armor to repair" && !hangar.CancelRepairButton.Visible, "an intact mech has nothing to repair");
+        CampaignChecks.Damage(mech, damaged: 1); hangar.Refresh(); await Frames();
+        var armor = Repairs.Estimate(mech, RepairScope.Armor)!.Value; var all = Repairs.Estimate(mech, RepairScope.All)!.Value;
+        await Capture("hangar-repair-ready");
+        Check(!hangar.RepairArmorButton.Disabled && !hangar.RepairAllButton.Disabled && hangar.RepairArmorButton.TooltipText.StartsWith(Repairs.Text(armor), StringComparison.Ordinal)
+            && hangar.RepairAllButton.TooltipText.StartsWith(Repairs.Text(all), StringComparison.Ordinal) && all.Cost > armor.Cost,
+            "a damaged mech's repair buttons quote days and C-bills");
+        Check(hangar.SummaryPanel.GetGlobalRect().Encloses(hangar.RepairAllButton.GetGlobalRect()), "the repair buttons fit the summary");
+        var cash = _app.State.Cash;
+        await Click(hangar.RepairArmorButton);
+        Check(mech.UnderRepair && _app.State.Cash == cash - armor.Cost && hangar.Cash == _app.State.Cash && !hangar.RepairArmorButton.Visible
+            && hangar.RepairText.Visible && hangar.RepairText.Text.StartsWith("Under repair · completes ", StringComparison.Ordinal) && hangar.CancelRepairButton.Visible
+            && hangar.RosterButtons[0].Text.EndsWith("\nUnder Repair", StringComparison.Ordinal), "Repair Armor starts the repair, pays and shows its completion");
+        await Capture("hangar-repair");
+        Check(hangar.InstallProblem(StorageCatalog.HeatSinkId(mech.Spec.HeatSinkType), MechLocation.LeftArm) == "Under repair" && !hangar.ChangeArmor(MechLocation.LeftArm, false, -1)
+            && !hangar.SelectedHasPendingChanges, "a mech under repair cannot change its loadout");
+        await Click(hangar.CancelRepairButton);
+        Check(_app.Dialog.Visible && _app.Dialog.Heading == "Cancel repair?", "cancelling started work asks first");
+        await Click(DialogButton("Keep repairing"));
+        Check(!_app.Dialog.Visible && mech.UnderRepair, "keeping the repair changes nothing");
+        await Click(hangar.CancelRepairButton); await Click(DialogButton("Cancel repair"));
+        Check(mech.Repair is null && mech.ArmorDamaged && _app.State.Cash == cash - armor.Cost && hangar.RepairAllButton.Visible
+            && hangar.RosterButtons[0].Text.EndsWith("\nSystems Damaged", StringComparison.Ordinal), "cancelling started work keeps the damage and the payment");
+    }
+
     private async Task TestHangarArmor()
     {
         var hangar = _app.Hangar;

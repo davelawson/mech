@@ -15,6 +15,9 @@ public partial class CombatScreen : Control
     public List<CheckBox> ForceChoices { get; } = [];
     public Button RandomizedEnemyButton { get; private set; } = null!;
     public Button MirrorMatchButton { get; private set; } = null!;
+    public Button PatrolButton { get; private set; } = null!;
+    /// <summary>The company's standing, which sets a simulated patrol's opposition as it would an offer's.</summary>
+    public Reputation Reputation { get; set; } = new();
     public SimulationOpponent Opponent { get; private set; }
     public LineEdit TerrainSeedInput { get; private set; } = null!;
     public Button NewTerrainButton { get; private set; } = null!;
@@ -257,15 +260,25 @@ public partial class CombatScreen : Control
         MirrorMatchButton = Ui.Button(_modalContent, "Mirror match");
         RosterUi.Text(_modalContent, "Face the same mechs and pilot skills. Both sides start fully repaired and supplied.", 14, Ui.Muted);
         MirrorMatchButton.Pressed += () => { Opponent = SimulationOpponent.Mirror; ShowForceSelection(selectedMechId); };
+        PatrolButton = Ui.Button(_modalContent, "Patrol");
+        RosterUi.Text(_modalContent, "Visit each patrol point, then reach the extraction zone, past enemy groups that wake on contact. The opposition is rolled from your reputation, as an offer's would be. Your units keep their current condition.", 14, Ui.Muted);
+        PatrolButton.Pressed += () => { Opponent = SimulationOpponent.Patrol; ShowForceSelection(selectedMechId); };
         BackButton = Ui.Button(ModalActions(), "Back to hangar"); BackButton.Pressed += Exit;
         RandomizedEnemyButton.GrabFocus(); RosterUi.TrapFocus(_shade);
     }
     private void ShowForceSelection(string selectedMechId)
     {
-        BeginModal(CombatModal.ForceSelection, _mission?.Name ?? (Opponent == SimulationOpponent.Mirror ? "Mirror match" : "Randomized enemy"));
+        BeginModal(CombatModal.ForceSelection, _mission?.Name ?? Opponent switch
+        {
+            SimulationOpponent.Mirror => "Mirror match", SimulationOpponent.Randomized => "Randomized enemy", _ => "Patrol",
+        });
         if (_mission is not null)
-            RosterUi.Text(_modalContent, $"Choose 1–4 BattleMechs. They deploy as they stand, and the battle's damage, losses and result are settled into your campaign.\nOpposition: "
+            RosterUi.Text(_modalContent, $"Choose 1–4 BattleMechs. They deploy as they stand, and the battle's damage, losses and result are settled into your campaign.\n"
+                + (_mission.Kind == MissionKind.Patrol ? $"Patrol: {MissionsPanel.PatrolText(_mission)}.\n" : "")
+                + $"Opposition ({_mission.OppositionTonnage} t): "
                 + string.Join(", ", _mission.Opposition.Select(item => $"{DraftCatalog.Mech(item.MechId).DisplayName} ({item.Rank})")), 14);
+        else if (Opponent == SimulationOpponent.Patrol)
+            RosterUi.Text(_modalContent, "Choose 1–4 BattleMechs. They keep their current condition. The patrol's points, groups and opposition are rolled at launch from your reputation. Your campaign will be preserved.", 14);
         else RosterUi.Text(_modalContent, Opponent == SimulationOpponent.Mirror
             ? "Choose 1–4 BattleMechs. Opposition mirrors your mechs and pilot skills. Both sides start fully repaired and supplied. Your campaign will be preserved."
             : "Choose 1–4 BattleMechs. A fresh enemy draft matches your count and weight categories. Your units keep their current condition. Your campaign will be preserved.", 14);
@@ -340,9 +353,11 @@ public partial class CombatScreen : Control
         if (Coop && !Leading) { ForceReady = !ForceReady; RefreshForceSelection(); ForceChosen?.Invoke(force, ForceReady); return; }
         var terrainSeed = int.Parse(TerrainSeedInput.Text, System.Globalization.CultureInfo.InvariantCulture);
         if (Coop) { LaunchRequested?.Invoke(force, terrainSeed); return; }
+        var biome = SelectedBiome ?? Biomes.All[Random.Shared.Next(Biomes.All.Count)].Biome;
         Begin(_mission is not null ? CombatSimulation.DeployMission(_roster, force, _mission, terrainSeed: terrainSeed)
-            : CombatSimulation.Deploy(_roster, force, terrainSeed: terrainSeed, opponent: Opponent,
-                biome: SelectedBiome ?? Biomes.All[Random.Shared.Next(Biomes.All.Count)].Biome));
+            : Opponent == SimulationOpponent.Patrol ? CombatSimulation.DeployMission(_roster, force,
+                MissionGenerator.SimulatedPatrol(new MissionRandom((ulong)Random.Shared.NextInt64()), Reputation), terrainSeed: terrainSeed, biome: biome)
+            : CombatSimulation.Deploy(_roster, force, terrainSeed: terrainSeed, opponent: Opponent, biome: biome));
     }
     /// <summary>Shows every player's force selection. The leader may launch once every other player is ready.</summary>
     public void ShowDeployment(IReadOnlyList<DeploymentSeat> seats, bool othersReady)
@@ -503,7 +518,9 @@ public partial class CombatScreen : Control
     {
         if (Simulation is null) return;
         if (_mission is not null && _settle is not null) _settlement ??= _settle(Simulation);
-        var title = Simulation.Outcome == CombatOutcome.Ended ? (_mission is null ? "Simulation ended" : "Withdrew · Mission failed")
+        var extractedEarly = Simulation.Patrol is not null && Simulation.Units.Any(unit => unit.Extracted);
+        var title = Simulation.Outcome == CombatOutcome.Ended ? (extractedEarly ? "Extracted before the patrol was complete" + (_mission is null ? "" : " · Mission failed")
+                : _mission is null ? "Simulation ended" : "Withdrew · Mission failed")
             : _mission is null ? Simulation.Outcome.ToString() : $"{Simulation.Outcome} · Mission {(Simulation.Outcome == CombatOutcome.Victory ? "succeeded" : "failed")}";
         // A finished battle has nothing left to wait for.
         StopWaitingButton.Hide();
@@ -602,7 +619,8 @@ public partial class CombatScreen : Control
     private void RefreshDetails()
     {
         if (Simulation is null) return;
-        _status.Text = $"{(Simulation.Paused ? $"PAUSED{PauseHolders} · orders available" : "LIVE")}  |  {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}";
+        _status.Text = $"{(Simulation.Paused ? $"PAUSED{PauseHolders} · orders available" : "LIVE")}  |  {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}"
+            + (Simulation.PatrolObjectiveText() is { } objective ? $"  |  {objective}" : "");
         // The button shows the local player's own toggle; the battle stays paused while any player holds one.
         PauseButton.Text = Simulation.PauseHolds.Contains(Slot) ? "Resume  [Space]" : "Pause  [Space]";
         // Jump targeting lapses once no selected unit can still jump.
@@ -696,7 +714,7 @@ public partial class CombatScreen : Control
         var target = firingTarget ?? Simulation.Units.Where(item => item.Side != unit.Side && !item.Defeated && Simulation.Detected(unit.Side, item.Id))
             .OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
         _targetInfo.Text = $"Priority: {(unit.PriorityTarget is { } priority ? Simulation.Unit(priority).Spec.Chassis : "none")}\n"
-            + (target is null ? "No contact · move toward arena center" : $"{(firingTarget is null ? "Aim preview" : "Target")}: {target.Spec.Chassis} · {unit.Position.DistanceTo(target.Position):0} m");
+            + (target is null ? (Simulation.Patrol is null ? "No contact · move toward arena center" : "No contact · continue the patrol") : $"{(firingTarget is null ? "Aim preview" : "Target")}: {target.Spec.Chassis} · {unit.Position.DistanceTo(target.Position):0} m");
         if (target is not null)
         {
             var clear = Simulation.Sight(unit, target);

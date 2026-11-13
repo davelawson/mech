@@ -72,6 +72,24 @@ An individual operational assignment within a contract.
 **Mission offer**:
 A single-mission contract on the mission offer board, with fixed terms: location, exact expected opposition, deadline, payment, salvage picks and an insurance limit.
 
+**Contract kind**:
+What a mission offer asks of the force: a raid, a defense or a patrol.
+
+**Challenge rating**:
+The opposition tonnage a mission offer is filled to, rolled when it is posted from the force's summed positive reputation, per company lance.
+
+**Patrol**:
+A contract kind in which the force visits patrol points in order, then leaves the battlefield through the extraction zone.
+
+**Patrol point**:
+A location on a patrol's battlefield that a company mech must come within 100 m of, in order.
+
+**Extraction zone**:
+The circle on a battlefield edge through which a patrol's mechs leave the battle for good.
+
+**Enemy group**:
+The opposition guarding one leg of a patrol. It is passive, unaware of the force, until it detects a company mech or is fired upon, and active from then on.
+
 **Mission offer board**:
 The ten mission offers available at a time, oldest first. Each day the oldest may be taken off and the board is refilled.
 
@@ -82,7 +100,10 @@ One saved campaign in the save grid, with its own name, in-game date and balance
 The selection of four starting BattleMechs and four starting MechWarriors from eight simultaneously visible pools, with three options of similar caliber in each pool.
 
 **Repair order**:
-Authorized work to fully repair a particular BattleMech, with a quoted cost and completion date.
+Authorized work to repair a particular BattleMech, either its armor alone or everything, with its days and cost fixed when ordered. It is queued until a repair bay takes it, and paid for then.
+
+**Repair bay**:
+One of the four mech hangars where a repair order is worked on; a fifth order waits for a free bay.
 
 **Mission result**:
 The battlefield facts reported after a deployment, from which the mercenary force determines contractual and financial consequences.

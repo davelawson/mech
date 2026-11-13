@@ -273,6 +273,8 @@ internal static class CatalogChecks
             foreach (var (saved, i) in expected["Roster"]!["Mechs"]!.AsArray().Select((item, i) => (item, i))) saved!["Lance"] = i < ForceRoster.LanceSize ? 0 : null;
             // Saves from before career records give every warrior none.
             foreach (var record in expected["Roster"]!["Warriors"]!.AsArray()) { record!["Deployments"] = 0; record["Kills"] = 0; }
+            // Saves from before repairs have no repair orders.
+            foreach (var saved in expected["Roster"]!["Mechs"]!.AsArray()) saved!["Repair"] = null;
             check(JsonNode.DeepEquals(expected, resaved),
                 "a version-four save keeps its shape and values when resaved, with protection rescaled and storage stocked");
             campaign.AdvanceOneDay(); campaign.AdvanceOneDay();

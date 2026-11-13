@@ -224,10 +224,10 @@ public sealed record EquipmentCondition(string Id, ComponentCondition Condition)
 public sealed record AmmoCondition(string Id, int Shots);
 /// <summary>Removed lists the stock items taken out in the hangar, Installed the storage items put in, in installation order, and
 /// Armor the locations whose installed armor differs from stock; each is null when empty.</summary>
-/// <summary>Lance is the zero-based lance the mech belongs to, or null in the lance pool.</summary>
+/// <summary>Lance is the zero-based lance the mech belongs to, or null in the lance pool. Repair is its repair order, if any.</summary>
 public sealed record MechSnapshot(string Id, string DefinitionId, string? WarriorId, LocationCondition[] Locations,
     EquipmentCondition[] Equipment, AmmoCondition[] Ammo, string[]? Removed = null, InstalledItem[]? Installed = null, ArmorFit[]? Armor = null,
-    int? Lance = null);
+    int? Lance = null, RepairOrder? Repair = null);
 /// <summary>Deployments and Kills are the warrior's career record; saves from before it have none.</summary>
 public sealed record WarriorSnapshot(string DefinitionId, WarriorHealth Health, DateOnly? RecoveryDate, int Deployments = 0, int Kills = 0);
 /// <summary>Lances is the company's lance count; saves from before lances have none.</summary>
@@ -253,11 +253,14 @@ public sealed class OwnedMech
     public IReadOnlyList<LocationCondition> Locations { get; private set; }
     public IReadOnlyList<EquipmentCondition> Equipment { get; private set; }
     public IReadOnlyList<AmmoCondition> Ammo { get; private set; }
+    /// <summary>The mech's repair order, queued or in a repair bay; the mech cannot deploy or change its loadout meanwhile.</summary>
+    public RepairOrder? Repair { get; internal set; }
+    public bool UnderRepair => Repair?.Started is not null;
     internal OwnedMech(MechSnapshot save) : this(save, DraftCatalog.Mech(save.DefinitionId)) { }
     internal OwnedMech(MechSnapshot save, MechSpec definition)
     {
         if (definition.Id != save.DefinitionId) throw new ArgumentException("Definition identity does not match owned state.");
-        Id = save.Id; Definition = definition; WarriorId = save.WarriorId; Lance = save.Lance;
+        Id = save.Id; Definition = definition; WarriorId = save.WarriorId; Lance = save.Lance; Repair = save.Repair;
         Removed = (save.Removed ?? []).ToImmutableHashSet(StringComparer.Ordinal); Installed = [.. save.Installed ?? []]; Armor = [.. save.Armor ?? []];
         Spec = Loadout.Build(definition, Removed, Installed, Armor);
         Locations = Array.AsReadOnly(save.Locations.ToArray()); Equipment = Array.AsReadOnly(save.Equipment.ToArray()); Ammo = Array.AsReadOnly(save.Ammo.ToArray());
@@ -328,6 +331,21 @@ public sealed class OwnedMech
         Equipment = Array.AsReadOnly(Equipment.Select(state => items.Single(item => item.Id == state.Id)).ToArray());
         Ammo = Array.AsReadOnly(Spec.Ammo.Select(bin => new AmmoCondition(bin.Id, bin.Shots)).ToArray());
     }
+    /// <summary>Completes a repair: armor (on intact locations, for an armor repair) returns to the installed amount; a full
+    /// repair also rebuilds structure, returns every component, weapon and bin to working order and refills the bins.</summary>
+    internal void Repaired(RepairScope scope)
+    {
+        var all = scope == RepairScope.All;
+        Locations = Array.AsReadOnly(Locations.Select(state =>
+        {
+            if (!all && state.Structure <= 0) return state;
+            var full = Spec.Locations.Single(item => item.Location == state.Location);
+            return state with { Armor = full.Armor, RearArmor = full.RearArmor, Structure = all ? full.Structure : state.Structure };
+        }).ToArray());
+        if (!all) return;
+        Equipment = Array.AsReadOnly(Equipment.Select(item => item with { Condition = ComponentCondition.Operational }).ToArray());
+        Ammo = Array.AsReadOnly(Spec.Ammo.Select(bin => new AmmoCondition(bin.Id, bin.Shots)).ToArray());
+    }
     public ComponentCondition Condition(string id) => Equipment.Single(item => item.Id == id).Condition;
     public bool LocationIntact(MechLocation location) => Locations.Single(item => item.Location == location).Structure > 0;
     private bool Functional(ComponentKind kind) => Spec.Components.Where(item => item.Kind == kind)
@@ -353,7 +371,7 @@ public sealed class OwnedMech
     public string Status => !Operational ? "Not operational" : Damaged ? "Operational · damaged" : "Operational";
     internal MechSnapshot Snapshot() => new(Id, Definition.Id, WarriorId, Locations.ToArray(), Equipment.ToArray(), Ammo.ToArray(),
         Removed.Count == 0 ? null : Removed.Order(StringComparer.Ordinal).ToArray(), Installed.IsEmpty ? null : Installed.ToArray(),
-        Armor.IsEmpty ? null : Armor.OrderBy(item => item.Location).ToArray(), Lance);
+        Armor.IsEmpty ? null : Armor.OrderBy(item => item.Location).ToArray(), Lance, Repair);
 }
 
 public sealed class RosterWarrior
@@ -545,7 +563,13 @@ public sealed class ForceRoster
                 || mech.Ammo.Select(item => item.Id).Distinct().Count() != spec.Ammo.Length) throw new ArgumentException("Invalid ammunition bins.");
             foreach (var bin in mech.Ammo)
                 if (bin.Shots < 0 || bin.Shots > spec.Ammo.Single(item => item.Id == bin.Id).Shots) throw new ArgumentException("Invalid ammunition quantity.");
+            if (mech.Repair is { } order && (!Enum.IsDefined(order.Scope) || order.Days < 1 || order.Cost < 0 || order.Sequence < 0
+                || order.Started is { } started && (started > date || order.Completes <= date)))
+                throw new ArgumentException("Invalid repair order.");
         }
+        var orders = mechs.Select(item => item.Repair).OfType<RepairOrder>().ToArray();
+        if (orders.Count(item => item.Started is not null) > RepairTuning.Bays || orders.Select(item => item.Sequence).Distinct().Count() != orders.Length)
+            throw new ArgumentException("Invalid repair order.");
         if (save.Storage is { } storage && (storage.Any(item => item is null || item.Count <= 0 || item.Id is null || StorageCatalog.Describe(item.Id) is null)
             || storage.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != storage.Length))
             throw new ArgumentException("Invalid equipment storage.");

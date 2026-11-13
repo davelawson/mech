@@ -301,6 +301,40 @@ public partial class SmokeTests
             "returning to the hangar shows the settled campaign");
         await PressKey(Key.Escape);
     }
+    private async Task TestPatrolUi()
+    {
+        var roster = ForceRoster.Create("Patrol checks", new[] { "wolverine", "jenner" }.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(2));
+        for (var i = 0; i < 2; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
+        var tactical = _app.Tactical; _app.Navigation.Push(CommandScreen.Tactical, _app.Hangar.DeploymentButton);
+        tactical.Open(roster, roster.Mechs[0].Id); await Frames();
+        GetWindow().Size = new Vector2I(900, 500); await Frames();
+        Check(tactical.GetGlobalRect().Encloses(tactical.PatrolButton.GetGlobalRect()) && tactical.GetGlobalRect().Encloses(tactical.BackButton.GetGlobalRect()),
+            "the Patrol choice fits the minimum window");
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        await Click(tactical.PatrolButton);
+        Check(tactical.Opponent == SimulationOpponent.Patrol && tactical.Modal == CombatModal.ForceSelection, "Simulate Deployment offers a patrol");
+        if (!tactical.ForceChoices[1].ButtonPressed) await Click(tactical.ForceChoices[1]);
+        tactical.ChooseBiome(Biome.Grassland);
+        await Click(tactical.LaunchButton);
+        var sim = tactical.Simulation!;
+        Check(sim.Patrol is { } patrol && patrol.Groups.Count == patrol.Layout.PatrolPoints && sim.Units.Where(unit => unit.Side == CombatSide.Enemy).All(sim.Passive)
+            && TacticalText().Any(text => text.Contains($"Patrol point 1 of {patrol.Layout.PatrolPoints}")),
+            "a simulated patrol launches with passive enemy groups and an objective readout");
+        await Frames(); await Capture("combat-patrol-start");
+        sim.EnemyAiEnabled = false;
+        var scout = sim.Units.First(unit => unit.Side == CombatSide.Friendly);
+        scout.Position = sim.Patrol!.Layout.Locations[0];
+        var paused = sim.Paused; sim.Paused = false; sim.Advance(.1); sim.Paused = paused;
+        // The readout refreshes ten times a second.
+        await ToSignal(GetTree().CreateTimer(.25), SceneTreeTimer.SignalName.Timeout); await Frames();
+        var logged = tactical.BattleLog.FindChildren("*", "RichTextLabel", true, false).OfType<RichTextLabel>()
+            .Any(text => text.GetParsedText().Contains("Patrol point 1 of"));
+        Check(sim.Patrol.Visited == 1 && logged && TacticalText().Any(text => text.Contains(sim.Patrol.AllVisited ? "Extract:" : "Patrol point 2 of")),
+            "visiting a patrol point advances the readout and is logged");
+        tactical.Battlefield.GrabFocus(); await PressKey(Key.Home); await Frames();
+        await Capture("combat-patrol-arena");
+        await PressKey(Key.Escape); await Click(tactical.EndButton); await Click(tactical.ReturnButton);
+    }
     private string[] TacticalText() => _app.Tactical.FindChildren("*", "Label", true, false).OfType<Label>()
         .Where(label => label.IsVisibleInTree()).Select(label => label.Text).ToArray();
     /// <summary>The highest passable grid point: the generated relief's hilltop.</summary>

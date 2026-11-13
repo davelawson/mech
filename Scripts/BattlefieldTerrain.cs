@@ -190,13 +190,18 @@ public sealed class BattlefieldTerrain
     public static bool IsFlat(TerrainKind kind) => kind is TerrainKind.Water or TerrainKind.Ice or TerrainKind.Lava or TerrainKind.DeepWater;
     public const int MinClusters = 1, MaxClusters = 6, MinBuildings = 15, MaxBuildings = 50;
 
-    public static BattlefieldTerrain Generate(int seed, Biome biome = Mech.Biome.Valley)
+    /// <summary>A circle of ground that generation keeps clear and connected, such as a patrol point.</summary>
+    public readonly record struct Clearing(Vector2 Center, float Radius);
+
+    public static BattlefieldTerrain Generate(int seed, Biome biome = Mech.Biome.Valley, IReadOnlyList<Clearing>? clearings = null)
     {
         var random = new Random(seed);
-        // Spawn bands and a central rendezvous remain clear for every force size.
-        float ClearDistance(Vector2 point) => Math.Min(point.Length() - 60, new[] { CombatRules.DeploymentDepth, -CombatRules.DeploymentDepth }
+        // Spawn bands and a central rendezvous remain clear for every force size, and so do any requested clearings.
+        float Standard(Vector2 point) => Math.Min(point.Length() - 60, new[] { CombatRules.DeploymentDepth, -CombatRules.DeploymentDepth }
             .Min(z => new Vector2(Math.Max(0, Math.Abs(point.X) - CombatRules.DeploymentSpacing * 1.5f - 90),
                 Math.Max(0, Math.Abs(point.Y - z) - 150)).Length()));
+        float ClearDistance(Vector2 point) => clearings is null || clearings.Count == 0 ? Standard(point)
+            : Math.Min(Standard(point), clearings.Min(clearing => point.DistanceTo(clearing.Center) - clearing.Radius));
         bool Clear(Vector2 point, float radius) => ClearDistance(point) > radius;
         Vector2 Place(float radius)
         {
@@ -250,7 +255,7 @@ public sealed class BattlefieldTerrain
             var terrain = new BattlefieldTerrain(seed, patches, [], buildings, biome, relief);
             var starts = Enumerable.Range(-3, 7).Select(index => index * CombatRules.DeploymentSpacing / 2)
                 .SelectMany(x => new[] { new Vector2(x, CombatRules.DeploymentDepth), new Vector2(x, -CombatRules.DeploymentDepth) })
-                .Append(Vector2.Zero).ToArray();
+                .Append(Vector2.Zero).Concat(clearings?.Select(clearing => clearing.Center) ?? []).ToArray();
             var component = terrain.Component(starts[0]);
             if (component != 0 && starts.All(point => terrain.Passable(point) && terrain.Component(point) == component)
                 && PatchRules(biome).All(rule => patches.Any(patch => patch.Kind == rule.Kind))) return terrain;

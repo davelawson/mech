@@ -318,7 +318,14 @@ public partial class CombatViewport : Control
         if (_terrainView is not null) { _world.RemoveChild(_terrainView); _terrainView.QueueFree(); }
         _terrainView = BattlefieldTerrainView.Create(simulation.Terrain); _world.AddChild(_terrainView);
         ApplyLighting(simulation.Terrain.Biome);
-        _focus = new Vector3(0, 0, CombatRules.DeploymentDepth - 600); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 1500; UpdateCamera();
+        _focus = new Vector3(0, 0, CombatRules.DeploymentDepth - 600); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 1500;
+        if (simulation.Patrol is { Layout: var layout })
+        {
+            // Open behind the company's start, looking into the arena.
+            var inward = PatrolLayout.Inward(layout.StartEdge); var focus = layout.StartCenter + inward * 600;
+            _focus = new Vector3(focus.X, 0, focus.Y); _yaw = Mathf.Atan2(-inward.X, -inward.Y);
+        }
+        UpdateCamera();
         foreach (var unit in simulation.Units) CreateMech(unit);
         CancelDrag(); SyncModels(); QueueRedraw();
     }
@@ -819,7 +826,7 @@ public partial class CombatViewport : Control
         foreach (var unit in Simulation.Units)
         {
             var model = _models[unit.Id];
-            model.Visible = unit.Side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, unit.Id);
+            model.Visible = !unit.Extracted && (unit.Side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, unit.Id));
             model.Position = World(unit.Position, Simulation.Terrain.HeightAt(unit.Position) + unit.Altitude);
             model.Rotation = new Vector3(unit.Status == CombatStatus.Destroyed ? Mathf.Pi / 2 : 0,
                 Mathf.Atan2(-unit.Facing.X, -unit.Facing.Y), 0);
@@ -1297,6 +1304,27 @@ public partial class CombatViewport : Control
                 HorizontalAlignment.Left, -1, 12, color);
         }
     }
+    public static readonly Color PatrolVisited = new("8fc77e"), ExtractionColor = new("7fd3e8");
+    /// <summary>Patrol locations as rings on the ground: the current point gold, later ones dim, visited ones green, and the extraction
+    /// zone in its own colour once every point is visited, dimmer before.</summary>
+    private void DrawPatrol(PatrolState patrol, Font font)
+    {
+        var layout = patrol.Layout;
+        for (var i = 0; i < layout.Locations.Length; i++)
+        {
+            var extraction = i == layout.PatrolPoints;
+            var radius = extraction ? CombatRules.ExtractionRadius : CombatRules.PatrolVisitRadius;
+            var color = extraction ? new Color(ExtractionColor, patrol.AllVisited ? 1 : .5f)
+                : i < patrol.Visited ? PatrolVisited : i == patrol.Visited ? Ui.Gold : new Color(Ui.Muted, .6f);
+            var center = layout.Locations[i];
+            var ring = Enumerable.Range(0, 65).Select(segment => ScreenPoint(center + Vector2.FromAngle(segment * Mathf.Tau / 64) * radius, .6f)).ToArray();
+            DrawPolyline(ring, color, i == patrol.Visited || extraction && patrol.AllVisited ? 3 : 2, true);
+            var text = extraction ? "EXTRACTION" : $"PATROL {i + 1}" + (i < patrol.Visited ? " ✓" : "");
+            var at = ScreenPoint(center, 2) + new Vector2(-font.GetStringSize(text, fontSize: 13).X / 2, 4);
+            DrawStringOutline(font, at, text, HorizontalAlignment.Left, -1, 13, 4, new Color("101820"));
+            DrawString(font, at, text, HorizontalAlignment.Left, -1, 13, color);
+        }
+    }
     public override void _Draw()
     {
         if (Simulation is null || Camera is null) return;
@@ -1308,8 +1336,12 @@ public partial class CombatViewport : Control
         DrawRect(new Rect2(6, 4, width + 12, 36), new Color(0, 0, 0, .45f));
         DrawString(font, new Vector2(12, 18), header, HorizontalAlignment.Left, -1, 12, Ui.Gold);
         DrawString(font, new Vector2(12, 34), legend, HorizontalAlignment.Left, -1, 11, Ui.Text);
-        var center = ScreenPoint(Vector2.Zero);
-        DrawString(font, center + new Vector2(-42, -8), "ARENA CENTER", HorizontalAlignment.Left, -1, 12, new Color(Ui.Muted, .7f));
+        if (Simulation.Patrol is { } patrol) DrawPatrol(patrol, font);
+        else
+        {
+            var center = ScreenPoint(Vector2.Zero);
+            DrawString(font, center + new Vector2(-42, -8), "ARENA CENTER", HorizontalAlignment.Left, -1, 12, new Color(Ui.Muted, .7f));
+        }
         foreach (var ping in _pings)
         {
             // Two rings pulse outward from the marked ground while the marker fades.

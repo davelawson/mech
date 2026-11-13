@@ -10,7 +10,7 @@ public partial class CombatLogPanel : PanelContainer
     public RichTextLabel Combat { get; private set; } = null!;
     public RichTextLabel Debug { get; private set; } = null!;
     private CombatSimulation? _simulation;
-    private int _read;
+    private int _read, _readEvents;
     private LogPage[] _pages = [];
 
     public override void _Ready()
@@ -40,7 +40,7 @@ public partial class CombatLogPanel : PanelContainer
 
     public void Display(CombatSimulation simulation)
     {
-        _simulation = simulation; _read = 0; Tabs.CurrentTab = 0;
+        _simulation = simulation; _read = 0; _readEvents = 0; Tabs.CurrentTab = 0;
         foreach (var page in _pages) page.Clear();
     }
 
@@ -54,6 +54,14 @@ public partial class CombatLogPanel : PanelContainer
             var entry = history[_read++];
             if (entry.CombatText is { } combat) _pages[0].Append(combat);
             _pages[1].Append(entry.DebugText);
+        }
+        // Patrol progress joins both views as it happens.
+        var events = _simulation.Patrol?.Events ?? [];
+        while (_readEvents < events.Count)
+        {
+            var item = events[_readEvents++];
+            var text = $"{TimeSpan.FromSeconds(item.Time):mm\\:ss\\.ff} ◆ {item.Text}";
+            foreach (var page in _pages) page.Append(text);
         }
     }
 

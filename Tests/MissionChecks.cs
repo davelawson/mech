@@ -18,6 +18,8 @@ internal static class MissionChecks
         CheckSides(chart, check);
         CheckSettlement(check);
         CheckLances(check);
+        CheckChallenge(check);
+        CheckPatrols(chart, check);
 
         var unseen = Campaign.Restore(campaign.Snapshot());
         check(unseen.Missions.HasUnseenOffers && Json(unseen) == Json(campaign), "offers and unseen state survive save restoration");
@@ -91,7 +93,10 @@ internal static class MissionChecks
         Reject(() => MissionBoard.Restore(good with { Offers = [first with { SystemId = "nowhere" }, .. good.Offers[1..]] }, campaign.Date), check, "unknown locations are rejected");
         Reject(() => MissionBoard.Restore(good with { Offers = [first with { Opposition = [new("missing", EnemyPilotRank.Regular), .. first.Opposition[1..]] }, .. good.Offers[1..]] }, campaign.Date),
             check, "unknown enemy mechs are rejected");
-        Reject(() => MissionBoard.Restore(good with { Offers = [first with { Opposition = first.Opposition[..1] }, .. good.Offers[1..]] }, campaign.Date), check, "undersized opposition is rejected");
+        Reject(() => MissionBoard.Restore(good with { Offers = [first with { Opposition = [] }, .. good.Offers[1..]] }, campaign.Date), check, "an empty opposition is rejected");
+        Reject(() => MissionBoard.Restore(good with { Offers = [first with { Kind = MissionKind.Patrol, PatrolLocations = 3 }, .. good.Offers[1..]] }, campaign.Date),
+            check, "a patrol whose opposition is not grouped by leg is rejected");
+        Reject(() => MissionBoard.Restore(good with { Offers = [first with { Kind = 0 }, .. good.Offers[1..]] }, campaign.Date), check, "an offer without a contract kind is rejected");
         Reject(() => MissionBoard.Restore(good with { Offers = [first with { Posted = campaign.Date.AddDays(1) }, .. good.Offers[1..]] }, campaign.Date), check, "future offers are rejected");
         Reject(() => MissionBoard.Restore(good with { Offers = [first with { Id = good.Offers[1].Id }, .. good.Offers[1..]] }, campaign.Date), check, "duplicate offer IDs are rejected");
         Reject(() => MissionBoard.Restore(good with { NextOfferNumber = 1 }, campaign.Date), check, "offer IDs must precede the next offer number");
@@ -131,15 +136,24 @@ internal static class MissionChecks
         {
             var low = MissionGenerator.Difficulty(offer.Opposition) * MissionTuning.CBillsPerDifficulty * (1 - MissionTuning.RewardVariation);
             var high = MissionGenerator.Difficulty(offer.Opposition) * MissionTuning.CBillsPerDifficulty * (1 + MissionTuning.RewardVariation);
-            var valid = offer.Opposition.Length is >= MissionTuning.MinOpposition and <= MissionTuning.MaxOpposition
-                && offer.Objective == (offer.Raid ? MissionTuning.RaidObjective : MissionTuning.DefenseObjective) && !string.IsNullOrWhiteSpace(offer.Briefing)
+            var objective = offer.Kind switch
+            {
+                MissionKind.Raid => MissionTuning.RaidObjective, MissionKind.Defense => MissionTuning.DefenseObjective, _ => MissionTuning.PatrolObjective,
+            };
+            var grouped = offer.Kind == MissionKind.Patrol
+                ? offer.PatrolLocations is >= MissionTuning.MinPatrolLocations and <= MissionTuning.MaxPatrolLocations
+                    && Enumerable.Range(0, offer.PatrolGroups).All(group => offer.Opposition.Any(item => item.Group == group))
+                    && offer.Opposition.All(item => item.Group is { } group && group < offer.PatrolGroups)
+                : offer.PatrolLocations == 0 && offer.Opposition.All(item => item.Group is null);
+            var valid = offer.Opposition.Length > 0 && grouped
+                && offer.Objective == objective && !string.IsNullOrWhiteSpace(offer.Briefing)
                 && offer.Payment >= low * MissionTuning.MinPaymentShare - MissionTuning.RewardRounding
                 && offer.Payment + offer.InsuranceLimit <= high + 2 * MissionTuning.RewardRounding
                 && offer.SalvagePicks is >= 0 and <= MissionTuning.MaxSalvagePicks && offer.InsuranceLimit >= 0
                 && offer.Payment % MissionTuning.RewardRounding == 0 && offer.InsuranceLimit % MissionTuning.RewardRounding == 0;
-            if (!valid) { check(false, $"{offer.Name} has a 2–4 mech opposition and rewards scaled to its difficulty"); return; }
+            if (!valid) { check(false, $"{offer.Name} has an opposition suited to its kind and rewards scaled to its difficulty"); return; }
         }
-        check(true, "offers have a 2–4 mech opposition and rewards scaled to their difficulty");
+        check(true, "offers have an opposition suited to their kind and rewards scaled to their difficulty");
     }
 
     private static void CheckLances(Action<bool, string> check)
@@ -149,18 +163,83 @@ internal static class MissionChecks
         check(JsonSerializer.Serialize(single) == JsonSerializer.Serialize(MissionGenerator.Generate(new MissionRandom(77), 1, Campaign.StartDate, chart.StartingSystemId, chart, lances: 1)),
             "a one-lance offer is generated as before");
         var offers = Enumerable.Range(0, 300).Select(i => MissionGenerator.Generate(new MissionRandom((ulong)i), 1, Campaign.StartDate, chart.StartingSystemId, chart, lances: 3)).ToArray();
-        check(offers.All(offer => offer.Opposition.Length is >= 3 * MissionTuning.MinOpposition and <= 3 * MissionTuning.MaxOpposition)
-            && offers.Any(offer => offer.Opposition.Length > MissionTuning.MaxOpposition * 2), "each lance faces its own two to four enemy mechs");
+        var singleTons = Enumerable.Range(0, 300).Select(i => MissionGenerator.Generate(new MissionRandom((ulong)i), 1, Campaign.StartDate, chart.StartingSystemId, chart))
+            .Average(offer => offer.OppositionTonnage / (offer.Kind == MissionKind.Patrol ? MissionTuning.PatrolTonnageMultiplier : 1));
+        var tripleTons = offers.Average(offer => offer.OppositionTonnage / (offer.Kind == MissionKind.Patrol ? MissionTuning.PatrolTonnageMultiplier : 1));
+        check(tripleTons / singleTons is > 2.7 and < 3.3, $"each lance adds its own share of opposition tonnage ({singleTons:0} t for one lance, {tripleTons:0} t for three)");
         var board = MissionBoard.Create(5, Campaign.StartDate, chart.StartingSystemId, new Reputation(), lances: 2);
         var restored = MissionBoard.Restore(board.Snapshot(), Campaign.StartDate);
         check(board.Snapshot().Lances == 2 && restored.Lances == 2 && JsonSerializer.Serialize(restored.Snapshot()) == JsonSerializer.Serialize(board.Snapshot()),
             "a board for several lances keeps its lance count through a save");
         check(MissionBoard.Create(5, Campaign.StartDate, chart.StartingSystemId, new Reputation()).Snapshot().Lances is null, "a one-lance board saves as before");
-        Reject(() => MissionBoard.Restore(board.Snapshot() with { Lances = null }, Campaign.StartDate), check, "a board's offers must suit its lance count");
         var mean = (double)offers.Average(offer => offer.Payment + offer.InsuranceLimit + offer.SalvagePicks * MissionTuning.CBillsPerSalvagePick);
         var singles = Enumerable.Range(0, 300).Select(i => MissionGenerator.Generate(new MissionRandom((ulong)i), 1, Campaign.StartDate, chart.StartingSystemId, chart)).ToArray();
         check(mean > 2 * singles.Average(offer => offer.Payment + offer.InsuranceLimit + offer.SalvagePicks * MissionTuning.CBillsPerSalvagePick),
             "rewards grow with the opposition of every lance");
+    }
+
+    private static void CheckChallenge(Action<bool, string> check)
+    {
+        var none = new Reputation();
+        check(Math.Abs(MissionGenerator.DefaultTonnage(none) - MissionTuning.MinChallengeTons) < 1e-9, "no reputation sets the minimum default tonnage");
+        var mixed = new Reputation();
+        mixed.Adjust(Faction.Davion, 400); mixed.Adjust(Faction.Kurita, -300); mixed.Adjust(Faction.Steiner, 200);
+        check(Math.Abs(MissionGenerator.DefaultTonnage(mixed) - 160) < 1e-9,
+            "each faction counts from zero up: Davion +40, Kurita −30 and Steiner +20 sum to 60, a 160 t default");
+        var hated = new Reputation();
+        foreach (var faction in Enum.GetValues<Faction>()) hated.Adjust(faction, -1000);
+        check(Math.Abs(MissionGenerator.DefaultTonnage(hated) - MissionTuning.MinChallengeTons) < 1e-9, "negative standing never lowers the default below the minimum");
+        var honored = new Reputation();
+        foreach (var faction in Enum.GetValues<Faction>()) honored.Adjust(faction, 1000);
+        var capped = new Reputation();
+        foreach (var faction in new[] { Faction.Davion, Faction.Kurita, Faction.Liao }) capped.Adjust(faction, 1000);
+        check(Math.Abs(MissionGenerator.DefaultTonnage(honored) - MissionTuning.MaxChallengeTons) < 1e-9
+            && Math.Abs(MissionGenerator.DefaultTonnage(capped) - MissionTuning.MaxChallengeTons) < 1e-9,
+            "a summed standing of 300 or more sets the 400 t maximum");
+        var random = new MissionRandom(11);
+        var draws = Enumerable.Range(0, 4000).Select(_ => MissionGenerator.ChallengeTonnage(random, none, 1) / MissionTuning.MinChallengeTons).ToArray();
+        var near = draws.Count(value => Math.Abs(value - 1) <= .15) / (double)draws.Length;
+        check(near is > .45 and < .55 && draws.All(value => value >= MissionTuning.MinChallengeMultiplier - 1e-9 && value <= MissionTuning.MaxChallengeMultiplier + 1e-9),
+            $"half of all challenge rolls lie within ±15% of the default ({near:P0}), clamped to 0.5–1.75×");
+        var two = new MissionRandom(11); var one = new MissionRandom(11);
+        check(Math.Abs(MissionGenerator.ChallengeTonnage(two, mixed, 2) - 2 * MissionGenerator.ChallengeTonnage(one, mixed, 1)) < 1e-9,
+            "the challenge tonnage is per company lance");
+        var fills = Enumerable.Range(0, 300).Select(i => (Target: 80.0 + i * 2, Mechs: MissionGenerator.Fill(new MissionRandom((ulong)i), 80 + i * 2, MissionTuning.WeightOdds))).ToArray();
+        var worst = fills.Max(item => Math.Abs(item.Mechs.Sum(mech => mech.Tonnage) - item.Target));
+        check(fills.All(item => item.Mechs.Count > 0) && worst <= 20, $"an opposition is filled to within 20 t of its target (worst {worst:0} t)");
+    }
+
+    private static void CheckPatrols(StarChart chart, Action<bool, string> check)
+    {
+        var patrols = Enumerable.Range(0, 3000).Select(i => MissionGenerator.Generate(new MissionRandom((ulong)i), 1, Campaign.StartDate, chart.StartingSystemId, chart))
+            .Where(offer => offer.Kind == MissionKind.Patrol).ToArray();
+        var others = Enumerable.Range(0, 3000).Select(i => MissionGenerator.Generate(new MissionRandom((ulong)i), 1, Campaign.StartDate, chart.StartingSystemId, chart))
+            .Where(offer => offer.Kind != MissionKind.Patrol).ToArray();
+        var ratio = patrols.Average(offer => offer.OppositionTonnage) / others.Average(offer => offer.OppositionTonnage);
+        check(ratio is > 1.35 and < 1.65, $"patrols field half as much tonnage again as other contracts ({ratio:0.00}×)");
+        var light = patrols.SelectMany(offer => offer.Opposition).Average(item => DraftCatalog.Mech(item.MechId).Tonnage);
+        var usual = others.SelectMany(offer => offer.Opposition).Average(item => DraftCatalog.Mech(item.MechId).Tonnage);
+        check(light < usual - 5, $"patrol mechs are lighter on average ({light:0} t against {usual:0} t)");
+        var counts = patrols.GroupBy(offer => offer.PatrolLocations).ToDictionary(group => group.Key, group => group.Count() * 100.0 / patrols.Length);
+        check(counts.Keys.Order().SequenceEqual([2, 3, 4]) && counts[2] is > 18 and < 32 && counts[3] is > 38 and < 52 && counts[4] is > 23 and < 37,
+            $"patrols have 2, 3 or 4 locations about 25/45/30% of the time ({string.Join(", ", counts.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}: {pair.Value:0}%"))})");
+        var unbalanced = patrols.Where(offer => offer.PatrolGroups > 1).Select(offer =>
+        {
+            var tons = Enumerable.Range(0, offer.PatrolGroups).Select(group => offer.Opposition.Where(item => item.Group == group)
+                .Sum(item => DraftCatalog.Mech(item.MechId).Tonnage)).ToArray();
+            return tons.Max() - tons.Min();
+        }).Max();
+        check(unbalanced <= 45, $"a patrol's groups carry similar tonnage (largest spread {unbalanced} t)");
+        check(patrols.All(offer => offer.PatrolGroups == offer.PatrolLocations - 1 && offer.PatrolPoints == offer.PatrolLocations - 1
+            && offer.Name.EndsWith(chart[offer.SystemId].Name) && offer.Briefing.Contains("patrolled")),
+            "a patrol has one group per leg between locations and names its location");
+
+        // An offer saved before contract kinds carried only a raid flag.
+        var legacy = """{"Id":"offer-1","Name":"Defense of Galatea","Briefing":"B.","Objective":"O.","SystemId":"x","Posted":"3025-01-01","Opposition":[],"Payment":1,"SalvagePicks":0,"InsuranceLimit":0,"Employer":null,"Opponent":null,"Raid":false}""";
+        var old = JsonSerializer.Deserialize<MissionOffer>(legacy, CampaignStore.JsonOptions)!.Upgraded();
+        var raid = JsonSerializer.Deserialize<MissionOffer>(legacy.Replace("\"Raid\":false", "\"Raid\":true"), CampaignStore.JsonOptions)!.Upgraded();
+        check(old.Kind == MissionKind.Defense && raid.Kind == MissionKind.Raid && old.LegacyRaid is null
+            && !JsonSerializer.Serialize(old, CampaignStore.JsonOptions).Contains("\"Raid\""), "an offer saved with a raid flag loads as a raid or a defense");
     }
 
     private static void CheckSides(StarChart chart, Action<bool, string> check)
@@ -179,7 +258,7 @@ internal static class MissionChecks
             var (employer, opponent, place) = (offer.Employer, offer.Opponent, chart[offer.SystemId]);
             if (employer.Kind == PartyKind.LocalForces) return "local forces never hire";
             if (employer.Kind == PartyKind.Pirates)
-                return !offer.Raid ? "pirates always raid"
+                return offer.Kind != MissionKind.Raid ? "pirates always raid"
                     : opponent.Kind == PartyKind.Faction && opponent.Faction != place.Faction ? "pirates only fight the House holding the target"
                     : opponent.Kind == PartyKind.Pirates ? "pirates never fight pirates" : "";
             if (employer.Faction == Faction.ComStar)
@@ -189,12 +268,12 @@ internal static class MissionChecks
             var own = employer.Faction!.Value;
             return opponent.Kind switch
             {
-                PartyKind.Pirates when offer.Raid || place.Faction != own => "Houses defend their own worlds against pirates",
-                PartyKind.LocalForces when !offer.Raid || place.Faction == own => "Houses raid local forces away from their own worlds",
-                PartyKind.Faction when opponent.Faction == Faction.ComStar && (!offer.Raid || place.Faction != own) => "Houses remove ComStar from their own worlds",
-                PartyKind.Faction when IsHouse(opponent.Faction) && offer.Raid && (place.Faction != opponent.Faction || !Borders(offer.SystemId, own))
+                PartyKind.Pirates when offer.Kind == MissionKind.Raid || place.Faction != own => "Houses defend their own worlds against pirates",
+                PartyKind.LocalForces when offer.Kind != MissionKind.Raid || place.Faction == own => "Houses raid local forces away from their own worlds",
+                PartyKind.Faction when opponent.Faction == Faction.ComStar && (offer.Kind != MissionKind.Raid || place.Faction != own) => "Houses remove ComStar from their own worlds",
+                PartyKind.Faction when IsHouse(opponent.Faction) && offer.Kind == MissionKind.Raid && (place.Faction != opponent.Faction || !Borders(offer.SystemId, own))
                     => "a House raid targets a bordering rival's world",
-                PartyKind.Faction when IsHouse(opponent.Faction) && !offer.Raid && (place.Faction != own || !Borders(offer.SystemId, opponent.Faction!.Value))
+                PartyKind.Faction when IsHouse(opponent.Faction) && offer.Kind != MissionKind.Raid && (place.Faction != own || !Borders(offer.SystemId, opponent.Faction!.Value))
                     => "a House defends its own world against a bordering rival",
                 PartyKind.Faction when opponent.Faction == own => "a House never fights itself",
                 _ => "",
@@ -208,9 +287,14 @@ internal static class MissionChecks
         check(employers["House"] is > 68 and < 82 && employers["ComStar"] is > 6 and < 14 && employers["pirates"] is > 11 and < 19,
             $"Houses, ComStar and pirates hire about 75/10/15% of the time ({string.Join(", ", employers.Select(pair => $"{pair.Key} {pair.Value:0}%"))})");
         check(offers.Any(offer => offer.Opponent.Kind == PartyKind.LocalForces) && offers.Any(offer => offer.Opponent.Faction == Faction.ComStar)
-            && offers.Any(offer => offer.Raid && IsHouse(offer.Opponent.Faction) && IsHouse(offer.Employer.Faction))
-            && offers.Any(offer => !offer.Raid && IsHouse(offer.Opponent.Faction) && IsHouse(offer.Employer.Faction)),
+            && offers.Any(offer => offer.Kind == MissionKind.Raid && IsHouse(offer.Opponent.Faction) && IsHouse(offer.Employer.Faction))
+            && offers.Any(offer => offer.Kind == MissionKind.Defense && IsHouse(offer.Opponent.Faction) && IsHouse(offer.Employer.Faction)),
             "offers include House raids and defenses, ComStar opponents and local forces");
+        var houseOffers = offers.Where(offer => IsHouse(offer.Employer.Faction)).ToArray();
+        var patrolShare = houseOffers.Count(offer => offer.Kind == MissionKind.Patrol) * 100.0 / houseOffers.Length;
+        check(patrolShare is > 15 and < 35 && offers.Any(offer => offer.Kind == MissionKind.Patrol && offer.Employer.Faction == Faction.ComStar)
+            && offers.All(offer => offer.Kind != MissionKind.Patrol || offer.Employer.Kind == PartyKind.Faction),
+            $"Houses and ComStar post patrols, about a quarter of House offers ({patrolShare:0}%), and pirates never do");
         check(offers.All(offer => offer.Name.EndsWith(chart[offer.SystemId].Name) && offer.Briefing.Contains(offer.Employer.Name)),
             "the offer names its location and the briefing its employer");
 

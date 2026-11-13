@@ -267,3 +267,18 @@ The terrain and heat checks cover stable route/firing choices, concurrent search
 `./scripts/mech test combat-sim` runs the combat and terrain checks, including twist rates/limits, tracking, firing arcs, rear targets, directional damage transfer, heat rates, sink loss, exact policy budgets, optimal volley selection, threshold penalties, shutdown/restart, flamer stacking and simultaneous heat resolution. The optimizer is checked against exhaustive subset selection on generated small loadouts. The `combat-layout` group (also part of `combat-ui`) includes group heat-policy controls, editing during shutdown and enemy heat masking at both window sizes.
 
 `./scripts/mech test` exercises seeded generation, connected spawns, slope/rock clearance, terrain detours, cover, sight, water movement, generated-map engagements, terrain picking and seed controls alongside the ten acceptance scenarios with deterministic model checks and actual mouse/keyboard input. `./scripts/mech capture` repeats the suite with graphical rendering and saves deployment, combat, minimum-window, menu and report captures in `TestResults/`. Linux checks do not establish native Windows/macOS runtime verification.
+
+## Patrols
+
+| Value | Default |
+| --- | --- |
+| Visit radius | 100 m around the current patrol point |
+| Extraction zone | 150 m radius, centred 150 m in from its edge so it touches the edge |
+| Start | 960 m in from the start edge, 240 m spacing, rows of up to 8, further rows 120 m nearer the edge |
+| Patrol points | At least 400 m from every edge; 800 m from each other, the start and extraction, relaxed by 20% at a time if they cannot fit |
+| Clearings | 150 m around each start position and patrol point, 200 m around the extraction zone |
+| Group posts | Leg midpoint, moved sideways by up to 300 m; members spiral out from the post at least 29 m apart |
+| Reaction to fire | 1 s after the attack resolves: flight time, or at once for a laser |
+| Search | Random points within 500 m of the lead, for 30 s after any member comes within 60 m of it or all have stopped near it |
+
+The visiting order tries every order of the patrol points, up to six, and keeps the shortest walking route from the start's centre to the extraction zone. The numbers live in `CombatRules` (`Scripts/Patrol.cs`).

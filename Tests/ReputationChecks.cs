@@ -54,7 +54,7 @@ internal static class ReputationChecks
         var galatea = StarChart.Instance.StartingSystemId; // Lyran Commonwealth
         var offer = new MissionOffer("offer-1", "Raid on Galatea", "Briefing.", MissionTuning.RaidObjective, galatea, Campaign.StartDate,
             [new("locust", EnemyPilotRank.Regular), new("locust", EnemyPilotRank.Regular)], 100_000, 2, 50_000,
-            Party.Of(Faction.Davion), Party.Of(Faction.Kurita), true);
+            Party.Of(Faction.Davion), Party.Of(Faction.Kurita), MissionKind.Raid);
         string[] force = ["locust", "atlas"];
         var maximum = new MissionConduct(MissionOutcome.Failure, force, 0, 0, 0, 0, 0).MaximumArmor;
         MissionConduct Conduct(MissionOutcome outcome, int armorLost = 0, int spared = 0, int fled = 0, int salvage = 0, int buildings = 0) =>
