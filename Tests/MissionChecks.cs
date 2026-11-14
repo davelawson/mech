@@ -367,6 +367,15 @@ internal static class MissionChecks
         check(victor.Deployments == 1 && victor.Kills == 2, "settlement adds the reported kills to the pilot's record");
         check(success.Payment == won.Payment && winner.Cash == cash + won.Payment && success.Killed.Length == 0
             && (won.Employer.Faction is not { } employer || winner.Reputation.Tenths(employer) > 0), "a successful mission pays and pleases the employer");
+        var hurt = CampaignChecks.NewCompany(); var raid = hurt.Missions.Available[0]; hurt.AcceptMission(raid.Id);
+        var struck = hurt.Roster!.Mechs[0]; var today = hurt.Date;
+        var cockpit = struck.Spec.Components.Single(item => item.Kind == ComponentKind.Cockpit).Id;
+        var equipment = struck.Equipment.Select(item => item.Id == cockpit ? new EquipmentCondition(item.Id, ComponentCondition.Damaged, 1) : item).ToArray();
+        hurt.SettleMission(new(MissionOutcome.Failure, [new(struck.Id, struck.Locations.ToArray(), equipment, false, 0, 0, 17)], 0));
+        var patient = hurt.Roster.Pilot(struck)!;
+        check(patient.Health == WarriorHealth.Injured && patient.RecoveryDate == today.AddDays(17), "an injured MechWarrior recovers after the reported injury days");
+        check(!struck.Operational && struck.ConditionText(cockpit) == "Critically damaged" && struck.SystemsDamaged,
+            "a struck cockpit keeps its mech out of action until repaired");
         var broke = CampaignChecks.NewCompany(); broke.AcceptMission(broke.Missions.Available[0].Id);
         while (!broke.PaymentPending) broke.AdvanceOneDay();
         Throws(() => broke.SettleMission(new(MissionOutcome.Success, [new(mech.Id, mech.Locations.ToArray(), mech.Equipment.ToArray(), false, 0)], 0)), check,

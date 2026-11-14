@@ -389,6 +389,78 @@ public partial class SmokeTests
             Check(!field.Destructions().Any(item => item.TargetId == wrecking.TargetId && lost.Contains(item.Location)),
                 "a location's destruction explosion ends after its duration");
 
+            // Critical hits set off effects of their own at the blasted location: a large ammunition explosion, and smaller
+            // flashes for a destroyed and a damaged system.
+            var blasted = sim.Unit(wrecking.TargetId);
+            CombatShot Critical(CombatUnit target, params CombatCritical[] criticals) =>
+                wrecking with { TargetId = target.Id, Impact = true, Burn = false, DamageApplied = [], Criticals = criticals };
+            field.OnShot(Critical(blasted, new CombatCritical(MechLocation.RightTorso, "bin", "Ammo explosion", 600),
+                new CombatCritical(MechLocation.RightTorso, "laser", "Critical hit", Destroyed: true), new CombatCritical(MechLocation.RightTorso, "engine", "Critical hit")));
+            field._Process(0);
+            var blastsByKind = field.CriticalBlasts().Where(item => item.TargetId == blasted.Id).ToDictionary(item => item.Kind);
+            var blastCenter = ModelAt(blasted).LocationCenter(MechLocation.RightTorso);
+            Check(blastsByKind.Count == 3 && blastsByKind.Values.All(item => item.Visible && item.Location == MechLocation.RightTorso
+                    && item.Position.IsEqualApprox(blastCenter) && item.Emitters.All(emitter => emitter.Emitting
+                        && emitter.GlobalPosition.IsEqualApprox(blastCenter))),
+                "each critical hit flashes at the struck location's center with its particles emitting there");
+            Check(blastsByKind[CriticalBlastKind.Explosion].Radius == CombatViewport.AmmoBlastRadius(600) && CombatViewport.AmmoBlastRadius(600) == 44
+                    && CombatViewport.AmmoBlastRadius(100) < CombatViewport.AmmoBlastRadius(600) && CombatViewport.AmmoBlastRadius(600) > CombatViewport.DestructionRadius
+                    && blastsByKind[CriticalBlastKind.Explosion].Emitters.Count == 3,
+                "an ammunition explosion is a fireball sized by its damage with fragments, a smoke plume and embers");
+            Check(blastsByKind[CriticalBlastKind.Destroyed].Radius > blastsByKind[CriticalBlastKind.Damaged].Radius
+                    && blastsByKind[CriticalBlastKind.Damaged].Radius < CombatViewport.AmmoBlastRadius(0) / 5
+                    && blastsByKind[CriticalBlastKind.Destroyed].Emitters.Count == 2 && blastsByKind[CriticalBlastKind.Damaged].Emitters.Count == 1,
+                "a destroyed system gets a small flash, sparks and a smoke puff; a damaged one a smaller flash and sparks");
+            sim.Paused = true; field._Process(0);
+            var particlesFrozen = field.CriticalBlasts().SelectMany(item => item.Emitters).All(emitter => emitter.SpeedScale == 0);
+            sim.Paused = false; field._Process(0);
+            Check(particlesFrozen && field.CriticalBlasts().SelectMany(item => item.Emitters).All(emitter => emitter.SpeedScale == 1),
+                "critical-hit particles freeze while the battle is paused");
+            var hidden = sim.Units.FirstOrDefault(unit => unit.Side == CombatSide.Enemy && !sim.Detected(CombatSide.Friendly, unit.Id));
+            if (hidden is not null)
+            {
+                field.OnShot(Critical(hidden, new CombatCritical(MechLocation.CenterTorso, "bin", "Ammo explosion", 600)));
+                Check(!field.CriticalBlasts().Any(item => item.TargetId == hidden.Id), "critical hits on undetected enemies show no effects");
+            }
+            sim.Advance(CombatViewport.DamagedFlashSeconds + .2); field._Process(0);
+            Check(field.CriticalBlasts().Count(item => item.TargetId == blasted.Id) == 2
+                    && !field.CriticalBlasts().Any(item => item.Kind == CriticalBlastKind.Damaged),
+                "a damaged system's sparks end first");
+            sim.Advance(CombatViewport.DestroyedSmokeEmitSeconds + CombatViewport.DestroyedSmokeSeconds); field._Process(0);
+            var lingering = field.CriticalBlasts().Where(item => item.TargetId == blasted.Id).ToArray();
+            Check(lingering is [{ Kind: CriticalBlastKind.Explosion, Visible: false } smoking]
+                    && smoking.Emitters[1].Emitting && !smoking.Emitters[2].Emitting,
+                "after the fireball, an ammunition explosion keeps smoking once its embers have stopped");
+            sim.Advance(CombatViewport.AmmoSmokeEmitSeconds + CombatViewport.AmmoSmokeSeconds); field._Process(0);
+            Check(!field.CriticalBlasts().Any(), "an ammunition explosion's smoke ends after its duration");
+            if (_screenshots)
+            {
+                var (savedTransform, savedSize) = (field.Camera.GlobalTransform, field.Camera.Size);
+                field.Camera.Size = 260; field.Camera.Position = blastCenter + new Vector3(-600, 450, 300); field.Camera.LookAt(blastCenter);
+                field.OnShot(Critical(blasted, new CombatCritical(MechLocation.RightTorso, "bin", "Ammo explosion", 600)));
+                sim.Advance(.5); field._Process(0); await ToSignal(GetTree().CreateTimer(.5), SceneTreeTimer.SignalName.Timeout); field._Process(0);
+                await Capture("ammo-explosion");
+                // Particles run on real time while the battle runs, so let them play before showing the plume.
+                sim.Advance(.6); field._Process(0);
+                await ToSignal(GetTree().CreateTimer(.6), SceneTreeTimer.SignalName.Timeout); field._Process(0);
+                await Capture("ammo-smoke");
+                (field.Camera.GlobalTransform, field.Camera.Size) = (savedTransform, savedSize);
+            }
+            if (_screenshots)
+            {
+                var (savedTransform, savedSize) = (field.Camera.GlobalTransform, field.Camera.Size);
+                field.Camera.Size = 120; field.Camera.Position = blastCenter + new Vector3(-600, 450, 300); field.Camera.LookAt(blastCenter);
+                sim.Advance(CombatViewport.AmmoSmokeEmitSeconds + CombatViewport.AmmoSmokeSeconds); field._Process(0); await Frames();
+                field.OnShot(Critical(blasted, new CombatCritical(MechLocation.RightTorso, "laser", "Critical hit", Destroyed: true),
+                    new CombatCritical(MechLocation.LeftTorso, "engine", "Critical hit")));
+                sim.Advance(.1); field._Process(0); for (var frame = 0; frame < 4; frame++) await Frames();
+                await Capture("critical-sparks");
+                (field.Camera.GlobalTransform, field.Camera.Size) = (savedTransform, savedSize);
+            }
+            field.OnShot(Critical(blasted, new CombatCritical(MechLocation.RightTorso, "laser", "Critical hit")));
+            field.Display(sim);
+            Check(!field.CriticalBlasts().Any(), "showing a battle clears earlier critical-hit effects");
+
             Check(CombatViewport.MissileProgress(0, CombatViewport.LrmLaunchShare) == 0 && CombatViewport.MissileProgress(1, CombatViewport.LrmLaunchShare) == 1
                     && Math.Abs(CombatViewport.MissileProgress(.638f, CombatViewport.LrmLaunchShare) - .5f) < .01f
                     && Math.Abs(CombatViewport.MissileProgress(.01f, CombatViewport.LrmLaunchShare) / .01f - .4f) < .01f

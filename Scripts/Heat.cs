@@ -32,18 +32,24 @@ public sealed partial class CombatUnit
     internal BiomeSpec? Climate { get; set; }
     public double CoolingEfficiency => Climate?.CoolingEfficiency ?? 1;
     /// <summary>Heat-sink cooling per second, after the climate's cooling efficiency.</summary>
-    public double CoolingRate => EffectiveHeatSinks * Spec.CoolingPerSink * CoolingEfficiency / CombatRules.HeatClockSeconds;
+    public double CoolingRate => EffectiveCooling * CoolingEfficiency / CombatRules.HeatClockSeconds;
+    /// <summary>Heat per heat clock the working sinks remove before climate: a damaged sink item cools at half its rate, rounded down.</summary>
+    public int EffectiveCooling => EffectiveHeatSinks * Spec.CoolingPerSink - Spec.Components
+        .Where(component => component.Kind == ComponentKind.HeatSink && Intact(component.Location)
+            && Equipment[component.Id] == ComponentCondition.Damaged)
+        .Sum(component => component.HeatSinkCount * Spec.CoolingPerSink - component.HeatSinkCount * Spec.CoolingPerSink / 2);
     /// <summary>Heat per second gained (positive) or shed (negative) toward the ambient temperature, unaffected by efficiency.</summary>
     public double AmbientHeatRate => Climate is { } climate
         ? (climate.Ambient - Heat) / CombatRules.AmbientExchangeDifference / CombatRules.HeatClockSeconds : 0;
     public double MovementHeatRate => !Moving || !Active ? 0
         : CurrentSpeed > UnheatedWalkingSpeed + .00001f ? CombatRules.RunningHeatRate : CombatRules.WalkingHeatRate;
 
-    internal void AdvanceHeat(double delta) => AddHeat((MovementHeatRate - CoolingRate + AmbientHeatRate) * delta);
+    internal void AdvanceHeat(double delta) => AddHeat((MovementHeatRate + EngineHeatRate - CoolingRate + AmbientHeatRate) * delta);
     internal void AddHeat(double amount)
     {
         // Normalize numerical drift so an exact threshold is not crossed a step early.
         Heat = Math.Max(0, Math.Round(Heat + amount, 9));
+        CheckLifeSupport();
         if (Heat >= CombatRules.ShutdownHeat) Shutdown = true;
         else if (Heat < CombatRules.WarmHeat) Shutdown = false;
         if (Shutdown)

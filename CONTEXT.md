@@ -56,6 +56,18 @@ A market item installed in a pending loadout. It is paid for when that loadout i
 **Critical slot**:
 One of the fixed equipment spaces in a BattleMech location: six in the head and each leg, twelve in each torso and arm.
 
+**Critical hit**:
+A blow to one critical slot, rolled when damage reaches a location's internal structure. It damages or destroys the item in that slot.
+
+**Critical system**:
+An engine, gyro, cockpit, sensors, life support or actuator: never sold, never destroyed by a critical hit, and damaged in levels up to a maximum.
+
+**Critically damaged**:
+A critical system at its maximum damage level. A system below it is damaged.
+
+**Ammunition explosion**:
+A struck ammunition bin's remaining shots going off, damaging its location's internal structure directly.
+
 **Loadout**:
 The equipment installed in a particular owned BattleMech: its stock design less any weapons, ammunition, heat sinks and jump jets removed in the hangar, plus any spares installed there from storage.
 
@@ -168,7 +180,7 @@ A deployment launched from the mech hangar straight to the current mission, wher
 The choice of BattleMechs and assigned MechWarriors to participate in a deployment, including a simulated deployment.
 
 **Disabled BattleMech**:
-A BattleMech unable to continue fighting because it has lost both legs or all usable weapons, distinct from a destroyed BattleMech.
+A BattleMech unable to continue fighting because it has lost both legs or all usable weapons, or its cockpit took a critical hit, distinct from a destroyed BattleMech.
 
 **Destroyed BattleMech**:
 A BattleMech whose head or center torso has been destroyed, distinct from a disabled BattleMech. If recovered from a mission, it is a wreck.

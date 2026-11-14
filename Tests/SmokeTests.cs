@@ -44,6 +44,7 @@ public partial class SmokeTests : Node
         new("missions", Setup.Menu, TestMissionsUi),
         new("finance", Setup.Menu, TestCampaignUi),
         new("combat-layout", Setup.None, TestCombatLayouts, InFullRun: false),
+        new("shot-effects", Setup.Drafted, TestShotEffects, InFullRun: false),
         new("combat-ui", Setup.Drafted, async () =>
         {
             await TestCombatLayouts(); await TestBattlefieldPicking(); await TestDetectionOverlay(); await TestShotEffects();

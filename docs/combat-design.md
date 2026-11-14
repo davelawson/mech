@@ -34,7 +34,7 @@ Status: confirmed October 25, 2026. The initial design interview is complete. Th
 - Mechs occupy space and navigate around one another, without pushing or collision damage.
 - Hits select among Head, Center Torso, Left Torso, Right Torso, Left Arm, Right Arm, Left Leg, and Right Leg.
 - Damage reduces the selected location's front or rear armor according to incoming direction, then its internal structure. Only torsos have separate rear armor; head and limbs always use ordinary armor.
-- No criticals, ammunition explosions, falls, or MechWarrior injury are simulated; a MechWarrior dies only with the head. Location-loss and defeat rules are specified below; heat is specified in its confirmed extension.
+- [Critical hits](#critical-hits-confirmed-november-14-2026) can damage or destroy mounted systems, set off ammunition explosions and injure the MechWarrior. Falls are not simulated. Location-loss and defeat rules are specified below; heat is specified in its confirmed extension.
 - Show the selected friendly mech's calculated hit chance against a detected target.
 - Resolve the hit when a weapon fires. Damage also applies then, except for the second half of a laser burn and the impact of an autocannon shell, machine gun burst, missile salvo or PPC bolt, all described below. Projectile and beam effects illustrate that result; projectiles do not independently collide or intercept. Friendly fire is omitted. Firing arcs follow the torso-twisting rules below.
 - Each firing effect starts at the firing weapon's source firing marker on the shooter's model, cycling through a launcher's tubes on successive shots. A weapon without a marker in its catalog location uses an unclaimed marker of its kind elsewhere on the model (Crusader leg SRMs fire from the torso racks), or else the center of its location. Hits end at the center of the struck location on the target model. Misses pass beside and beyond that location. Both ends follow the animated models while the effect fades.
@@ -110,12 +110,12 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 - Destroying a side torso also destroys its attached arm.
 - One destroyed leg halves movement speed; both destroyed legs immobilize the mech.
 - Head or center-torso destruction destroys the mech.
-- **MechWarrior death** (confirmed November 5, 2026). A MechWarrior dies only when the head is destroyed, whether by a head hit or by overkill carried up from a destroyed center torso. A center torso destroyed with no damage left over leaves its MechWarrior alive, as does any disablement. The rule is the same for both sides; the results list "MechWarrior killed" beside the mech's status. Enemy MechWarriors who survive count toward [reputation](design.md#reputation-confirmed-november-5-2026).
-- Loss of both legs or all usable weapons disables the mech. Player weapon enable/disable settings do not themselves constitute physical weapon loss.
+- **MechWarrior death** (confirmed November 5, 2026). A MechWarrior dies when the head is destroyed, whether by a head hit or by overkill carried up from a destroyed center torso, or when a [critical hit](#critical-hits-confirmed-november-14-2026) strikes the cockpit. A center torso destroyed with no damage left over leaves its MechWarrior alive, as does any other disablement. The rule is the same for both sides; the results list "MechWarrior killed" beside the mech's status. Enemy MechWarriors who survive count toward [reputation](design.md#reputation-confirmed-november-5-2026).
+- Loss of both legs or all usable weapons, or a critical hit on the cockpit, disables the mech. Player weapon enable/disable settings do not themselves constitute physical weapon loss.
 - Destroyed and disabled mechs both count as defeated and no longer participate in combat. Thermal shutdown is not defeat.
 - **Kills** (confirmed November 11, 2026). The hit that leaves an enemy mech defeated, disabled or destroyed, credits its shooter with one kill; the mission report carries each friendly mech's kills to its MechWarrior's record.
 - When every mech on one side is defeated, a three-second wind-down begins and cannot be undone. The simulation continues without new discharges so pending effects can conclude and the player can see the final shots. The outcome is decided when the wind-down ends, so a pending burn that defeats the other side produces a draw. Pause, camera and inspection remain available, and ending the simulation manually remains immediate.
-- Individual component criticals and MechWarrior injury remain outside this simulation; MechWarrior death follows the head, as above.
+- Component damage and MechWarrior injury follow [critical hits](#critical-hits-confirmed-november-14-2026).
 
 ## Automatic targeting
 
@@ -175,7 +175,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 
 - Destructible buildings and terrain, roads, deep water, and advanced cover-seeking tactics.
 - Infantry, vehicles, aircraft, and other combatant types.
-- Critical hits, heat damage and ammunition explosions, water cooling bonuses, ammunition consumption, falls, Death from Above, and MechWarrior casualties.
+- Heat damage and heat-triggered ammunition explosions, water cooling bonuses, ammunition consumption, falls, Death from Above, and MechWarrior casualties beyond death and [injury](#critical-hits-confirmed-november-14-2026).
 - Physical projectile collision, friendly fire, melee, called shots, deliberate ammunition dumping, and other special actions.
 - Separate sensor/visual contacts, additional stances, formations, coordinated enemy tactics, additional time speeds, and automatic pause triggers.
 - Deployment placement, an opponent editor, tactical retreat/recovery mechanics, and saving in-progress simulations.
@@ -382,3 +382,42 @@ A [patrol](design.md#patrols-confirmed-november-13-2026) is fought on its own la
 - **Outcome.** The patrol is decided once no company mech remains on the field, after the usual three-second wind-down. It succeeds if every patrol point was visited and at least one mech extracted; it fails if the field emptied first through extraction (*Extracted before the patrol was complete*), and is a defeat if nobody extracted. Destroying every enemy does not end a patrol.
 - **Display.** Each patrol point is a numbered ring on the ground: gold for the current one, dim for later ones, green once visited. The extraction zone is a blue ring, dim until every point is visited. The status line adds *Patrol point 2 of 3*, then *Extract: 1 out · 2 still on the field*, and the battle log records each visited point and each extraction. The camera opens behind the company's start.
 - **Co-op.** The points are shared by the whole company, each mech extracts on its own, and visited points, extractions, awake groups and the patrol log reach every player's replica.
+
+## Critical hits (confirmed November 14, 2026)
+
+Damage that reaches internal structure can strike the systems mounted there. The same rules apply to both sides; the numbers are in [combat tuning](combat-tuning.md#critical-hits).
+
+**When to roll.** Each missile that damages a location's internal structure rolls on its own, so a salvo through stripped armor can cause many critical hits. Every other shot rolls once for each location whose structure it damaged, including damage carried on into the next location; a PPC's splash rolls once for each location it damaged, besides the bolt's own roll. A location destroyed by the damage does not roll: everything in it is lost anyway. Armor-only damage never rolls.
+
+**How many.** Roll 2d6: 7–9 deals one potential critical hit, 10–11 two, and 12 three.
+
+**Which slot.** Each potential critical hit picks a random critical slot of the location (6 in the head and each leg, 12 in each torso and arm), empty slots included. A slot already struck this battle is rerolled, so every slot can be struck once; when every slot has been struck, the hit does nothing. A struck empty slot, a slot of an already destroyed item, or a slot of a critically damaged system does nothing. An item split across two locations is one item, struck from either. Which slots were struck is forgotten after the battle; hits and damage levels are not.
+
+**What a hit does.**
+
+- A weapon, heat sink or ammunition bin taking one slot is destroyed. Catalog heat sinks and jump jets are one slot each.
+- An item taking two or more slots (larger weapons, a double heat sink) is **damaged** by its first hit and destroyed by its second. A damaged weapon still fires, with +2 on its target number; a damaged double heat sink cools like a single one; a damaged jump-jet group keeps half its jets, rounded down. Destroyed weapons cannot fire, destroyed sinks do not cool, and destroyed jets give no jump.
+- A **critical system** (engine, gyro, cockpit, sensors, life support, actuators) gains one damage level per hit, up to its maximum, and is never destroyed by a critical hit. It reads *Damaged* below its maximum and *Critically damaged* at it; further hits on it do nothing. Systems lost with their location still read Destroyed.
+
+| System (maximum levels) | Effect per level |
+| --- | --- |
+| Engine (3) | +5 heat per heat clock while the mech runs |
+| Gyro (2) | −25% top speed, acceleration and turn rate |
+| Sensors (2) | +1 on every weapon's target number, −25% sensor range |
+| Cockpit (1) | The mech is disabled and its MechWarrior killed; the hit's shooter earns the kill. The mech comes home repairable. |
+| Life Support (1) | The MechWarrior is injured the first time the mech's heat reaches 15 while it is damaged |
+| Shoulder (1) | +2 on that arm's weapons' target numbers |
+| Upper or lower arm actuator (1) | +1 each on that arm's weapons' target numbers |
+| Hand actuator (1) | None |
+| Hip (1) | −50% top speed and acceleration, as a lost leg, and not on top of one |
+| Upper or lower leg or foot actuator (1) | −10% top speed and acceleration each |
+
+Target-number penalties add to each other and to every other modifier. Gyro, hip and actuator damage do not shorten jumps.
+
+**Ammunition explosions.** A hit on a bin destroys it. If it still held shots, it explodes half the time, dealing half its remaining shots × stock damage per shot (a missile bin's shot is a full salvo), ×10. The damage goes straight into the location's internal structure, skipping its armor, then carries on along the usual transfer path. Every location it damages rolls for critical hits of its own, so explosions can chain. The MechWarrior is injured, and the shot that set it off earns any kill.
+
+**Injuries.** Each explosion is one injury, and a damaged Life Support at 15 heat is one more, once per battle. A MechWarrior who survives the battle is Injured for 10–20 days per injury, added together, from the day the mission is settled.
+
+**Display.** The shot's log entry lists each result: "Critical hit: RT Medium Laser damaged" or "… destroyed", "Critical hit: CT Fusion Engine damaged 2/3" or "… critically damaged", and "Ammo explosion · RT LRM 20 ammunition · 600 damage". The paperdoll tooltip and systems readout show Damaged (yellow), Critically damaged (orange) and Destroyed (red), with critical systems' level counts. Co-op states carry every item's condition and hits. After the battle, damaged items carry their hits home for [repairs](design.md#hangar-repairs-confirmed-november-13-2026), and items in a lost location count as destroyed.
+
+**Battlefield effects.** On a friendly or detected mech, each result also shows at the struck location's center, following it as the mech moves or falls as a wreck. A damaged system gives a small yellow-white flash and a few sparks. A destroyed item or a critically damaged system gives a slightly larger flash with a small fireball, more sparks and a brief grey puff. An ammunition explosion is far bigger: a white flash and a second cook-off flash, a fireball sized by the explosion's damage inside a dark-red bloom, a burst of glowing fragments thrown up and outward, embers, and a dark smoke plume that keeps rising from the location for a few seconds and trails behind a moving mech. The flashes and fireballs age with simulation time and the particles stop while the battle is paused, so pausing freezes them.

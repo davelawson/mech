@@ -351,6 +351,8 @@ public sealed class OwnedMech
         Ammo = Array.AsReadOnly(Spec.Ammo.Select(bin => new AmmoCondition(bin.Id, bin.Shots)).ToArray());
     }
     public ComponentCondition Condition(string id) => Equipment.Single(item => item.Id == id).Condition;
+    /// <summary>"Damaged", "Critically damaged" and the like; with <paramref name="levels"/> a critical system's level count follows.</summary>
+    public string ConditionText(string id, bool levels = false) => CriticalText.Condition(Spec, Equipment.Single(item => item.Id == id), levels);
     public bool LocationIntact(MechLocation location) => Locations.Single(item => item.Location == location).Structure > 0;
     private bool Functional(ComponentKind kind) => Spec.Components.Where(item => item.Kind == kind)
         .All(item => Condition(item.Id) != ComponentCondition.Destroyed && LocationIntact(item.Location));
@@ -361,7 +363,10 @@ public sealed class OwnedMech
     public bool WeaponUsable(WeaponSpec weapon) => Condition(weapon.Id) != ComponentCondition.Destroyed && LocationIntact(weapon.Location)
         && (weapon.AmmoKind is null || Spec.Ammo.Any(bin => bin.AmmoKind == weapon.AmmoKind && LocationIntact(bin.Location)
             && Condition(bin.Id) != ComponentCondition.Destroyed && Ammo.Single(item => item.Id == bin.Id).Shots > 0));
-    public bool Operational => Functional(ComponentKind.Cockpit) && Functional(ComponentKind.FusionEngine) && Functional(ComponentKind.Gyro)
+    // A struck cockpit kills its MechWarrior, so the mech stays out of action until it is repaired.
+    public bool Operational => Functional(ComponentKind.Cockpit)
+        && Spec.Components.Where(item => item.Kind == ComponentKind.Cockpit).All(item => Condition(item.Id) == ComponentCondition.Operational)
+        && Functional(ComponentKind.FusionEngine) && Functional(ComponentKind.Gyro)
         && Functional(ComponentKind.Hip) && Functional(ComponentKind.UpperLegActuator) && Functional(ComponentKind.LowerLegActuator)
         && LocationIntact(MechLocation.LeftLeg) && LocationIntact(MechLocation.RightLeg) && Spec.Weapons.Any(WeaponUsable);
     private LocationSpec LocationSpec(MechLocation location) => Spec.Locations.Single(loc => loc.Location == location);

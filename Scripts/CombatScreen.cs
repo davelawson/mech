@@ -762,7 +762,7 @@ public partial class CombatScreen : Control
     {
         string State(string id, MechLocation location, bool usable = true) => !unit.Intact(location) ? "Lost"
             : unit.Equipment[id] == ComponentCondition.Destroyed ? "Destroyed"
-            : !usable ? $"{unit.Equipment[id]} · Unavailable" : unit.Equipment[id].ToString();
+            : !usable ? $"{unit.ConditionText(id, levels: true)} · Unavailable" : unit.ConditionText(id, levels: true);
         string Bin(AmmoSpec bin)
         {
             var state = State(bin.Id, bin.Location);

@@ -114,17 +114,17 @@ public partial class MechDetails : VBoxContainer
         var weapons = RosterUi.Scroll(tabs); weapons.GetParent<Control>().Name = "Weapons";
         foreach (var weapon in spec.Weapons)
         {
-            var status = unit is null ? "Operational" : unit.WeaponUsable(weapon) ? unit.Condition(weapon.Id).ToString() : "Unavailable";
+            var status = unit is null ? "Operational" : unit.WeaponUsable(weapon) ? unit.ConditionText(weapon.Id) : "Unavailable";
             RosterUi.Text(weapons, $"{weapon.Name} · {DraftCatalog.Abbreviation(weapon.Location)}{(weapon.Rear ? " · rear" : "")}  /  {status}", 14, Ui.Gold);
             RosterUi.Text(weapons, $"Heat {weapon.Heat} · Damage {DefinitionText.Damage(weapon.DamageProfile)}\nRange {weapon.Short * CombatRules.WeaponRangeScale} / {weapon.Medium * CombatRules.WeaponRangeScale} / {weapon.Long * CombatRules.WeaponRangeScale} m{(weapon.Minimum > 0 ? $" · minimum {weapon.Minimum * CombatRules.WeaponRangeScale} m" : "")}", 12);
         }
         RosterUi.Text(weapons, "AMMUNITION", 13, Ui.Gold);
         if (spec.Ammo.Length == 0) RosterUi.Text(weapons, "Energy weapons · no ammunition required", 12, Ui.Muted);
         foreach (var bin in spec.Ammo)
-            RosterUi.Text(weapons, $"{bin.Name} · {DraftCatalog.Abbreviation(bin.Location)}\n{unit?.Ammo.Single(item => item.Id == bin.Id).Shots ?? bin.Shots}/{bin.Shots} shots · {unit?.Condition(bin.Id).ToString() ?? "Operational"}", 12);
+            RosterUi.Text(weapons, $"{bin.Name} · {DraftCatalog.Abbreviation(bin.Location)}\n{unit?.Ammo.Single(item => item.Id == bin.Id).Shots ?? bin.Shots}/{bin.Shots} shots · {unit?.ConditionText(bin.Id) ?? "Operational"}", 12);
         var systems = RosterUi.Scroll(tabs); systems.GetParent<Control>().Name = "Systems";
         RosterUi.Text(systems, "INSTALLED COMPONENTS", 13, Ui.Gold);
         foreach (var component in spec.Components.OrderBy(item => item.Location))
-            RosterUi.Text(systems, $"{DraftCatalog.Abbreviation(component.Location)} · {component.Name}{(component.Slots > 1 ? $" ({component.Slots} critical slots)" : "")}\n{unit?.Condition(component.Id).ToString() ?? "Operational"}", 12);
+            RosterUi.Text(systems, $"{DraftCatalog.Abbreviation(component.Location)} · {component.Name}{(component.Slots > 1 ? $" ({component.Slots} critical slots)" : "")}\n{unit?.ConditionText(component.Id, levels: true) ?? "Operational"}", 12);
     }
 }

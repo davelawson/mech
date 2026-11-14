@@ -169,7 +169,7 @@ Two buttons in the hangar summary, beneath the condition bars, order a repair of
 - **Repair Armor** restores front and rear armor to the installed amount on every location that still has structure. A destroyed location needs **Repair All**.
 - **Repair All** restores armor and internal structure everywhere, repairs every damaged item, and replaces every destroyed weapon, ammunition bin, heat sink and jump jet with a spare from Inventory, refilling the bins. Engines, gyros, actuators and cockpit systems are always repaired in place and never need parts.
 
-**Damage levels.** Each item records the hits it has taken. Combat does not yet simulate critical hits, so an item lost with its location counts as fully hit: every critical slot of a weapon, bin, heat sink or jump jet, or every damage level of a critical system. A damaged item in a save from before hits were counted has one hit.
+**Damage levels.** Each item records the hits it has taken from [critical hits](combat-design.md#critical-hits-confirmed-november-14-2026): one for a damaged weapon or double heat sink, and one per damage level for a critical system, up to its maximum. An item lost with its location counts as fully hit: every critical slot of a weapon, bin, heat sink or jump jet, or every damage level of a critical system. A damaged item in a save from before hits were counted has one hit. Hangar slot tooltips and the roster read *Damaged*, *Critically damaged* (a critical system at its maximum level) or *Destroyed*, with a critical system's level count ("Damaged 1/3").
 
 **Parts.** Destroyed weapons, bins, heat sinks and jump jets each take one matching spare from Inventory; spares claimed by any mech's pending loadout changes are not available. The parts leave storage when the order is placed and return to it if the order is cancelled, whether queued or started. A destroyed item with no spare is left destroyed and out of the days and cost; the tooltip lists it under *Missing parts*. When missing parts are all that is left to repair, Repair All is disabled with that list.
 
@@ -181,8 +181,8 @@ Two buttons in the hangar summary, beneath the condition bars, order a repair of
 | Internal structure (a tenth of rated tonnage when whole) | 1 day per 1 t | 40,000 C-bills a ton |
 | Damaged weapon, bin, heat sink or jump jet | ½ day per hit slot | hit slots ÷ its slots × its [base price](#equipment-markets-confirmed-november-13-2026) |
 | Destroyed weapon, bin, heat sink or jump jet (with a spare) | ½ day per slot it takes | 10,000 C-bills per slot it takes |
-| Engine (3 levels destroy it) | 1 day per level | rating ÷ 400 × 100,000 C-bills per level |
-| Gyro (2 levels) | 1 day per level | tonnage ÷ 100 × 50,000 C-bills per level |
+| Engine (3 levels at most) | 1 day per level | rating ÷ 400 × 100,000 C-bills per level |
+| Gyro (2 levels at most) | 1 day per level | tonnage ÷ 100 × 50,000 C-bills per level |
 | Cockpit (1 level) | ½ day per level | 30,000 C-bills per level |
 | Sensors (2 levels) | ½ day per level | 20,000 C-bills per level |
 | Life Support (1 level) | ½ day per level | 15,000 C-bills per level |
@@ -340,7 +340,7 @@ The mercenary force has a reputation with each **tracked faction**: the five Gre
 
 - Opponent, honor, building and pirate-raid changes need a battle; abandoning or missing the deadline involves none. Only tracked factions change: pirates and local forces hold no reputation, though sparing them still earns ComStar's respect.
 - **Reasonable effort** means the force lost armor equal to at least a quarter of the most armor its deployed mechs' tonnages allow (the sum of their location armor limits), whatever they actually carried, so fielding damaged or lightly armored mechs doesn't help.
-- Fleeing, building destruction and salvage are reported as zero until those mechanics exist. A MechWarrior dies only when the head is destroyed (see [combat design](combat-design.md#location-loss-and-defeat)).
+- Fleeing, building destruction and salvage are reported as zero until those mechanics exist. A MechWarrior dies when the head is destroyed or the cockpit takes a critical hit (see [combat design](combat-design.md#location-loss-and-defeat)).
 
 ## Initial combat design (confirmed October 25, 2026)
 
@@ -355,7 +355,8 @@ A **Quick Launch** button in the hangar, beside **Simulate Deployment**, deploys
 - **Outcome.** Victory succeeds. Defeat, a draw or withdrawing fails.
 - **Settlement** happens once, when the results appear, and the results list it:
   - Deployed mechs keep their battle damage, and every installed bin refills.
-  - A MechWarrior whose head was destroyed dies and leaves the cockpit.
+  - A MechWarrior whose head was destroyed or whose cockpit took a critical hit dies and leaves the cockpit. A struck cockpit keeps the mech not operational until Repair All mends it.
+  - A MechWarrior injured in the battle (by an ammunition explosion, or overheating with Life Support damaged; see [critical hits](combat-design.md#critical-hits-confirmed-november-14-2026)) is Injured for 10–20 days per injury, added together and counted from the settlement day.
   - Success pays the offer's payment; failure pays nothing.
   - Reputation changes by the [mission conduct](#reputation-confirmed-november-5-2026) table, with the armor the force lost and the enemy MechWarriors who survived. Fleeing, buildings and salvage count as zero.
   - The mission is finished, and the calendar advances one day, with that day's events and any quarterly payment presented on returning to the hangar.

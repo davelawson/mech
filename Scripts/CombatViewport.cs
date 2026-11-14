@@ -309,6 +309,7 @@ public partial class CombatViewport : Control
         foreach (var model in _models.Values) { _world.RemoveChild(model); model.QueueFree(); }
         for (var i = _effects.Count - 1; i >= 0; i--) RemoveEffect(i);
         for (var i = _destructions.Count - 1; i >= 0; i--) RemoveDestruction(i);
+        for (var i = _criticalBlasts.Count - 1; i >= 0; i--) RemoveCriticalBlast(i);
         foreach (var mark in _burnMarks) mark.Mesh.QueueFree();
         _burnMarks.Clear();
         foreach (var dust in _dust) dust.Mesh.QueueFree();
@@ -329,10 +330,10 @@ public partial class CombatViewport : Control
         foreach (var unit in simulation.Units) CreateMech(unit);
         CancelDrag(); SyncModels(); QueueRedraw();
     }
-    private void OnShot(CombatShot shot)
+    internal void OnShot(CombatShot shot)
     {
         if (Simulation is null) return;
-        Destroy(shot);
+        Destroy(shot); ShowCriticals(shot);
         if (shot.Burn)
         {
             foreach (var effect in _effects.Where(item => item.Shot.Sequence == shot.Sequence)) effect.BurnLanded = Simulation.Elapsed;
@@ -1024,6 +1025,7 @@ public partial class CombatViewport : Control
         for (var i = _destructions.Count - 1; i >= 0; i--)
             if (Age(_destructions[i]) >= DestructionSeconds) RemoveDestruction(i);
         foreach (var destruction in _destructions) UpdateDestruction(destruction);
+        UpdateCriticalBlasts();
         var hovering = CommandsEnabled && _windowFocused && !_selecting && !_panning && !_rotating && !_rightDragging
             && GetViewport().GuiGetHoveredControl() == this;
         SetHovered(hovering ? PickMech(GetLocalMousePosition())?.Id : null);

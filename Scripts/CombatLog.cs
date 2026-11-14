@@ -81,6 +81,7 @@ public sealed record CombatLogEntry(double Time, CombatShot Shot, CombatLogUnit 
                     + (part.RearArmor > 0 ? $", rear −{part.RearArmor}" : "") + $", structure −{part.Structure}"
                     + (part.Destroyed ? " DESTROYED" : ""));
             if (Shot.SystemsLost.Count > 0) fields.Add("lost " + string.Join(", ", Shot.SystemsLost));
+            fields.AddRange(Shot.Criticals.Select(critical => critical.Text));
             if (Shot.TargetStatus is { } status) fields.Add($"target {status.ToString().ToUpperInvariant()}");
             if (Shot.TargetHeat > 0) fields.Add(FormattableString.Invariant($"target heat +{Shot.TargetHeat} → {Target.Heat:0.0}"));
         }

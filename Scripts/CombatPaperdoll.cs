@@ -2,10 +2,12 @@ using Godot;
 
 namespace Mech;
 
-/// <summary>One line of a location's systems tooltip: identical systems in the same condition.</summary>
-public sealed record SystemGroup(int Count, string Name, ComponentCondition Condition)
+/// <summary>One line of a location's systems tooltip: identical systems in the same condition. <see cref="Status"/> words a
+/// critical system's damage ("Damaged 1/3", "Critically damaged") when the condition alone does not.</summary>
+public sealed record SystemGroup(int Count, string Name, ComponentCondition Condition, string? Status = null)
 {
     public string Text => Count > 1 ? $"{Count} x {Name}" : Name;
+    public string StatusText => Status ?? Condition.ToString();
 }
 
 /// <summary>
@@ -22,6 +24,8 @@ public partial class CombatPaperdoll : Control
     {
         ComponentCondition.Destroyed => CriticalDamage, ComponentCondition.Damaged => LightDamage, _ => Healthy
     };
+    public static Color SystemColor(SystemGroup system) =>
+        system.StatusText == "Critically damaged" ? ModerateDamage : SystemColor(system.Condition);
     public static Color ConditionColor(int remaining, int maximum) => remaining >= maximum ? Full
         : remaining * 3 > maximum * 2 ? LightDamage : remaining * 3 > maximum ? ModerateDamage : CriticalDamage;
     private static readonly Dictionary<MechLocation, Vector2[]> Shapes = new()
@@ -71,8 +75,10 @@ public partial class CombatPaperdoll : Control
         return unit.Weapons.Select(weapon => weapon.Spec).Where(item => item.Location == location).Select(item => (item.Id, Name: item.Rear ? $"{item.Name} (rear)" : item.Name))
             .Concat(unit.Spec.Components.Where(item => item.Location == location).Select(item => (item.Id, item.Name)))
             .Concat(unit.Spec.Ammo.Where(item => item.Location == location).Select(item => (item.Id, item.Name)))
-            .Select(item => (item.Name, Condition: lost ? ComponentCondition.Destroyed : unit.Equipment[item.Id]))
-            .GroupBy(item => item).Select(group => new SystemGroup(group.Count(), group.Key.Name, group.Key.Condition)).ToArray();
+            .Select(item => (item.Name, Condition: lost ? ComponentCondition.Destroyed : unit.Equipment[item.Id],
+                Status: lost ? null : unit.ConditionText(item.Id, levels: true)))
+            .Select(item => item with { Status = item.Status == item.Condition.ToString() ? null : item.Status })
+            .GroupBy(item => item).Select(group => new SystemGroup(group.Count(), group.Key.Name, group.Key.Condition, group.Key.Status)).ToArray();
     }
     private float DrawScale => Compact ? Math.Min(Size.X / CompactBounds.Size.X, Size.Y / CompactBounds.Size.Y) : Math.Min(Size.X / 300, Size.Y / 244);
     private Vector2 Origin => Compact ? (Size - CompactBounds.Size * DrawScale) / 2 - CompactBounds.Position * DrawScale
@@ -89,7 +95,7 @@ public partial class CombatPaperdoll : Control
     }
     public string LocationTooltip(MechLocation location) => Unit is null ? "" : DraftCatalog.LocationName(location).ToUpperInvariant() + "\n"
         + (LocationSystems(Unit, location) is { Count: > 0 } systems
-            ? string.Join("\n", systems.Select(item => item.Condition == ComponentCondition.Operational ? item.Text : $"{item.Text} · {item.Condition}"))
+            ? string.Join("\n", systems.Select(item => item.Condition == ComponentCondition.Operational ? item.Text : $"{item.Text} · {item.StatusText}"))
             : "No systems");
     public override string _GetTooltip(Vector2 atPosition)
     {
@@ -104,7 +110,8 @@ public partial class CombatPaperdoll : Control
         Ui.Label(box, DraftCatalog.LocationName(location).ToUpperInvariant(), 12, Ui.Gold);
         var systems = LocationSystems(Unit, location);
         if (systems.Count == 0) Ui.Label(box, "No systems", 12, Ui.Muted);
-        foreach (var system in systems) Ui.Label(box, system.Text, 12, SystemColor(system.Condition));
+        foreach (var system in systems)
+            Ui.Label(box, system.Condition == ComponentCondition.Operational ? system.Text : $"{system.Text} · {system.StatusText}", 12, SystemColor(system));
         return box;
     }
     public override void _Draw()

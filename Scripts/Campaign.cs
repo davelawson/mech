@@ -316,12 +316,13 @@ public sealed class Campaign
     }
 
     /// <summary>Settles the current mission from its battle: deployed mechs keep their damage and refill their ammunition,
-    /// MechWarriors whose head was destroyed die, success pays, reputation changes, and the mission's day passes.</summary>
+    /// MechWarriors whose head was destroyed or cockpit struck die, injured ones recover after their injury days, success pays,
+    /// reputation changes, and the mission's day passes.</summary>
     public MissionSettlement SettleMission(MissionReport report)
     {
         if (Roster is null || Missions.Current is not { } offer) throw new InvalidOperationException("There is no current mission to settle.");
         if (!CanAdvance) throw new InvalidOperationException("Resolve the quarterly payment before settling a mission.");
-        if (report.Mechs.Length == 0 || report.Mechs.Any(item => Roster.Mechs.All(mech => mech.Id != item.MechId)))
+        if (report.Mechs.Length == 0 || report.Mechs.Any(item => Roster.Mechs.All(mech => mech.Id != item.MechId) || item.InjuryDays < 0))
             throw new ArgumentException("The report must name deployed BattleMechs.", nameof(report));
         var killed = new List<string>();
         foreach (var item in report.Mechs)
@@ -331,6 +332,7 @@ public sealed class Campaign
             mech.ApplyBattle(item.Locations, item.Equipment);
             if (pilot is not null) { pilot.Deployments++; pilot.Kills += Math.Max(0, item.Kills); }
             if (item.WarriorKilled && pilot is not null) { Roster.SetHealth(pilot.Id, WarriorHealth.Dead, null, Date); killed.Add(pilot.Id); }
+            else if (item.InjuryDays > 0 && pilot is not null) Roster.SetHealth(pilot.Id, WarriorHealth.Injured, Date.AddDays(item.InjuryDays), Date);
         }
         var payment = report.Outcome == MissionOutcome.Success ? offer.Payment : 0;
         Cash += payment;

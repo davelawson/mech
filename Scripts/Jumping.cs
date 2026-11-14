@@ -34,15 +34,15 @@ public sealed partial class CombatUnit
     /// <summary>Simulation time of the last landing, for touchdown effects.</summary>
     public double? LandedAt { get; internal set; }
     // Catalog jets are split into one component per jet; each destroyed or lost jet removes one jump MP.
+    // A damaged jet group keeps half its jets, rounded down.
     public int EffectiveJumpMp => Math.Max(0, Spec.Jump - Spec.Components
-        .Where(component => component.Kind == ComponentKind.JumpJet
-            && (!Intact(component.Location) || Equipment[component.Id] == ComponentCondition.Destroyed))
-        .Sum(component => component.Slots));
+        .Where(component => component.Kind == ComponentKind.JumpJet)
+        .Sum(component => component.Slots - WorkingJets(component)));
     /// <summary>Jets still working in one location, for its exhaust.</summary>
-    public int WorkingJumpJets(MechLocation location) => !Intact(location) ? 0 : Spec.Components
-        .Where(component => component.Kind == ComponentKind.JumpJet && component.Location == location
-            && Equipment[component.Id] != ComponentCondition.Destroyed)
-        .Sum(component => component.Slots);
+    public int WorkingJumpJets(MechLocation location) => Spec.Components
+        .Where(component => component.Kind == ComponentKind.JumpJet && component.Location == location).Sum(WorkingJets);
+    private int WorkingJets(ComponentSpec component) => !Intact(component.Location) ? 0 : Equipment[component.Id] switch
+    { ComponentCondition.Destroyed => 0, ComponentCondition.Damaged => component.Slots / 2, _ => component.Slots };
     public float JumpRange => EffectiveJumpMp * CombatRules.JumpMetresPerMp * Mobility;
     /// <summary>Why this unit cannot start the shortest jump now, or null when it can.</summary>
     public string? JumpUnavailableReason => Spec.Jump == 0 ? "No jump jets" : Defeated ? Status.ToString()

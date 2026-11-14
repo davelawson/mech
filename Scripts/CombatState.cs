@@ -12,7 +12,7 @@ public sealed record CombatUnitState(string Id, Vector2 Position, Vector2 Destin
     double InterferenceRemaining, double Heat, HeatPolicy HeatPolicy, bool Shutdown, bool Airborne, Vector2 JumpFrom, Vector2 JumpTo,
     float JumpDuration, float JumpElapsed, float JumpFromHeight, float JumpToHeight, float JumpApexHeight, float Altitude, double JumpRecharge,
     double? LandedAt, float TorsoTwist, bool TorsoTurning, CombatLocationState[] Locations, bool[] WeaponsEnabled, double[] WeaponsRemaining,
-    int[] Ammo, int Kills = 0, bool Extracted = false);
+    int[] Ammo, int Kills = 0, bool Extracted = false, EquipmentCondition[]? Equipment = null, int Injuries = 0, bool LifeSupportInjury = false);
 
 public sealed record CombatContactState(CombatSide Side, string UnitId, ContactLevel Level, Vector2 LastKnownPosition, double LastSeenAt);
 
@@ -27,7 +27,8 @@ public sealed partial class CombatUnit
         InterferenceRemaining, Heat, HeatPolicy, Shutdown, Airborne, JumpFrom, JumpTo, JumpDuration, JumpElapsed, JumpFromHeight, JumpToHeight,
         JumpApexHeight, Altitude, JumpRecharge, LandedAt, TorsoTwist, TorsoTurning,
         Locations.Values.Select(item => new CombatLocationState(item.Location, item.Armor, item.RearArmor, item.Structure)).ToArray(),
-        Weapons.Select(item => item.Enabled).ToArray(), Weapons.Select(item => item.Remaining).ToArray(), _ammo.Select(item => item.Shots).ToArray(), Kills, Extracted);
+        Weapons.Select(item => item.Enabled).ToArray(), Weapons.Select(item => item.Remaining).ToArray(), _ammo.Select(item => item.Shots).ToArray(), Kills, Extracted,
+        EquipmentState(), Injuries, LifeSupportInjury);
 
     /// <summary>Takes on the leader's state, except the pose, which <see cref="CombatSimulation"/> blends toward it.</summary>
     internal void Apply(CombatUnitState state)
@@ -50,6 +51,8 @@ public sealed partial class CombatUnit
         }
         for (var i = 0; i < Weapons.Count; i++) { Weapons[i].Enabled = state.WeaponsEnabled[i]; Weapons[i].Remaining = state.WeaponsRemaining[i]; }
         for (var i = 0; i < _ammo.Length; i++) _ammo[i] = _ammo[i] with { Shots = state.Ammo[i] };
+        if (state.Equipment is { } equipment) ApplyEquipment(equipment);
+        Injuries = state.Injuries; LifeSupportInjury = state.LifeSupportInjury;
     }
 }
 

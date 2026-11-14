@@ -13,8 +13,10 @@ public enum CombatOutcome { Ongoing, Victory, Defeat, Draw, Ended }
 public enum CombatStatus { Active, Shutdown, Disabled, Destroyed, Extracted }
 public enum ContactLevel { Lost, Identified, Detailed }
 
-/// <summary>A deployed mech's condition after a mission battle, keyed by its owned id. Armor lost is front plus rear.</summary>
-public sealed record DeployedMechReport(string MechId, LocationCondition[] Locations, EquipmentCondition[] Equipment, bool WarriorKilled, int ArmorLost, int Kills = 0);
+/// <summary>A deployed mech's condition after a mission battle, keyed by its owned id. Armor lost is front plus rear. InjuryDays is the
+/// MechWarrior's recovery time from the battle's injuries, 0 when unhurt.</summary>
+public sealed record DeployedMechReport(string MechId, LocationCondition[] Locations, EquipmentCondition[] Equipment, bool WarriorKilled, int ArmorLost,
+    int Kills = 0, int InjuryDays = 0);
 /// <summary>What a mission battle reports to the campaign. Enemy MechWarriors spared are those whose head survived.</summary>
 public sealed record MissionReport(MissionOutcome Outcome, DeployedMechReport[] Mechs, int EnemyWarriorsSpared);
 
@@ -33,7 +35,8 @@ public static partial class CombatRules
         * (1 + (WarriorSkills.Novice - Math.Clamp(sensors, WarriorSkills.Expert, WarriorSkills.Novice))
             / (float)(WarriorSkills.Novice - WarriorSkills.Expert))
         * (.5f + (Math.Clamp(targetTonnage, 20, 100) - 20) / 160f);
-    public static float DetectionRadius(CombatUnit observer, CombatUnit target) => DetectionRadius(observer.Warrior.Sensors, target.Spec.Tonnage);
+    public static float DetectionRadius(CombatUnit observer, CombatUnit target) =>
+        DetectionRadius(observer.Warrior.Sensors, target.Spec.Tonnage) * observer.SensorRangeMultiplier;
     public const float UnitRadius = 9.75f;
     public const float FollowDistance = 90;
     /// <summary>Metres per second per stock movement point: exactly 10 km/h.</summary>
@@ -210,7 +213,10 @@ public sealed partial class CombatUnit
         Group = side == CombatSide.Enemy ? group : null;
         Facing = side == CombatSide.Friendly ? Vector2.Up : Vector2.Down;
         Locations = locations.ToDictionary(item => item.Location, item => new CombatLocation(item));
-        Equipment = equipment.ToDictionary(item => item.Id, item => item.Condition);
+        var items = equipment.ToArray();
+        Equipment = _equipment = items.ToDictionary(item => item.Id, item => item.Condition);
+        _hits = items.ToDictionary(item => item.Id, item => Repairs.Hits(spec, item));
+        _layout = CriticalLayout.For(spec);
         _ammo = ammo.ToArray(); Ammo = Array.AsReadOnly(_ammo);
         Weapons = Array.AsReadOnly(spec.Weapons.Select(item => new CombatWeapon(item)).ToArray());
         // A damage-weighted short-range preference keeps mixed loadouts relevant.
@@ -245,25 +251,26 @@ public sealed partial class CombatUnit
     public bool Extracted { get; internal set; }
     public CombatStatus Status => Extracted ? CombatStatus.Extracted : !Intact(MechLocation.Head) || !Intact(MechLocation.CenterTorso)
         ? CombatStatus.Destroyed : (!Intact(MechLocation.LeftLeg) && !Intact(MechLocation.RightLeg))
-            || !Weapons.Any(WeaponIntact) ? CombatStatus.Disabled : Shutdown ? CombatStatus.Shutdown : CombatStatus.Active;
+            || !Weapons.Any(WeaponIntact) || CockpitHit ? CombatStatus.Disabled : Shutdown ? CombatStatus.Shutdown : CombatStatus.Active;
     public bool Active => Status == CombatStatus.Active;
-    /// <summary>The MechWarrior dies only when the head is destroyed, including by overkill carried up from the center torso.</summary>
-    public bool WarriorKilled => !Intact(MechLocation.Head);
+    /// <summary>The MechWarrior dies when the head is destroyed, including by overkill carried up from the center torso, or when a
+    /// critical hit strikes the cockpit.</summary>
+    public bool WarriorKilled => !Intact(MechLocation.Head) || CockpitHit;
     public bool Defeated => IsDefeated(Status);
     /// <summary>Out of the fight. An extracted mech counts too: nothing can target, follow or order it any longer.</summary>
     internal static bool IsDefeated(CombatStatus status) => status is CombatStatus.Disabled or CombatStatus.Destroyed or CombatStatus.Extracted;
     /// <summary>Occupies ground: wrecks and extracted mechs do not.</summary>
     public bool Solid => Status is not (CombatStatus.Destroyed or CombatStatus.Extracted);
     private float Mobility => Defeated ? 0 : (!Intact(MechLocation.LeftLeg) || !Intact(MechLocation.RightLeg)) ? .5f : 1;
-    public float UnheatedWalkingSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Walk) * Mobility;
-    public float UnheatedRunningSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Run) * Mobility;
+    public float UnheatedWalkingSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Walk) * Mobility * CriticalSpeedMultiplier;
+    public float UnheatedRunningSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Run) * Mobility * CriticalSpeedMultiplier;
     public float WalkingSpeed => Active ? UnheatedWalkingSpeed * HeatSpeedMultiplier : 0;
     public float RunningSpeed => Active ? UnheatedRunningSpeed * HeatSpeedMultiplier : 0;
     public float Speed => Movement == MovementMode.Run ? RunningSpeed : WalkingSpeed;
     // Nine / Walk seconds to full run, half that to stop. No independent mass modifier.
     public float Acceleration => UnheatedRunningSpeed * Spec.Walk / 9f;
     public float Braking => Acceleration * 2;
-    public float TurnRate => Mathf.DegToRad(15 * Spec.Walk);
+    public float TurnRate => Mathf.DegToRad(15 * Spec.Walk) * GyroMultiplier;
     public int ArmorLost => Locations.Values.Sum(item => item.InitialArmor - item.Armor + item.InitialRearArmor - item.RearArmor);
     public int StructureLost => Locations.Values.Sum(item => item.InitialStructure - item.Structure);
 
@@ -329,6 +336,8 @@ public sealed record CombatShot(string AttackerId, string TargetId, Vector2 From
     public string WeaponId { get; init; } = "";
     public IReadOnlyList<CombatDamage> DamageApplied { get; init; } = [];
     public IReadOnlyList<string> SystemsLost { get; init; } = [];
+    /// <summary>Critical hits and ammunition explosions the shot caused, in the order they happened.</summary>
+    public IReadOnlyList<CombatCritical> Criticals { get; init; } = [];
     public CombatStatus? TargetStatus { get; init; }
     /// <summary>Shared by a laser discharge and its delayed burn continuation.</summary>
     public long Sequence { get; init; }
@@ -493,7 +502,7 @@ public sealed partial class CombatSimulation
         return new(Outcome == CombatOutcome.Victory ? MissionOutcome.Success : MissionOutcome.Failure,
             Units.Where(unit => unit.Side == CombatSide.Friendly).Select(unit => new DeployedMechReport(unit.Id,
                 unit.Locations.Values.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)).ToArray(),
-                unit.Equipment.Select(item => new EquipmentCondition(item.Key, item.Value)).ToArray(), unit.WarriorKilled, unit.ArmorLost, unit.Kills)).ToArray(),
+                unit.ReportedEquipment(), unit.WarriorKilled, unit.ArmorLost, unit.Kills, InjuryDays(unit))).ToArray(),
             Units.Count(unit => unit.Side == CombatSide.Enemy && !unit.WarriorKilled));
     }
 
@@ -521,7 +530,9 @@ public sealed partial class CombatSimulation
         Units = Array.AsReadOnly(units.ToArray()); Terrain = terrain ?? BattlefieldTerrain.Flat;
         var climate = Terrain.Biome is { } biome ? Biomes.Spec(biome) : null;
         foreach (var unit in Units) unit.Climate = climate;
-        History = _history.AsReadOnly(); _random = new Random(seed); RefreshDetection();
+        History = _history.AsReadOnly(); _random = new Random(seed); _seed = seed;
+        // Critical hits draw from their own stream, so hit and location rolls stay as they were before criticals existed.
+        _criticalRandom = new Random(unchecked(seed ^ CriticalSeedSalt)); RefreshDetection();
         var players = Units.Where(item => item.Side == CombatSide.Friendly).Select(item => item.Lance!.Value).Distinct().Order().ToArray();
         Players = players.Length > 0 ? players : [Campaign.LeaderSlot];
         Paused = true;
@@ -715,11 +726,17 @@ public sealed partial class CombatSimulation
             var before = target.Locations.Values.ToDictionary(part => part.Location,
                 part => (part.Armor, part.RearArmor, part.Structure));
             var status = target.Status;
-            if (shot.Missiles.Count == 0) target.ApplyDamage(shot.Location, shot.Damage, shot.From);
-            else foreach (var missile in shot.Missiles.Where(item => item.Hit)) target.ApplyDamage(missile.Location, shot.MissileDamage, shot.From);
+            var criticals = new List<CombatCritical>();
+            // Each missile that reaches structure rolls for critical hits on its own; any other shot rolls once per location.
+            if (shot.Missiles.Count == 0) Strike(target, () => target.ApplyDamage(shot.Location, shot.Damage, shot.From), criticals);
+            else foreach (var missile in shot.Missiles.Where(item => item.Hit))
+                Strike(target, () => target.ApplyDamage(missile.Location, shot.MissileDamage, shot.From), criticals);
             if (shot.Splash > 0)
             {
-                foreach (var splash in shot.Splashes.GroupBy(item => item.Location)) target.ApplyDamage(splash.Key, splash.Sum(item => item.Damage), shot.From);
+                Strike(target, () =>
+                {
+                    foreach (var splash in shot.Splashes.GroupBy(item => item.Location)) target.ApplyDamage(splash.Key, splash.Sum(item => item.Damage), shot.From);
+                }, criticals);
                 target.InterferenceRemaining = CombatRules.InterferenceSeconds;
             }
             var damage = target.Locations.Values.Select(part => new CombatDamage(part.Location,
@@ -734,7 +751,7 @@ public sealed partial class CombatSimulation
                 .Select(item => $"{DraftCatalog.Abbreviation(item.Location)} {item.Name}").ToArray();
             // The hit that disables or destroys an enemy earns its shooter the kill.
             if (!CombatUnit.IsDefeated(status) && target.Defeated && Unit(shot.AttackerId).Side != target.Side) Unit(shot.AttackerId).Kills++;
-            shots[i] = shot with { DamageApplied = Array.AsReadOnly(damage), SystemsLost = Array.AsReadOnly(systems),
+            shots[i] = shot with { DamageApplied = Array.AsReadOnly(damage), SystemsLost = Array.AsReadOnly(systems), Criticals = criticals.AsReadOnly(),
                 TargetStatus = target.Status != status ? target.Status : null };
         }
         var heat = Units.ToDictionary(unit => unit.Id, _ => 0d);
@@ -967,7 +984,7 @@ public sealed partial class CombatSimulation
         var minimum = distance < weapon.MinimumRange
             ? (int)Math.Ceiling((weapon.MinimumRange - distance) / CombatRules.WeaponRangeScale) : 0;
         var threshold = attacker.Warrior.Gunnery + CombatRules.AimModifier + range + minimum + terrainModifier + attacker.HeatAimModifier
-            + attacker.InterferenceAimModifier
+            + attacker.InterferenceAimModifier + attacker.CriticalAimModifier(weapon)
             // Reversing spoils the attacker's own aim as badly as running; as a target it still counts as walking.
             // Jumping replaces either side's ground movement modifier.
             + (attacker.Airborne ? CombatRules.JumpToHitModifier

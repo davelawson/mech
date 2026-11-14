@@ -155,6 +155,8 @@ The muzzle flash lasts 0.1 seconds. The bullet is a capsule of brass yellow (1, 
 
 A destroyed location's explosion lasts 1.1 seconds. Its white flash reaches 18.75 metres over the first quarter; the orange fireball swells from 11.25 to 37.5 metres, fading as 1 − t²; the dark-red bloom swells from 18.75 to 45 metres at 60% opacity, fading linearly. Five yellow debris blobs fly 45–67.5 metres outward and upward on directions seeded from the shot, shrinking from 4.5 to 2.25 metres. Misses fly on up to 300 metres beyond long range from the muzzle before fading over 0.1 seconds.
 
+Critical-hit effects. An ammunition explosion's fireball radius is 20 + damage ÷ 25 metres, clamped to 25–60 (44 metres for 600 damage). Over 1.4 seconds its white flash reaches 55% of that radius in the first fifth; a yellow-white cook-off flash starts at 0.15 seconds and reaches 75% over the next quarter; the orange fireball swells from 30% to the full radius, fading as 1 − t²; the dark-red bloom swells from 50% to 125% at 60% opacity. 48 fragments burst at once at 1.3–2.1 radii per second within 60° of vertical, with gravity of 1.2 radii/s² and drag, living 2 seconds and shrinking to 40% from 15% of the radius, white through yellow to fading orange. The smoke plume emits 40 particles per 3-second lifetime for 4 seconds, rising at 12–22 m/s and swelling from 8 to 30 metres. 24 embers per 0.8-second lifetime rise from it for the first 2 seconds. A damaged system flashes to 4 metres for 0.3 seconds with 10 sparks living 0.45 seconds. A destroyed item or critically damaged system flashes to 7 metres with a small fireball for 0.5 seconds, 20 sparks, and a light grey puff emitted for 0.5 seconds whose particles live 1.5 seconds.
+
 The extra location roll is drawn only for laser hits on a target in motion. Beam halo radii are 0.3 (small), 0.6 (medium) and 0.9 (large and ER large) metres, with a core at 40% of the halo. Halos are pure red (small), pure green (medium) and deep blue (large and ER large); the core blends that color 30% toward white so additive beams keep their color. The beam reaches full length 0.1 seconds after discharge, sweeps linearly from the first location to the second over the 1-second burn (holding still when they are the same) and fades over 0.15 seconds after the burn. A miss is solid to long range, then its halo and core fade linearly to invisible at 1.5 × long range from the muzzle: small 270 → 405 m, medium 810 → 1215 m, large 1350 → 2025 m, ER large 1710 → 2565 m. Terrain and rocks cut a miss short. Where it strikes, a charcoal (0.08, 0.06, 0.05) scorch disc of six times the halo radius (1.8, 3.6 and 5.4 metres) lies 0.3 metres above the surface, with a radial falloff from 85% opacity at its center to transparent at its rim. On a rock face it faces back along the beam. It holds full strength while the beam burns, then fades linearly over 5 seconds. A side's defeat starts a 3-second wind-down before the outcome.
 
 Hit chance is the exact probability of 2d6 meeting this threshold:
@@ -212,7 +214,7 @@ Heat reduces walking and running limits without changing the underlying accelera
 
 Normal only permits volleys whose projected heat is strictly below 20; Aggressive permits heat strictly below 30. Ready, enabled, usable weapons with valid firing arcs and targets compete in a single budget, including rear mounts. Selection maximizes ordinary damage × current hit chance, then minimizes heat, then favors catalog order. Rolls are made only after selection and remain in catalog order. Withheld weapons keep their cooldown ready; their readouts explain cooling. Zero-heat weapons may fire when the policy ceiling permits them. Both sides use the same rules; enemies initially use Normal.
 
-The stock total includes internal sinks. Explicit Heat Sink component entries publish their grouped contribution as `HeatSinkCount`, independently of critical-slot count; existing single-sink groups retain the previous contribution equal to their Slots count. Remove the whole group's contribution when its component is Destroyed or its mounting location is lost, including attached arm loss; do not subtract it twice. Damaged groups retain full output. The unlisted internal remainder survives while the mech survives. Mauler's 11 internal double sinks remove 2.2 heat per second. Individual critical hits and engine heat are deferred.
+The stock total includes internal sinks. Explicit Heat Sink component entries publish their grouped contribution as `HeatSinkCount`, independently of critical-slot count; existing single-sink groups retain the previous contribution equal to their Slots count. Remove the whole group's contribution when its component is Destroyed or its mounting location is lost, including attached arm loss; do not subtract it twice. A Damaged sink item cools at half its rate, rounded down, so a damaged double sink cools like a single one. The unlisted internal remainder survives while the mech survives. Mauler's 11 internal double sinks remove 2.2 heat per second. A damaged engine adds heat while the mech runs (see [critical hits](#critical-hits)).
 
 **Climate.** Every second, heat moves toward the biome's ambient temperature by (ambient − heat) ÷ 5 per 10-second heat clock, that is 0.02 × (ambient − heat) per second. Cooling efficiency multiplies sink output only. Hand-built test terrain has no climate: no exchange and 100% efficiency.
 
@@ -231,9 +233,29 @@ The stock total includes internal sinks. Explicit Heat Sink component entries pu
 
 The "At heat" columns are ambient exchange only, before sinks. Ten single sinks shed 1 heat/s at 100%, 1.5 in the Arctic and 0.25 on Lunar; in the Volcanic biome they shed 0.8, just above the 0.6 ambient pull at heat 0. In the Valley an idle mech without sinks settles at 10 heat, one with a single sink at 5, and one with two or more sinks at 0. The numbers are provisional.
 
-Friendly ground labels show a 30-pixel heat bar (full at the shutdown threshold) under the callsign, and cards show current heat; selected details show heat band, policy, sink cooling × efficiency, and ambient temperature with its current exchange. Normal/Aggressive controls apply to selected units including thermal shutdowns, with a Mixed group readout when appropriate. Exact enemy heat and cooling appear only at Detailed contact tier and disappear when that tier is lost. Water provides no cooling bonus. Heat damage, ammunition explosions and manual venting remain deferred.
+Friendly ground labels show a 30-pixel heat bar (full at the shutdown threshold) under the callsign, and cards show current heat; selected details show heat band, policy, sink cooling × efficiency, and ambient temperature with its current exchange. Normal/Aggressive controls apply to selected units including thermal shutdowns, with a Mixed group readout when appropriate. Exact enemy heat and cooling appear only at Detailed contact tier and disappear when that tier is lost. Water provides no cooling bonus. Heat damage, heat-triggered ammunition explosions and manual venting remain deferred.
 
 Five-to-ten minutes remains a provisional ordinary-engagement target. With the expanded ranges and Normal heat policies, the seeded flat-ground mixed-lance check finishes in 761 simulated seconds; one-on-one Jenner, Griffin and Awesome checks finish in 121, 176 and 183 seconds. The seeded natural-terrain (Valley) mixed-lance check, with enemy AI jumping, finishes in 596 seconds. These seeded results are repeatable comparisons, not guarantees for every fight. One-on-one light-mech fights can finish substantially sooner than lance battles.
+
+## Critical hits
+
+The rules are in [combat design](combat-design.md#critical-hits-confirmed-november-14-2026); the values live in `CombatRules` (`Scripts/CriticalHits.cs`). Critical rolls draw from their own random stream, seeded from the battle's seed, so hit and location rolls are unchanged by them.
+
+| Value | Default |
+| --- | --- |
+| Potential critical hits on 2d6 | 7–9: 1, 10–11: 2, 12: 3 (21 in 36 rolls find at least one) |
+| Damaged weapon | +2 target number |
+| Sensors, per level | +1 target number on every weapon, −25% sensor range |
+| Shoulder / upper or lower arm actuator | +2 / +1 target number on that arm's weapons |
+| Engine, per level | +5 heat per 10-second heat clock while active |
+| Gyro, per level | −25% top speed, acceleration and turn rate |
+| Hip | ×0.5 top speed and acceleration, not with a lost leg |
+| Upper or lower leg or foot actuator | −10% top speed and acceleration each |
+| Life Support injury | at 15 heat |
+| Ammunition explosion | 50% chance; 50% × remaining shots × stock damage per shot × 10 |
+| Injury | 10–20 days each, drawn from the battle's seed and the unit |
+
+Stock damage per shot: machine gun and AC/2 2, AC/5 5, AC/10 10, AC/20 20, LRM *n* (the rack size), SRM 2*n*. A full LRM 20 bin (6 shots) explodes for 600 damage; a full machine-gun bin (200 shots) for 2,000, enough to destroy any mech from a torso.
 
 ## Calculation reuse
 

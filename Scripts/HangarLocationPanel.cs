@@ -147,7 +147,7 @@ public partial class HangarLocationPanel : Control
         var remove = !Loadout.Removable(block.Kind) ? "" : condition == ComponentCondition.Destroyed ? "\nRight-click to scrap" : "\nRight-click to remove";
         var covering = !Mounts.Covered.TryGetValue(id, out var covers) ? ""
             : string.Concat(covers.GroupBy(type => type).Select(group => $"\nCovering {MountCount(group.Key, group.Count())}"));
-        return $"{block.Name}\n{mass}{block.ItemSlots} {(block.ItemSlots == 1 ? "slot" : "slots")}{split}\n{condition}{purchase}{covering}{warning}{remove}";
+        return $"{block.Name}\n{mass}{block.ItemSlots} {(block.ItemSlots == 1 ? "slot" : "slots")}{split}\n{_mech.ConditionText(id, levels: true)}{purchase}{covering}{warning}{remove}";
     }
 
     /// <summary>A weapon's slots take its hardpoint class colour; every other item its kind's colour.</summary>
