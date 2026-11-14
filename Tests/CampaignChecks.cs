@@ -38,7 +38,9 @@ internal static class CampaignChecks
             campaign.PayNow();
         }
 
-        var buyer = NewCompany(); var buyerMech = buyer.Roster!.Mechs.First(item => item.Spec.Ammo.Length > 0); var buyerBin = buyerMech.Spec.Ammo[0];
+        var buyer = NewCompany(); var buyerMech = buyer.Roster!.Mechs.First(item => item.Spec.Ammo.Any(Sold)); var buyerBin = buyerMech.Spec.Ammo.First(Sold);
+        bool Sold(AmmoSpec bin) => MarketTuning.Spec(StorageCatalog.AmmoId(bin.AmmoKind))!.Value.Tech <= SystemRatings.Tech(StarChart.Instance[buyer.Travel.OrbitSystemId]);
+        buyer = WithMarket(buyer, new StorageEntry(StorageCatalog.AmmoId(buyerBin.AmmoKind), 1)); buyerMech = buyer.Roster!.Mechs.Single(item => item.Id == buyerMech.Id);
         var swap = buyerMech.Plan with { Removed = buyerMech.Removed.Add(buyerBin.Id), Installed = [new(Loadout.NextId([]), StorageCatalog.AmmoId(buyerBin.AmmoKind), buyerBin.Location)] };
         var broke = Campaign.Restore(buyer.Snapshot() with { Cash = 0 }); var brokeStorage = broke.Roster!.Storage.ToArray();
         Throws(() => broke.ApplyLoadout(buyerMech.Id, swap, [StorageCatalog.AmmoId(buyerBin.AmmoKind)]), check, "reject an unaffordable purchase");
@@ -46,9 +48,10 @@ internal static class CampaignChecks
             "a refused purchase changes nothing");
         var binStored = buyer.Roster.Storage.Single(item => item.Id == StorageCatalog.AmmoId(buyerBin.AmmoKind)).Count;
         buyer.ApplyLoadout(buyerMech.Id, swap, [StorageCatalog.AmmoId(buyerBin.AmmoKind)]);
-        check(buyer.Cash == Campaign.StartingCash - EquipmentMarket.NominalPrice && buyerMech.Installed.Length == 1
+        check(buyer.Cash == Campaign.StartingCash - EquipmentMarket.Price(StorageCatalog.AmmoId(buyerBin.AmmoKind)) && buyerMech.Installed.Length == 1
             && buyer.Roster.Storage.Single(item => item.Id == StorageCatalog.AmmoId(buyerBin.AmmoKind)).Count == binStored + 1,
             "applying a loadout pays for its purchases, which install without drawing on storage");
+        check(buyer.OrbitMarket!.Stock(StorageCatalog.AmmoId(buyerBin.AmmoKind)) == 0, "an applied purchase leaves the market");
         var insolvent = Campaign.Restore(NewCompany().Snapshot() with { Cash = 99_999 });
         AdvanceTo(insolvent, new DateOnly(3025, 4, 1));
         check(!insolvent.CanPay && insolvent.CanDefer && !insolvent.Bankrupt, "first shortfall permits grace");
@@ -86,6 +89,74 @@ internal static class CampaignChecks
         TestStorage(check); TestSaveLibrary(check);
         TestLances(check);
         TestRepairs(check);
+        TestMarkets(check);
+    }
+
+    /// <summary>The campaign with the orbited system's market holding exactly these items, last refreshed today.</summary>
+    internal static Campaign WithMarket(Campaign campaign, params StorageEntry[] items) => Campaign.Restore(campaign.Snapshot() with
+    { Markets = [new MarketSnapshot(campaign.Travel.OrbitSystemId, campaign.Date, items)] });
+
+    private static void TestMarkets(Action<bool, string> check)
+    {
+        StarSystem Named(string name) => StarChart.Instance.Systems.Single(item => item.Name == name);
+        check(SystemRatings.Tech(Named("Galatea")) == TechLevel.Regressed && SystemRatings.Capacity(Named("Galatea")) == IndustrialCapacity.Developing
+            && SystemRatings.Text(Named("Galatea")) == "Regressed tech · Developing", "Galatea (D-D-C-D-D) is a Regressed, Developing world");
+        check(SystemRatings.Tech(Named("Terra")) == TechLevel.StarLeague && SystemRatings.Tech(Named("Tharkad")) == TechLevel.StarLeague
+            && SystemRatings.Tech(Named("Luthien")) == TechLevel.Advanced && SystemRatings.Tech(Named("Coventry")) == TechLevel.Standard,
+            "Star League worlds rise one level above their technology grade");
+        check(SystemRatings.Capacity(Named("Hesperus II")) == IndustrialCapacity.FactoryWorld && SystemRatings.Capacity(Named("Luthien")) == IndustrialCapacity.FactoryWorld
+            && SystemRatings.Capacity(Named("Tharkad")) == IndustrialCapacity.MajorIndustrial, "factory worlds hold the most; output B is Major Industrial");
+        var empty = StarChart.Instance.Systems.First(item => item.Climate!.SocioIndustrial.StartsWith('X'));
+        check(!SystemRatings.HasMarket(empty) && SystemRatings.Text(empty) == "No market", "an uninhabited world has no market");
+        check(MarketTuning.Stock(TechLevel.Primitive).All(item => MarketTuning.Spec(item.Id)!.Value.Tech == TechLevel.Primitive)
+            && MarketTuning.Stock(TechLevel.StarLeague).Count == StorageCatalog.All.Length
+            && !MarketTuning.Stock(TechLevel.Standard).Any(item => item.Id == StorageCatalog.WeaponId(WeaponKind.ERLargeLaser) || item.Id == StorageCatalog.HeatSinkId(HeatSinkKind.Double))
+            && MarketTuning.Spec(StorageCatalog.AmmoId(AmmoKind.SRM4))!.Value.Weight == 2 * MarketTuning.Spec(StorageCatalog.WeaponId(WeaponKind.SRM4))!.Value.Weight,
+            "markets stock only what their technology allows, ammunition at twice its weapon's weight");
+        check(StorageCatalog.All.All(item => EquipmentMarket.Price(item.Id) > 0) && EquipmentMarket.Price(StorageCatalog.WeaponId(WeaponKind.PPC)) == 200_000,
+            "every item has a base price");
+        check(SystemMarket.Rollover(50, 0) == 0 && SystemMarket.Rollover(50, 1) == 3 && SystemMarket.Rollover(100, 14) == 51 && SystemMarket.Rollover(20, 1000) == 20,
+            "rollover replaces 1 − 0.95^days of the market, rounded");
+        var factory = SystemMarket.Generate(Named("New Avalon"), Campaign.StartDate, new Random(3));
+        check(factory.Count == 300 && factory.Items.Sum(item => item.Count) == 300, "a factory world stocks 300 items");
+
+        var campaign = NewCompany(); var home = campaign.Travel.OrbitSystemId;
+        check(campaign.Market(home) is null && campaign.OrbitMarket is null, "a market is not stocked before it is viewed");
+        campaign.ViewMarket();
+        var market = campaign.OrbitMarket!;
+        check(market.Count == 50 && market.Refreshed == campaign.Date && market.Items.All(item => MarketTuning.Spec(item.Id)!.Value.Tech <= TechLevel.Regressed),
+            "viewing a market stocks it to its size with what its technology allows");
+        var first = System.Text.Json.JsonSerializer.Serialize(market.Items);
+        campaign.ViewMarket();
+        check(System.Text.Json.JsonSerializer.Serialize(market.Items) == first, "viewing again on the same day changes nothing");
+        var twin = Campaign.Restore(campaign.Snapshot() with { Markets = null }); twin.ViewMarket();
+        check(System.Text.Json.JsonSerializer.Serialize(twin.OrbitMarket!.Items) == first, "the same campaign stocks the same way");
+
+        var item = market.Items[0].Id; var price = EquipmentMarket.Price(item); var cash = campaign.Cash; var stored = campaign.Roster!.Stored(item);
+        var held = market.Stock(item);
+        campaign.BuyToStorage(item, 1);
+        check(campaign.Cash == cash - price && campaign.Roster.Stored(item) == stored + 1 && market.Stock(item) == held - 1 && market.Count == 49,
+            "buying into storage pays at once, adds a spare and leaves a gap");
+        Throws(() => campaign.BuyToStorage(item, held), check, "the market cannot sell more than it holds");
+        check(market.Shortage(Enumerable.Repeat(item, held)) == $"Only {held - 1} {StorageCatalog.Describe(item)!.Name} left in the market", "a shortage names what is left");
+        Throws(() => Campaign.Restore(campaign.Snapshot() with { Cash = 0 }).BuyToStorage(item, 1), check, "a purchase must be affordable");
+        var saved = Campaign.Restore(campaign.Snapshot());
+        check(System.Text.Json.JsonSerializer.Serialize(saved.OrbitMarket!.Items) == System.Text.Json.JsonSerializer.Serialize(market.Items)
+            && saved.OrbitMarket.Refreshed == market.Refreshed && saved.MarketSeed == campaign.MarketSeed, "markets survive a save");
+        Throws(() => Campaign.Restore(campaign.Snapshot() with { Markets = [new(home, campaign.Date, [new(StorageCatalog.WeaponId(WeaponKind.PPC), 1)])] }), check,
+            "a save cannot stock what the world's technology does not allow");
+
+        // A day later the gap fills first: 3 items roll over, one into the gap and two in place of held items.
+        var before = market.Items.ToDictionary(entry => entry.Id, entry => entry.Count);
+        campaign.AdvanceOneDay(); campaign.ViewMarket();
+        var kept = market.Items.Sum(entry => Math.Min(entry.Count, before.GetValueOrDefault(entry.Id)));
+        check(market.Count == 50 && market.Refreshed == campaign.Date && kept >= 47, "a day's rollover refills the gap before replacing held items");
+        var sold = Campaign.Restore(campaign.Snapshot()); sold.BuyToStorage(sold.OrbitMarket!.Items[0].Id, 1);
+        foreach (var entry in sold.OrbitMarket.Items.ToArray()) sold.OrbitMarket.Sell([.. Enumerable.Repeat(entry.Id, entry.Count)]);
+        sold.AdvanceOneDay(); sold.ViewMarket();
+        check(sold.OrbitMarket.Count == 3, "an emptied market refills at the daily rate");
+        var coop = TwoPlayerCompany(); coop.Execute(new ViewMarketCommand(), 1);
+        check(coop.OrbitMarket is not null, "any player viewing the market stocks it");
     }
 
     /// <summary>Damages a mech: front armor stripped from every intact location, plus the given structure and component damage.</summary>
@@ -108,25 +179,48 @@ internal static class CampaignChecks
         check(Repairs.Estimate(mech, RepairScope.Armor) is null && Repairs.Estimate(mech, RepairScope.All) is null, "an intact mech has nothing to repair");
         Throws(() => campaign.OrderRepair(mech.Id, RepairScope.All), check, "an intact mech cannot be ordered a repair");
 
-        // Armor: 4 t a day at 10,000 C-bills a ton; structure: 1 t a day at 40,000; a system half a day.
+        // Armor: 4 t a day at 10,000 C-bills a ton; structure: 1 t a day at 40,000.
         var front = mech.Spec.Locations.Sum(item => item.Armor); var armorTons = front / 160d;
         Damage(mech);
-        var armor = Repairs.Estimate(mech, RepairScope.Armor)!.Value;
+        var armor = Repairs.Estimate(mech, RepairScope.Armor)!;
         check(armor.Days == Math.Max(1, (int)Math.Ceiling(armorTons / 4 - 1e-9)) && armor.Cost == (long)Math.Ceiling(armorTons * 10_000 - 1e-6),
             $"armor repairs take a day per 4 t and cost 10,000 C-bills a ton ({armor.Days} days, {armor.Cost})");
-        check(Repairs.Estimate(mech, RepairScope.All) == armor, "with only armor lost, both repairs cost the same");
-        var systems = roster.Mechs[1]; var arm = systems.Spec.Locations.Single(item => item.Location == MechLocation.LeftArm);
-        var structureTons = 10d / systems.Spec.StructureTotal * systems.Definition.Tonnage * .1;
-        Damage(systems, structure: 10, damaged: 3, destroyed: 1);
-        var all = Repairs.Estimate(systems, RepairScope.All)!.Value; var systemsArmorTons = systems.Spec.Locations.Sum(item => item.Armor) / 160d;
-        check(all.Days == (int)Math.Ceiling(systemsArmorTons / 4 + structureTons + 2 - 1e-9)
-            && all.Cost == (long)Math.Ceiling(systemsArmorTons * 10_000 + structureTons * 40_000 + 3 * 10_000 + 25_000 - 1e-6),
-            "a full repair adds structure by the ton and each damaged or destroyed system, rounding the days up");
+        check(Repairs.Estimate(mech, RepairScope.All) is { } same && same.Days == armor.Days && same.Cost == armor.Cost,
+            "with only armor lost, both repairs cost the same");
+
+        // A full repair: structure by the ton, critical systems by damage level, a destroyed weapon replaced from a spare.
+        var systems = roster.Mechs[1]; var spec = systems.Spec;
+        var engine = spec.Components.First(item => item.Kind == ComponentKind.FusionEngine);
+        var gyro = spec.Components.First(item => item.Kind == ComponentKind.Gyro);
+        var lost = spec.Weapons[0]; var lostSlots = EquipmentRules.Slots(lost.Kind); var lostPart = StorageCatalog.WeaponId(lost.Kind);
+        var worn = spec.Weapons.Skip(1).FirstOrDefault(item => EquipmentRules.Slots(item.Kind) >= 2);
+        Damage(systems, structure: 10);
+        systems.ApplyBattle(systems.Locations, systems.Equipment.Select(item => item.Id == engine.Id ? item with { Condition = ComponentCondition.Damaged, Hits = 2 }
+            : item.Id == gyro.Id || item.Id == lost.Id ? item with { Condition = ComponentCondition.Destroyed }
+            : item.Id == worn?.Id ? item with { Condition = ComponentCondition.Damaged, Hits = 1 } : item));
+        var rating = RepairTuning.EngineRating(spec);
+        var structureTons = 10d / spec.StructureTotal * systems.Definition.Tonnage * .1; var systemsArmorTons = spec.Locations.Sum(item => item.Armor) / 160d;
+        var expectedDays = systemsArmorTons / 4 + structureTons + 2 * 1 + 2 * 1 + lostSlots * .5 + (worn is null ? 0 : .5);
+        var expectedCost = systemsArmorTons * 10_000 + structureTons * 40_000 + 2 * rating / 400d * 100_000 + 2 * systems.Definition.Tonnage / 100d * 50_000
+            + lostSlots * 10_000 + (worn is null ? 0 : EquipmentMarket.Price(StorageCatalog.WeaponId(worn.Kind)) / (double)EquipmentRules.Slots(worn.Kind));
+        var all = Repairs.Estimate(systems, RepairScope.All, roster.Stored)!;
+        check(rating > 0 && all.Days == (int)Math.Ceiling(expectedDays - 1e-9) && all.Cost == (long)Math.Ceiling(expectedCost - 1e-6)
+            && all.Parts.SequenceEqual([lostPart]) && all.Missing.Count == 0,
+            $"a full repair prices structure, engine and gyro levels, a worn weapon's hit slots and a replaced weapon ({all.Days} days, {all.Cost})");
+        check(all.Lines.Contains($"{engine.Name} · 2 levels") && all.Lines.Contains($"Parts used: {StorageCatalog.Describe(lostPart)!.Name} ×1"),
+            "a full repair lists its work");
+        var short_ = Repairs.Estimate(systems, RepairScope.All, _ => 0)!;
+        check(short_.Doable && short_.Missing.SequenceEqual([lost.Id]) && short_.Days == (int)Math.Ceiling(expectedDays - lostSlots * .5 - 1e-9)
+            && short_.Lines.Contains($"Missing parts: {StorageCatalog.Describe(lostPart)!.Name} ×1"), "a destroyed weapon with no spare is left out of the repair");
         var cut = roster.Mechs[2];
         Damage(cut, structure: 1000);
         var lostArm = cut.Spec.Locations.Single(item => item.Location == MechLocation.LeftArm);
-        check(Repairs.Estimate(cut, RepairScope.Armor)!.Value.Cost == (long)Math.Ceiling((cut.Spec.Locations.Sum(item => item.Armor) - lostArm.Armor) / 160d * 10_000 - 1e-6),
+        check(Repairs.Estimate(cut, RepairScope.Armor)!.Cost == (long)Math.Ceiling((cut.Spec.Locations.Sum(item => item.Armor) - lostArm.Armor) / 160d * 10_000 - 1e-6),
             "an armor repair skips a destroyed location");
+        var bare = NewCompany().Roster!.Mechs[0];
+        bare.ApplyBattle(bare.Locations, bare.Equipment.Select(item => item.Id == bare.Spec.Weapons[0].Id ? item with { Condition = ComponentCondition.Destroyed } : item));
+        check(Repairs.Estimate(bare, RepairScope.All, _ => 0) is { Doable: false } nothing && nothing.MissingParts.Count == 1,
+            "a repair that only lacks parts cannot be done");
 
         // Ordering: paid when a bay starts it; a fifth order waits for a bay.
         var cash = campaign.Cash;
@@ -138,12 +232,15 @@ internal static class CampaignChecks
         Throws(() => campaign.ApplyLoadout(mech.Id, mech.Plan with { Armor = [] }, []), check, "a mech under repair cannot change its loadout");
         check(campaign.NextEventDate == mech.Repair!.Completes, "the calendar stops when a repair completes");
         foreach (var other in roster.Mechs.Skip(1).Take(4).Where(item => item != systems && item != cut)) Damage(other);
+        var spareCount = roster.Stored(lostPart);
         foreach (var other in new[] { systems, cut }.Concat(roster.Mechs.Skip(3).Take(2))) campaign.OrderRepair(other.Id, RepairScope.All);
+        check(roster.Stored(lostPart) == spareCount - 1 && systems.Repair!.Parts!.SequenceEqual([lostPart]), "ordering a repair takes its parts from storage");
         var queued = roster.Mechs[4];
         check(campaign.ActiveRepairs == 4 && queued.Repair is { Started: null } && campaign.RepairsAhead(queued) == 0
             && CombatSimulation.UnavailableReason(roster, queued)!.Contains("Repair queued"), "a fifth order queues for a bay");
         var saved = Campaign.Restore(campaign.Snapshot());
-        check(saved.Roster!.Mechs.Select(item => item.Repair).SequenceEqual(roster.Mechs.Select(item => item.Repair)), "repair orders survive a save");
+        check(System.Text.Json.JsonSerializer.Serialize(saved.Snapshot().Roster) == System.Text.Json.JsonSerializer.Serialize(campaign.Snapshot().Roster),
+            "repair orders survive a save");
         Throws(() => Campaign.Restore(campaign.Snapshot() with { Roster = campaign.Snapshot().Roster! with { Mechs = [.. campaign.Snapshot().Roster!.Mechs
             .Select(item => item.Repair is null ? item : item with { Repair = item.Repair with { Started = campaign.Date } })] } }), check,
             "a save cannot have more repairs started than bays");
@@ -164,6 +261,21 @@ internal static class CampaignChecks
             "a finished repair restores the armor and reports on its day");
         if (campaign.Date < systemsDone) AdvanceTo(campaign, systemsDone);
         check(!systems.Damaged && systems.Operational, "a full repair returns the mech intact");
+        var held = NewCompany(); var heldMech = held.Roster!.Mechs[0]; var heldWeapon = heldMech.Spec.Weapons[0];
+        Damage(heldMech);
+        heldMech.ApplyBattle(heldMech.Locations, heldMech.Equipment.Select(item => item.Id == heldWeapon.Id ? item with { Condition = ComponentCondition.Destroyed } : item));
+        var heldPart = StorageCatalog.WeaponId(heldWeapon.Kind); var heldSpares = held.Roster.Stored(heldPart);
+        held.OrderRepair(heldMech.Id, RepairScope.All, new Dictionary<string, int>());
+        check(heldMech.Repair!.Missing!.SequenceEqual([heldWeapon.Id]) && held.Roster.Stored(heldPart) == heldSpares,
+            "spares claimed by pending changes are not used");
+        held.CancelRepair(heldMech.Id);
+        held.OrderRepair(heldMech.Id, RepairScope.All);
+        check(held.Roster.Stored(heldPart) == heldSpares - 1, "an order takes an available spare");
+        held.CancelRepair(heldMech.Id);
+        check(held.Roster.Stored(heldPart) == heldSpares, "cancelling started work returns its parts");
+        held.OrderRepair(heldMech.Id, RepairScope.All, new Dictionary<string, int>());
+        AdvanceTo(held, heldMech.Repair!.Completes!.Value);
+        check(heldMech.Condition(heldWeapon.Id) == ComponentCondition.Destroyed && !heldMech.ArmorDamaged, "a destroyed item with no spare stays destroyed");
 
         var poor = NewCompany(); Damage(poor.Roster!.Mechs[0]);
         poor = Campaign.Restore(poor.Snapshot() with { Cash = 1 });

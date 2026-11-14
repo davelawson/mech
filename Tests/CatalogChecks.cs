@@ -250,7 +250,7 @@ internal static class CatalogChecks
             foreach (var location in expected["Roster"]!["Mechs"]!.AsArray().SelectMany(m => m!["Locations"]!.AsArray()))
                 foreach (var field in new[] { "Armor", "RearArmor", "Structure" })
                     location![field] = location[field]!.GetValue<int>() * CombatRules.DamageScale;
-            // Grouped heat sink and jump jet conditions become one per item, and stock mechs record no removed or installed items.
+            // Grouped heat sink and jump jet conditions become one per item, with no hit count, and stock mechs record no removed or installed items.
             foreach (var saved in expected["Roster"]!["Mechs"]!.AsArray())
             {
                 var definition = DraftCatalog.Mech(saved!["DefinitionId"]!.GetValue<string>());
@@ -260,7 +260,7 @@ internal static class CatalogChecks
                     var id = item!["Id"]!.GetValue<string>();
                     var parts = definition.Components.Where(c => c.Id.StartsWith(id + ".", StringComparison.Ordinal)).Select(c => c.Id).ToArray();
                     foreach (var part in parts.Length == 0 ? [id] : parts)
-                    { var copy = item.DeepClone(); copy["Id"] = part; equipment.Add(copy); }
+                    { var copy = item.DeepClone(); copy["Id"] = part; copy["Hits"] = null; equipment.Add(copy); }
                 }
                 saved["Equipment"] = equipment; saved["Removed"] = null; saved["Installed"] = null; saved["Armor"] = null;
             }
@@ -273,6 +273,8 @@ internal static class CatalogChecks
             foreach (var (saved, i) in expected["Roster"]!["Mechs"]!.AsArray().Select((item, i) => (item, i))) saved!["Lance"] = i < ForceRoster.LanceSize ? 0 : null;
             // Saves from before career records give every warrior none.
             foreach (var record in expected["Roster"]!["Warriors"]!.AsArray()) { record!["Deployments"] = 0; record["Kills"] = 0; }
+            // Saves from before markets have none stocked, and gain a market seed.
+            expected["Markets"] = null; expected["MarketSeed"] = resaved["MarketSeed"]!.DeepClone();
             // Saves from before repairs have no repair orders.
             foreach (var saved in expected["Roster"]!["Mechs"]!.AsArray()) saved!["Repair"] = null;
             check(JsonNode.DeepEquals(expected, resaved),

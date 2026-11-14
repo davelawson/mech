@@ -184,8 +184,8 @@ public partial class SmokeTests : Node
         Check(_app.StarMap.Visible && !_app.Office.Visible, "keyboard activation opens the chart");
         Check(_app.StarMap.Viewport.HasFocus(), "map receives keyboard focus");
         var galatea = StarChart.Instance[StarChart.Instance.StartingSystemId];
-        Check(MapViewport.SystemTooltip(galatea, _app.State) == "Galatea · Volcanic\nOwner: Lyran Commonwealth · Neutral 0\nClick to plot a journey",
-            "system tooltip names the owner and your standing with it");
+        Check(MapViewport.SystemTooltip(galatea, _app.State) == "Galatea · Volcanic\nOwner: Lyran Commonwealth · Neutral 0\nRegressed tech · Developing\nClick to plot a journey",
+            "system tooltip names the owner, your standing with it and the market ratings");
         await Capture("map-fit");
         await PressKey(Key.Plus);
         Near(_app.StarMap.Viewport.Transform.Zoom, 1.35f, "keyboard zoom");

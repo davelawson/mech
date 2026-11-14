@@ -20,6 +20,8 @@ namespace Mech;
 [JsonDerivedType(typeof(SetLanceCommand), "set-lance")]
 [JsonDerivedType(typeof(OrderRepairCommand), "order-repair")]
 [JsonDerivedType(typeof(CancelRepairCommand), "cancel-repair")]
+[JsonDerivedType(typeof(ViewMarketCommand), "view-market")]
+[JsonDerivedType(typeof(BuyToStorageCommand), "buy-to-storage")]
 public abstract record CampaignCommand
 {
     [JsonIgnore] public virtual bool LeaderOnly => false;
@@ -127,13 +129,13 @@ public sealed record SetLanceCommand(string MechId, int? Lance) : CampaignComman
     }
 }
 
-/// <summary>Orders a repair of a mech; it is paid for from the company's cash when a repair bay starts it.</summary>
-public sealed record OrderRepairCommand(string MechId, RepairScope Scope) : CampaignCommand
+/// <summary>Orders a repair of a mech, using only the Available spares (those the sender's pending changes leave); it is paid for from the company's cash when a repair bay starts it.</summary>
+public sealed record OrderRepairCommand(string MechId, RepairScope Scope, Dictionary<string, int>? Available = null) : CampaignCommand
 {
     internal override object? Run(Campaign campaign, int slot)
     {
         Campaign.RequireControl(campaign.RequireRoster(), slot, MechId);
-        campaign.OrderRepair(MechId, Scope);
+        campaign.OrderRepair(MechId, Scope, Available);
         return null;
     }
 }
@@ -147,4 +149,16 @@ public sealed record CancelRepairCommand(string MechId) : CampaignCommand
         campaign.CancelRepair(MechId);
         return null;
     }
+}
+
+/// <summary>A player opening the market where the DropShip orbits: the leader stocks it, or rolls it over to today.</summary>
+public sealed record ViewMarketCommand : CampaignCommand
+{
+    internal override object? Run(Campaign campaign, int slot) { campaign.ViewMarket(); return null; }
+}
+
+/// <summary>Buys items from the orbited market straight into storage, paid at once.</summary>
+public sealed record BuyToStorageCommand(string StorageId, int Count) : CampaignCommand
+{
+    internal override object? Run(Campaign campaign, int slot) { campaign.BuyToStorage(StorageId, Count); return null; }
 }

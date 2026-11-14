@@ -372,11 +372,3 @@ public static class StorageCatalog
         return counts.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new StorageEntry(pair.Key, pair.Value)).ToImmutableArray();
     }
 }
-
-/// <summary>Equipment for sale where the DropShip is in orbit. For now every system can be bought anywhere for a nominal price.</summary>
-public static class EquipmentMarket
-{
-    public const long NominalPrice = 1;
-    public static ImmutableArray<StorageItem> Offers(string systemId) => StorageCatalog.All;
-    public static long Price(string storageId) => NominalPrice;
-}

@@ -39,7 +39,16 @@ The persistent pairing of one living MechWarrior with one owned BattleMech, inde
 Spare weapons, ammunition, heat sinks and jump jets held by the mercenary force and not installed on any BattleMech. Armor and fixed systems are never stored.
 
 **Market**:
-Equipment for sale where the DropShip is in orbit, bought from the hangar's Market tab. Bought items are installed directly on a BattleMech as pending purchases.
+An inhabited system's stock of mech systems for sale, finite and shared by every player, bought from the hangar's Market tab where the DropShip is in orbit: installed directly on a BattleMech as pending purchases, or bought straight into storage.
+
+**Technological Level**:
+A star system's rating from Primitive to Star League, setting which mech systems its market can stock.
+
+**Industrial Capacity**:
+A star system's rating from Backwater to Factory World, setting how many items its market holds.
+
+**Rollover**:
+The share of a market's stock replaced over time, 5% a day, applied each time the market is viewed.
 
 **Pending purchase**:
 A market item installed in a pending loadout. It is paid for when that loadout is applied and cancelled, at no cost, if the item is taken out, the loadout is reset, or the changes are abandoned.

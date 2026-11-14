@@ -220,7 +220,9 @@ public sealed class InitialDraft
 }
 
 public sealed record LocationCondition(MechLocation Location, int Armor, int RearArmor, int Structure);
-public sealed record EquipmentCondition(string Id, ComponentCondition Condition);
+/// <summary>Hits counts damage levels taken by a damaged item; null for working or destroyed items, and for saves from before hits
+/// were counted (one hit).</summary>
+public sealed record EquipmentCondition(string Id, ComponentCondition Condition, int? Hits = null);
 public sealed record AmmoCondition(string Id, int Shots);
 /// <summary>Removed lists the stock items taken out in the hangar, Installed the storage items put in, in installation order, and
 /// Armor the locations whose installed armor differs from stock; each is null when empty.</summary>
@@ -333,7 +335,7 @@ public sealed class OwnedMech
     }
     /// <summary>Completes a repair: armor (on intact locations, for an armor repair) returns to the installed amount; a full
     /// repair also rebuilds structure, returns every component, weapon and bin to working order and refills the bins.</summary>
-    internal void Repaired(RepairScope scope)
+    internal void Repaired(RepairScope scope, IReadOnlyCollection<string>? missing = null)
     {
         var all = scope == RepairScope.All;
         Locations = Array.AsReadOnly(Locations.Select(state =>
@@ -343,7 +345,9 @@ public sealed class OwnedMech
             return state with { Armor = full.Armor, RearArmor = full.RearArmor, Structure = all ? full.Structure : state.Structure };
         }).ToArray());
         if (!all) return;
-        Equipment = Array.AsReadOnly(Equipment.Select(item => item with { Condition = ComponentCondition.Operational }).ToArray());
+        // Destroyed items with no spare stay as they were.
+        Equipment = Array.AsReadOnly(Equipment.Select(item => missing?.Contains(item.Id) == true ? item
+            : item with { Condition = ComponentCondition.Operational, Hits = null }).ToArray());
         Ammo = Array.AsReadOnly(Spec.Ammo.Select(bin => new AmmoCondition(bin.Id, bin.Shots)).ToArray());
     }
     public ComponentCondition Condition(string id) => Equipment.Single(item => item.Id == id).Condition;
@@ -470,15 +474,20 @@ public sealed class ForceRoster
             throw new ArgumentException("Storage lacks the spares this loadout installs.");
         if (mech.WithLoadout(plan).OverTonnage) throw new ArgumentException("The loadout is over tonnage.");
         mech.Change(plan);
-        foreach (var (id, count) in changes)
-        {
-            var index = _storage.FindIndex(item => item.Id == id);
-            if (index >= 0) _storage[index] = _storage[index] with { Count = _storage[index].Count + count };
-            else _storage.Add(new(id, count));
-        }
+        foreach (var (id, count) in changes) Store(id, count);
+    }
+    /// <summary>Adds spares to storage, or takes them out with a negative count; storage never goes below zero.</summary>
+    internal void Store(string storageId, int count)
+    {
+        if (StorageCatalog.Describe(storageId) is null) throw new ArgumentException("Unknown equipment.");
+        var index = _storage.FindIndex(item => item.Id == storageId);
+        if ((index >= 0 ? _storage[index].Count : 0) + count < 0) throw new InvalidOperationException("Storage lacks those spares.");
+        if (index >= 0) _storage[index] = _storage[index] with { Count = _storage[index].Count + count };
+        else _storage.Add(new(storageId, count));
         _storage.RemoveAll(item => item.Count == 0);
         _storage.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
     }
+    public int Stored(string storageId) => _storage.SingleOrDefault(item => item.Id == storageId)?.Count ?? 0;
     public void SetHealth(string warriorId, WarriorHealth health, DateOnly? recoveryDate, DateOnly today)
     {
         var warrior = Warriors.SingleOrDefault(item => item.Id == warriorId) ?? throw new ArgumentException("Unknown owned MechWarrior.");
@@ -555,7 +564,8 @@ public sealed class ForceRoster
                     || loc.Structure < 0 || loc.Structure > maximum.Structure) throw new ArgumentException("Invalid armor or structure.");
             }
             var equipmentIds = spec.Weapons.Select(item => item.Id).Concat(spec.Components.Select(item => item.Id)).Concat(spec.Ammo.Select(item => item.Id)).ToHashSet();
-            if (mech.Equipment is null || mech.Equipment.Length != equipmentIds.Count || mech.Equipment.Any(item => item is null || !Enum.IsDefined(item.Condition))
+            if (mech.Equipment is null || mech.Equipment.Length != equipmentIds.Count || mech.Equipment.Any(item => item is null || !Enum.IsDefined(item.Condition)
+                || item.Hits is { } hits && (item.Condition != ComponentCondition.Damaged || hits < 1))
                 || !equipmentIds.SetEquals(mech.Equipment.Select(item => item.Id)) || mech.Equipment.Select(item => item.Id).Distinct().Count() != equipmentIds.Count)
                 throw new ArgumentException("Invalid component condition.");
             if (mech.Ammo is null || mech.Ammo.Any(item => item is null) || mech.Ammo.Length != spec.Ammo.Length
@@ -564,7 +574,9 @@ public sealed class ForceRoster
             foreach (var bin in mech.Ammo)
                 if (bin.Shots < 0 || bin.Shots > spec.Ammo.Single(item => item.Id == bin.Id).Shots) throw new ArgumentException("Invalid ammunition quantity.");
             if (mech.Repair is { } order && (!Enum.IsDefined(order.Scope) || order.Days < 1 || order.Cost < 0 || order.Sequence < 0
-                || order.Started is { } started && (started > date || order.Completes <= date)))
+                || order.Started is { } started && (started > date || order.Completes <= date)
+                || order.Parts?.Any(id => id is null || StorageCatalog.Describe(id) is null) == true
+                || order.Missing?.Any(id => id is null || !equipmentIds.Contains(id)) == true))
                 throw new ArgumentException("Invalid repair order.");
         }
         var orders = mechs.Select(item => item.Repair).OfType<RepairOrder>().ToArray();

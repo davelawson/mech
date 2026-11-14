@@ -12,11 +12,12 @@ public partial class MapViewport : Control
     private string? _hoveredSystem;
     public string? HoveredSystemId => _hoveredSystem;
 
-    /// <summary>"Galatea · Volcanic", the owner and your standing with it, then what a click does.</summary>
+    /// <summary>"Galatea · Volcanic", the owner and your standing with it, its market ratings, then what a click does.</summary>
     public static string SystemTooltip(StarSystem system, Campaign? campaign)
     {
         var owner = campaign?.Reputation.OwnerText(system) ?? (system.OwnerText.Length > 0 ? $"Owner: {system.OwnerText}" : "");
         return system.Name + (system.BiomeText.Length > 0 ? $" · {system.BiomeText}" : "") + (owner.Length > 0 ? $"\n{owner}" : "")
+            + (system.Climate is null ? "" : $"\n{SystemRatings.Text(system)}")
             + (campaign?.Travel.InOrbit == true ? "\nClick to plot a journey" : "\nPlotting is available in orbit");
     }
 

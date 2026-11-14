@@ -12,7 +12,7 @@ public sealed record MissionSettlement(MissionOffer Mission, MissionOutcome Outc
 public sealed record CampaignSnapshot(int Version, DateOnly Date, long Cash, long PaymentDue,
     long DeferredDebt, DateOnly NextQuarter, bool Bankrupt, CampaignEvent[] Events, RosterSnapshot? Roster = null, MissionSnapshot? Missions = null,
     TravelSnapshot? Travel = null, int AccruedTransitDays = 0, int BilledTransitDays = 0, ReputationSnapshot? Reputation = null,
-    string[]? PlayerNames = null);
+    string[]? PlayerNames = null, MarketSnapshot[]? Markets = null, ulong? MarketSeed = null);
 
 /// <summary>Campaign time and obligations, independent of the scene tree and animation.</summary>
 public sealed class Campaign
@@ -42,8 +42,15 @@ public sealed class Campaign
     public Reputation Reputation { get; private set; } = new();
     public const int SaveVersion = 8;
 
+    /// <summary>Markets viewed so far, by system.</summary>
+    private readonly Dictionary<string, SystemMarket> _markets = new(StringComparer.Ordinal);
+    /// <summary>Seeds market stock, so the same campaign stocks the same way.</summary>
+    public ulong MarketSeed { get; private set; }
+
+    /// <summary>A seeded campaign stocks its markets from the same seed, so it plays out the same way.</summary>
     public Campaign(ulong? missionSeed = null)
     {
+        MarketSeed = missionSeed is { } seed ? seed ^ 0x9E3779B97F4A7C15UL : NewSeed();
         Missions = MissionBoard.Create(missionSeed ?? NewSeed(), Date, MissionOrigin, Reputation);
     }
     private static ulong NewSeed() => (ulong)Random.Shared.NextInt64();
@@ -196,9 +203,51 @@ public sealed class Campaign
         if (Roster is null) throw new InvalidOperationException("No company has been established.");
         var cost = bought.Sum(EquipmentMarket.Price);
         if (cost > Cash) throw new InvalidOperationException("The purchase must be affordable.");
+        if (bought.Count > 0 && OrbitMarket is null) throw new InvalidOperationException("There is no market here.");
         if (Roster.Mechs.SingleOrDefault(item => item.Id == mechId)?.Repair is not null)
             throw new InvalidOperationException("A BattleMech with a repair order cannot change its loadout.");
+        if (bought.Count > 0 && OrbitMarket!.Shortage(bought) is { } shortage) throw new InvalidOperationException(shortage + ".");
         Roster.ApplyLoadout(mechId, plan, bought);
+        OrbitMarket?.Sell(bought);
+        Cash -= cost;
+    }
+
+    /// <summary>The market of a system, as last viewed; null when it has never been viewed or the world has none.</summary>
+    public SystemMarket? Market(string systemId) => _markets.GetValueOrDefault(systemId);
+    /// <summary>The market where the DropShip is in orbit, as last viewed; null in transit, before it is first viewed, or on a world with none.</summary>
+    public SystemMarket? OrbitMarket => Travel.InOrbit ? Market(Travel.OrbitSystemId) : null;
+
+    /// <summary>A player viewing the market where the DropShip orbits: stocks it on its first view, and otherwise rolls it over to today.</summary>
+    public void ViewMarket()
+    {
+        if (!Travel.InOrbit || !StarChart.Instance.Contains(Travel.OrbitSystemId)) return;
+        var system = StarChart.Instance[Travel.OrbitSystemId];
+        if (!SystemRatings.HasMarket(system)) return;
+        var random = MarketRandom(system.Id);
+        if (_markets.TryGetValue(system.Id, out var market)) market.Refresh(Date, random);
+        else _markets[system.Id] = SystemMarket.Generate(system, Date, random);
+    }
+    private Random MarketRandom(string systemId)
+    {
+        // FNV-1a keeps the seed stable across runs, unlike string.GetHashCode.
+        var hash = 14695981039346656037UL ^ MarketSeed ^ (ulong)Date.DayNumber * 1099511628211UL;
+        foreach (var c in systemId) hash = (hash ^ c) * 1099511628211UL;
+        return new Random((int)(hash ^ hash >> 32));
+    }
+
+    /// <summary>Replaces a market's stock with a saved one, as a test fixture.</summary>
+    internal void PlaceMarket(MarketSnapshot save) => _markets[save.SystemId] = SystemMarket.Restore(save, StarChart.Instance, Date);
+
+    /// <summary>Buys items from the orbited market straight into storage, paying for them at once.</summary>
+    public void BuyToStorage(string storageId, int count)
+    {
+        var roster = RequireRoster();
+        if (count < 1) throw new ArgumentOutOfRangeException(nameof(count));
+        if (OrbitMarket is not { } market) throw new InvalidOperationException("There is no market here.");
+        var cost = EquipmentMarket.Price(storageId) * count;
+        if (cost > Cash) throw new InvalidOperationException("The purchase must be affordable.");
+        market.Sell([.. Enumerable.Repeat(storageId, count)]);
+        roster.Store(storageId, count);
         Cash -= cost;
     }
 
@@ -209,16 +258,22 @@ public sealed class Campaign
         ? RequireRoster().Mechs.Count(item => item.Repair is { Started: null } other && other.Sequence < order.Sequence) : 0;
 
     /// <summary>Orders a repair of a mech, fixing its days and cost now. It starts, and is paid for, as soon as a repair bay is free.</summary>
-    public void OrderRepair(string mechId, RepairScope scope)
+    /// <summary>Orders a repair of a mech, fixing its days and cost now and taking the spares it needs from storage, only as many
+    /// as <paramref name="available"/> allows (spares claimed by pending loadout changes are not available). It starts, and is paid
+    /// for, as soon as a repair bay is free.</summary>
+    public void OrderRepair(string mechId, RepairScope scope, IReadOnlyDictionary<string, int>? available = null)
     {
         var roster = RequireRoster();
         var mech = roster.Mechs.SingleOrDefault(item => item.Id == mechId) ?? throw new ArgumentException("Unknown owned BattleMech.");
         if (!Enum.IsDefined(scope)) throw new ArgumentOutOfRangeException(nameof(scope));
         if (mech.Repair is not null) throw new InvalidOperationException("That BattleMech already has a repair order.");
-        var estimate = Repairs.Estimate(mech, scope) ?? throw new InvalidOperationException("That BattleMech has nothing to repair.");
+        var estimate = Repairs.Estimate(mech, scope, id => Math.Min(roster.Stored(id), available is null ? int.MaxValue : available.GetValueOrDefault(id)));
+        if (estimate is not { Doable: true }) throw new InvalidOperationException("That BattleMech has nothing to repair.");
         if (estimate.Cost > Cash) throw new InvalidOperationException("The repair must be affordable.");
         var sequence = roster.Mechs.Select(item => item.Repair?.Sequence ?? -1).Max() + 1;
-        mech.Repair = new(scope, estimate.Days, estimate.Cost, sequence);
+        foreach (var part in estimate.Parts) roster.Store(part, -1);
+        mech.Repair = new(scope, estimate.Days, estimate.Cost, sequence, null,
+            estimate.Parts.Count == 0 ? null : [.. estimate.Parts], estimate.Missing.Count == 0 ? null : [.. estimate.Missing]);
         StartRepairs();
     }
 
@@ -227,7 +282,9 @@ public sealed class Campaign
     public void CancelRepair(string mechId)
     {
         var mech = RequireRoster().Mechs.SingleOrDefault(item => item.Id == mechId) ?? throw new ArgumentException("Unknown owned BattleMech.");
-        if (mech.Repair is null) throw new InvalidOperationException("That BattleMech has no repair order.");
+        if (mech.Repair is not { } order) throw new InvalidOperationException("That BattleMech has no repair order.");
+        // The parts were never fitted, so they go back to storage whether or not work had started.
+        foreach (var part in order.Parts ?? []) RequireRoster().Store(part, 1);
         mech.Repair = null;
         StartRepairs();
     }
@@ -252,7 +309,7 @@ public sealed class Campaign
         if (Roster is null) return;
         foreach (var mech in Roster.Mechs.Where(item => item.Repair?.Completes <= Date))
         {
-            mech.Repaired(mech.Repair!.Scope); mech.Repair = null;
+            mech.Repaired(mech.Repair!.Scope, mech.Repair.Missing); mech.Repair = null;
             _events.Add(new($"repair-{mech.Id}-{Date.DayNumber}", Date, CampaignEventKind.RepairCompletion, $"Repair complete · {mech.Spec.DisplayName}"));
         }
         StartRepairs();
@@ -301,7 +358,8 @@ public sealed class Campaign
         return due;
     }
 
-    public CampaignSnapshot Snapshot() => new(SaveVersion, Date, Cash, PaymentDue, DeferredDebt, NextQuarter, Bankrupt, _events.ToArray(), Roster?.Snapshot(), Missions.Snapshot(), Travel.Snapshot(), AccruedTransitDays, BilledTransitDays, Reputation.Snapshot(), PlayerNames?.ToArray());
+    public CampaignSnapshot Snapshot() => new(SaveVersion, Date, Cash, PaymentDue, DeferredDebt, NextQuarter, Bankrupt, _events.ToArray(), Roster?.Snapshot(), Missions.Snapshot(), Travel.Snapshot(), AccruedTransitDays, BilledTransitDays, Reputation.Snapshot(), PlayerNames?.ToArray(),
+        _markets.Count == 0 ? null : [.. _markets.Values.OrderBy(item => item.SystemId, StringComparer.Ordinal).Select(item => item.Snapshot())], MarketSeed);
 
     public static Campaign Restore(CampaignSnapshot save)
     {
@@ -345,6 +403,13 @@ public sealed class Campaign
             if (campaign.Roster is null || names.Length != campaign.Roster.LanceCount || names.Length < 2 || names.Any(name => !ValidPlayerName(name)))
                 throw new ArgumentException("The campaign save contains invalid players.");
             campaign.PlayerNames = names;
+        }
+        // Saves from before markets stock each market when first viewed.
+        if (save.MarketSeed is { } seed) campaign.MarketSeed = seed;
+        foreach (var saved in save.Markets ?? [])
+        {
+            var market = SystemMarket.Restore(saved, StarChart.Instance, date);
+            if (!campaign._markets.TryAdd(market.SystemId, market)) throw new ArgumentException("The campaign save contains an invalid market.");
         }
         foreach (var item in save.Events)
         {

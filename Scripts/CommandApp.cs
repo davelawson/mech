@@ -145,6 +145,12 @@ public partial class CommandApp : Control
         Hangar.LanceRequested += (mechId, lance) => { Execute(new SetLanceCommand(mechId, lance)); Hangar.Refresh(); RefreshCampaign(); };
         Hangar.RepairRequested += OrderRepair;
         Hangar.CancelRepairRequested += CancelRepair;
+        Hangar.MarketViewed += () => { if (Navigation.CurrentScreen == CommandScreen.Hangar) { Execute(new ViewMarketCommand()); Hangar.Refresh(); } };
+        Hangar.BuyToStorageRequested += (storageId, count) =>
+        {
+            if (Navigation.CurrentScreen != CommandScreen.Hangar) return;
+            Execute(new BuyToStorageCommand(storageId, count)); Hangar.Cash = State.Cash; Hangar.Refresh(); RefreshCampaign();
+        };
         Hangar.DeploymentRequested += ShowDeployment;
         Hangar.QuickLaunchRequested += ShowQuickLaunch;
         Tactical.Closed += CloseTactical;
@@ -780,7 +786,7 @@ public partial class CommandApp : Control
     private void OrderRepair(string mechId, RepairScope scope)
     {
         if (Navigation.CurrentScreen != CommandScreen.Hangar) return;
-        Execute(new OrderRepairCommand(mechId, scope)); AfterRepairChange();
+        Execute(new OrderRepairCommand(mechId, scope, Hangar.StorageCounts())); AfterRepairChange();
     }
 
     /// <summary>Cancelling work already started forfeits its payment, so it asks first; a queued order cancels at once.</summary>

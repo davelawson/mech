@@ -519,50 +519,72 @@ public partial class SmokeTests
         // Each carries ammunition or an energy weapon; taking either out leaves no weapon short of ammunition.
         var index = roster.Mechs.ToList().FindIndex(mech => mech.Removed.IsEmpty && mech.Installed.IsEmpty && Loadout.Suspect(mech.Spec).Count == 0);
         Check(index >= 0, "the drafted company keeps an untouched mech for the market checks");
-        hangar.Select(index); hangar.StorageTabs.CurrentTab = 1; await Frames();
-        var market = hangar.MarketList.GetChildren().OfType<HangarStorageLine>().ToArray();
-        Check(market.Select(line => line.Item.Id).Order(StringComparer.Ordinal).SequenceEqual(StorageCatalog.All.Select(item => item.Id).Order(StringComparer.Ordinal))
-            && market.All(line => line.Price == EquipmentMarket.NominalPrice && line.TooltipText.EndsWith("Drag onto a location to buy and install", StringComparison.Ordinal)),
-            "the market offers every system for 1 C-bill");
+        hangar.Select(index); hangar.StorageTabs.CurrentTab = HangarScreen.MarketTab; await Frames();
+        var state = _app.State; var home = state.Travel.OrbitSystemId;
+        Check(state.OrbitMarket is { Count: 50 } && hangar.MarketText.Text.StartsWith($"{StarChart.Instance[home].Name} market · 50 items\nRegressed · Developing\n", StringComparison.Ordinal),
+            "opening the Market tab stocks the market and names its ratings");
         var mech = hangar.SelectedMech;
-        var energy = mech.Spec.Weapons.FirstOrDefault(item => EquipmentRules.Group(item.Kind) == StorageGroup.Energy);
-        var (stock, bin) = mech.Spec.Ammo.Length > 0 ? ((mech.Spec.Ammo[0].Id, mech.Spec.Ammo[0].Location), StorageCatalog.AmmoId(mech.Spec.Ammo[0].AmmoKind))
-            : ((energy!.Id, energy.Location), StorageCatalog.WeaponId(energy.Kind));
+        bool Sold(string id) => MarketTuning.Spec(id)!.Value.Tech <= TechLevel.Regressed;
+        var (stock, bin) = mech.Spec.Ammo.Where(item => Sold(StorageCatalog.AmmoId(item.AmmoKind))).Select(item => ((item.Id, item.Location), StorageCatalog.AmmoId(item.AmmoKind)))
+            .Concat(mech.Spec.Weapons.Where(item => EquipmentRules.Group(item.Kind) == StorageGroup.Energy && Sold(StorageCatalog.WeaponId(item.Kind)))
+                .Select(item => ((item.Id, item.Location), StorageCatalog.WeaponId(item.Kind)))).First();
+        var sink = StorageCatalog.HeatSinkId(HeatSinkKind.Single);
+        state.PlaceMarket(new MarketSnapshot(home, state.Date, [.. new[] { new StorageEntry(bin, 2), new StorageEntry(sink, 3) }.OrderBy(item => item.Id, StringComparer.Ordinal)]));
+        hangar.Refresh(); await Frames();
+        HangarStorageLine[] Lines() => [.. hangar.MarketList.GetChildren().OfType<HangarStorageLine>()];
+        HangarStorageLine? Line(string id) => Lines().SingleOrDefault(line => line.Item.Id == id);
+        var price = EquipmentMarket.Price(bin);
+        Check(Lines().Length == 2 && Line(bin) is { Count: 2 } binLine && binLine.Price == price && Line(sink)!.Count == 3
+            && binLine.TooltipText.Contains("Drag onto a location to buy and install\nRight-click to buy into Inventory", StringComparison.Ordinal),
+            "the market lists what it holds, how many and the price");
         var name = StorageCatalog.Describe(bin)!.Name;
         hangar.Remove(stock.Id); await Frames();
-        var stored = StorageCount(hangar, name); var cash = _app.State.Cash; var target = hangar.LocationPanels[stock.Location];
+        var stored = StorageCount(hangar, name); var cash = state.Cash; var target = hangar.LocationPanels[stock.Location];
         await StartStorageDrag(hangar, bin, target.GetGlobalRect().GetCenter(), market: true);
         Check(target.DragItem == bin && target.DragPurchase && target.DropProblem is null, "dragging a market line marks where it can be bought");
         MouseButton(target.GetGlobalRect().GetCenter(), Godot.MouseButton.Left, false); await Frames();
         var bought = hangar.SelectedPlan.Installed.SingleOrDefault();
-        Check(bought is not null && hangar.SelectedPurchases.SequenceEqual([bin]) && StorageCount(hangar, name) == stored && _app.State.Cash == cash
-            && hangar.MarketText.Text.Contains("Pending purchases 1 C-bill") && hangar.ApplyButton.TooltipText == "Buys 1 item · 1 C-bill",
-            "dropping a market line installs it as a pending purchase without touching inventory or cash");
+        Check(bought is not null && hangar.SelectedPurchases.SequenceEqual([bin]) && StorageCount(hangar, name) == stored && state.Cash == cash
+            && hangar.MarketText.Text.Contains($"Pending purchases {HangarScreen.Money(price)}") && hangar.ApplyButton.TooltipText == $"Buys 1 item · {HangarScreen.Money(price)}"
+            && Line(bin)!.Count == 1, "dropping a market line installs it as a pending purchase, held back from the market");
         var (panel, block) = FindBlock(hangar, item => item.ItemId == bought!.Id);
-        Check(panel._GetTooltip(panel.BlockRect(block).GetCenter()).Contains("Pending purchase · 1 C-bill"), "a pending purchase says so");
+        Check(panel._GetTooltip(panel.BlockRect(block).GetCenter()).Contains($"Pending purchase · {HangarScreen.Money(price)}"), "a pending purchase says so");
         await Capture("hangar-market");
         await RightClick(BlockCentre(panel, block));
-        Check(hangar.SelectedPurchases.Count == 0 && StorageCount(hangar, name) == stored, "taking out a pending purchase cancels it");
+        Check(hangar.SelectedPurchases.Count == 0 && StorageCount(hangar, name) == stored && Line(bin)!.Count == 2, "taking out a pending purchase cancels it");
 
         Check(hangar.Install(bin, stock.Location, purchase: true), "a market item installs by code too");
         hangar.Cash = 0; hangar.Refresh(); await Frames();
         Check(hangar.ApplyButton.Disabled && hangar.ApplyButton.TooltipText.StartsWith("Not enough C-bills", StringComparison.Ordinal), "unaffordable purchases cannot be applied");
-        hangar.Cash = _app.State.Cash; hangar.Refresh(); await Frames();
+        hangar.Cash = state.Cash; hangar.Refresh(); await Frames();
+        state.OrbitMarket!.Sell([bin, bin]); hangar.Refresh(); await Frames();
+        Check(hangar.ApplyButton.Disabled && hangar.ApplyButton.TooltipText == $"Only 0 {name} left in the market", "purchases beyond the market's stock cannot be applied");
+        state.PlaceMarket(new MarketSnapshot(home, state.Date, [.. new[] { new StorageEntry(bin, 2), new StorageEntry(sink, 3) }.OrderBy(item => item.Id, StringComparer.Ordinal)]));
+        hangar.Refresh(); await Frames();
         var before = roster.Storage.SingleOrDefault(item => item.Id == bin)?.Count ?? 0;
         await Click(hangar.ApplyButton);
-        Check(!hangar.HasPendingChanges && _app.State.Cash == cash - 1 && hangar.Cash == cash - 1 && mech.Installed.Length == 1
-            && roster.Storage.Single(item => item.Id == bin).Count == before + 1 && hangar.MarketText.Text.Contains("Pending purchases 0 C-bills"),
-            "Apply pays for the purchase; the removed item joins storage and the bought one is installed");
+        Check(!hangar.HasPendingChanges && state.Cash == cash - price && hangar.Cash == cash - price && mech.Installed.Length == 1
+            && roster.Storage.Single(item => item.Id == bin).Count == before + 1 && hangar.MarketText.Text.Contains("Pending purchases 0 C-bills")
+            && state.OrbitMarket!.Stock(bin) == 1, "Apply pays for the purchase and takes it from the market; the removed item joins storage");
 
         hangar.Remove(mech.Installed[0].Id); hangar.Install(bin, stock.Location, purchase: true); await Frames();
+        Check(!hangar.Install(bin, stock.Location, purchase: true) && hangar.InstallProblem(bin, stock.Location, purchase: true) == "None left in the market",
+            "the market cannot sell more than it holds");
         await Click(hangar.ResetButton);
-        Check(!hangar.HasPendingChanges && hangar.SelectedPurchases.Count == 0 && _app.State.Cash == cash - 1, "Reset cancels purchases at no cost");
+        Check(!hangar.HasPendingChanges && hangar.SelectedPurchases.Count == 0 && state.Cash == cash - price, "Reset cancels purchases at no cost");
 
-        hangar.Open(roster, null, _app.State.Cash); await Frames();
-        Check(hangar.MarketList.GetChildren().OfType<HangarStorageLine>().Count() == 0
-            && hangar.MarketList.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text == "No market while in transit")
-            && hangar.InstallProblem(bin, stock.Location, purchase: true) == "Not for sale here", "there is no market in transit");
-        hangar.Open(roster, _app.State.Travel.OrbitSystemId, _app.State.Cash); hangar.StorageTabs.CurrentTab = 0; await Frames();
+        // Right-click buys into Inventory at once; Shift buys up to five.
+        var sinks = roster.Stored(sink); cash = state.Cash;
+        await RightClick(Line(sink)!.GetGlobalRect().GetCenter());
+        Check(roster.Stored(sink) == sinks + 1 && state.Cash == cash - EquipmentMarket.Price(sink) && Line(sink)!.Count == 2 && hangar.Visible,
+            "right-clicking a market line buys one into Inventory");
+        Check(hangar.BuyToStorage(sink, bulk: true) && roster.Stored(sink) == sinks + 3 && Line(sink) is null, "Shift buys as many as are left, up to five");
+        Check(!hangar.BuyToStorage(sink), "nothing is bought once the market has none");
+
+        hangar.Open(roster, null, state.Cash); await Frames();
+        Check(Lines().Length == 0 && hangar.MarketList.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text == "No market while in transit")
+            && hangar.InstallProblem(bin, stock.Location, purchase: true) == "No market here", "there is no market in transit");
+        hangar.Open(roster, state.Travel.OrbitSystemId, state.Cash); hangar.StorageTabs.CurrentTab = 0; await Frames();
     }
 
     /// <summary>Armor −/+ buttons on every location's armor bars, Shift for ten points, and the torsos' rear armor bar.</summary>
@@ -576,10 +598,10 @@ public partial class SmokeTests
         Check(hangar.RepairArmorButton.Visible && hangar.RepairArmorButton.Disabled && hangar.RepairAllButton.Disabled
             && hangar.RepairArmorButton.TooltipText == "No armor to repair" && !hangar.CancelRepairButton.Visible, "an intact mech has nothing to repair");
         CampaignChecks.Damage(mech, damaged: 1); hangar.Refresh(); await Frames();
-        var armor = Repairs.Estimate(mech, RepairScope.Armor)!.Value; var all = Repairs.Estimate(mech, RepairScope.All)!.Value;
+        var armor = hangar.SelectedRepair(RepairScope.Armor)!; var all = hangar.SelectedRepair(RepairScope.All)!;
         await Capture("hangar-repair-ready");
-        Check(!hangar.RepairArmorButton.Disabled && !hangar.RepairAllButton.Disabled && hangar.RepairArmorButton.TooltipText.StartsWith(Repairs.Text(armor), StringComparison.Ordinal)
-            && hangar.RepairAllButton.TooltipText.StartsWith(Repairs.Text(all), StringComparison.Ordinal) && all.Cost > armor.Cost,
+        Check(!hangar.RepairArmorButton.Disabled && !hangar.RepairAllButton.Disabled && hangar.RepairArmorButton.TooltipText.StartsWith(HangarScreen.RepairDetails(armor), StringComparison.Ordinal)
+            && hangar.RepairAllButton.TooltipText.StartsWith(HangarScreen.RepairDetails(all), StringComparison.Ordinal) && all.Cost > armor.Cost,
             "a damaged mech's repair buttons quote days and C-bills");
         Check(hangar.SummaryPanel.GetGlobalRect().Encloses(hangar.RepairAllButton.GetGlobalRect()), "the repair buttons fit the summary");
         var cash = _app.State.Cash;

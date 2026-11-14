@@ -59,7 +59,7 @@
 
 # Markets and recovery
 
-- Small local markets sell complete mechs and offer MechWarriors for hire at fixed prices. Upgrades and individual component trading are deferred.
+- Small local markets sell complete mechs and offer MechWarriors for hire at fixed prices (deferred). Each inhabited system's market sells mech systems, limited by its technology and industry: see [Equipment markets](#equipment-markets-confirmed-november-13-2026).
 - Four repair bays operate, one per mech hangar; work continues during travel. Repair orders may be queued and payment is taken when work starts. Queued jobs can be cancelled freely; cancelling active work forfeits payment.
 - Damaged mechs may deploy if cockpit, engine, mobility, and at least one usable weapon function.
 - Objective outcome, recovered mech condition, unrecoverable mechs, and pilot casualties are separate results. Destroyed mechs recovered as wrecks may retain sale value.
@@ -133,7 +133,7 @@ The existing right porthole looks into an enclosed repair bay. Clicking it opens
 
 The hangar is laid out for 1440 × 900 and leads up to refitting, which is not yet available:
 
-- **Inventory and Market** tabs fill the left column. **Inventory** is storage: spare equipment stacked and grouped as Energy, Ballistic, Missile, Ammo and Equipment, each line showing the spare's name and count, drawn as a slot (filled rectangle with an outline) in the colour the item takes in a location panel. **Market** lists, in the same groups and style, the systems for sale where the DropShip is in orbit, each with its price, beneath the company's cash and the total of pending purchases. For now every system storage can hold (every weapon and ammunition in the catalog, both heat sinks and every jump jet class) is for sale in every system at a nominal 1 C-bill. In transit there is no market: the tab says "No market while in transit".
+- **Inventory and Market** tabs fill the left column. **Inventory** is storage: spare equipment stacked and grouped as Energy, Ballistic, Missile, Ammo and Equipment, each line showing the spare's name and count, drawn as a slot (filled rectangle with an outline) in the colour the item takes in a location panel. **Market** lists, in the same groups and style, what the [market](#equipment-markets-confirmed-november-13-2026) where the DropShip is in orbit holds, each line with how many are left beyond every mech's pending purchases (*Medium Laser ×3*) and its price. Above the lines it names the market and its ratings (*Galatea market · 47 items*, then *Regressed · Developing*), the company's cash and the total of pending purchases. Opening the tab views the market, stocking or rolling it over. In transit the tab says "No market while in transit"; on an uninhabited world, "No market on this world".
 - **The selected mech** fills the centre as a blueprint: its real 3D model, front-on, tinted cyan over a darkened bay and a faint grid. Locations that have lost armor or structure tint amber; destroyed locations stay hidden. Right-drag spins it at half a degree per pixel; on release it eases back to front-on over 0.3 seconds. A right click that moves no more than five pixels between press and release still returns to the office.
 - **One panel per location** sits roughly over that body part, its name centred across the top, with the mech's right side on the viewer's left. Each has a 12-pixel bar of installed armor against the most the location can carry at the mech's tonnage (twice its structure, or nine stock points for the head), with lost armor shaded inside the installed section; the torsos have a second bar beneath it for rear armor, against the same limit. Directly beneath those is a 12-pixel grey bar of current against maximum structure. Armor and rear armor as current/installed and structure as current/maximum are written over their bars, falling back to AR / RR / IS in narrow panels; bar colours are dimmed so the text stays legible. Each armor bar ends in − and + buttons (hidden on a destroyed location) that take off or put on one stock point of that armor (front or rear), or ten with Shift held, as a pending loadout change; front and rear together stay between zero and the location's limit. Added armor arrives intact; armor taken off leaves the current armor at most the new installed amount, so existing damage is kept for repair. Below are all of the location's critical slots (six for the head and legs, twelve elsewhere), coloured by kind; weapons take their hardpoint class's colour, the same as a free mount of that class. Each item is one block, however many slots it takes; every heat sink and jump jet is its own item, even when several share a location. Damaged items show amber; destroyed items show red and crossed out. Hovering a slot names the item with its mass, slots and condition. Space hides or shows all the location panels to give a clear view of the model, even while a button has focus; they are shown again whenever the hangar opens. Tab cycles the mech preview between standing still, walking and running, then back to still, even while a button has focus.
 - **The summary** fills the right column, without section headings: the MechWarrior (portrait, name, callsign, skills, and the assignment controls), then the mech's name with its current / maximum tonnage beneath in the same large type (amber while below maximum), its class, role, engine and status; walk and run speeds in km/h and jump range in metres, one per line (see [Movement readouts](#movement-readouts-confirmed-november-11-2026)); then three 30-pixel bars, each with its value written over it and its colours dimmed so the text stays legible. **Armor** and **Structure** read current / stock on a bar whose full width is the most the tonnage allows (the sum of the location armor limits; structure is fixed by tonnage, so its stock is its maximum). The remaining amount is one solid colour from a red → orange → yellow → green scale at the fraction remaining, and the amount still to repair up to stock is grey. **Cooling** reads as a percentage: heat sunk per second (working sinks × dissipation per sink / 10 s) over the most heat per second the mech can sustain, every usable weapon firing as soon as its cooldown allows plus running heat (2 per 10 s; jumping adds no heat). It fills on the same colour scale, full at 100%, and shows ⚠ at its right end when cooling exceeds 100%. Hovering it shows both rates per second. Beneath the bars, **Repair Armor** and **Repair All** order a [repair](#hangar-repairs-confirmed-november-13-2026); a mech with an order shows its status and **Cancel Repair** instead.
@@ -147,7 +147,7 @@ A new company starts with one spare of every weapon, ammunition bin, heat sink (
 
 Each owned mech has its own **loadout**: its stock design less the items removed in the hangar, plus the spares installed there from storage, with each location's installed armor as changed in the hangar. Armor weighs a ton per 16 stock points, counted from the stock amount; it is never stored. Combat, heat, jump movement, readiness and the hangar summary all use it, and it is saved with the company. Saves from before heat sinks and jump jets were separate items give each one the condition of its old group.
 
-- **Installation.** Drag a storage line onto a location panel to install one spare there; storage lines say "Drag onto a location to install", and a line at ×0 cannot be dragged. Installing is mouse only. The item takes the first empty slots, after everything already in the location: empty slots are always the bottom-most, so removing an item moves the items below it up. Items are never split across locations (stock designs that split a weapon keep it, but the split cannot be recreated). Installed items arrive operational and bins full, and from then on follow the same rules as stock items: they take critical hits, can be marked ⚠, count for operational status and ammunition pairing, and right-click takes them out again (back to storage, or scrapped if destroyed). Market lines are dragged the same way ("Drag onto a location to buy and install"), whatever storage holds: the item is installed as a **pending purchase**, its tooltip saying "Pending purchase · 1 C-bill". Pending purchases never touch storage counts or cash; taking one out cancels it. A drop is refused when:
+- **Installation.** Drag a storage line onto a location panel to install one spare there; storage lines say "Drag onto a location to install", and a line at ×0 cannot be dragged. Installing is mouse only. The item takes the first empty slots, after everything already in the location: empty slots are always the bottom-most, so removing an item moves the items below it up. Items are never split across locations (stock designs that split a weapon keep it, but the split cannot be recreated). Installed items arrive operational and bins full, and from then on follow the same rules as stock items: they take critical hits, can be marked ⚠, count for operational status and ammunition pairing, and right-click takes them out again (back to storage, or scrapped if destroyed). Market lines are dragged the same way ("Drag onto a location to buy and install"), whatever storage holds: the item is installed as a **pending purchase**, its tooltip saying "Pending purchase · 40,000 C-bills". Pending purchases never touch storage counts or cash, but hold the item back from the market's line; taking one out cancels it. A market line at ×0 cannot be dragged ("None left in the market"). **Right-click** a market line to buy one straight into Inventory, paid at once and not undone by Reset; **Shift+right-click** buys five, or as many as are left and affordable. A drop is refused when:
   - the location's structure is gone ("Location destroyed"), or it has too few empty slots ("Needs N free slots");
   - a weapon has no free mount of its class (energy, ballistic or missile) in that location (see **Weapon mounts** below). Installed weapons face forward. A weapon shows on the 3D preview only where its chassis has a visual for it on that hardpoint (see [mech models](mech-models.md#weapon-hardpoints)); otherwise it fights without one;
   - a heat sink is not the mech's type, single or double;
@@ -167,7 +167,11 @@ Each owned mech has its own **loadout**: its stock design less the items removed
 Two buttons in the hangar summary, beneath the condition bars, order a repair of the selected mech:
 
 - **Repair Armor** restores front and rear armor to the installed amount on every location that still has structure. A destroyed location needs **Repair All**.
-- **Repair All** restores armor and internal structure everywhere, and returns every damaged or destroyed component, weapon and ammunition bin to working order, so the mech comes back intact with full bins.
+- **Repair All** restores armor and internal structure everywhere, repairs every damaged item, and replaces every destroyed weapon, ammunition bin, heat sink and jump jet with a spare from Inventory, refilling the bins. Engines, gyros, actuators and cockpit systems are always repaired in place and never need parts.
+
+**Damage levels.** Each item records the hits it has taken. Combat does not yet simulate critical hits, so an item lost with its location counts as fully hit: every critical slot of a weapon, bin, heat sink or jump jet, or every damage level of a critical system. A damaged item in a save from before hits were counted has one hit.
+
+**Parts.** Destroyed weapons, bins, heat sinks and jump jets each take one matching spare from Inventory; spares claimed by any mech's pending loadout changes are not available. The parts leave storage when the order is placed and return to it if the order is cancelled, whether queued or started. A destroyed item with no spare is left destroyed and out of the days and cost; the tooltip lists it under *Missing parts*. When missing parts are all that is left to repair, Repair All is disabled with that list.
 
 **Time and price.** The order's days and cost are fixed when it is placed. The numbers live in `RepairTuning` and are placeholders for tuning.
 
@@ -175,18 +179,55 @@ Two buttons in the hangar summary, beneath the condition bars, order a repair of
 | --- | --- | --- |
 | Armor (16 stock points a ton) | 1 day per 4 t | 10,000 C-bills a ton |
 | Internal structure (a tenth of rated tonnage when whole) | 1 day per 1 t | 40,000 C-bills a ton |
-| Damaged system | ½ day each | 10,000 C-bills each |
-| Destroyed system | ½ day each | 25,000 C-bills each |
+| Damaged weapon, bin, heat sink or jump jet | ½ day per hit slot | hit slots ÷ its slots × its [base price](#equipment-markets-confirmed-november-13-2026) |
+| Destroyed weapon, bin, heat sink or jump jet (with a spare) | ½ day per slot it takes | 10,000 C-bills per slot it takes |
+| Engine (3 levels destroy it) | 1 day per level | rating ÷ 400 × 100,000 C-bills per level |
+| Gyro (2 levels) | 1 day per level | tonnage ÷ 100 × 50,000 C-bills per level |
+| Cockpit (1 level) | ½ day per level | 30,000 C-bills per level |
+| Sensors (2 levels) | ½ day per level | 20,000 C-bills per level |
+| Life Support (1 level) | ½ day per level | 15,000 C-bills per level |
+| Hip (1 level) | ½ day per level | 20,000 C-bills per level |
+| Shoulder (1 level) | ½ day per level | 15,000 C-bills per level |
+| Other actuators (1 level) | ½ day per level | 10,000 C-bills per level |
 
-The total time rounds up to whole days, at least one.
+The engine rating is read from the engine's name. The total time rounds up to whole days, at least one. The Repair All tooltip lists the work line by line (*Armor 3.4 t*, *Structure 1.2 t*, *Fusion Engine · 3 levels*, *PPC · 2 of 3 slots*, *AC/10 · replaced*, *Parts used: AC/10 ×1*, *Missing parts: AC/20 ×1*) above the days and C-bills.
 
 **Bays.** Four repair bays work at once, one per mech hangar. Orders beyond four queue, first ordered first served. A bay takes an order on the day it is placed or the day a bay frees, and the order is paid for then; a queued order the company cannot afford waits until it can, holding up those behind it. An order can only be placed while its cost is affordable, the mech has no other order and no pending loadout changes, and the mech is in the player's lance or the lance pool.
 
 **While ordered.** The mech cannot deploy (Quick Launch and Simulate Deployment list it as *Under repair* or *Repair queued*) and its loadout cannot change. Pilot and lance changes are still allowed. The summary shows *Under repair · completes 14 JAN 3025*, or the order's place in the queue, with **Cancel Repair**.
 
-**Cancelling.** A queued order cancels at once at no cost. Cancelling work already started asks first: the payment is forfeited and the damage stays. Either way the next queued order may take the bay.
+**Cancelling.** A queued order cancels at once at no cost. Cancelling work already started asks first: the payment is forfeited and the damage stays. Either way its parts return to Inventory. Either way the next queued order may take the bay.
 
 **Completion.** On the completion date the mech is restored, a *Repair complete · <mech>* event stops the calendar like other events, and the freed bay takes the next queued order that day. Orders are saved with their mechs.
+
+## Equipment markets (confirmed November 13, 2026)
+
+Every inhabited system has a market for mech systems: weapons, ammunition bins, single and double heat sinks, and the three jump jet classes. Engines, gyros, actuators and cockpit systems are never sold; they cannot be swapped, and they can always be repaired.
+
+**Ratings.** Each system's two ratings come from its USILR socio-industrial code in the MegaMek data (technology, industrial development, raw materials, industrial output, agriculture, graded A–F; X for uninhabited worlds, which have no market). The star map's system tooltip and route readout show them (*Regressed tech · Developing*).
+
+- **Technological Level** follows the technology grade: F Primitive, D Regressed, C Standard, B Advanced, A Star League. The former Star League worlds Terra, Tharkad, New Avalon, Luthien, Sian and Atreus are one level above their grade, so only Terra and Tharkad (grade B) reach Star League.
+- **Industrial Capacity** follows the output grade, and sets how many items a full market holds: F Backwater (20), D Developing (50), C Industrial (100), A or B Major Industrial (180). The BattleMech factory worlds Hesperus II, Coventry, New Avalon, Luthien, Alshain, Gibson, Irian, Kathil and Galax are Factory Worlds (300) whatever their grade.
+
+Galatea, where companies start, is Regressed and Developing.
+
+**What is stocked.** A market holds exactly its capacity, counted item by item, each a weighted random draw from the items its technology level reaches. Ammunition bins share their weapon's level and draw at twice its weight. Prices are base prices, the same in every market. The numbers live in `MarketTuning`.
+
+| Lowest level | Items: draw weight, base price (C-bills) |
+| --- | --- |
+| Primitive | Machine Gun 10, 5,000 · Flamer 5, 7,500 · AC/2 5, 75,000 · AC/5 5, 125,000 · SRM 2 10, 10,000 · Heat Sink 10, 2,000 |
+| Regressed | Small Laser 10, 11,250 · Medium Laser 10, 40,000 · SRM 4 10, 60,000 · LRM 5 5, 30,000 · LRM 10 5, 100,000 · AC/10 5, 200,000 · Jump Jets 5, 10,000 (≤55 t) / 20,000 (60–85 t) / 40,000 (90+ t) |
+| Standard | Large Laser 5, 100,000 · SRM 6 5, 80,000 · LRM 15 5, 175,000 · PPC 2, 200,000 |
+| Advanced | AC/20 2, 300,000 · LRM 20 2, 250,000 |
+| Star League | ER Large Laser 2, 200,000 · Double Heat Sink 2, 6,000 |
+
+Ammunition bins cost: Machine Gun 1,000, AC/2 1,000, AC/5 4,500, AC/10 6,000, AC/20 10,000, any LRM 30,000, any SRM 27,000.
+
+**Viewing and rollover.** A market is stocked the first time it is viewed: opening the hangar's Market tab while the DropShip orbits its system. It remembers the date. Each later view brings it up to today: it replaces round(capacity × (1 − 0.95^days)) items (5% a day), first filling gaps left by purchases and then swapping out randomly chosen items still held, and records today's date. A second view on the same day changes nothing, and a market bought out refills at the same 5% a day.
+
+**Buying.** Stock is finite. Pending purchases hold items back from the market's lines, Apply takes them from the market for good, and right-click buys straight into Inventory. If another player has bought the last of an item first, Apply is disabled with "Only 0 Medium Laser left in the market".
+
+**Saves and co-op.** Markets that have been viewed are saved in the campaign with their stock and date, and stock is drawn from a saved seed. Markets are shared by every player: any player opening the Market tab asks the leader to bring that market up to date, and the result reaches everyone with the campaign. Saves from before markets stock each market when it is first viewed.
 
 **Movement readouts** (confirmed November 11, 2026). Screens never show movement points. Walk and run show as km/h at 10 km/h per MP, the combat movement rate, and jump as its range in metres (45 m per jump MP); a mech without jump jets shows no jump. The hangar lists them one per line, the roster's overview on one line ("Walk 40 km/h  ·  Run 60 km/h  ·  Jump 120 m"), and draft cards in compact form ("40/60 km/h · J 120 m", jump abbreviated to fit the card; its tooltip and record spell it out). Owned mechs show their refitted values and draft candidates stock ones. `CombatRules.MovementSummary` and `CompactMovement` produce all of them.
 

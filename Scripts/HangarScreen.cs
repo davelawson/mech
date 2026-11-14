@@ -20,6 +20,12 @@ public partial class HangarScreen : Control
     public event Action<string, RepairScope>? RepairRequested;
     /// <summary>Cancels a mech's repair order.</summary>
     public event Action<string>? CancelRepairRequested;
+    /// <summary>Opening the Market tab: the market is stocked, or rolled over to today.</summary>
+    public event Action? MarketViewed;
+    /// <summary>Buys a number of an item from the market straight into storage.</summary>
+    public event Action<string, int>? BuyToStorageRequested;
+    /// <summary>Shift+right-click buys this many into storage.</summary>
+    public const int BulkPurchase = 5;
     /// <summary>The campaign, for the date and repair bays; null shows repair orders without dates or queue places.</summary>
     public Campaign? Campaign { get; set; }
     public Button RepairArmorButton { get; private set; } = null!;
@@ -70,7 +76,14 @@ public partial class HangarScreen : Control
     public long SelectedPurchaseCost => SelectedPurchases.Sum(EquipmentMarket.Price);
     public long PendingPurchaseCost => _purchases.Keys.Sum(id => Purchases(id).Sum(EquipmentMarket.Price));
     public bool SelectedAffordable => SelectedPurchaseCost <= Cash;
-    public bool SelectedCanApply => SelectedHasPendingChanges && !SelectedOverTonnage && SelectedAffordable && SelectedControlled && !SelectedLocked;
+    /// <summary>The market where the DropShip orbits, as last viewed; null in transit, before it is viewed, or on a world with none.</summary>
+    public SystemMarket? OrbitMarket => MarketSystemId is { } system ? Campaign?.Market(system) : null;
+    /// <summary>"Only 2 Medium Laser left in the market" when the selected mech's purchases exceed the market's stock.</summary>
+    public string? SelectedShortage => SelectedPurchases.Count == 0 ? null : OrbitMarket is { } market ? market.Shortage(SelectedPurchases) : "No market here";
+    public bool SelectedCanApply => SelectedHasPendingChanges && !SelectedOverTonnage && SelectedAffordable && SelectedControlled && !SelectedLocked
+        && SelectedShortage is null;
+    /// <summary>How many of an item the market holds beyond every mech's pending purchases.</summary>
+    public int MarketLeft(string storageId) => (OrbitMarket?.Stock(storageId) ?? 0) - _purchases.Keys.Sum(id => Purchases(id).Count(item => item == storageId));
     public MechPreview Preview { get; private set; } = null!;
     public bool ArtworkLoaded => _background.Texture is not null;
     public IReadOnlyDictionary<MechLocation, HangarLocationPanel> LocationPanels => _locations;
@@ -146,6 +159,7 @@ public partial class HangarScreen : Control
         StorageList = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
         StorageList.AddThemeConstantOverride("separation", 2); storage.AddChild(StorageList);
         var market = RosterUi.Scroll(StorageTabs); market.GetParent<Control>().Name = "Market";
+        StorageTabs.TabChanged += tab => { if (tab == MarketTab) MarketViewed?.Invoke(); };
         market.AddThemeConstantOverride("separation", 4);
         MarketText = RosterUi.Text(market, "", 12, Ui.Muted);
         MarketList = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -201,6 +215,12 @@ public partial class HangarScreen : Control
     {
         if (RepairProblem(scope) is null) RepairRequested?.Invoke(SelectedMech.Id, scope);
     }
+    /// <summary>What a repair of the selected mech would take, using the spares storage holds beyond every pending loadout change.</summary>
+    public RepairEstimate? SelectedRepair(RepairScope scope)
+    {
+        var counts = StorageCounts();
+        return Repairs.Estimate(SelectedMech, scope, id => counts.GetValueOrDefault(id));
+    }
     /// <summary>Why the selected mech cannot be ordered this repair, or null when it can.</summary>
     public string? RepairProblem(RepairScope scope)
     {
@@ -208,9 +228,12 @@ public partial class HangarScreen : Control
         if (!SelectedControlled) return "Another player's lance";
         if (mech.Repair is not null) return "Already ordered";
         if (SelectedHasPendingChanges) return "Apply or reset loadout changes first.";
-        if (Repairs.Estimate(mech, scope) is not { } estimate) return scope == RepairScope.Armor ? "No armor to repair" : "Nothing to repair";
-        return estimate.Cost > Cash ? $"Not enough C-bills · {Repairs.Text(estimate)}" : null;
+        if (SelectedRepair(scope) is not { } estimate) return scope == RepairScope.Armor ? "No armor to repair" : "Nothing to repair";
+        if (!estimate.Doable) return $"Missing parts: {Repairs.PartsText(estimate.MissingParts)}";
+        return estimate.Cost > Cash ? $"{RepairDetails(estimate)}\nNot enough C-bills" : null;
     }
+    /// <summary>The work line by line, then "N days · X C-bills".</summary>
+    public static string RepairDetails(RepairEstimate estimate) => string.Join("\n", estimate.Lines.Append(Repairs.Text(estimate)));
     private void UpdateRepair()
     {
         var mech = SelectedMech; var order = mech.Repair;
@@ -229,7 +252,7 @@ public partial class HangarScreen : Control
             var problem = RepairProblem(scope);
             button.Disabled = problem is not null;
             button.FocusMode = problem is null ? FocusModeEnum.All : FocusModeEnum.None;
-            button.TooltipText = problem ?? Repairs.Text(Repairs.Estimate(mech, scope)!.Value)
+            button.TooltipText = problem ?? RepairDetails(SelectedRepair(scope)!)
                 + (Campaign is { } campaign && campaign.ActiveRepairs >= RepairTuning.Bays ? "\nWaits for a free repair bay" : "\nPaid when work starts");
         }
     }
@@ -243,6 +266,17 @@ public partial class HangarScreen : Control
         return ahead > 0 ? $"Repair queued · {ahead} ahead" : campaign.ActiveRepairs >= RepairTuning.Bays ? "Repair queued · next for a bay"
             : $"Repair queued · needs {Money(order.Cost)}";
     }
+    public const int MarketTab = 1;
+    /// <summary>Buys items from the market into storage: Shift buys <see cref="BulkPurchase"/>, as many as the market holds and the
+    /// company can afford. Returns whether anything was bought.</summary>
+    public bool BuyToStorage(string storageId, bool bulk = false)
+    {
+        if (OrbitMarket is null || MarketTuning.Spec(storageId) is not { } spec) return false;
+        var count = Math.Min(Math.Min(bulk ? BulkPurchase : 1, MarketLeft(storageId)), (int)Math.Min(int.MaxValue, Cash / spec.Price));
+        if (count <= 0) return false;
+        BuyToStorageRequested?.Invoke(storageId, count);
+        return true;
+    }
     private PanelContainer Panel()
     { var panel = new PanelContainer(); panel.AddThemeStyleboxOverride("panel", Ui.Box(new Color(.045f, .07f, .065f, .9f), Ui.Line)); AddChild(panel); return panel; }
     /// <summary>Opens the hangar on a roster, with the market of the system the DropShip orbits (none in transit) and the company's cash.</summary>
@@ -253,6 +287,7 @@ public partial class HangarScreen : Control
         BuildRosterButtons();
         ShowStorage(); ShowMarket();
         Select(_selected); Layout(); BackButton.CallDeferred(Control.MethodName.GrabFocus);
+        if (StorageTabs.CurrentTab == MarketTab) MarketViewed?.Invoke();
     }
     /// <summary>Takes a newer copy of the company, as a co-op player receives it from the leader, keeping the selection and the
     /// pending changes that still apply to it.</summary>
@@ -341,8 +376,8 @@ public partial class HangarScreen : Control
     /// <summary>Why a spare from storage, or an item bought from the market, cannot go in a location of the selected mech as shown,
     /// or null when it can.</summary>
     public string? InstallProblem(string storageId, MechLocation location, bool purchase = false) =>
-        !SelectedControlled ? "Another player's lance" : SelectedLocked ? "Under repair" : purchase ? (MarketSystemId is not { } system || !EquipmentMarket.Offers(system).Any(item => item.Id == storageId) ? "Not for sale here"
-                : Loadout.InstallProblem(DisplayedMech, storageId, location))
+        !SelectedControlled ? "Another player's lance" : SelectedLocked ? "Under repair" : purchase ? (OrbitMarket is null ? "No market here"
+                : MarketLeft(storageId) <= 0 ? "None left in the market" : Loadout.InstallProblem(DisplayedMech, storageId, location))
             : StorageCounts().GetValueOrDefault(storageId) <= 0 ? "None in storage" : Loadout.InstallProblem(DisplayedMech, storageId, location);
     private void Change(LoadoutPlan plan)
     {
@@ -381,6 +416,11 @@ public partial class HangarScreen : Control
             if (block.ItemId is { } id && Loadout.Removable(block.Kind)) Remove(id);
             return true;
         }
+        // A right click on a market line buys into storage rather than going back.
+        if (StorageTabs.CurrentTab == MarketTab && MarketList.IsVisibleInTree())
+            foreach (var line in MarketList.GetChildren().OfType<HangarStorageLine>())
+                if (line.GetGlobalRect().HasPoint(viewportPosition))
+                { BuyToStorage(line.Item.Id, Input.IsKeyPressed(Key.Shift)); return true; }
         return false;
     }
     public void ResetSelected()
@@ -506,6 +546,7 @@ public partial class HangarScreen : Control
         ApplyButton.FocusMode = applicable ? FocusModeEnum.All : FocusModeEnum.None;
         var bought = SelectedPurchases.Count; var cost = SelectedPurchaseCost;
         ApplyButton.TooltipText = mech.OverTonnage ? $"Over tonnage by {(mech.Tons - mech.Definition.Tonnage).ToString("0.##", CultureInfo.InvariantCulture)} t"
+            : SelectedShortage is { } shortage ? shortage
             : bought == 0 ? "" : $"{(SelectedAffordable ? "Buys" : "Not enough C-bills to buy")} {bought} {(bought == 1 ? "item" : "items")} · {Money(cost)}";
         if (applicable) ApplyButton.AddThemeStyleboxOverride("normal", Ui.Box(new Color("344431"), Ui.Gold));
         else ApplyButton.RemoveThemeStyleboxOverride("normal");
@@ -558,11 +599,17 @@ public partial class HangarScreen : Control
     private void ShowMarket()
     {
         RosterUi.Clear(MarketList);
-        MarketText.Text = $"Cash {Money(Cash)}\nPending purchases {Money(PendingPurchaseCost)}";
-        if (MarketSystemId is not { } system) { RosterUi.Text(MarketList, "No market while in transit", 12, Ui.Muted); return; }
-        ShowGrouped(MarketList, EquipmentMarket.Offers(system).Select(item =>
+        var money = $"Cash {Money(Cash)}\nPending purchases {Money(PendingPurchaseCost)}";
+        if (MarketSystemId is not { } system) { MarketText.Text = money; RosterUi.Text(MarketList, "No market while in transit", 12, Ui.Muted); return; }
+        var star = StarChart.Instance[system];
+        if (!SystemRatings.HasMarket(star)) { MarketText.Text = money; RosterUi.Text(MarketList, "No market on this world", 12, Ui.Muted); return; }
+        if (OrbitMarket is not { } market) { MarketText.Text = $"{star.Name} market\n{SystemRatings.Text(star)}\n{money}"; RosterUi.Text(MarketList, "Opening the market…", 12, Ui.Muted); return; }
+        MarketText.Text = $"{star.Name} market · {market.Count} items\n{SystemRatings.Name(market.Tech)} · {SystemRatings.Name(market.Capacity)}\n{money}";
+        if (market.Count == 0) RosterUi.Text(MarketList, "Sold out", 12, Ui.Muted);
+        ShowGrouped(MarketList, market.Items.Select(entry =>
         {
-            var line = HangarStorageLine.ForSale(item, EquipmentMarket.Price(item.Id)); line.Name = $"Market {item.Id}"; return line;
+            var line = HangarStorageLine.ForSale(StorageCatalog.Describe(entry.Id)!, EquipmentMarket.Price(entry.Id), MarketLeft(entry.Id));
+            line.Name = $"Market {entry.Id}"; return line;
         }));
     }
     /// <summary>Lines under a heading per group (Energy, Ballistic, Missile, Ammo, Equipment), by name within each.</summary>

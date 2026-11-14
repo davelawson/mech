@@ -13,10 +13,11 @@ public partial class HangarStorageLine : PanelContainer
     public long? Price { get; }
     /// <summary>The slot colour: the weapon's hardpoint class, or the item kind's colour.</summary>
     public Color Color { get; }
-    private bool Draggable => Price is not null || Count > 0;
+    private bool Draggable => Count > 0;
 
     public HangarStorageLine(StorageItem item, int count) : this(item, count, null) { }
-    public static HangarStorageLine ForSale(StorageItem item, long price) => new(item, 0, price);
+    /// <summary>A market line: the item, how many are left to buy and its price.</summary>
+    public static HangarStorageLine ForSale(StorageItem item, long price, int left) => new(item, left, price);
     private HangarStorageLine(StorageItem item, int count, long? price)
     {
         Item = item; Count = count; Price = price; Color = HangarLocationPanel.StorageColor(item);
@@ -26,13 +27,14 @@ public partial class HangarStorageLine : PanelContainer
         {
             // The price sits in its own column on the right; long names are cut short rather than wrapped.
             var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore }; row.AddThemeConstantOverride("separation", 6); AddChild(row);
-            var name = Ui.Label(row, item.Name, 13);
+            var name = Ui.Label(row, $"{item.Name} ×{count}", 13, Draggable ? Ui.Text : Ui.Muted);
             name.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
             name.SizeFlagsHorizontal = SizeFlags.ExpandFill; name.MouseFilter = MouseFilterEnum.Ignore;
             Ui.Label(row, HangarScreen.Money(cost), 13, Ui.Muted).MouseFilter = MouseFilterEnum.Ignore;
         }
         else RosterUi.Text(this, $"{item.Name} ×{count}", 13, Draggable ? Ui.Text : Ui.Muted).MouseFilter = MouseFilterEnum.Ignore;
-        TooltipText = price is not null ? $"{item.Name}\nDrag onto a location to buy and install"
+        TooltipText = price is not null ? count > 0 ? $"{item.Name}\nDrag onto a location to buy and install\nRight-click to buy into Inventory · Shift buys {HangarScreen.BulkPurchase}"
+                : $"{item.Name}\nNone left in the market"
             : count > 0 ? $"{item.Name}\nDrag onto a location to install" : $"{item.Name}\nNone left in storage";
     }
 
