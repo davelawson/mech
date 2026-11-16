@@ -32,6 +32,9 @@ public partial class MechModel
     private float _walkReach, _runReach;
     private float _motionBlend;
     public float RunBlend { get; private set; }
+    /// <summary>Feet planted so far: one each time a leg's swing ends and its stance begins.</summary>
+    public int Footfalls { get; private set; }
+    private readonly List<float> _lastStep = [];
 
     private static Node3D Pivot(Node3D parent, string name, Vector3 at, Func<Node3D, bool>? include = null)
     {
@@ -104,9 +107,14 @@ public partial class MechModel
         var sway = wave * gait.Sway * _motionBlend;
         _body.Position = new(sway, _rig.Waist + bob, 0);
         _body.Rotation = new(-gait.Lean * RunBlend * _motionBlend, -_torsoTwist, -wave * gait.Roll * _motionBlend);
-        foreach (var leg in _legs)
+        while (_lastStep.Count < _legs.Count) _lastStep.Add(-1);
+        for (var index = 0; index < _legs.Count; index++)
         {
+            var leg = _legs[index];
             var step = (phase + (leg.Side > 0 ? .5f : 0)) % 1;
+            // The step wraps from swing back to stance as the foot comes down, in either direction of travel.
+            if (_lastStep[index] >= 0 && Math.Abs(step - _lastStep[index]) > .5f && _motionBlend > .3f) Footfalls++;
+            _lastStep[index] = step;
             var swing = Math.Clamp((step - stance) / (1 - stance), 0, 1);
             var reach = step < stance ? -1 + 2 * step / stance
                 : 1 - 2 * Mathf.SmoothStep(0, 1, swing);

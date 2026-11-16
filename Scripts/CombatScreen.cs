@@ -263,7 +263,7 @@ public partial class CombatScreen : Control
         PatrolButton = Ui.Button(_modalContent, "Patrol");
         RosterUi.Text(_modalContent, "Visit each patrol point, then reach the extraction zone, past enemy groups that wake on contact. The opposition is rolled from your reputation, as an offer's would be. Your units keep their current condition.", 14, Ui.Muted);
         PatrolButton.Pressed += () => { Opponent = SimulationOpponent.Patrol; ShowForceSelection(selectedMechId); };
-        BackButton = Ui.Button(ModalActions(), "Back to hangar"); BackButton.Pressed += Exit;
+        BackButton = Ui.Sound(Ui.Button(ModalActions(), "Back to hangar"), Cue.UiCancel); BackButton.Pressed += Exit;
         RandomizedEnemyButton.GrabFocus(); RosterUi.TrapFocus(_shade);
     }
     private void ShowForceSelection(string selectedMechId)
@@ -319,10 +319,10 @@ public partial class CombatScreen : Control
         }
         _forceCount = RosterUi.Text(_modalContent, "", 13, Ui.Gold);
         DeploymentStatus = RosterUi.Text(_modalContent, "", 13, Ui.Muted); DeploymentStatus.Visible = Coop;
-        var actions = ModalActions(); BackButton = Ui.Button(actions, "Back to hangar"); BackButton.Pressed += Exit;
+        var actions = ModalActions(); BackButton = Ui.Sound(Ui.Button(actions, "Back to hangar"), Cue.UiCancel); BackButton.Pressed += Exit;
         // Only the leader closes force selection; it returns every player to the hangar.
         BackButton.Visible = Leading;
-        LaunchButton = Ui.Button(actions, _mission is null ? "Launch simulation" : Leading ? "Launch mission" : "Ready"); LaunchButton.Pressed += Launch;
+        LaunchButton = Ui.Sound(Ui.Button(actions, _mission is null ? "Launch simulation" : Leading ? "Launch mission" : "Ready"), Cue.UiConfirm); LaunchButton.Pressed += Launch;
         RefreshForceSelection(); BackButton.CallDeferred(Control.MethodName.GrabFocus); RosterUi.TrapFocus(_shade);
     }
     private void RefreshForceSelection()
@@ -613,9 +613,21 @@ public partial class CombatScreen : Control
         if (!Visible || Simulation is null || Modal is CombatModal.ForceSelection or CombatModal.Results) return;
         if (Modal == CombatModal.None) Simulation.Advance(delta);
         if (Simulation.Outcome != CombatOutcome.Ongoing) { ShowResults(); return; }
+        SoundHeatAlarm(delta);
         _uiElapsed += delta;
         if (_uiElapsed >= .1) { _uiElapsed = 0; RefreshDetails(); }
     }
+    /// <summary>While a friendly mech runs hot enough for heat penalties, an alarm sounds every couple of seconds.</summary>
+    private void SoundHeatAlarm(double delta)
+    {
+        _heatAlarm = Math.Max(0, _heatAlarm - delta);
+        if (Simulation!.Paused || _heatAlarm > 0) return;
+        if (!Simulation.Units.Any(unit => unit.Side == CombatSide.Friendly && unit.Active && unit.Heat >= CombatRules.HotHeat)) return;
+        SoundPlayer.For(this)?.Play(Cue.HeatWarning);
+        _heatAlarm = HeatAlarmSeconds;
+    }
+    private const double HeatAlarmSeconds = 2;
+    private double _heatAlarm;
     private void RefreshDetails()
     {
         if (Simulation is null) return;

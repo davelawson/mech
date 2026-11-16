@@ -38,7 +38,7 @@ public partial class MissionsPanel : Control
         var body = new VBoxContainer(); body.AddThemeConstantOverride("separation", 12); _panel.AddChild(body);
         var top = new HBoxContainer(); body.AddChild(top);
         var heading = Ui.Label(top, "MISSION OFFERS", 22, Ui.Gold); heading.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-        CloseButton = Ui.Button(top, "Back to office"); CloseButton.CustomMinimumSize = new Vector2(135, 38);
+        CloseButton = Ui.Sound(Ui.Button(top, "Back to office"), Cue.UiCancel); CloseButton.CustomMinimumSize = new Vector2(135, 38);
         CloseButton.Pressed += () => Closed?.Invoke();
         _reputation = new HFlowContainer(); _reputation.AddThemeConstantOverride("h_separation", 18); body.AddChild(_reputation);
         var content = new HBoxContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; content.AddThemeConstantOverride("separation", 24); body.AddChild(content);
@@ -52,7 +52,7 @@ public partial class MissionsPanel : Control
         _terms = RosterUi.Text(details, "", 15);
         _acceptHint = RosterUi.Text(right, "", 12, Ui.Muted);
         var actions = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End }; right.AddChild(actions);
-        AcceptButton = Ui.Button(actions, "Accept Mission"); AcceptButton.CustomMinimumSize = new Vector2(165, 42);
+        AcceptButton = Ui.Sound(Ui.Button(actions, "Accept Mission"), Cue.UiConfirm); AcceptButton.CustomMinimumSize = new Vector2(165, 42);
         AcceptButton.Pressed += () => { if (_viewedId is not null) AcceptRequested?.Invoke(_viewedId); };
         AbandonButton = Ui.Button(actions, "Abandon Mission"); AbandonButton.CustomMinimumSize = new Vector2(165, 42);
         AbandonButton.Pressed += () => AbandonRequested?.Invoke();

@@ -155,6 +155,13 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 - Provide a friendly-unit selection bar and selected-unit panel showing orders, movement mode, firing setting, preferred engagement distance, weapon readiness, and armor/internal structure by location.
 - Enemy inspection retains the friendly selection. Model-only contacts show the chassis name; detailed contacts add exact location values, the shared paperdoll and effective systems status. Inspection draws the union of identification ranges (blue) and, separately, half-range status ranges (gold) of all selected active friendlies for that target. Without an inspected enemy, draw the union of their 100-ton identification ranges and label the 20–100-ton detection span. Draw only exposed boundary arcs, preserving separate regions and uncovered holes, with no fill or internal overlap arcs. Disabled and destroyed selections contribute nothing. With multiple active contributors, label the readout “Selected mechs” and show minimum–maximum contributor ranges for each displayed tier; retain the single-mech readout when only one active contributor remains. These are distance boundaries; terrain may still block observation, and side-wide detection continues to use all active observers regardless of selection.
 
+## Battlefield sound (added November 16, 2026)
+
+- Every weapon fires with a sound by kind at its muzzle, and each shell, PPC bolt, missile and machine-gun round sounds where it lands, timed with its effect. Laser hits, destroyed locations, destroyed mechs, critical hits and ammunition explosions sound at the struck location.
+- Mechs plant each foot audibly, heavier chassis lower and louder. Jump jets roar for the whole flight and land with a thud. A knockdown crashes when the mech hits the ground, and servos whine as it rises.
+- Sounds are positional around the camera's focus and quieter when zoomed out. Undetected enemies make no sound. An alarm repeats every 2 s while any active friendly mech's heat is at or above 20 and the battle is running.
+- Cue files, voice caps and sources are in [audio](audio.md).
+
 ## Existing campaign constraints
 
 - The setting is BattleTech, initially 3025–3049.

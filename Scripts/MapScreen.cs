@@ -129,7 +129,7 @@ public partial class MapScreen : Control
         EmbarkButton = Ui.Button(box, "Embark");
         EmbarkButton.Pressed += () => { _campaign!.Execute(new EmbarkCommand(), Slot); _notice = null; RefreshTravel(); TravelChanged?.Invoke(); };
         JourneyLabel = TravelLabel(box, "", new Color("61de95"));
-        CancelButton = Ui.Button(box, "Cancel Journey");
+        CancelButton = Ui.Sound(Ui.Button(box, "Cancel Journey"), Cue.UiCancel);
         CancelButton.Pressed += () => { _campaign!.Execute(new CancelJourneyCommand(), Slot); _notice = null; RefreshTravel(); TravelChanged?.Invoke(); };
         TravelLabel(box, "Blue: candidate · Green: embarked\nAdvance time from the office.\nTransit: 2,000 C-bills/day, billed quarterly.", Ui.Muted, 12);
         PopulateDestinations();

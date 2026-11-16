@@ -38,6 +38,7 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | Right-click | Close the topmost popup, confirmation or subscreen (outside combat) |
 | Escape | Return toward the office; in the office, open the main menu |
 | Header **Main menu** | Open the main menu |
+| **Audio** (main menu) | Set master, music, effects and interface volume, or mute all sound |
 | **Initial draft** | |
 | Click candidate | Select it for that pool |
 | **…** | Inspect the full record without selecting |
@@ -187,6 +188,7 @@ The native acceptance loop is: launch without a separately installed .NET runtim
 - [Domain glossary](CONTEXT.md)
 - [Strategy and combat boundary](docs/adr/0001-strategy-and-combat-boundary.md) and [continuous combat timing](docs/adr/0002-continuous-combat-timing.md), and [cooperative multiplayer](docs/adr/0003-cooperative-multiplayer.md)
 - [Artwork sources, image-edit prompts, and measured display regions](docs/artwork.md)
+- [Sound cues, music and CC0 audio sources](docs/audio.md)
 - [Classic stock unit data, source revision and attribution](Data/README.md)
 
 Godot Engine is distributed under the [MIT license](https://godotengine.org/license/). The third-party BattleTech map retains its original rights and attribution.

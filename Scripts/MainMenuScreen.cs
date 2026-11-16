@@ -11,6 +11,8 @@ public partial class MainMenuScreen : Control
     [Signal] public delegate void QuitRequestedEventHandler();
     [Signal] public delegate void HostRequestedEventHandler();
     [Signal] public delegate void JoinRequestedEventHandler();
+    [Signal] public delegate void AudioRequestedEventHandler();
+    public Button AudioButton { get; private set; } = null!;
     public Button HostButton { get; private set; } = null!;
     public Button JoinButton { get; private set; } = null!;
     public Button NewButton { get; private set; } = null!;
@@ -39,15 +41,17 @@ public partial class MainMenuScreen : Control
         HostButton.Pressed += () => EmitSignal(SignalName.HostRequested);
         JoinButton = Ui.Button(_menu, "Join Co-op");
         JoinButton.Pressed += () => EmitSignal(SignalName.JoinRequested);
+        AudioButton = Ui.Button(_menu, "Audio");
+        AudioButton.Pressed += () => EmitSignal(SignalName.AudioRequested);
         QuitButton = Ui.Button(_menu, "Quit");
         QuitButton.Pressed += () => EmitSignal(SignalName.QuitRequested);
-        foreach (var button in new[] { ResumeButton, NewButton, LoadButton, HostButton, JoinButton, QuitButton }) button.CustomMinimumSize = new Vector2(0, 48);
+        foreach (var button in new[] { ResumeButton, NewButton, LoadButton, HostButton, JoinButton, AudioButton, QuitButton }) button.CustomMinimumSize = new Vector2(0, 48);
         Resized += Layout;
         Layout();
     }
 
     private void Layout()
     {
-        if (_menu is not null) Ui.Place(_menu, (Size.X - 360) / 2, Math.Max(24, (Size.Y - 546) / 2), 360, 546);
+        if (_menu is not null) Ui.Place(_menu, (Size.X - 360) / 2, Math.Max(24, (Size.Y - 614) / 2), 360, 614);
     }
 }

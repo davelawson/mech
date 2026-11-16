@@ -21,6 +21,11 @@ public partial class CombatViewport : Control
         set { _commandsEnabled = value; if (!value) CancelDrag(); }
     }
     public Camera3D Camera { get; private set; } = null!;
+    private SoundPlayer? _sound;
+    /// <summary>Plays the battlefield's sounds: the app's player by default, or one a standalone view is given.</summary>
+    public SoundPlayer? Sound { get => _sound ??= SoundPlayer.For(this); set => _sound = value; }
+    private CombatAudio _audio = null!;
+    private static long SoundKey(ShotEffect effect, int part) => effect.Shot.Sequence * 128 + part;
     private SubViewport _viewport = null!;
     private NativeViewportContainer _surface = null!;
     private Node3D _world = null!;
@@ -276,9 +281,10 @@ public partial class CombatViewport : Control
         var surface = _surface = new NativeViewportContainer { MouseFilter = MouseFilterEnum.Ignore, ShowBehindParent = true };
         AddChild(surface);
         _viewport = new SubViewport { OwnWorld3D = true, GuiDisableInput = true,
-            RenderTargetUpdateMode = SubViewport.UpdateMode.WhenVisible, HandleInputLocally = false };
+            RenderTargetUpdateMode = SubViewport.UpdateMode.WhenVisible, HandleInputLocally = false, AudioListenerEnable3D = true };
         surface.AddChild(_viewport);
         _world = new Node3D(); _viewport.AddChild(_world);
+        _audio = new CombatAudio(() => Sound, _world);
         Camera = new Camera3D { Projection = Camera3D.ProjectionType.Orthogonal, Size = 1500, Far = 24000, Current = true };
         _world.AddChild(Camera);
         ApplyLighting(null);
@@ -314,7 +320,7 @@ public partial class CombatViewport : Control
         foreach (var mark in _burnMarks) mark.Mesh.QueueFree();
         _burnMarks.Clear();
         foreach (var dust in _dust) dust.Mesh.QueueFree();
-        _dust.Clear(); _airborne.Clear(); _fallen.Clear();
+        _dust.Clear(); _airborne.Clear(); _fallen.Clear(); _audio.Clear();
         _models.Clear(); _pickBounds.Clear();
         Simulation = simulation; Simulation.ShotFired += OnShot; InspectedEnemy = null; Selection = Array.Empty<string>();
         if (_terrainView is not null) { _world.RemoveChild(_terrainView); _terrainView.QueueFree(); }
@@ -364,6 +370,9 @@ public partial class CombatViewport : Control
         if (shot.Missiles.Count > 0) LaunchSalvo(created, weapon!);
         if (weapon is not null && CombatRules.IsMachineGun(weapon.Kind)) LoadBurst(created);
         _effects.Add(created);
+        if (weapon is null) return;
+        _audio.Fired(weapon.Kind, created.Muzzle?.GlobalPosition ?? _models[shot.AttackerId].LocationCenter(created.Mount));
+        if (laser is not null && shot.Hit) _audio.Play(Cue.LaserHit, _models[shot.TargetId].LocationCenter(shot.Location));
     }
     // Unshaded additive cylinders read as a glowing beam from any camera angle without post-processing.
     private MeshInstance3D TailBeam(Color color)
@@ -448,6 +457,7 @@ public partial class CombatViewport : Control
         if (effect.Slug!.Visible) effect.Slug.GlobalTransform = Bullet(head, axis.Normalized(), ShellRadius(kind));
         // The fireball swells to its caliber's radius and fades over its caliber's duration, around a brief white-hot core.
         var blast = flying || !(effect.Shot.Hit || effect.Grounded) ? -1 : (age - effect.Flight) / ExplosionSeconds(kind);
+        if (blast is >= 0 and < 1) _audio.Landed(SoundKey(effect, 0), Cue.ShellExplosion, head, CombatAudio.Caliber(kind));
         Set(effect.Blast!, blast is >= 0 and < 1 ? 1 - blast * blast : 0);
         if (effect.Blast!.Visible)
             effect.Blast.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * ExplosionRadius(kind) * (.35f + .65f * Mathf.Sqrt(blast))), head);
@@ -507,6 +517,7 @@ public partial class CombatViewport : Control
         // The burst: a blue glow around a brief white flash, with flickering arcs radiating out and jumping to each splashed location.
         var t = flying || !(effect.Shot.Hit || effect.Grounded) ? -1 : (age - effect.Flight) / PpcBurstSeconds;
         var live = t is >= 0 and < 1;
+        if (live) _audio.Landed(SoundKey(effect, 0), Cue.PpcBurst, head);
         Sphere(meshes[4], live ? .8f * (1 - t) : 0, PpcBurstRadius * (.4f + .6f * Mathf.Sqrt(Math.Max(t, 0))), head);
         var flash = t / .3f;
         Sphere(meshes[5], live && flash < 1 ? 1 - flash : 0, PpcBurstRadius * .5f * Mathf.Sqrt(Math.Clamp(flash, 0, 1)), head);
@@ -549,8 +560,11 @@ public partial class CombatViewport : Control
     private void Destroy(CombatShot shot)
     {
         if (Simulation!.Unit(shot.TargetId).Side != CombatSide.Friendly && !Simulation.Detected(CombatSide.Friendly, shot.TargetId)) return;
+        var wrecked = shot.TargetStatus == CombatStatus.Destroyed;
+        if (wrecked) _audio.Play(Cue.MechDestroyed, _models[shot.TargetId].GlobalPosition);
         foreach (var part in shot.DamageApplied.Where(item => item.Destroyed))
         {
+            if (!wrecked) _audio.Play(Cue.LocationDestroyed, _models[shot.TargetId].LocationCenter(part.Location));
             var random = new Random(unchecked((int)shot.Sequence * 7919 + (int)part.Location * 104729 + 31));
             var scatter = Enumerable.Range(0, DestructionDebris).Select(_ =>
             {
@@ -697,8 +711,10 @@ public partial class CombatViewport : Control
             var material = (StandardMaterial3D)mesh.MaterialOverride;
             material.AlbedoColor = new Color(material.AlbedoColor, alpha * maximum);
         }
+        var missileIndex = -1;
         foreach (var missile in salvo)
         {
+            missileIndex++;
             // Until it leaves, a missile waits in its tube on the moving shooter.
             if (age <= missile.Delay && missile.Tube is { } tube) missile.Launch = tube.GlobalPosition;
             var launched = age >= missile.Delay; var flying = launched && age < missile.Arrival;
@@ -718,6 +734,8 @@ public partial class CombatViewport : Control
                 missile.Trail.GlobalTransform = new Transform3D(new Basis(across * .75f, axis, axis.Cross(across).Normalized() * .75f), (head + tail) / 2);
             }
             var blast = flying || !launched ? -1 : (age - missile.Arrival) / MissileBlastSeconds;
+            if (blast is >= 0 and < 1)
+                _audio.Landed(SoundKey(effect, 1 + missileIndex), Cue.MissileExplosion, head, CombatAudio.Caliber(effect.Weapon?.Kind ?? WeaponKind.LRM10) * 1.15f);
             Set(missile.Blast, blast is >= 0 and < 1 ? 1 - blast * blast : 0);
             if (missile.Blast.Visible)
                 missile.Blast.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * MissileBlastRadius * (.35f + .65f * Mathf.Sqrt(blast))), head);
@@ -743,6 +761,7 @@ public partial class CombatViewport : Control
     {
         var (from, to, _) = ShotPath(effect);
         round.Launched = true; round.Launch = from;
+        _audio.Play(Cue.FireMachineGun, from);
         if (effect.Shot.Hit) { round.Flight = (float)effect.Shot.FlightSeconds; return; }
         to += round.Scatter * 3;
         var direction = (to - from).Normalized();
@@ -774,9 +793,10 @@ public partial class CombatViewport : Control
             var material = (StandardMaterial3D)mesh.MaterialOverride;
             material.AlbedoColor = new Color(material.AlbedoColor, alpha);
         }
-        var lastFired = -1f;
+        var lastFired = -1f; var roundIndex = -1;
         foreach (var round in rounds)
         {
+            roundIndex++;
             if (!round.Launched) { Set(round.Streak, 0); Set(round.Spark, 0); continue; }
             lastFired = round.Fired;
             round.End = effect.Shot.Hit ? _models[effect.Shot.TargetId].LocationCenter(effect.Shot.Location) + round.Scatter : round.MissEnd;
@@ -790,6 +810,8 @@ public partial class CombatViewport : Control
             Set(round.Streak, tail.DistanceSquaredTo(round.Head) > 1e-6f ? fade : 0);
             if (round.Streak.Visible) round.Streak.GlobalTransform = Span(tail, round.Head, TracerRadius);
             var spark = effect.Shot.Hit && !flying ? (flown - round.Flight) / SparkSeconds : -1;
+            if (!flying && (effect.Shot.Hit || round.Grounded))
+                _audio.Landed(SoundKey(effect, 64 + roundIndex), effect.Shot.Hit ? Cue.BulletHit : Cue.ImpactGround, round.End);
             Set(round.Spark, spark is >= 0 and < 1 ? 1 - spark : 0);
             if (round.Spark.Visible) round.Spark.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * SparkRadius), round.End);
         }
@@ -834,12 +856,14 @@ public partial class CombatViewport : Control
             model.SetCondition(unit.Intact);
             model.SetTorsoTwist(unit.TorsoTwist);
             var destroyed = unit.Status == CombatStatus.Destroyed;
+            var rising = false;
             model.Position = ground; model.Rotation = new Vector3(destroyed ? Mathf.Pi / 2 : 0, yaw, 0);
             if (unit.Prone)
             {
                 // Knocked down: topple forward about the feet, lie face down, then get up through the rig. A mech destroyed
                 // while down stays face down.
                 var (fall, rise) = ProneMotion(unit, Simulation.Clock);
+                rising = rise is not null;
                 var posture = rise is { } progress ? model.AnimateStandUp(progress) : model.PoseProne(fall);
                 model.Rotation = new Vector3(posture.Pitch, yaw, 0);
                 model.Position = ground + new Basis(Vector3.Up, yaw) * posture.Offset * model.Scale.X;
@@ -849,9 +873,11 @@ public partial class CombatViewport : Control
             {
                 model.AnimateLocomotion(animationDelta, unit.Active ? unit.CurrentSpeed : 0,
                     unit.WalkingSpeed, unit.RunningSpeed, unit.Active ? unit.AngularVelocity : 0);
+                _audio.Steps(unit.Id, model, unit.Spec.Tonnage);
                 if (unit.LandedAt is { } landed) model.AnimateLanding((float)(Simulation.Clock - landed));
             }
             model.SetJetting(unit.JumpPhase is { } flight ? MechModel.JetStrength(flight) : 0, Simulation.Clock, unit.WorkingJumpJets);
+            _audio.Jets(unit.Id, model, unit.JumpPhase is not null);
             // Dust kicks up where a jump leaves the ground and where it lands.
             if (unit.Airborne != _airborne.Contains(unit.Id))
             {
@@ -860,11 +886,13 @@ public partial class CombatViewport : Control
             }
             // Dust rises where a knocked-down mech hits the ground.
             var down = unit.Prone && unit.FellAt is { } fell && Simulation.Clock - fell >= FallSeconds;
+            var thudded = false;
             if (down != _fallen.Contains(unit.Id))
             {
-                if (down) { _fallen.Add(unit.Id); AddDust(unit.Position, model.Scale.X); }
+                if (down) { _fallen.Add(unit.Id); AddDust(unit.Position, model.Scale.X); thudded = true; }
                 else _fallen.Remove(unit.Id);
             }
+            _audio.Prone(unit.Id, model, thudded, rising);
             if (model.Visible && model.PickBounds() is { } bounds) _pickBounds[unit.Id] = bounds.Grow(.08f);
         }
     }
@@ -1000,6 +1028,7 @@ public partial class CombatViewport : Control
         Camera.Position = _focus + new Vector3(Mathf.Sin(_yaw) * horizontal,
             OrbitRadius * Mathf.Sin(_pitch), Mathf.Cos(_yaw) * horizontal);
         Camera.LookAt(_focus); QueueRedraw();
+        _audio?.Listen(Camera, _focus);
     }
     public void ResetToSelection()
     {
@@ -1045,6 +1074,7 @@ public partial class CombatViewport : Control
             if (Input.IsPhysicalKeyPressed(Key.E)) { _yaw += (float)delta; UpdateCamera(); }
         }
         SyncModels(!Simulation.Paused && Simulation.Outcome == CombatOutcome.Ongoing ? (float)delta : 0);
+        _audio.Listen(Camera, _focus);
         // A destroyed shooter's beam vanishes at once. Bursts fire their due rounds first so their duration is current.
         foreach (var effect in _effects) FireRounds(effect);
         for (var i = _effects.Count - 1; i >= 0; i--)

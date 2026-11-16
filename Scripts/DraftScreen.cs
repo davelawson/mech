@@ -61,7 +61,7 @@ public partial class DraftScreen : Control
             }
         }
         _progress = Ui.Label(this, "", 13, Ui.Muted); _progress.HorizontalAlignment = HorizontalAlignment.Right; _progress.ClipText = true;
-        EstablishButton = Ui.Button(this, "Establish Company"); EstablishButton.Pressed += () => { if (Draft.Complete && !Waiting) Completed?.Invoke(); };
+        EstablishButton = Ui.Sound(Ui.Button(this, "Establish Company"), Cue.UiConfirm); EstablishButton.Pressed += () => { if (Draft.Complete && !Waiting) Completed?.Invoke(); };
         CreatePreview(); Resized += Layout; Layout(); Refresh(); Hide();
     }
     private void CreatePreview()
@@ -147,7 +147,7 @@ public partial class DraftScreen : Control
             RosterUi.Text(_previewBody, $"{spec.Experience}\n{RosterUi.SkillLines(spec)}\n{RosterUi.SkillBudgetText(spec)}\nHealthy · Ready for deployment", 16);
         }
         var actions = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End }; _previewBody.AddChild(actions);
-        var back = Ui.Button(actions, "Back to draft"); back.Pressed += ClosePreview;
+        var back = Ui.Sound(Ui.Button(actions, "Back to draft"), Cue.UiCancel); back.Pressed += ClosePreview;
         var select = Ui.Button(actions, "Select candidate"); select.Disabled = Waiting;
         select.Pressed += () => { Draft.Select(pool, choice); Refresh(); ClosePreview(); };
         back.CustomMinimumSize = select.CustomMinimumSize = new Vector2(140, 40);

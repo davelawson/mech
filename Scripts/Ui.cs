@@ -53,6 +53,30 @@ internal static class Ui
         return button;
     }
 
+    private const string SoundMeta = "press_sound";
+
+    /// <summary>Overrides the click every button makes when pressed, such as a confirmation for committing actions.</summary>
+    public static T Sound<T>(T button, Cue cue) where T : BaseButton
+    {
+        button.SetMeta(SoundMeta, (int)cue);
+        return button;
+    }
+
+    /// <summary>A button whose press makes no interface sound, for actions that play their own.</summary>
+    public static T Silent<T>(T button) where T : BaseButton
+    {
+        button.SetMeta(SoundMeta, -1);
+        return button;
+    }
+
+    /// <summary>The cue a press plays: its override, or a plain click; null when silenced.</summary>
+    public static Cue? PressCue(BaseButton button)
+    {
+        if (!button.HasMeta(SoundMeta)) return Cue.UiClick;
+        var cue = button.GetMeta(SoundMeta).AsInt32();
+        return cue < 0 ? null : (Cue)cue;
+    }
+
     public static void Place(Control control, float x, float y, float width, float height)
     {
         control.Position = new Vector2(x, y);

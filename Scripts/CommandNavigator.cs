@@ -2,7 +2,7 @@ using Godot;
 
 namespace Mech;
 
-public enum CommandScreen { MainMenu, Office, Map, Hangar, Draft, Tactical, Rolodex, Missions, Dialog, Saves, SaveDialog, UnsavedDialog, Lobby }
+public enum CommandScreen { MainMenu, Office, Map, Hangar, Draft, Tactical, Rolodex, Missions, Dialog, Saves, SaveDialog, UnsavedDialog, Lobby, Audio }
 
 /// <summary>
 /// Session-only routes. Opaque screens hide their ancestors; modal panels keep them visible.
@@ -129,6 +129,8 @@ public sealed class CommandNavigator(Control host, Action pause)
     public void Back()
     {
         pause();
+        if (_popups.Count == 0 && _surfaces[CurrentScreen].Back is null) return;
+        SoundPlayer.For(host)?.Play(Cue.UiCancel);
         if (_popups.Count > 0) _popups[^1].Popup.Hide();
         else _surfaces[CurrentScreen].Back?.Invoke();
     }

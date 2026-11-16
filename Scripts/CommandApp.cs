@@ -19,6 +19,11 @@ public partial class CommandApp : Control
     public RolodexPanel Rolodex { get; private set; } = null!;
     public MissionsPanel Missions { get; private set; } = null!;
     public LobbyScreen Lobby { get; private set; } = null!;
+    public AudioPanel AudioOptions { get; private set; } = null!;
+    public SoundPlayer Sound { get; private set; } = null!;
+    public AudioSettings AudioLevels { get; private set; } = new();
+    /// <summary>Volume levels for this machine, outside any save.</summary>
+    [Export] public string SettingsPath { get; set; } = "user://settings.cfg";
     /// <summary>The co-op session this machine leads, or null.</summary>
     public CoopHost? Host { get; private set; }
     /// <summary>The co-op session this machine has joined, or null.</summary>
@@ -74,9 +79,21 @@ public partial class CommandApp : Control
         window.ContentScaleFactor = fit < 1 ? 1 / fit : 1;
     }
 
+    public override void _EnterTree() => GetTree().NodeAdded += HookButton;
+
+    /// <summary>Every button in this app hovers with a tick and presses with its cue (see <see cref="Ui.Sound"/>).</summary>
+    private void HookButton(Node node)
+    {
+        if (node is not BaseButton button || !IsAncestorOf(button)) return;
+        button.MouseEntered += () => { if (!button.Disabled) Sound?.Play(Cue.UiHover); };
+        button.Pressed += () => { if (Ui.PressCue(button) is { } cue) Sound?.Play(cue); };
+    }
+
     public override void _Ready()
     {
         Theme = Ui.CreateTheme();
+        Sound = new SoundPlayer { Name = "Sound" }; AddChild(Sound);
+        AudioLevels = AudioSettings.Load(ProjectSettings.GlobalizePath(SettingsPath)); AudioLevels.Apply();
         GetWindow().MinSize = new Vector2I(900, 500);
         GetWindow().SizeChanged += ScaleInterface; ScaleInterface();
         GetTree().AutoAcceptQuit = false;
@@ -98,6 +115,7 @@ public partial class CommandApp : Control
         Rolodex = new RolodexPanel { Name = "Rolodex" }; AddChild(Rolodex);
         Missions = new MissionsPanel { Name = "Missions" }; AddChild(Missions);
         Lobby = new LobbyScreen { Name = "Lobby" }; AddChild(Lobby);
+        AudioOptions = new AudioPanel { Name = "Audio" }; AddChild(AudioOptions);
         Dialog = new CampaignDialog { Name = "CampaignDialog" };
         AddChild(Dialog);
         Saves = new SaveBrowser { Name = "SaveSlots" }; AddChild(Saves);
@@ -111,6 +129,9 @@ public partial class CommandApp : Control
         Saves.SlotChosen += ChooseSlot;
         Saves.Closed += CloseSaves;
         MainMenu.QuitRequested += RequestQuit;
+        MainMenu.AudioRequested += ShowAudio;
+        AudioOptions.Changed += () => { AudioLevels.Apply(); AudioLevels.Save(ProjectSettings.GlobalizePath(SettingsPath)); };
+        AudioOptions.Closed += CloseAudio;
         MainMenu.ResumeRequested += ResumeCampaign;
         MainMenu.HostRequested += () => ConfirmUnsaved("Host a co-op campaign?", "Continue", ShowHostLobby);
         MainMenu.JoinRequested += () => ConfirmUnsaved("Join a co-op campaign?", "Continue", ShowJoinLobby);
@@ -206,6 +227,7 @@ public partial class CommandApp : Control
         Navigation.Register(CommandScreen.Dialog, Dialog, null, true, () => DialogFocus(Dialog), Dialog.RequestBack);
         Navigation.Register(CommandScreen.Saves, Saves, null, true, () => Saves.FocusTarget, CloseSaves);
         Navigation.Register(CommandScreen.SaveDialog, SaveDialog, null, true, () => SaveDialog.NameInput ?? DialogFocus(SaveDialog), SaveDialog.RequestBack);
+        Navigation.Register(CommandScreen.Audio, AudioOptions, null, true, () => AudioOptions.MasterSlider, CloseAudio);
         Navigation.Register(CommandScreen.UnsavedDialog, UnsavedDialog, null, true, () => DialogFocus(UnsavedDialog), UnsavedDialog.RequestBack);
     }
 
@@ -233,6 +255,24 @@ public partial class CommandApp : Control
         Navigation.RestoreFocus();
     }
 
+    public void ShowAudio()
+    {
+        if (Navigation.CurrentScreen != CommandScreen.MainMenu) return;
+        AudioOptions.Display(AudioLevels);
+        Navigation.Push(CommandScreen.Audio, MainMenu.AudioButton);
+    }
+
+    private void CloseAudio() => Navigation.Close(CommandScreen.Audio, MainMenu.AudioButton);
+
+    /// <summary>Menu screens, the strategic company, and a battle in progress each have their own track.</summary>
+    private MusicContext CurrentMusic() => Navigation.CurrentScreen switch
+    {
+        CommandScreen.MainMenu or CommandScreen.Audio or CommandScreen.Lobby or CommandScreen.Draft => MusicContext.Menu,
+        _ when Navigation.Contains(CommandScreen.Tactical) && Tactical.Simulation is { Outcome: CombatOutcome.Ongoing } => MusicContext.Combat,
+        _ when Navigation.Contains(CommandScreen.MainMenu) => MusicContext.Menu,
+        _ => MusicContext.Strategy
+    };
+
     private void ResumeCampaign()
     {
         if (State.RequiresDraft || State.Bankrupt) return;
@@ -256,6 +296,7 @@ public partial class CommandApp : Control
         if (!IsLeader || Host is { AllPresent: false })
         {
             Navigation.Push(CommandScreen.Dialog, Office.CalendarButton);
+            Sound.Play(Cue.UiError);
             OpenDialog("Time cannot advance", !IsLeader ? "Only the leader advances time."
                 : $"Time cannot advance until {string.Join(" and ", Host!.Seats.Where(seat => !seat.Present).Select(seat => seat.Name))} reconnects.", CloseDialog,
                 new DialogAction("Close", CloseDialog));
@@ -303,6 +344,7 @@ public partial class CommandApp : Control
     public override void _Process(double delta)
     {
         Host?.Update(delta); Client?.Update();
+        Sound.SetMusic(CurrentMusic());
         if (_addressLookup is { IsCompleted: true } lookup)
         {
             _publicAddress = lookup.IsCompletedSuccessfully ? lookup.Result : null; _addressLookup = null;
@@ -569,6 +611,7 @@ public partial class CommandApp : Control
     public override void _ExitTree()
     {
         GetWindow().CloseRequested -= RequestQuit; GetWindow().FocusExited -= CancelRightDrag;
+        GetTree().NodeAdded -= HookButton;
         Host?.Shutdown(LeaderLeft); Host?.Dispose(); Client?.Dispose(); CloseRouterPort();
         foreach (var closing in _closing) closing.Dispose();
     }

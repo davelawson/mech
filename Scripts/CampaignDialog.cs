@@ -66,6 +66,7 @@ public partial class CampaignDialog : Control
             var button = Ui.Button(buttons, action.Text);
             button.CustomMinimumSize = new Vector2(120, 44);
             button.Disabled = action.Disabled;
+            if (action.Text is "Close" or "Cancel" or "Back") Ui.Sound(button, Cue.UiCancel);
             button.Pressed += action.Execute;
             if (!button.Disabled)
             {

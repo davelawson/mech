@@ -8,7 +8,7 @@ public partial class SmokeTests : Node
     private int _checks;
     private bool _screenshots;
     /// <summary>The app's own save folder (holding <c>solo</c> and <c>coop</c>) and its pre-slot save path, both temporary.</summary>
-    private string _saveRoot = "", _legacyFile = "";
+    private string _saveRoot = "", _legacyFile = "", _settingsFile = "";
     // Every app drafts from this seed, so a failure in a drafted group reproduces; `--draft-seed=N` tries another company.
     private int _draftSeed = 3025;
 
@@ -55,6 +55,7 @@ public partial class SmokeTests : Node
             await TestMechVisuals(); await TestChassisVisuals(); await TestAdditionalChassis(); await TestFinalChassis(); await TestAdditionalBatch(); await TestWeaponMounts(); await TestJumpVisuals(); await TestStandUpVisuals();
         }),
         new("layout", Setup.Drafted, TestResizing),
+        new("audio", Setup.Menu, async () => { await TestAudioUi(); await TestCombatAudio(); }),
         new("multiplayer", Setup.Menu, async () =>
         {
             await TestHostingUi();
@@ -118,6 +119,7 @@ public partial class SmokeTests : Node
         var id = Guid.NewGuid().ToString("N");
         _app.SaveRoot = $"user://smoke-{id}"; _app.LegacySavePath = $"user://smoke-{id}.json";
         _saveRoot = ProjectSettings.GlobalizePath(_app.SaveRoot); _legacyFile = ProjectSettings.GlobalizePath(_app.LegacySavePath);
+        _app.SettingsPath = $"user://smoke-{id}.cfg"; _settingsFile = ProjectSettings.GlobalizePath(_app.SettingsPath);
         AddChild(_app);
         _app.Drafting.DraftRandom = new Random(_draftSeed);
         await Frames();
@@ -991,6 +993,7 @@ public partial class SmokeTests : Node
         if (_saveRoot.Length > 0 && System.IO.Directory.Exists(_saveRoot)) System.IO.Directory.Delete(_saveRoot, true);
         if (_saveRoot.Length > 0 && System.IO.File.Exists(_saveRoot)) System.IO.File.Delete(_saveRoot);
         if (_legacyFile.Length > 0 && System.IO.File.Exists(_legacyFile)) System.IO.File.Delete(_legacyFile);
+        if (_settingsFile.Length > 0 && System.IO.File.Exists(_settingsFile)) System.IO.File.Delete(_settingsFile);
     }
 
     /// <summary>Removes every save, solo and co-op.</summary>

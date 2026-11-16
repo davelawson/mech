@@ -28,7 +28,7 @@ public partial class RolodexPanel : Control
         var body = new VBoxContainer(); body.AddThemeConstantOverride("separation", 12); _panel.AddChild(body);
         var top = new HBoxContainer(); body.AddChild(top);
         var heading = Ui.Label(top, "PERSONNEL", 22, Ui.Gold); heading.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-        BackButton = Ui.Button(top, "Back to office"); BackButton.Pressed += RequestBack; BackButton.CustomMinimumSize = new Vector2(135, 38);
+        BackButton = Ui.Sound(Ui.Button(top, "Back to office"), Cue.UiCancel); BackButton.Pressed += RequestBack; BackButton.CustomMinimumSize = new Vector2(135, 38);
         var content = new HBoxContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; content.AddThemeConstantOverride("separation", 24); body.AddChild(content);
         var left = new VBoxContainer { CustomMinimumSize = new Vector2(180, 0) }; content.AddChild(left);
         Section = new OptionButton(); Section.AddItem("Active personnel"); Section.AddItem("In memoriam"); left.AddChild(Section);

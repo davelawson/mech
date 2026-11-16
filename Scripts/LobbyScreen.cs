@@ -66,9 +66,9 @@ public partial class LobbyScreen : Control
         PortInput.ValueChanged += _ => RefreshAddress();
         Status = Ui.Label(_box, "", 13, Ui.Muted); Status.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         var actions = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End }; actions.AddThemeConstantOverride("separation", 10); _box.AddChild(actions);
-        BackButton = Ui.Button(actions, "Back"); BackButton.Pressed += () => BackRequested?.Invoke();
+        BackButton = Ui.Sound(Ui.Button(actions, "Back"), Cue.UiCancel); BackButton.Pressed += () => BackRequested?.Invoke();
         ConfirmButton = Ui.Button(actions, ""); ConfirmButton.Pressed += Confirm;
-        StartButton = Ui.Button(actions, "Start Campaign"); StartButton.Pressed += () => { if (!StartButton.Disabled) StartRequested?.Invoke(); };
+        StartButton = Ui.Sound(Ui.Button(actions, "Start Campaign"), Cue.UiConfirm); StartButton.Pressed += () => { if (!StartButton.Disabled) StartRequested?.Invoke(); };
         foreach (var button in new[] { BackButton, ConfirmButton, StartButton }) button.CustomMinimumSize = new Vector2(150, 42);
         Resized += Layout; Layout(); Hide();
     }

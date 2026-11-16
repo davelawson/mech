@@ -50,7 +50,7 @@ public partial class SaveBrowser : Control
         Heading = Ui.Label(top, "SAVE GAME", 22, Ui.Gold); Heading.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         _tabs = new HBoxContainer(); _tabs.AddThemeConstantOverride("separation", 6); top.AddChild(_tabs);
         SaveTab = Tab("Save", true); LoadTab = Tab("Load", false);
-        CloseButton = Ui.Button(top, "Close"); CloseButton.CustomMinimumSize = new Vector2(110, 38);
+        CloseButton = Ui.Sound(Ui.Button(top, "Close"), Cue.UiCancel); CloseButton.CustomMinimumSize = new Vector2(110, 38);
         CloseButton.Pressed += () => Closed?.Invoke();
         Status = Ui.Label(body, "", 13, Ui.Muted);
         _grid = new GridContainer { Columns = Columns, SizeFlagsVertical = SizeFlags.ExpandFill };

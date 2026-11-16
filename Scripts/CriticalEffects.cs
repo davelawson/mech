@@ -87,6 +87,7 @@ public partial class CombatViewport
             };
             var blast = new CriticalBlast(shot.TargetId, critical.Location, Simulation.Clock, kind, radius);
             var at = _models[shot.TargetId].LocationCenter(critical.Location);
+            _audio.Play(kind == CriticalBlastKind.Explosion ? Cue.AmmoExplosion : Cue.CriticalHit, at);
             switch (kind)
             {
                 case CriticalBlastKind.Explosion:

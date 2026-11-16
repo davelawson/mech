@@ -150,7 +150,7 @@ public partial class HangarScreen : Control
         OverTonnageText = new Label { Text = "⚠ Over Tonnage", HorizontalAlignment = HorizontalAlignment.Center, Visible = false, MouseFilter = MouseFilterEnum.Ignore };
         OverTonnageText.AddThemeColorOverride("font_color", HangarLocationPanel.Warning); OverTonnageText.AddThemeFontSizeOverride("font_size", 16);
         AddChild(OverTonnageText);
-        BackButton = Ui.Button(this, "Back to office"); BackButton.Pressed += () => BackRequested?.Invoke();
+        BackButton = Ui.Sound(Ui.Button(this, "Back to office"), Cue.UiCancel); BackButton.Pressed += () => BackRequested?.Invoke();
 
         StoragePanel = Panel();
         StorageTabs = new TabContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; StoragePanel.AddChild(StorageTabs);
@@ -198,15 +198,15 @@ public partial class HangarScreen : Control
         RepairAllButton.Pressed += () => RequestRepair(RepairScope.All);
         RepairText = RosterUi.Text(repairs, "", 13, HangarLocationPanel.Warning); RepairText.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         RepairText.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        CancelRepairButton = Ui.Button(repairs, "Cancel Repair");
+        CancelRepairButton = Ui.Sound(Ui.Button(repairs, "Cancel Repair"), Cue.UiCancel);
         CancelRepairButton.Pressed += () => { if (SelectedMech.Repair is not null && SelectedControlled) CancelRepairRequested?.Invoke(SelectedMech.Id); };
 
         DeploymentButton = Ui.Button(this, "Simulate Deployment");
         DeploymentButton.Pressed += () => DeploymentRequested?.Invoke();
-        QuickLaunchButton = Ui.Button(this, "Quick Launch");
+        QuickLaunchButton = Ui.Sound(Ui.Button(this, "Quick Launch"), Cue.UiConfirm);
         QuickLaunchButton.Pressed += () => { if (CanQuickLaunch) QuickLaunchRequested?.Invoke(); };
         ResetButton = Ui.Button(this, "Reset"); ResetButton.Pressed += ResetSelected;
-        ApplyButton = Ui.Button(this, "Apply"); ApplyButton.Pressed += () => { if (SelectedCanApply) ApplyRequested?.Invoke(); };
+        ApplyButton = Ui.Sound(Ui.Button(this, "Apply"), Cue.UiConfirm); ApplyButton.Pressed += () => { if (SelectedCanApply) ApplyRequested?.Invoke(); };
         _rosterScroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Auto, VerticalScrollMode = ScrollContainer.ScrollMode.Disabled };
         AddChild(_rosterScroll); _rosterButtons = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; _rosterButtons.AddThemeConstantOverride("separation", 8); _rosterScroll.AddChild(_rosterButtons);
         Resized += Layout; Layout(); Hide();
