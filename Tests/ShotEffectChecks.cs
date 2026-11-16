@@ -68,7 +68,7 @@ public partial class SmokeTests
             { sim.Advance(CombatRules.StepSeconds); field._Process(0); }
             var paths = field.ShotPaths().ToArray();
             Check(paths.Any(path => path.Shot.Hit) && paths.Any(path => !path.Shot.Hit), "the exchange produced visible hits and misses");
-            MechModel ModelAt(CombatUnit unit) => models.Single(model => model.Position.X == unit.Position.X && model.Position.Z == unit.Position.Y);
+            MechModel ModelAt(CombatUnit unit) => field.ModelOf(unit.Id);
             var markers = models.SelectMany(model => model.FindChildren("*", "Node3D", true, false).OfType<Node3D>())
                 .Where(node => node is not MeshInstance3D && node.Name.ToString() is var name
                     && (name.StartsWith("WeaponMuzzle_") || name.StartsWith("MissileTube") || name.StartsWith("LrmTube") || name == "CannonMuzzle"))
@@ -479,6 +479,31 @@ public partial class SmokeTests
             Check(CombatViewport.MissileTrailSeconds <= .04f && CombatViewport.MissileWobble == 11.25f, "missile trails are short and the skitter is gentle");
             Check(CombatViewport.WobbleEnvelope(0) == 0 && CombatViewport.WobbleEnvelope(1) == 0 && CombatViewport.WobbleEnvelope(.5f) == 1,
                 "the skitter builds after launch and vanishes on arrival");
+
+            // A knocked-down mech topples forward, lies face down, then gets up through a kneel and a crouch over the end of its
+            // stand-up time.
+            Deploy();
+            foreach (var unit in sim.Units) unit.Firing = FiringMode.HoldFire;
+            var fallen = sim.Units.First(unit => unit.Side == CombatSide.Friendly);
+            field._Process(0);
+            var body = ModelAt(fallen);
+            var bodyKnees = body.FindChildren("KneePivot", "Node3D", true, false).OfType<Node3D>().ToArray();
+            sim.PilotingRollOverride = () => 2;
+            Check(sim.RecordKnockdownDamage(fallen, 1000) is { Fell: true } && fallen.Prone, "a failed Piloting check knocks the mech down");
+            float Tilt() => body.Rotation.X;
+            sim.Advance(.3); field._Process(0);
+            var toppling = Tilt();
+            sim.Advance(.4); field._Process(0);
+            Check(toppling is < -.05f and > -Mathf.Pi / 2 + .05f && Mathf.IsEqualApprox(Tilt(), -Mathf.Pi / 2),
+                $"a knocked-down mech topples forward over {CombatViewport.FallSeconds}s and lies face down ({toppling:0.00}, {Tilt():0.00})");
+            var rise = Math.Min(CombatViewport.RiseSeconds, fallen.Warrior.Piloting);
+            while (fallen.StandUpRemaining > rise * .45) { sim.Advance(CombatRules.StepSeconds); field._Process(0); }
+            Check(Tilt() is < -.05f and > -Mathf.Pi / 2 + .05f && bodyKnees.All(knee => Math.Abs(knee.Rotation.X) > .3f),
+                $"it gets up with bent knees over the end of its stand-up time ({Tilt():0.00})");
+            while (fallen.Prone) { sim.Advance(CombatRules.StepSeconds); field._Process(0); }
+            field._Process(0);
+            Check(Tilt() == 0 && body.Position.X == fallen.Position.X && body.Position.Z == fallen.Position.Y,
+                "and stands upright where it fell once it is back on its feet");
         }
         finally { field.QueueFree(); await Frames(); }
     }

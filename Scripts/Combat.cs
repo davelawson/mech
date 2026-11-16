@@ -264,8 +264,8 @@ public sealed partial class CombatUnit
     private float Mobility => Defeated ? 0 : (!Intact(MechLocation.LeftLeg) || !Intact(MechLocation.RightLeg)) ? .5f : 1;
     public float UnheatedWalkingSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Walk) * Mobility * CriticalSpeedMultiplier;
     public float UnheatedRunningSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Run) * Mobility * CriticalSpeedMultiplier;
-    public float WalkingSpeed => Active ? UnheatedWalkingSpeed * HeatSpeedMultiplier : 0;
-    public float RunningSpeed => Active ? UnheatedRunningSpeed * HeatSpeedMultiplier : 0;
+    public float WalkingSpeed => Active && !Prone ? UnheatedWalkingSpeed * HeatSpeedMultiplier : 0;
+    public float RunningSpeed => Active && !Prone ? UnheatedRunningSpeed * HeatSpeedMultiplier : 0;
     public float Speed => Movement == MovementMode.Run ? RunningSpeed : WalkingSpeed;
     // Nine / Walk seconds to full run, half that to stop. No independent mass modifier.
     public float Acceleration => UnheatedRunningSpeed * Spec.Walk / 9f;
@@ -338,6 +338,8 @@ public sealed record CombatShot(string AttackerId, string TargetId, Vector2 From
     public IReadOnlyList<string> SystemsLost { get; init; } = [];
     /// <summary>Critical hits and ammunition explosions the shot caused, in the order they happened.</summary>
     public IReadOnlyList<CombatCritical> Criticals { get; init; } = [];
+    /// <summary>The Piloting check this shot's damage set off, if any.</summary>
+    public CombatPilotingCheck? Piloting { get; init; }
     public CombatStatus? TargetStatus { get; init; }
     /// <summary>Shared by a laser discharge and its delayed burn continuation.</summary>
     public long Sequence { get; init; }
@@ -532,7 +534,8 @@ public sealed partial class CombatSimulation
         foreach (var unit in Units) unit.Climate = climate;
         History = _history.AsReadOnly(); _random = new Random(seed); _seed = seed;
         // Critical hits draw from their own stream, so hit and location rolls stay as they were before criticals existed.
-        _criticalRandom = new Random(unchecked(seed ^ CriticalSeedSalt)); RefreshDetection();
+        _criticalRandom = new Random(unchecked(seed ^ CriticalSeedSalt));
+        _pilotingRandom = new Random(unchecked(seed ^ PilotingSeedSalt)); RefreshDetection();
         var players = Units.Where(item => item.Side == CombatSide.Friendly).Select(item => item.Lance!.Value).Distinct().Order().ToArray();
         Players = players.Length > 0 ? players : [Campaign.LeaderSlot];
         Paused = true;
@@ -633,17 +636,19 @@ public sealed partial class CombatSimulation
         StopInvalidFollows();
         foreach (var unit in Units) { unit.Moving = unit.TorsoTurning = false; unit.AngularVelocity = 0; }
         foreach (var unit in Units.Where(item => item.Airborne)) AdvanceJump(unit, delta);
-        foreach (var unit in Units.Where(item => item.Active && !item.Airborne)) MoveUnit(unit, delta);
+        foreach (var unit in Units.Where(item => item.Active && !item.Airborne && !item.Prone)) MoveUnit(unit, delta);
         foreach (var unit in Units.Where(item => !item.Defeated))
         {
             if (!unit.Airborne) unit.JumpRecharge = Math.Max(0, Math.Round(unit.JumpRecharge - CombatRules.StepSeconds, 9));
             unit.AdvanceHeat(CombatRules.StepSeconds);
             foreach (var weapon in unit.Weapons) weapon.Remaining = Math.Max(0, weapon.Remaining - delta);
             unit.InterferenceRemaining = Math.Max(0, Math.Round(unit.InterferenceRemaining - CombatRules.StepSeconds, 9));
+            unit.AdvanceStandUp(CombatRules.StepSeconds, Elapsed);
         }
         RefreshDetection();
         // Update every waist before selecting rear targets or taking a firing/damage snapshot.
-        foreach (var unit in Units.Where(item => item.Active))
+        // A prone mech holds its waist where it fell.
+        foreach (var unit in Units.Where(item => item.Active && !item.Prone))
         {
             var aim = SelectAimTarget(unit); unit.CurrentTarget = aim?.Id;
             UpdateTorso(unit, aim, delta);
@@ -749,9 +754,12 @@ public sealed partial class CombatSimulation
                 .Concat(target.Spec.Ammo.Select(item => (item.Id, item.Name, item.Location)))
                 .Where(item => destroyed.Contains(item.Location) && target.Equipment[item.Id] != ComponentCondition.Destroyed)
                 .Select(item => $"{DraftCatalog.Abbreviation(item.Location)} {item.Name}").ToArray();
+            // Ammunition explosions count toward a knockdown whatever set them off; a weapon's own damage only if its kind counts.
+            var knockdown = (CountsTowardKnockdown(shot) ? shot.Damage : 0) + criticals.Sum(item => item.Explosion);
+            var piloting = target.Status == CombatStatus.Destroyed ? null : RecordKnockdownDamage(target, knockdown);
             // The hit that disables or destroys an enemy earns its shooter the kill.
             if (!CombatUnit.IsDefeated(status) && target.Defeated && Unit(shot.AttackerId).Side != target.Side) Unit(shot.AttackerId).Kills++;
-            shots[i] = shot with { DamageApplied = Array.AsReadOnly(damage), SystemsLost = Array.AsReadOnly(systems), Criticals = criticals.AsReadOnly(),
+            shots[i] = shot with { DamageApplied = Array.AsReadOnly(damage), SystemsLost = Array.AsReadOnly(systems), Criticals = criticals.AsReadOnly(), Piloting = piloting,
                 TargetStatus = target.Status != status ? target.Status : null };
         }
         var heat = Units.ToDictionary(unit => unit.Id, _ => 0d);
@@ -782,6 +790,8 @@ public sealed partial class CombatSimulation
             Paused = true;
         }
     }
+    private bool CountsTowardKnockdown(CombatShot shot) => Unit(shot.AttackerId).Weapons.FirstOrDefault(item => item.Spec.Id == shot.WeaponId)
+        is { } weapon && CombatRules.CountsTowardKnockdown(weapon.Spec.Kind);
     private void StopInvalidFollows()
     {
         Hold(Units.Where(unit => !unit.Defeated && unit.Order == CombatOrder.Follow

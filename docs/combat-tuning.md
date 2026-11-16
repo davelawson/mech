@@ -257,6 +257,26 @@ The rules are in [combat design](combat-design.md#critical-hits-confirmed-novemb
 
 Stock damage per shot: machine gun and AC/2 2, AC/5 5, AC/10 10, AC/20 20, LRM *n* (the rack size), SRM 2*n*. A full LRM 20 bin (6 shots) explodes for 600 damage; a full machine-gun bin (200 shots) for 2,000, enough to destroy any mech from a torso.
 
+## Knockdowns
+
+The rules are in [combat design](combat-design.md#knockdowns-confirmed-november-15-2026); the values live in `CombatRules` (`Scripts/Knockdowns.cs`). Piloting rolls draw from their own random stream, seeded from the battle's seed, so hit, location and critical rolls are unchanged by them.
+
+| Value | Default |
+| --- | --- |
+| Window | 1 second |
+| Check | counted damage above 20% of tonnage (2 × tonnage in tenths) |
+| Damage penalty | +1 per further 10% of tonnage, rounded down |
+| Gyro, per level | +3 |
+| Hip | +2 |
+| Upper or lower leg or foot actuator | +1 each |
+| Lost leg | +5 each |
+| Stand-up time | MechWarrior's Piloting, in seconds |
+| Fall animation | 0.6 s, easing in, forward about the feet |
+| Rise animation | last 2 s of the stand-up time (all of it if shorter) |
+| Rise keys (share of the rise) | arms braced 14%, kneeling 38% (torso 48° forward), crouching 68% (torso 18° forward), standing 100% |
+
+A Griffin (55 t) checks above 110 damage: an AC/20 hit (200) makes the check at +1, so a Piloting 4 MechWarrior needs 5+ and falls 1 time in 6.
+
 ## Calculation reuse
 
 Navigation stores immutable per-edge movement costs alongside the terrain's connectivity graph. A* rents its cost and predecessor buffers per query and returns independent waypoint lists; concurrent queries share no writable search state. Firing-position searches limit candidates to the weapon-range bounding box and reuse a pooled sorting buffer. Equal scores still favor the original row-major node order.

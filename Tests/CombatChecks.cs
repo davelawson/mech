@@ -164,6 +164,7 @@ internal static partial class CombatChecks
         check(a.Units.Zip(b.Units).All(pair => pair.First.Hits == pair.Second.Hits && pair.First.ArmorLost == pair.Second.ArmorLost), "fixed-step combat is independent of frame partitioning");
         CheckJumping(check);
         CheckCriticalHits(check);
+        CheckKnockdowns(check);
         RunEngagements(check);
     }
     private static void CheckRandomizedOpposition(Action<bool, string> check)

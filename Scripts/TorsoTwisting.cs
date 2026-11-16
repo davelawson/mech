@@ -50,7 +50,7 @@ public sealed partial class CombatSimulation
     /// <summary>Ordered contacts can be tracked before a shot is possible, including under Hold Fire.</summary>
     public CombatUnit? SelectAimTarget(CombatUnit unit)
     {
-        if (!unit.Active || Passive(unit)) return null;
+        if (!unit.Active || unit.Prone || Passive(unit)) return null;
         if (unit.Order == CombatOrder.Attack && unit.AttackTarget is { } attack && ValidEnemy(unit, Unit(attack)))
             return Unit(attack);
         if (unit.PriorityTarget is { } priority && ValidEnemy(unit, Unit(priority))) return Unit(priority);
@@ -65,7 +65,7 @@ public sealed partial class CombatSimulation
     }
     public CombatUnit? SelectRearTarget(CombatUnit unit)
     {
-        if (!unit.Active || Passive(unit)) return null;
+        if (!unit.Active || unit.Prone || Passive(unit)) return null;
         bool Eligible(CombatUnit target) => ValidEnemy(unit, target)
             && unit.Weapons.Any(weapon => weapon.Spec.Rear && weapon.Enabled && unit.WeaponUsable(weapon)
                 && unit.Position.DistanceTo(target.Position) <= weapon.LongRange && CombatRules.InFiringArc(unit, target, weapon)
@@ -76,7 +76,7 @@ public sealed partial class CombatSimulation
         if (unit.CurrentRearTarget is { } current && Eligible(Unit(current))) return Unit(current);
         return Units.Where(Eligible).OrderBy(target => unit.Position.DistanceSquaredTo(target.Position)).FirstOrDefault();
     }
-    public bool CanFire(CombatUnit unit, CombatUnit target, CombatWeapon weapon) => unit.Active && !Passive(unit) && weapon.Enabled
+    public bool CanFire(CombatUnit unit, CombatUnit target, CombatWeapon weapon) => unit.Active && !unit.Prone && !Passive(unit) && weapon.Enabled
         && unit.WeaponUsable(weapon) && ValidEnemy(unit, target) && FirePermitted(unit, target)
         && unit.Position.DistanceTo(target.Position) <= weapon.LongRange
         && LineOfFire(unit, target, weapon) && CombatRules.InFiringArc(unit, target, weapon);
@@ -125,6 +125,7 @@ public sealed partial class CombatSimulation
     {
         if (unit.Shutdown && !unit.Defeated) return "Thermal shutdown";
         if (!unit.Active || !unit.WeaponIntact(weapon)) return "Unavailable";
+        if (unit.Prone) return "Prone";
         if (!unit.WeaponUsable(weapon)) return "Out of ammunition";
         if (!weapon.Enabled) return "Disabled";
         if (target is null) return unit.Firing == FiringMode.HoldFire ? "Hold fire" : "No target";

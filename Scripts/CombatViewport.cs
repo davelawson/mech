@@ -28,6 +28,7 @@ public partial class CombatViewport : Control
     private DirectionalLight3D? _sun;
     private WorldEnvironment? _environment;
     private readonly Dictionary<string, MechModel> _models = [];
+    internal MechModel ModelOf(string unitId) => _models[unitId];
     private readonly Dictionary<string, Aabb> _pickBounds = [];
     private readonly List<ShotEffect> _effects = [];
     private const float ShotLife = .45f;
@@ -313,7 +314,7 @@ public partial class CombatViewport : Control
         foreach (var mark in _burnMarks) mark.Mesh.QueueFree();
         _burnMarks.Clear();
         foreach (var dust in _dust) dust.Mesh.QueueFree();
-        _dust.Clear(); _airborne.Clear();
+        _dust.Clear(); _airborne.Clear(); _fallen.Clear();
         _models.Clear(); _pickBounds.Clear();
         Simulation = simulation; Simulation.ShotFired += OnShot; InspectedEnemy = null; Selection = Array.Empty<string>();
         if (_terrainView is not null) { _world.RemoveChild(_terrainView); _terrainView.QueueFree(); }
@@ -828,12 +829,22 @@ public partial class CombatViewport : Control
         {
             var model = _models[unit.Id];
             model.Visible = !unit.Extracted && (unit.Side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, unit.Id));
-            model.Position = World(unit.Position, Simulation.Terrain.HeightAt(unit.Position) + unit.Altitude);
-            model.Rotation = new Vector3(unit.Status == CombatStatus.Destroyed ? Mathf.Pi / 2 : 0,
-                Mathf.Atan2(-unit.Facing.X, -unit.Facing.Y), 0);
+            var ground = World(unit.Position, Simulation.Terrain.HeightAt(unit.Position) + unit.Altitude);
+            var yaw = Mathf.Atan2(-unit.Facing.X, -unit.Facing.Y);
             model.SetCondition(unit.Intact);
             model.SetTorsoTwist(unit.TorsoTwist);
-            if (unit.JumpPhase is { } phase) model.AnimateJump(phase);
+            var destroyed = unit.Status == CombatStatus.Destroyed;
+            model.Position = ground; model.Rotation = new Vector3(destroyed ? Mathf.Pi / 2 : 0, yaw, 0);
+            if (unit.Prone)
+            {
+                // Knocked down: topple forward about the feet, lie face down, then get up through the rig. A mech destroyed
+                // while down stays face down.
+                var (fall, rise) = ProneMotion(unit, Simulation.Clock);
+                var posture = rise is { } progress ? model.AnimateStandUp(progress) : model.PoseProne(fall);
+                model.Rotation = new Vector3(posture.Pitch, yaw, 0);
+                model.Position = ground + new Basis(Vector3.Up, yaw) * posture.Offset * model.Scale.X;
+            }
+            else if (unit.JumpPhase is { } phase) model.AnimateJump(phase);
             else
             {
                 model.AnimateLocomotion(animationDelta, unit.Active ? unit.CurrentSpeed : 0,
@@ -847,10 +858,30 @@ public partial class CombatViewport : Control
                 if (unit.Airborne) { _airborne.Add(unit.Id); AddDust(unit.JumpFrom, model.Scale.X); }
                 else { _airborne.Remove(unit.Id); AddDust(unit.Position, model.Scale.X); }
             }
+            // Dust rises where a knocked-down mech hits the ground.
+            var down = unit.Prone && unit.FellAt is { } fell && Simulation.Clock - fell >= FallSeconds;
+            if (down != _fallen.Contains(unit.Id))
+            {
+                if (down) { _fallen.Add(unit.Id); AddDust(unit.Position, model.Scale.X); }
+                else _fallen.Remove(unit.Id);
+            }
             if (model.Visible && model.PickBounds() is { } bounds) _pickBounds[unit.Id] = bounds.Grow(.08f);
         }
     }
     private readonly HashSet<string> _airborne = [];
+    private readonly HashSet<string> _fallen = [];
+    /// <summary>A knocked-down mech topples over this long, and gets up over the last of its stand-up time.</summary>
+    internal const float FallSeconds = .6f, RiseSeconds = 2f;
+    /// <summary>A prone mech's fall progress 0–1, eased in like gravity, and its stand-up progress 0–1 once it starts rising
+    /// (null while it lies still, and always for a disabled mech).</summary>
+    internal static (float Fall, float? Rise) ProneMotion(CombatUnit unit, double clock)
+    {
+        if (!unit.Prone || unit.FellAt is not { } fell) return (0, null);
+        var falling = Math.Clamp((float)(clock - fell) / FallSeconds, 0, 1);
+        var rise = Math.Min(RiseSeconds, (float)unit.Warrior.Piloting);
+        if (unit.Defeated || rise <= 0 || unit.StandUpRemaining >= rise || falling < 1) return (falling * falling, null);
+        return (1, 1 - (float)unit.StandUpRemaining / rise);
+    }
     private readonly List<(MeshInstance3D Mesh, double Start, float Size)> _dust = [];
     private const float DustSeconds = 1.4f;
     private void AddDust(Vector2 at, float size)

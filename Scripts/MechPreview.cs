@@ -2,7 +2,7 @@ using Godot;
 
 namespace Mech;
 
-public enum PreviewGait { Idle, Walk, Run }
+public enum PreviewGait { Idle, Walk, Run, StandUp }
 
 /// <summary>A view of the shared combat geometry with chassis gait previews: a turntable, or a front-on hangar blueprint.</summary>
 public partial class MechPreview : Control
@@ -171,6 +171,24 @@ public partial class MechPreview : Control
         }
         var walk = CombatRules.MovementSpeed(_owned.Spec, MovementMode.Walk);
         var run = CombatRules.MovementSpeed(_owned.Spec, MovementMode.Run);
+        if (Gait == PreviewGait.StandUp) { AnimateStandUp((float)delta); return; }
+        if (_standUpTime >= 0) { _standUpTime = -1; Model.Position = Vector3.Zero; Model.Rotation = new(0, Model.Rotation.Y, 0); }
         Model.AnimateLocomotion((float)delta, Gait == PreviewGait.Walk ? walk : Gait == PreviewGait.Run ? run : 0, walk, run);
+    }
+    /// <summary>The knockdown preview holds each phase this long: falling and rising at their combat speeds, lying and standing between.</summary>
+    public const float StandUpLieSeconds = .8f, StandUpHoldSeconds = 1;
+    public static float StandUpCycleSeconds => CombatViewport.FallSeconds + StandUpLieSeconds + CombatViewport.RiseSeconds + StandUpHoldSeconds;
+    private float _standUpTime = -1;
+    /// <summary>Loops a knockdown: topple forward, lie face down, get up through the rig, stand a moment.</summary>
+    private void AnimateStandUp(float delta)
+    {
+        _standUpTime = (Math.Max(0, _standUpTime) + delta) % StandUpCycleSeconds;
+        var time = _standUpTime;
+        var rise = time - CombatViewport.FallSeconds - StandUpLieSeconds;
+        var fall = Math.Clamp(time / CombatViewport.FallSeconds, 0, 1);
+        var posture = rise <= 0 ? Model!.PoseProne(fall * fall) : Model!.AnimateStandUp(Math.Clamp(rise / CombatViewport.RiseSeconds, 0, 1));
+        var yaw = Model.Rotation.Y;
+        Model.Rotation = new(posture.Pitch, yaw, 0);
+        Model.Position = new Basis(Vector3.Up, yaw) * posture.Offset * Model.Scale.X;
     }
 }

@@ -633,8 +633,8 @@ public partial class CombatScreen : Control
         for (var i = 0; i < UnitButtons.Count; i++)
         {
             var friend = friends[i]; var button = UnitButtons[i];
-            button.Text = $"{i + 1} · {friend.Warrior.Callsign} · {friend.Status}\n{friend.Spec.DisplayName} · H {friend.Heat:0.0}";
-            button.TooltipText = $"{friend.Spec.DisplayName} · {friend.Status}\n{HeatReadout(friend)}";
+            button.Text = $"{i + 1} · {friend.Warrior.Callsign} · {friend.Status}{(friend.Prone ? " · Prone" : "")}\n{friend.Spec.DisplayName} · H {friend.Heat:0.0}";
+            button.TooltipText = $"{friend.Spec.DisplayName} · {friend.Status}{friend.StanceText()}\n{HeatReadout(friend)}";
             button.AddThemeStyleboxOverride("normal", CardBox(Ui.Box(_selected.Contains(friend.Id) ? new Color("344431") : Ui.Panel, _selected.Contains(friend.Id) ? Ui.Gold : Ui.Line)));
             UnitDolls[i].Display(friend);
         }
@@ -664,7 +664,7 @@ public partial class CombatScreen : Control
             var enemy = Simulation.Unit(inspected);
             var detailed = Simulation.DetailsVisible(CombatSide.Friendly, inspected);
             _selectionTitle.Text = detailed ? enemy.Spec.DisplayName : enemy.Spec.Chassis;
-            _unitInfo.Text = detailed ? $"OPPOSITION · {enemy.Spec.Tonnage}t · {enemy.Status}\n{HeatReadout(enemy)}"
+            _unitInfo.Text = detailed ? $"OPPOSITION · {enemy.Spec.Tonnage}t · {enemy.Status}{enemy.StanceText()}\n{HeatReadout(enemy)}"
                 : "OPPOSITION · Model identified\nClose to half detection range for armour, internals and systems.";
             Paperdoll.Display(detailed ? enemy : null);
             _locations.Text = detailed ? CombatPaperdoll.Readout(enemy) : "";
@@ -681,7 +681,7 @@ public partial class CombatScreen : Control
         }
         _selectionTitle.Text = _selected.Count > 1 ? $"{_selected.Count} selected · {unit.Warrior.Callsign}" : $"{unit.Warrior.Callsign} · {unit.Spec.Chassis}";
         var orderTarget = unit.FollowTarget ?? unit.AttackTarget;
-        _unitInfo.Text = $"{unit.Spec.DisplayName} · {unit.Status}\n{RosterUi.SkillLines(unit.Warrior)}\nOrder: {unit.Order}{(orderTarget is { } targetId ? $" → {Simulation.Unit(targetId).Warrior.Callsign} · {Simulation.Unit(targetId).Spec.Chassis}" : "")}";
+        _unitInfo.Text = $"{unit.Spec.DisplayName} · {unit.Status}{unit.StanceText()}\n{RosterUi.SkillLines(unit.Warrior)}\nOrder: {unit.Order}{(orderTarget is { } targetId ? $" → {Simulation.Unit(targetId).Warrior.Callsign} · {Simulation.Unit(targetId).Spec.Chassis}" : "")}";
         _unitInfo.Text += $"\n{HeatReadout(unit)}";
         if (unit.InterferenceRemaining > 0)
             _unitInfo.Text += FormattableString.Invariant($"\nElectro-interference: +{CombatRules.InterferenceModifier} hit difficulty ({Math.Ceiling(unit.InterferenceRemaining):0}s)");

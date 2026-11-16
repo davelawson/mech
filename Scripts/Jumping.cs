@@ -46,7 +46,7 @@ public sealed partial class CombatUnit
     public float JumpRange => EffectiveJumpMp * CombatRules.JumpMetresPerMp * Mobility;
     /// <summary>Why this unit cannot start the shortest jump now, or null when it can.</summary>
     public string? JumpUnavailableReason => Spec.Jump == 0 ? "No jump jets" : Defeated ? Status.ToString()
-        : JumpRange <= 0 ? "Jump jets lost" : Shutdown ? "Shut down" : Airborne ? "Airborne"
+        : JumpRange <= 0 ? "Jump jets lost" : Shutdown ? "Shut down" : Airborne ? "Airborne" : Prone ? "Prone"
         : JumpRecharge > 0 ? "Recharging" : !JumpHeatPermitted(CombatRules.MinimumJump) ? "Too hot" : null;
     public bool JumpHeatPermitted(float distance) => Heat + CombatRules.JumpHeat(distance) < CombatRules.HeatLimit(HeatPolicy);
 }
@@ -124,6 +124,7 @@ public sealed partial class CombatSimulation
         unit.Airborne = false; unit.Altitude = 0; unit.Position = unit.JumpTo;
         unit.JumpRecharge = CombatRules.JumpRechargeSeconds; unit.LandedAt = Elapsed;
         if (unit.Order == CombatOrder.Hold) unit.Destination = unit.Position;
+        if (unit.KnockdownPending) unit.FallProne(Elapsed);
     }
 
     /// <summary>Enemy AI jumps toward its movement goal when walking there means a long detour or it cannot see its target.</summary>

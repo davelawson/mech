@@ -68,6 +68,15 @@ A critical system at its maximum damage level. A system below it is damaged.
 **Ammunition explosion**:
 A struck ammunition bin's remaining shots going off, damaging its location's internal structure directly.
 
+**Piloting check**:
+A 2d6 roll against a MechWarrior's Piloting, made when a BattleMech takes heavy damage in a short time. Failing it causes a knockdown.
+
+**Knockdown**:
+A BattleMech falling over after a failed Piloting check. It is then prone.
+
+**Prone**:
+Lying on the ground after a knockdown: unable to fire, move or jump until the BattleMech stands, after as many seconds as its MechWarrior's Piloting.
+
 **Loadout**:
 The equipment installed in a particular owned BattleMech: its stock design less any weapons, ammunition, heat sinks and jump jets removed in the hangar, plus any spares installed there from storage.
 

@@ -16,6 +16,8 @@ public partial class MechModel
         Vector3 KneeRest, Vector3 AnkleRest, int Side);
     private readonly List<Leg> _legs = [];
     private readonly List<Node3D> _shoulders = [];
+    // Each arm's rest angle from hanging straight down (positive points forward), from its geometry around the shoulder.
+    private readonly List<float> _armRest = [];
     private Node3D? _body;
     private float _torsoTwist;
     public void SetTorsoTwist(float radians)
@@ -56,7 +58,12 @@ public partial class MechModel
                 child => child.Name == "Foot" || child.Name.ToString().StartsWith("ToeCap", StringComparison.Ordinal) || child.Name == "Ankle");
             _legs.Add(new(hip, knee, ankle, hip.Position, knee.Position, ankle.Position, sign));
             var arm = _locations[sign < 0 ? MechLocation.LeftArm : MechLocation.RightArm];
-            _shoulders.Add(Pivot(arm, "ShoulderPivot", Mirror(rig.Shoulder)));
+            var shoulder = Pivot(arm, "ShoulderPivot", Mirror(rig.Shoulder));
+            _shoulders.Add(shoulder);
+            var reach = shoulder.FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>()
+                .Select(mesh => Relative(mesh, shoulder) * mesh.Mesh.GetAabb().GetCenter())
+                .Aggregate(Vector3.Zero, (sum, center) => sum + center);
+            _armRest.Add(reach == Vector3.Zero ? 0 : Mathf.Atan2(-reach.Z, -reach.Y));
         }
         var thigh = rig.Knee - rig.Hip; var shin = rig.Ankle - rig.Knee;
         var length = new Vector2(thigh.Y, thigh.Z).Length() + new Vector2(shin.Y, shin.Z).Length() - .002f;
@@ -141,6 +148,127 @@ public partial class MechModel
             PoseLeg(leg, leg.KneeRest.Y + leg.AnkleRest.Y + drop + tuck * length * .3f, leg.KneeRest.Z + leg.AnkleRest.Z - tuck * length * .08f);
         }
         foreach (var shoulder in _shoulders) shoulder.Rotation = new(-.25f * tuck, 0, 0);
+    }
+    /// <summary>Root placement for a fallen or rising mech, in model-local units: a pitch about X (negative leans forward)
+    /// and an offset applied after it.</summary>
+    public readonly record struct Posture(float Pitch, Vector3 Offset);
+    /// <summary>A knocked-down pose: world angles in degrees for the torso (the root pitch), thighs, shins and feet, and the
+    /// arms' angle from the torso. Limb angles point a limb down for 0 and forward for positive; <see cref="Rest"/> holds the rig's own
+    /// leg angles and <see cref="FromRest"/> adds the thigh and shin angles to them. Shin and thigh angles are written for forward
+    /// knees and mirrored for rearward ones.</summary>
+    private readonly record struct ProneKey(float At, float Torso, float Thigh, float Shin, float Foot, float Arms, bool Rest = false,
+        bool FromRest = false);
+    private static readonly ProneKey[] StandUpKeys =
+    [
+        new(0, -90, 0, 0, 0, 0, Rest: true),          // lying face down
+        new(.14f, -84, 0, 0, 0, 84, Rest: true),      // arms braced against the ground
+        new(.38f, -48, 8, -90, -70, 48),              // pushed up onto the knees, toes dug in
+        new(.68f, -18, 50, -32, 0, 46, FromRest: true), // feet planted in a deep crouch, arms out for balance
+        new(1, 0, 0, 0, 0, 0, Rest: true),            // standing
+    ];
+    /// <summary>Lying face down, as a fall ends: the first stand-up pose.</summary>
+    public Posture PoseProne(float fall = 1)
+    {
+        return Ground(PoseStandUp(0) * Math.Clamp(fall, 0, 1));
+    }
+    /// <summary>Getting up for rise progress 0–1: brace on the arms, push up onto the knees, plant the feet in a crouch and
+    /// straighten. The feet stay on the unit's position and the lowest part of the mech rests on the ground.</summary>
+    public Posture AnimateStandUp(float progress) => Ground(PoseStandUp(Math.Clamp(progress, 0, 1)));
+    /// <summary>Poses the joints for stand-up progress and returns the torso's pitch.</summary>
+    private float PoseStandUp(float progress)
+    {
+        _motionBlend = RunBlend = 0;
+        var next = Array.FindIndex(StandUpKeys, key => key.At >= progress);
+        var from = StandUpKeys[Math.Max(0, next - 1)]; var to = StandUpKeys[Math.Max(0, next)];
+        var t = to.At > from.At ? Mathf.SmoothStep(0, 1, (progress - from.At) / (to.At - from.At)) : 1;
+        var torso = Mathf.DegToRad(Mathf.Lerp(from.Torso, to.Torso, t));
+        if (_body is null || _rig is null) return torso;
+        _body.Position = new(0, _rig.Waist, 0);
+        _body.Rotation = new(0, -_torsoTwist, 0);
+        foreach (var leg in _legs)
+        {
+            var restHip = Mathf.Atan2(-leg.KneeRest.Z, -leg.KneeRest.Y);
+            var restShin = Mathf.Atan2(-leg.AnkleRest.Z, -leg.AnkleRest.Y);
+            // Forward knees bend the shin back (bend −1); the Catapult's rearward knees mirror every leg angle.
+            var mirror = restShin >= restHip ? -1 : 1;
+            // Model-frame thigh and shin angles and the foot's world tilt for one key.
+            (float Thigh, float Shin, float Foot) Angles(ProneKey key)
+            {
+                var pitch = Mathf.DegToRad(key.Torso);
+                if (key.Rest) return (restHip, restShin, pitch);
+                // Rearward knees fold half as far from rest, or the mech sits back on its heels.
+                var (baseThigh, baseShin, depth) = key.FromRest ? (restHip, restShin, mirror < 0 ? .5f : 1) : (0, 0, 1);
+                return (baseThigh + Mathf.DegToRad(key.Thigh * mirror * depth) - pitch, baseShin + Mathf.DegToRad(key.Shin * mirror * depth) - pitch,
+                    Mathf.DegToRad(key.Foot));
+            }
+            var (a, b) = (Angles(from), Angles(to));
+            var thigh = Mathf.Lerp(a.Thigh, b.Thigh, t); var shin = Mathf.Lerp(a.Shin, b.Shin, t); var foot = Mathf.Lerp(a.Foot, b.Foot, t);
+            leg.Hip.Position = leg.Rest;
+            leg.Hip.Rotation = new(thigh - restHip, 0, 0);
+            leg.Knee.Rotation = new(shin - thigh - (restShin - restHip), 0, 0);
+            leg.Ankle.Rotation = new(foot - torso - (shin - restShin), 0, 0);
+        }
+        // Arms aim relative to the torso whatever their rest pose (the Wolverine's cannon arm rests pointing forward), then
+        // settle back to rest as the mech stands.
+        for (var i = 0; i < _shoulders.Count; i++)
+        {
+            float Arm(ProneKey key) => key.At >= 1 ? 0 : Mathf.DegToRad(key.Arms) - _armRest[i];
+            _shoulders[i].Rotation = new(Mathf.Lerp(Arm(from), Arm(to), t), 0, 0);
+        }
+        return torso;
+    }
+    /// <summary>Places the current pose at <paramref name="pitch"/>: the lowest visible part sits as low as it does standing and
+    /// the ankles stay where they stand, so the mech gets up where it fell.</summary>
+    private Posture Ground(float pitch)
+    {
+        var basis = new Basis(Vector3.Right, pitch);
+        var lowest = LowestPoint(new Transform3D(basis, Vector3.Zero)) ?? RestBounds.Position.Y;
+        if (_rig is null) return new(pitch, new Vector3(0, RestBounds.Position.Y - lowest, 0));
+        var ankles = _legs.Aggregate(Vector3.Zero, (sum, leg) => sum + basis * Relative(leg.Ankle).Origin) / _legs.Count;
+        return new(pitch, new Vector3(0, RestBounds.Position.Y - lowest, _rig.Ankle.Z - ankles.Z));
+    }
+    // Up to this many vertices per mesh decide where a fallen mech touches the ground; box corners would float tilted limbs.
+    private const int ContactSamples = 384;
+    private readonly Dictionary<Mesh, Vector3[]> _contactPoints = [];
+    /// <summary>The lowest visible vertex under <paramref name="root"/>, sampled from each mesh and leaving out jump jets.</summary>
+    private float? LowestPoint(Transform3D root)
+    {
+        float? lowest = null;
+        void Visit(Node3D node, Transform3D transform)
+        {
+            if (!node.Visible || _nozzleRoots.Contains(node)) return;
+            if (node is MeshInstance3D { Mesh: { } mesh })
+                foreach (var point in ContactPoints(mesh))
+                {
+                    var y = (transform * point).Y;
+                    if (lowest is not { } low || y < low) lowest = y;
+                }
+            foreach (var child in node.GetChildren().OfType<Node3D>()) Visit(child, transform * child.Transform);
+        }
+        foreach (var child in GetChildren().OfType<Node3D>()) Visit(child, root * child.Transform);
+        return lowest;
+    }
+    /// <summary>A mesh's vertices, thinned evenly to <see cref="ContactSamples"/> but always keeping the extremes on each axis.</summary>
+    private Vector3[] ContactPoints(Mesh mesh)
+    {
+        if (_contactPoints.TryGetValue(mesh, out var cached)) return cached;
+        var vertices = mesh.GetFaces().Distinct().ToArray();
+        var step = Math.Max(1, vertices.Length / ContactSamples);
+        var points = vertices.Where((_, index) => index % step == 0).ToList();
+        if (vertices.Length > 0)
+            for (var axis = 0; axis < 3; axis++)
+            { points.Add(vertices.MinBy(vertex => vertex[axis])); points.Add(vertices.MaxBy(vertex => vertex[axis])); }
+        return _contactPoints[mesh] = [.. points];
+    }
+    /// <summary>A node's transform relative to an ancestor (the model's unscaled local frame by default), without needing the
+    /// scene tree.</summary>
+    private Transform3D Relative(Node3D node, Node? ancestor = null)
+    {
+        ancestor ??= this;
+        var transform = node.Transform;
+        for (var parent = node.GetParentOrNull<Node3D>(); parent is not null && parent != ancestor; parent = parent.GetParentOrNull<Node3D>())
+            transform = parent.Transform * transform;
+        return transform;
     }
     private static void PoseLeg(Leg leg, float y, float z)
     {

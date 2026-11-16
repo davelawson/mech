@@ -765,13 +765,24 @@ public partial class SmokeTests
         await PressKey(Key.Space); await Click(hangar.BackButton); await Click(_app.Office.HangarButton);
         Check(hangar.Board.Visible, "reopening the hangar shows the location panels");
 
-        // Tab cycles the preview gait still → walking → running → still, without moving button focus.
+        // Tab cycles the preview gait still → walking → running → standing up → still, without moving button focus.
         hangar.Preview.Gait = PreviewGait.Idle; hangar.BackButton.GrabFocus(); await Frames();
-        foreach (var expected in new[] { PreviewGait.Walk, PreviewGait.Run, PreviewGait.Idle })
+        foreach (var expected in new[] { PreviewGait.Walk, PreviewGait.Run, PreviewGait.StandUp, PreviewGait.Idle })
         {
             await PressKey(Key.Tab);
             Check(hangar.Preview.Gait == expected, $"Tab switches the hangar preview to {expected}");
+            if (expected != PreviewGait.StandUp) continue;
+            // The stand-up loop lies face down after the fall, then rises back upright.
+            var preview = hangar.Preview; var previewModel = preview.Model!;
+            preview._Process(CombatViewport.FallSeconds + MechPreview.StandUpLieSeconds / 2);
+            var lying = previewModel.Rotation.X;
+            preview._Process(MechPreview.StandUpLieSeconds / 2 + CombatViewport.RiseSeconds / 2);
+            var rising = previewModel.Rotation.X;
+            Check(Mathf.IsEqualApprox(lying, -Mathf.Pi / 2) && rising is > -Mathf.Pi / 2 + .05f and < -.05f,
+                $"the stand-up preview lies face down, then gets up ({lying:0.00}, {rising:0.00})");
         }
+        Check(hangar.Preview.Model!.Rotation.X == 0 && hangar.Preview.Model.Position == Vector3.Zero,
+            "leaving the stand-up preview puts the mech back on its feet");
         Check(hangar.BackButton.HasFocus(), "Tab keeps focus on the focused hangar button");
 
         // Debug builds: F6 picks a hardpoint, F7 cycles its visual on the preview only.

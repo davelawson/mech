@@ -439,11 +439,11 @@ public partial class HangarScreen : Control
         if (_roster is not null) { ShowStorage(); ShowMarket(); Select(_selected); }
     }
     /// <summary>Space shows or hides the location panels over the mech preview; Tab cycles the preview
-    /// gait still → walking → running.</summary>
+    /// gait still → walking → running → standing up.</summary>
     public bool HandleKey(InputEvent input)
     {
         if (input is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Space or Key.Tab } key) return false;
-        if (key.Keycode == Key.Tab) Preview.Gait = (PreviewGait)(((int)Preview.Gait + 1) % 3);
+        if (key.Keycode == Key.Tab) Preview.Gait = (PreviewGait)(((int)Preview.Gait + 1) % Enum.GetValues<PreviewGait>().Length);
         else Board.Visible = !Board.Visible;
         return true;
     }

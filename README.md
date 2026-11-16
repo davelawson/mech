@@ -71,7 +71,7 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | **Assign warrior** / **Unassign** | Put the chosen MechWarrior in the selected mech / take its pilot out |
 | Right-drag the mech | Spin it; it springs back to front-on on release |
 | Space | Hide or show the location panels over the mech |
-| Tab | Cycle the mech preview: still, walking, running |
+| Tab | Cycle the mech preview: still, walking, running, standing up from a knockdown |
 | F6 / F7 (debug builds) | Select the previewed mech's next hardpoint / cycle its weapon visual |
 | Hover a critical slot | Item mass, slots and condition |
 | Right-click a weapon, ammo bin, heat sink or jump jet | Remove it (pending until applied) |
