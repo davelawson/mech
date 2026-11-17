@@ -149,7 +149,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 - Every direct mech click uses the same padded envelope of the mech's visible model geometry, including gaps between limbs, scaled with the model and zoom. Overlaps resolve to the frontmost envelope regardless of allegiance; hills and rocks block hidden portions. Drag selection retains its center-point rule.
 - Hover previews that same mech with a brighter, thicker team-colored outline. It preserves the selected unit's gold ground ring and never changes selection, inspection, or orders. UI overlays, menus, camera gestures and loss of enemy detection suppress hover; the outline remains depth-tested against terrain.
 - Priority targets have a separate explicit control, rather than sharing Attack's meaning. While choosing one, a friendly right-click leaves priority targeting armed and issues no Follow order.
-- Escape opens the combat menu.
+- Escape opens the combat menu: **Resume**, **Audio** (the audio settings, `docs/audio.md`), and **End Simulation** or **Withdraw**.
 - Combat explicitly overrides the existing office/subscreen right-click-back behavior: right-click remains a battlefield command while in combat.
 - Use an angled overhead camera with pan, zoom, and rotation.
 - Provide a friendly-unit selection bar and selected-unit panel showing orders, movement mode, firing setting, preferred engagement distance, weapon readiness, and armor/internal structure by location.

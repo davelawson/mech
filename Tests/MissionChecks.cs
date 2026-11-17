@@ -341,7 +341,8 @@ internal static class MissionChecks
         var expected = Reputation.MissionChanges(offer, conduct);
         var cash = campaign.Cash; var date = campaign.Date;
         var result = campaign.SettleMission(report);
-        check(result.Payment == 0 && campaign.Cash == cash && campaign.Date == date.AddDays(1) && result.Day.Advanced, "a failed mission pays nothing and takes a day");
+        check(result.Payment == 0 && result.InsuranceClaim > 0 && result.Insurance == Math.Min(result.InsuranceClaim, offer.InsuranceLimit) && campaign.Cash == cash + result.Insurance && campaign.Date == date.AddDays(1) && result.Day.Advanced,
+            "a failed mission pays no fee, only insurance for its damage, and takes a day");
         check(result.Reputation.OrderBy(pair => pair.Key).SequenceEqual(expected.OrderBy(pair => pair.Key))
             && Factions.All.All(faction => campaign.Reputation.Tenths(faction.Faction) == expected.GetValueOrDefault(faction.Faction)),
             "settlement applies the mission's reputation changes");

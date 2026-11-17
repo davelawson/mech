@@ -6,9 +6,19 @@ public enum CampaignEventKind { Arrival, RepairCompletion, MissionResult, Contra
 
 public sealed record CampaignEvent(string Id, DateOnly Date, CampaignEventKind Kind, string Title);
 public sealed record DayResult(bool Advanced, bool QuarterReached, IReadOnlyList<CampaignEvent> Events);
-/// <summary>What settling a mission did: payment received, reputation changes in tenths, MechWarriors killed, and the day it took.</summary>
+/// <summary>What settling a mission did: payment received, reputation changes in tenths, MechWarriors killed, and the day it took.
+/// Insurance is what the contract paid towards the battle's damage, InsuranceClaim the full cost of that damage. Salvage lists the
+/// storage ids taken into storage and the ids of mechs taken whole; SalvagePicks counts the picks used.</summary>
 public sealed record MissionSettlement(MissionOffer Mission, MissionOutcome Outcome, long Payment, IReadOnlyDictionary<Faction, int> Reputation,
-    string[] Killed, DayResult Day);
+    string[] Killed, DayResult Day)
+{
+    public long Insurance { get; init; }
+    public long InsuranceClaim { get; init; }
+    public string[] SalvagedItems { get; init; } = [];
+    public string[] SalvagedMechs { get; init; } = [];
+    public int SalvagePicks { get; init; }
+    public int ExtraPicks => Math.Max(0, SalvagePicks - Mission.SalvagePicks);
+}
 public sealed record CampaignSnapshot(int Version, DateOnly Date, long Cash, long PaymentDue,
     long DeferredDebt, DateOnly NextQuarter, bool Bankrupt, CampaignEvent[] Events, RosterSnapshot? Roster = null, MissionSnapshot? Missions = null,
     TravelSnapshot? Travel = null, int AccruedTransitDays = 0, int BilledTransitDays = 0, ReputationSnapshot? Reputation = null,
@@ -317,30 +327,52 @@ public sealed class Campaign
 
     /// <summary>Settles the current mission from its battle: deployed mechs keep their damage and refill their ammunition,
     /// MechWarriors whose head was destroyed or cockpit struck die, injured ones recover after their injury days, success pays,
-    /// reputation changes, and the mission's day passes.</summary>
+    /// insurance pays for the battle's damage up to its limit, a victory's chosen salvage joins the company, reputation changes,
+    /// and the mission's day passes.</summary>
     public MissionSettlement SettleMission(MissionReport report)
     {
         if (Roster is null || Missions.Current is not { } offer) throw new InvalidOperationException("There is no current mission to settle.");
         if (!CanAdvance) throw new InvalidOperationException("Resolve the quarterly payment before settling a mission.");
         if (report.Mechs.Length == 0 || report.Mechs.Any(item => Roster.Mechs.All(mech => mech.Id != item.MechId) || item.InjuryDays < 0))
             throw new ArgumentException("The report must name deployed BattleMechs.", nameof(report));
-        var killed = new List<string>();
+        if (report.Mechs.Select(item => item.MechId).Distinct(StringComparer.Ordinal).Count() != report.Mechs.Length)
+            throw new ArgumentException("The report names a BattleMech twice.", nameof(report));
+        if (report.Enemies.Length > 0 && (report.Enemies.Select(item => item.UnitId).Distinct(StringComparer.Ordinal).Count() != report.Enemies.Length
+            || !report.Enemies.Select(item => item.MechId).Order(StringComparer.Ordinal).SequenceEqual(offer.Opposition.Select(item => item.MechId).Order(StringComparer.Ordinal))))
+            throw new ArgumentException("The report's enemies are not the mission's opposition.", nameof(report));
+        if (report.Outcome != MissionOutcome.Success && report.Salvage.Length > 0) throw new ArgumentException("Only a victory takes salvage.", nameof(report));
+        var pool = Salvage.Pool(report);
+        var picks = Salvage.Validate(pool, report.Salvage, offer.SalvagePicks);
+        var killed = new List<string>(); long claim = 0;
         foreach (var item in report.Mechs)
         {
             var mech = Roster.Mechs.Single(owned => owned.Id == item.MechId);
             var pilot = Roster.Pilot(mech);
+            var before = Insurance.RepairValue(mech);
             mech.ApplyBattle(item.Locations, item.Equipment);
+            claim += Math.Max(0, Insurance.RepairValue(mech) - before);
             if (pilot is not null) { pilot.Deployments++; pilot.Kills += Math.Max(0, item.Kills); }
             if (item.WarriorKilled && pilot is not null) { Roster.SetHealth(pilot.Id, WarriorHealth.Dead, null, Date); killed.Add(pilot.Id); }
             else if (item.InjuryDays > 0 && pilot is not null) Roster.SetHealth(pilot.Id, WarriorHealth.Injured, Date.AddDays(item.InjuryDays), Date);
         }
         var payment = report.Outcome == MissionOutcome.Success ? offer.Payment : 0;
-        Cash += payment;
-        var conduct = new MissionConduct(report.Outcome, report.Mechs.Select(item => Roster.Mechs.Single(mech => mech.Id == item.MechId).Definition.Id).ToArray(),
-            report.Mechs.Sum(item => item.ArmorLost), report.EnemyWarriorsSpared, 0, 0, 0);
+        var insurance = Math.Min(claim, offer.InsuranceLimit);
+        Cash += payment + insurance;
+        var deployedIds = report.Mechs.Select(item => Roster.Mechs.Single(mech => mech.Id == item.MechId).Definition.Id).ToArray();
+        var items = new List<string>(); var mechs = new List<string>();
+        foreach (var option in report.Salvage.Select(claimed => pool.Single(option => option.Claim == claimed)))
+        {
+            if (option.StorageId is { } storageId) { Roster.Store(storageId, 1); items.Add(storageId); continue; }
+            var wreck = report.Enemies.Single(enemy => enemy.UnitId == option.UnitId);
+            mechs.Add(Roster.AddSalvagedMech(DraftCatalog.Mech(wreck.MechId), wreck.Locations, wreck.Equipment).Id);
+        }
+        var conduct = new MissionConduct(report.Outcome, deployedIds, report.Mechs.Sum(item => item.ArmorLost), report.EnemyWarriorsSpared, 0, picks, 0);
         var reputation = Reputation.ApplyMissionOutcome(offer, conduct, StarChart.Instance);
         Missions.Complete();
-        return new(offer, report.Outcome, payment, reputation, killed.ToArray(), AdvanceOneDay());
+        return new(offer, report.Outcome, payment, reputation, killed.ToArray(), AdvanceOneDay())
+        {
+            Insurance = insurance, InsuranceClaim = claim, SalvagedItems = [.. items], SalvagedMechs = [.. mechs], SalvagePicks = picks
+        };
     }
 
     public IReadOnlyList<CampaignEvent> DeferPayment()

@@ -10,6 +10,11 @@ Every sound plays through a **cue**, a name in `Cue` (`Scripts/Sound.cs`). Call 
   - Changes apply and save at once to `user://settings.cfg` (`CommandApp.SettingsPath`), outside every save slot.
   - Defaults: 80, with music at 60.
   - Right-click, Escape and **Back** close the panel.
+- In battle, the Combat menu's **Audio** opens the same panel over the battlefield.
+  - The battle stays paused while it is open. Opening the Combat menu already set your pause; in co-op, that pauses everyone.
+  - The battle theme keeps playing, so music levels can be judged against it.
+  - Right-click, Escape and **Back** return to the Combat menu with **Resume** focused; they do not resume the battle.
+  - It is not offered on the opponent and force selection screens or on the results.
 
 ## Interface
 

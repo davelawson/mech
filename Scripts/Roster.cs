@@ -408,6 +408,7 @@ public sealed class ForceRoster
 {
     public string ForceName { get; }
     public IReadOnlyList<OwnedMech> Mechs { get; }
+    private readonly List<OwnedMech> _mechs;
     public IReadOnlyList<RosterWarrior> Warriors { get; }
     /// <summary>Spare equipment, stocked once when the company forms (or when an older save first loads).</summary>
     public IReadOnlyList<StorageEntry> Storage => _storage.AsReadOnly();
@@ -418,7 +419,7 @@ public sealed class ForceRoster
     public int LanceCount { get; }
     private ForceRoster(string name, IEnumerable<OwnedMech> mechs, IEnumerable<RosterWarrior> warriors, IEnumerable<StorageEntry>? storage = null, int lances = 1)
     {
-        ForceName = name; Mechs = new ReadOnlyCollection<OwnedMech>(mechs.ToArray()); Warriors = new ReadOnlyCollection<RosterWarrior>(warriors.ToArray());
+        ForceName = name; _mechs = mechs.ToList(); Mechs = _mechs.AsReadOnly(); Warriors = new ReadOnlyCollection<RosterWarrior>(warriors.ToArray());
         _storage = (storage ?? StorageCatalog.Stock(Mechs.Select(item => item.Definition))).ToList();
         LanceCount = lances;
     }
@@ -491,6 +492,20 @@ public sealed class ForceRoster
         else _storage.Add(new(storageId, count));
         _storage.RemoveAll(item => item.Count == 0);
         _storage.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
+    }
+    /// <summary>A stock mech taken as salvage joins the lance pool with no pilot, in the condition it was taken, its bins full.
+    /// It takes the next free mech id.</summary>
+    internal OwnedMech AddSalvagedMech(MechSpec stock, LocationCondition[] locations, EquipmentCondition[] equipment)
+    {
+        var number = _mechs.Count + 1;
+        while (_mechs.Any(item => item.Id == $"mech-{number}")) number++;
+        var mech = new OwnedMech(new($"mech-{number}", stock.Id, null,
+            stock.Locations.Select(loc => locations.Single(item => item.Location == loc.Location)).ToArray(),
+            stock.Weapons.Select(item => item.Id).Concat(stock.Components.Select(item => item.Id)).Concat(stock.Ammo.Select(item => item.Id))
+                .Select(id => equipment.Single(item => item.Id == id)).ToArray(),
+            stock.Ammo.Select(item => new AmmoCondition(item.Id, item.Shots)).ToArray()), stock);
+        _mechs.Add(mech);
+        return mech;
     }
     public int Stored(string storageId) => _storage.SingleOrDefault(item => item.Id == storageId)?.Count ?? 0;
     public void SetHealth(string warriorId, WarriorHealth health, DateOnly? recoveryDate, DateOnly today)

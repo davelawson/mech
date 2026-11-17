@@ -30,6 +30,7 @@ public partial class CombatScreen : Control
     public Button MenuButton { get; private set; } = null!;
     public Button ResumeButton { get; private set; } = null!;
     public Button EndButton { get; private set; } = null!;
+    public Button AudioButton { get; private set; } = null!;
     public Button ReturnButton { get; private set; } = null!;
     public Button NormalHeatButton { get; private set; } = null!;
     public Button AggressiveHeatButton { get; private set; } = null!;
@@ -60,6 +61,8 @@ public partial class CombatScreen : Control
     public event Action<Vector2>? PingRequested;
     /// <summary>The co-op leader stops waiting for a disconnected player, ending the game.</summary>
     public event Action? StopWaitingRequested;
+    /// <summary>The Combat menu's Audio button: open the audio settings over the paused battle.</summary>
+    public event Action? AudioRequested;
     /// <summary>Who the co-op game is waiting for, over the battlefield and force selection.</summary>
     public PanelContainer WaitingBanner { get; private set; } = null!;
     public Label WaitingText { get; private set; } = null!;
@@ -71,8 +74,14 @@ public partial class CombatScreen : Control
     public Button JumpButton { get; private set; } = null!;
     private ForceRoster _roster = null!;
     private MissionOffer? _mission;
-    private Func<CombatSimulation, string>? _settle;
+    private Func<CombatSimulation, SalvageClaim[], string>? _settle;
     private string? _settlement;
+    /// <summary>A won mission's salvage, offered on the results before the leader settles; empty otherwise.</summary>
+    public IReadOnlyList<SalvageOption> SalvagePool { get; private set; } = [];
+    public Dictionary<SalvageClaim, CheckBox> SalvageChoices { get; } = [];
+    public Label SalvageCount { get; private set; } = null!;
+    public Button ClaimSalvageButton { get; private set; } = null!;
+    public Button TakeNothingButton { get; private set; } = null!;
     private Label _title = null!;
     /// <summary>Deployed to the current mission, whose result is settled into the campaign, rather than a simulation.</summary>
     public bool MissionMode => _mission is not null;
@@ -222,15 +231,15 @@ public partial class CombatScreen : Control
     /// passed to <paramref name="settle"/> once, which returns the settlement to show.</summary>
     /// <summary>In a co-op mission the leader passes <paramref name="settle"/>; every other player passes null and is shown the
     /// leader's settlement.</summary>
-    public void OpenMission(ForceRoster roster, MissionOffer offer, string selectedMechId, Func<CombatSimulation, string>? settle, bool coop = false)
+    public void OpenMission(ForceRoster roster, MissionOffer offer, string selectedMechId, Func<CombatSimulation, SalvageClaim[], string>? settle, bool coop = false)
     {
         Reset(roster, offer, settle);
         Coop = coop; Leading = !coop || settle is not null;
         ShowForceSelection(selectedMechId);
     }
-    private void Reset(ForceRoster roster, MissionOffer? mission, Func<CombatSimulation, string>? settle)
+    private void Reset(ForceRoster roster, MissionOffer? mission, Func<CombatSimulation, SalvageClaim[], string>? settle)
     {
-        _roster = roster; _mission = mission; _settle = settle; _settlement = null;
+        _roster = roster; _mission = mission; _settle = settle; _settlement = null; SalvagePool = []; SalvageChoices.Clear();
         WaitingBanner.Hide();
         Coop = false; Leading = true; ForceReady = false; _othersReady = false; Orders = null;
         Simulation = null; _primary = null; _selected.Clear(); SettingPriority = SettingJump = false;
@@ -492,6 +501,7 @@ public partial class CombatScreen : Control
             : "Resume the battle, or withdraw and fail the mission. Damage and losses so far are kept.", 16);
         var spacer = new Control { SizeFlagsVertical = SizeFlags.ExpandFill }; _modalContent.AddChild(spacer);
         var actions = ModalActions(); ResumeButton = Ui.Button(actions, "Resume"); ResumeButton.Pressed += Resume;
+        AudioButton = Ui.Button(actions, "Audio"); AudioButton.Pressed += () => AudioRequested?.Invoke();
         EndButton = Ui.Button(actions, _mission is null ? "End Simulation" : "Withdraw"); EndButton.Pressed += EndSimulation;
         EndButton.Disabled = !Leading; EndButton.TooltipText = Leading ? "" : "Only the leader withdraws from the battle.";
         ResumeButton.CallDeferred(Control.MethodName.GrabFocus); RosterUi.TrapFocus(_shade);
@@ -517,7 +527,15 @@ public partial class CombatScreen : Control
     private void ShowResults()
     {
         if (Simulation is null) return;
-        if (_mission is not null && _settle is not null) _settlement ??= _settle(Simulation);
+        if (_mission is not null && _settle is not null && _settlement is null)
+        {
+            // A victory with something to salvage waits for the leader's choice; anything else settles at once.
+            var report = Simulation.MissionReport();
+            SalvagePool = report.Outcome == MissionOutcome.Success ? Salvage.Pool(report) : [];
+            if (SalvagePool.Count == 0) _settlement = _settle(Simulation, []);
+        }
+        else SalvagePool = [];
+        var choosing = SalvagePool.Count > 0;
         var extractedEarly = Simulation.Patrol is not null && Simulation.Units.Any(unit => unit.Extracted);
         var title = Simulation.Outcome == CombatOutcome.Ended ? (extractedEarly ? "Extracted before the patrol was complete" + (_mission is null ? "" : " · Mission failed")
                 : _mission is null ? "Simulation ended" : "Withdrew · Mission failed")
@@ -527,9 +545,14 @@ public partial class CombatScreen : Control
         BeginModal(CombatModal.Results, title);
         RosterUi.Text(_modalContent, $"Combat time {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}{(_mission is null ? " · Campaign preserved" : "")}", 15, Ui.Gold);
         if (_settlement is not null) RosterUi.Text(_modalContent, _settlement, 14);
-        else if (_mission is not null) RosterUi.Text(_modalContent, "Waiting for the leader to settle the mission…", 14, Ui.Muted);
+        else if (choosing) RosterUi.Text(_modalContent, $"Choose salvage from the field: the contract allows {Picks(_mission!.SalvagePicks)}. "
+            + $"Up to {Picks(SalvageTuning.ExtraPicks)} more can be taken, at a cost to your reputation.", 14);
+        else if (_mission is not null) RosterUi.Text(_modalContent, Simulation.Outcome == CombatOutcome.Victory
+            ? "Waiting for the leader to choose salvage and settle the mission…" : "Waiting for the leader to settle the mission…", 14, Ui.Muted);
         RosterUi.Text(_modalContent, $"Terrain seed: {Simulation.Terrain.Seed} · {BiomeText(Simulation)}", 14, Ui.Muted);
+        if (choosing) SalvageCount = RosterUi.Text(_modalContent, "", 14, Ui.Gold);
         var body = RosterUi.Scroll(_modalContent);
+        if (choosing) ShowSalvage(body);
         foreach (var side in Enum.GetValues<CombatSide>())
         {
             RosterUi.Text(body, side == CombatSide.Enemy ? "OPPOSITION" : Coop ? "THE COMPANY" : "YOUR FORCE", 16, Ui.Gold);
@@ -540,13 +563,67 @@ public partial class CombatScreen : Control
                     + string.Join("  ", unit.Locations.Values.Select(loc => $"{DraftCatalog.Abbreviation(loc.Location)} {loc.Armor}/{loc.Structure}")), 12, Ui.Muted);
             }
         }
-        ReturnButton = Ui.Button(ModalActions(), Leading ? "Return to hangar" : "Waiting for leader"); ReturnButton.Pressed += Exit;
+        var actions = ModalActions();
+        if (choosing)
+        {
+            TakeNothingButton = Ui.Button(actions, "Take Nothing"); TakeNothingButton.Pressed += () => SettleSalvage([]);
+            ClaimSalvageButton = Ui.Sound(Ui.Button(actions, "Claim Salvage"), Cue.UiConfirm);
+            ClaimSalvageButton.Pressed += () => SettleSalvage(ChosenSalvage());
+            RefreshSalvage(); TakeNothingButton.CallDeferred(Control.MethodName.GrabFocus); RosterUi.TrapFocus(_shade);
+            return;
+        }
+        ReturnButton = Ui.Button(actions, Leading ? "Return to hangar" : "Waiting for leader"); ReturnButton.Pressed += Exit;
         ReturnButton.Disabled = !Leading;
         ReturnButton.CallDeferred(Control.MethodName.GrabFocus); RosterUi.TrapFocus(_shade);
     }
+    private static string Picks(int count) => $"{count} {(count == 1 ? "pick" : "picks")}";
+    /// <summary>One block per enemy mech: the whole mech, when it can be taken, then each item left working.</summary>
+    private void ShowSalvage(VBoxContainer body)
+    {
+        SalvageChoices.Clear();
+        RosterUi.Text(body, "SALVAGE", 16, Ui.Gold);
+        foreach (var unit in SalvagePool.GroupBy(option => option.UnitId))
+        {
+            var enemy = Simulation!.Unit(unit.Key);
+            RosterUi.Text(body, $"{enemy.Spec.DisplayName} · {enemy.Status}", 14);
+            var row = new HFlowContainer(); row.AddThemeConstantOverride("h_separation", 14); body.AddChild(row);
+            foreach (var option in unit)
+            {
+                var choice = new CheckBox { Text = option.WholeMech ? $"Claim whole · {Picks(option.Picks)}" : $"{option.Name} · {Picks(option.Picks)}",
+                    FocusMode = FocusModeEnum.All, TooltipText = option.WholeMech ? "Joins your hangar's lance pool as it stands, with no pilot" : "Goes into hangar storage" };
+                row.AddChild(choice); SalvageChoices[option.Claim] = choice;
+                choice.Toggled += _ => RefreshSalvage();
+            }
+        }
+    }
+    private SalvageClaim[] ChosenSalvage() => SalvagePool.Select(option => option.Claim)
+        .Where(claim => SalvageChoices.TryGetValue(claim, out var choice) && choice.ButtonPressed && !choice.Disabled).ToArray();
+    /// <summary>A mech claimed whole cannot also be stripped; the count shows what extra picks will cost.</summary>
+    private void RefreshSalvage()
+    {
+        if (_mission is null) return;
+        var whole = SalvagePool.Where(option => option.WholeMech && SalvageChoices[option.Claim].ButtonPressed).Select(option => option.UnitId).ToHashSet();
+        foreach (var option in SalvagePool.Where(option => !option.WholeMech))
+            SalvageChoices[option.Claim].Disabled = whole.Contains(option.UnitId);
+        var picks = SalvagePool.Where(option => ChosenSalvage().Contains(option.Claim)).Sum(option => option.Picks);
+        var over = Math.Max(0, picks - _mission.SalvagePicks); var limit = _mission.SalvagePicks + SalvageTuning.ExtraPicks;
+        var cost = new List<string>();
+        if (_mission.Employer.Faction is { } employer) cost.Add($"{Factions.Spec(employer).ShortName} −{over * -ReputationTuning.EmployerSalvagePerPick / ReputationTuning.Scale}");
+        cost.Add($"ComStar −{(over * -ReputationTuning.ComStarSalvagePerPick / (double)ReputationTuning.Scale).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}");
+        SalvageCount.Text = $"Picks {picks} of {_mission.SalvagePicks}" + (over > 0 ? $" · {over} over the allotment: {string.Join(", ", cost)} reputation" : "")
+            + (picks > limit ? $" · at most {limit} can be taken" : "");
+        SalvageCount.AddThemeColorOverride("font_color", picks > limit ? new Color("e7a185") : Ui.Gold);
+        ClaimSalvageButton.Disabled = picks == 0 || picks > limit;
+    }
+    private void SettleSalvage(SalvageClaim[] claims)
+    {
+        if (Simulation is null || _settle is null || _settlement is not null) return;
+        _settlement = _settle(Simulation, claims); SalvagePool = []; ShowResults();
+    }
     private void Exit()
     {
-        if (!Leading) return;
+        // Salvage must be claimed or declined before the results close.
+        if (!Leading || Modal == CombatModal.Results && SalvagePool.Count > 0) return;
         Close();
     }
     /// <summary>Leaves the screen; a co-op player other than the leader leaves when the leader does.</summary>

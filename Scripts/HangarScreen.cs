@@ -436,7 +436,10 @@ public partial class HangarScreen : Control
     public void AbandonPending() { _pending.Clear(); _purchases.Clear(); _previews.Clear(); }
     public void Refresh()
     {
-        if (_roster is not null) { ShowStorage(); ShowMarket(); Select(_selected); }
+        if (_roster is null) return;
+        // Salvage can add mechs to the roster while the hangar is open behind a battle.
+        if (RosterButtons.Count != _roster.Mechs.Count) BuildRosterButtons();
+        ShowStorage(); ShowMarket(); Select(_selected);
     }
     /// <summary>Space shows or hides the location panels over the mech preview; Tab cycles the preview
     /// gait still → walking → running → standing up.</summary>

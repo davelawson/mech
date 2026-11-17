@@ -160,7 +160,8 @@ public sealed class CommandNavigator(Control host, Action pause)
                 return true;
             }
         }
-        if (Contains(CommandScreen.Tactical) && CurrentScreen != CommandScreen.UnsavedDialog) return false;
+        // In battle, right-click is an order and Escape is the Combat menu's; only panels over the battle take back gestures.
+        if (Contains(CommandScreen.Tactical) && CurrentScreen is not (CommandScreen.UnsavedDialog or CommandScreen.Audio)) return false;
         // Dragging screens go back on a right click only when the mouse stays put until release.
         if (input is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } press && _popups.Count == 0
             && _surfaces[CurrentScreen].RightDrag is not null)

@@ -179,6 +179,7 @@ public partial class CommandApp : Control
         Tactical.ForceChosen += (mechs, ready) => Client?.ChooseDeployment(mechs, ready);
         Tactical.PingRequested += point => { Host?.Ping(point); Client?.Ping(point); };
         Tactical.StopWaitingRequested += StopWaiting;
+        Tactical.AudioRequested += ShowAudio;
         Drafting.Completed += CompleteDraft;
         Drafting.AbandonRequested += () =>
         {
@@ -255,20 +256,22 @@ public partial class CommandApp : Control
         Navigation.RestoreFocus();
     }
 
+    /// <summary>Audio settings, from the main menu or over a battle's Combat menu (the battle stays paused behind them).</summary>
     public void ShowAudio()
     {
-        if (Navigation.CurrentScreen != CommandScreen.MainMenu) return;
+        var inBattle = Navigation.CurrentScreen == CommandScreen.Tactical && Tactical.Modal == CombatModal.Menu;
+        if (Navigation.CurrentScreen != CommandScreen.MainMenu && !inBattle) return;
         AudioOptions.Display(AudioLevels);
-        Navigation.Push(CommandScreen.Audio, MainMenu.AudioButton);
+        Navigation.Push(CommandScreen.Audio, inBattle ? Tactical.ResumeButton : MainMenu.AudioButton);
     }
 
-    private void CloseAudio() => Navigation.Close(CommandScreen.Audio, MainMenu.AudioButton);
+    private void CloseAudio() => Navigation.Close(CommandScreen.Audio);
 
     /// <summary>Menu screens, the strategic company, and a battle in progress each have their own track.</summary>
     private MusicContext CurrentMusic() => Navigation.CurrentScreen switch
     {
-        CommandScreen.MainMenu or CommandScreen.Audio or CommandScreen.Lobby or CommandScreen.Draft => MusicContext.Menu,
         _ when Navigation.Contains(CommandScreen.Tactical) && Tactical.Simulation is { Outcome: CombatOutcome.Ongoing } => MusicContext.Combat,
+        CommandScreen.MainMenu or CommandScreen.Audio or CommandScreen.Lobby or CommandScreen.Draft => MusicContext.Menu,
         _ when Navigation.Contains(CommandScreen.MainMenu) => MusicContext.Menu,
         _ => MusicContext.Strategy
     };
@@ -755,9 +758,9 @@ public partial class CommandApp : Control
         Tactical.Orders = Client.Send; RefreshWaiting();
     }
 
-    private string SettleMission(CombatSimulation simulation)
+    private string SettleMission(CombatSimulation simulation, SalvageClaim[] salvage)
     {
-        var text = Settlement(_settlement = Execute(new SettleMissionCommand(simulation.MissionReport())));
+        var text = Settlement(_settlement = Execute(new SettleMissionCommand(simulation.MissionReport() with { Salvage = salvage })));
         Host?.FinishBattle(text); Autosave();
         return text;
     }
@@ -766,6 +769,11 @@ public partial class CommandApp : Control
     {
         RefreshCampaign();
         var lines = new List<string> { result.Payment > 0 ? $"Payment received: {Money(result.Payment)}" : "No payment" };
+        lines.Add(result.InsuranceClaim == 0 ? "Insurance: no battle damage to claim"
+            : $"Insurance paid: {Money(result.Insurance)} (claim {Money(result.InsuranceClaim)}, limit {Money(result.Mission.InsuranceLimit)})");
+        if (result.SalvagedItems.Length > 0) lines.Add($"Salvage to storage: {Repairs.PartsText(result.SalvagedItems)}");
+        lines.AddRange(result.SalvagedMechs.Select(id => $"Salvaged whole: {State.Roster!.Mechs.Single(item => item.Id == id).Spec.DisplayName}, now in the lance pool"));
+        if (result.ExtraPicks > 0) lines.Add($"{result.ExtraPicks} salvage {(result.ExtraPicks == 1 ? "pick" : "picks")} over the allotment");
         lines.AddRange(result.Reputation.OrderBy(pair => pair.Key).Select(pair =>
             $"{Factions.Name(pair.Key)} reputation {(pair.Value > 0 ? "+" : "−")}{(Math.Abs(pair.Value) / (double)ReputationTuning.Scale).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}"));
         lines.AddRange(result.Killed.Select(id => $"{State.Roster!.Warriors.Single(item => item.Id == id).Spec.DisplayName} was killed"));

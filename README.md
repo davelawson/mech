@@ -107,7 +107,7 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | Shift+backtick (~) | Toggle the battle log |
 | Hover a detected enemy | Show range lines from selected friendlies |
 | Hover a paperdoll location | List the systems installed there by condition |
-| Escape | Combat menu (End Simulation, or Withdraw from a mission) |
+| Escape | Combat menu (Resume, Audio, and End Simulation or Withdraw from a mission) |
 
 ## Build and test
 

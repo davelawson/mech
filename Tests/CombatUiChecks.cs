@@ -144,6 +144,7 @@ public partial class SmokeTests
         await Delay(.15); Check(sim.Elapsed == pausedAt, "combat menu freezes combat clock");
         Check(TacticalText().Any(text => text.Contains("Terrain seed: 183 · Valley")), "combat menu shows the biome beside the seed");
         await Capture("combat-menu");
+        await TestCombatAudioSettings(tactical, sim);
         await Click(tactical.ResumeButton);
         Check(!sim.Paused && tactical.Modal == CombatModal.None, "menu Resume restores running state");
         await PressKey(Key.Space); Check(sim.Paused, "Space pauses resumed combat");
@@ -251,6 +252,36 @@ public partial class SmokeTests
         await PressKey(Key.Escape);
     }
     /// <summary>Quick Launch fights the accepted mission from the hangar and settles it into the campaign.</summary>
+    /// <summary>Audio settings from the open Combat menu, over the paused battle.</summary>
+    private async Task TestCombatAudioSettings(CombatScreen tactical, CombatSimulation sim)
+    {
+        var pausedAt = sim.Elapsed;
+        await Click(tactical.AudioButton);
+        Check(_app.Navigation.CurrentScreen == CommandScreen.Audio && _app.AudioOptions.Visible && tactical.Visible && tactical.Modal == CombatModal.Menu,
+            "the Combat menu's Audio opens the audio settings over the battle");
+        await Frames();
+        Check(_app.Sound.Music == MusicContext.Combat, "the battle theme keeps playing under the audio settings");
+        var before = _app.AudioLevels.Effects;
+        _app.AudioOptions.EffectsSlider.Value = before == 50 ? 55 : 50;
+        Check(AudioSettings.Load(_settingsFile).Effects == (int)_app.AudioOptions.EffectsSlider.Value, "a level changed in battle saves at once");
+        await Delay(.15);
+        Check(sim.Paused && sim.Elapsed == pausedAt, "the battle stays paused while the audio settings are open");
+        GetWindow().Size = new Vector2I(900, 500); await Frames();
+        Check(_app.GetViewportRect().Encloses(_app.AudioOptions.BackButton.GetGlobalRect())
+            && _app.GetViewportRect().Encloses(_app.AudioOptions.MuteToggle.GetGlobalRect()), "the audio settings fit the minimum window in battle");
+        await Capture("combat-audio-900x500");
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        await PressKey(Key.Escape); await Frames();
+        Check(_app.Navigation.CurrentScreen == CommandScreen.Tactical && !_app.AudioOptions.Visible && tactical.Modal == CombatModal.Menu
+            && sim.Paused && tactical.ResumeButton.HasFocus(), "Escape closes the audio settings back to the Combat menu with Resume focused");
+        await Click(tactical.AudioButton); await RightClick(new Vector2(20, 20));
+        Check(_app.Navigation.CurrentScreen == CommandScreen.Tactical && tactical.Modal == CombatModal.Menu && sim.Paused,
+            "right-click closes the audio settings back to the Combat menu");
+        await Click(tactical.AudioButton); await Click(_app.AudioOptions.BackButton);
+        Check(_app.Navigation.CurrentScreen == CommandScreen.Tactical && tactical.Modal == CombatModal.Menu, "Back returns to the Combat menu");
+        _app.AudioOptions.EffectsSlider.Value = before;
+    }
+
     private async Task TestQuickLaunchUi()
     {
         var hangar = _app.Hangar; var tactical = _app.Tactical; var state = _app.State;
@@ -292,13 +323,69 @@ public partial class SmokeTests
         Check(tactical.EndButton.Text == "Withdraw", "the combat menu offers withdrawal from a mission");
         await Click(tactical.EndButton);
         Check(tactical.Modal == CombatModal.Results && TacticalText().Any(text => text.Contains("Mission failed"))
-            && TacticalText().Any(text => text.Contains("No payment") && text.Contains(state.DateText)), "withdrawing fails the mission and shows its settlement");
-        Check(state.Missions.Current is null && state.Date == date.AddDays(1) && state.Cash == cash
-            && state.Roster!.Mechs.Single(mech => mech.Id == friend.Id).Damaged, "the settlement keeps damage, pays nothing and takes a day");
+            && TacticalText().Any(text => text.Contains("No payment") && text.Contains("Insurance") && text.Contains(state.DateText)),
+            "withdrawing fails the mission and shows its settlement");
+        Check(tactical.SalvagePool.Count == 0 && tactical.SalvageChoices.Count == 0, "a failed mission offers no salvage");
+        Check(state.Missions.Current is null && state.Date == date.AddDays(1) && state.Cash >= cash && state.Cash - cash <= offer.InsuranceLimit
+            && state.Roster!.Mechs.Single(mech => mech.Id == friend.Id).Damaged, "the settlement keeps damage, pays only insurance and takes a day");
         await Capture("mission-results");
         await Click(tactical.ReturnButton);
         Check(hangar.Visible && !tactical.Visible && hangar.BackButton.HasFocus() && hangar.QuickLaunchButton.Disabled && _app.HasUnsavedChanges,
             "returning to the hangar shows the settled campaign");
+        await PressKey(Key.Escape);
+    }
+    /// <summary>A won mission offers the field's salvage on the results, and settles once it is claimed.</summary>
+    private async Task TestSalvageUi()
+    {
+        var hangar = _app.Hangar; var tactical = _app.Tactical; var state = _app.State;
+        var offer = state.Missions.Available.First(item => item.Kind != MissionKind.Patrol); state.AcceptMission(offer.Id);
+        if (!_app.Office.Visible) _app.ShowOffice();
+        await Frames(); await Click(_app.Office.HangarButton);
+        var mechs = state.Roster!.Mechs.Count;
+        await Click(hangar.QuickLaunchButton); await Click(tactical.LaunchButton);
+        var sim = tactical.Simulation!;
+        // The lightest enemy loses both legs, disabled but whole (claimable within any allotment plus the extra picks); the rest lose their center torso.
+        var enemies = sim.Units.Where(unit => unit.Side == CombatSide.Enemy).OrderBy(unit => unit.Spec.WeightClass).ToArray();
+        foreach (var leg in new[] { MechLocation.LeftLeg, MechLocation.RightLeg })
+            enemies[0].ApplyDamage(leg, enemies[0].Locations[leg].Armor + enemies[0].Locations[leg].Structure);
+        foreach (var enemy in enemies.Skip(1)) enemy.ApplyDamage(MechLocation.CenterTorso, 100000);
+        sim.Paused = false;
+        // The battle winds down for a few seconds after the last enemy falls.
+        for (var step = 0; step < 2000 && sim.Outcome == CombatOutcome.Ongoing; step++) { sim.Advance(CombatRules.StepSeconds); if (step % 50 == 0) await Frames(); }
+        await Frames();
+        Check(sim.Outcome == CombatOutcome.Victory && enemies[0].Status == CombatStatus.Disabled && tactical.Modal == CombatModal.Results,
+            "defeating the opposition wins the mission");
+        Check(tactical.SalvagePool.Any(option => option.WholeMech && option.UnitId == enemies[0].Id) && tactical.SalvageChoices.Count == tactical.SalvagePool.Count
+            && state.Missions.Current == offer && TacticalText().Any(text => text.Contains("SALVAGE")), "a won mission offers salvage before settling");
+        Check(tactical.ClaimSalvageButton.Disabled && tactical.SalvageCount.Text.StartsWith($"Picks 0 of {offer.SalvagePicks}"), "nothing is claimed until picks are chosen");
+        await PressKey(Key.Escape);
+        Check(tactical.Visible && tactical.Modal == CombatModal.Results && state.Missions.Current == offer, "Escape cannot skip choosing salvage");
+        var whole = tactical.SalvagePool.Single(option => option.WholeMech);
+        tactical.SalvageChoices[whole.Claim].ButtonPressed = true;
+        Check(tactical.SalvagePool.Where(option => option.UnitId == whole.UnitId && !option.WholeMech).All(option => tactical.SalvageChoices[option.Claim].Disabled),
+            "claiming a mech whole disables stripping it");
+        var item = tactical.SalvagePool.FirstOrDefault(option => !option.WholeMech && option.UnitId != whole.UnitId);
+        if (item is not null) tactical.SalvageChoices[item.Claim].ButtonPressed = true;
+        var picks = whole.Picks + (item is null ? 0 : 1); var limit = offer.SalvagePicks + SalvageTuning.ExtraPicks;
+        Check(tactical.SalvageCount.Text.StartsWith($"Picks {picks} of {offer.SalvagePicks}") && tactical.ClaimSalvageButton.Disabled == picks > limit
+            && tactical.SalvageCount.Text.Contains("over the allotment") == picks > offer.SalvagePicks, "the count follows the picks and shows the cost of extra ones");
+        GetWindow().Size = new Vector2I(900, 500); await Frames();
+        Check(new[] { tactical.ClaimSalvageButton, tactical.TakeNothingButton }.All(button => tactical.GetGlobalRect().Encloses(button.GetGlobalRect())),
+            "the salvage actions fit the minimum window");
+        await Capture("mission-salvage-900x500");
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        var keepItem = item is not null && picks <= limit;
+        if (item is not null && !keepItem) tactical.SalvageChoices[item.Claim].ButtonPressed = false;
+        var stored = item is null ? 0 : state.Roster.Stored(item.StorageId!);
+        await Click(tactical.ClaimSalvageButton);
+        Check(state.Missions.Current is null && tactical.SalvagePool.Count == 0 && state.Roster.Mechs.Count == mechs + 1
+            && state.Roster.Mechs[^1].Definition.Id == enemies[0].Spec.Id && state.Roster.Mechs[^1].Lance is null,
+            "claiming settles the mission and the whole mech joins the lance pool");
+        Check(!keepItem || state.Roster.Stored(item!.StorageId!) == stored + 1, "a claimed item joins storage");
+        Check(TacticalText().Any(text => text.Contains("Payment received") && text.Contains("Insurance") && text.Contains("Salvaged whole")),
+            "the results list the payment, insurance and salvage");
+        await Click(tactical.ReturnButton);
+        Check(hangar.Visible && hangar.RosterButtons.Count == mechs + 1, "the hangar shows the salvaged mech");
         await PressKey(Key.Escape);
     }
     private async Task TestPatrolUi()

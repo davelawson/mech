@@ -17,8 +17,17 @@ public enum ContactLevel { Lost, Identified, Detailed }
 /// MechWarrior's recovery time from the battle's injuries, 0 when unhurt.</summary>
 public sealed record DeployedMechReport(string MechId, LocationCondition[] Locations, EquipmentCondition[] Equipment, bool WarriorKilled, int ArmorLost,
     int Kills = 0, int InjuryDays = 0);
-/// <summary>What a mission battle reports to the campaign. Enemy MechWarriors spared are those whose head survived.</summary>
-public sealed record MissionReport(MissionOutcome Outcome, DeployedMechReport[] Mechs, int EnemyWarriorsSpared);
+/// <summary>An enemy mech's condition when a mission battle ends, keyed by its battlefield id; salvage is drawn from it.</summary>
+public sealed record EnemyWreckReport(string UnitId, string MechId, CombatStatus Status, LocationCondition[] Locations, EquipmentCondition[] Equipment);
+/// <summary>A salvage pick: one item from an enemy mech, or the whole mech when ItemId is null.</summary>
+public sealed record SalvageClaim(string UnitId, string? ItemId);
+/// <summary>What a mission battle reports to the campaign. Enemy MechWarriors spared are those whose head survived. Enemies are the
+/// opposition as it ended; Salvage is what the player chose from them.</summary>
+public sealed record MissionReport(MissionOutcome Outcome, DeployedMechReport[] Mechs, int EnemyWarriorsSpared)
+{
+    public EnemyWreckReport[] Enemies { get; init; } = [];
+    public SalvageClaim[] Salvage { get; init; } = [];
+}
 
 /// <summary>Authored tactical values. Distances are metres, time is seconds.</summary>
 public static partial class CombatRules
@@ -505,7 +514,12 @@ public sealed partial class CombatSimulation
             Units.Where(unit => unit.Side == CombatSide.Friendly).Select(unit => new DeployedMechReport(unit.Id,
                 unit.Locations.Values.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)).ToArray(),
                 unit.ReportedEquipment(), unit.WarriorKilled, unit.ArmorLost, unit.Kills, InjuryDays(unit))).ToArray(),
-            Units.Count(unit => unit.Side == CombatSide.Enemy && !unit.WarriorKilled));
+            Units.Count(unit => unit.Side == CombatSide.Enemy && !unit.WarriorKilled))
+        {
+            Enemies = Units.Where(unit => unit.Side == CombatSide.Enemy).Select(unit => new EnemyWreckReport(unit.Id, unit.Spec.Id, unit.Status,
+                unit.Locations.Values.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)).ToArray(),
+                unit.ReportedEquipment())).ToArray()
+        };
     }
 
     private static (OwnedMech Mech, WarriorSpec Pilot)[] DraftOpposition(IReadOnlyList<OwnedMech> force, Random random)

@@ -6,7 +6,7 @@ public enum ReputationTier { Hated, Hostile, Neutral, Friendly, Honored }
 public enum MissionOutcome { Success, Failure, Abandoned, MissedDeadline }
 
 /// <summary>The facts of a finished mission that reputation weighs. Armor lost is in tenths of a stock point, the combat scale.
-/// Facts whose mechanic does not exist yet (fleeing, buildings, salvage) are reported as zero until it does.</summary>
+/// Facts whose mechanic does not exist yet (fleeing, buildings) are reported as zero until it does. Salvage picks are all those taken.</summary>
 public sealed record MissionConduct(MissionOutcome Outcome, string[] DeployedMechIds, int ArmorLost,
     int EnemyWarriorsSpared, int EnemyMechsFled, int SalvagePicksTaken, int BuildingsDestroyed)
 {

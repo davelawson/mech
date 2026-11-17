@@ -29,7 +29,7 @@
 - Supply mission results through authored outcomes with editable details.
 - Contracts and missions are distinct; initially offer single-mission contracts.
 - Apply payment, mech damage and loss, repair costs and time, pilot casualties, and recurring expenses.
-- Salvage is deferred beyond this first milestone. Reputation is described under [Reputation](#reputation-confirmed-november-5-2026).
+- Salvage is settled after a won mission (see [Salvage and insurance](#salvage-and-insurance-confirmed-november-17-2026)). Reputation is described under [Reputation](#reputation-confirmed-november-5-2026).
 - Advance an explicit calendar; allow one active contract initially.
 
 # Campaign and travel
@@ -278,9 +278,9 @@ A silent flashing light on the office phone indicates new mission offers. Openin
 - a location: a named system within 3 jumps of the DropShip when the offer is posted, counted from the system being jumped to while in transit, chosen to suit the sides. It never changes.
 - its opposition, filled to the offer's [challenge rating](#challenge-rating-confirmed-november-13-2026): stock catalog mechs of weight classes drawn Light 40 / Medium 35 / Heavy 18 / Assault 7 (lighter on a patrol), each piloted by an unnamed pilot of rank Green 20 / Regular 50 / Veteran 22 / Elite 8. The briefing shows exactly the force that will be fielded, and the terms show its total tonnage ("OPPOSITION 265 t").
 - a completion deadline of travel days to the location plus 14, shown as "N days after acceptance" and fixed as a date on acceptance. The travel estimate finishes the current jump first.
-- fixed rewards, with no negotiation yet. Difficulty is the enemy tonnage, each mech weighted by its pilot's rank (Green 0.8, Regular 1.0, Veteran 1.25, Elite 1.5). The budget is difficulty × 4,000 C-bills, ±20%, split at random: at least 40% to payment, the rest between salvage and the insurance limit. **Payment** is in C-bills. **Salvage** is a number of picks from wrecks and equipment after the battle: its share ÷ 100,000 C-bills, rounded, from 0 to 6. **Insurance** pays the lesser of the deployed mechs' repair costs, with destroyed mechs at their replacement value, and the offer's limit (a negotiated maximum once negotiation exists). Payment and the insurance limit are rounded to 1,000 C-bills.
+- fixed rewards, with no negotiation yet. Difficulty is the enemy tonnage, each mech weighted by its pilot's rank (Green 0.8, Regular 1.0, Veteran 1.25, Elite 1.5). The budget is difficulty × 4,000 C-bills, ±20%, split at random: at least 40% to payment, the rest between salvage and the insurance limit. **Payment** is in C-bills. **Salvage** is a number of picks from wrecks and equipment after the battle: its share ÷ 100,000 C-bills, rounded, from 0 to 6. **Insurance** pays the lesser of the cost of repairing the battle's damage to the deployed mechs, destroyed parts at replacement value, and the offer's limit (a negotiated maximum once negotiation exists). Payment and the insurance limit are rounded to 1,000 C-bills.
 
-Payment is settled when a mission is fought through [Quick Launch](#quick-launch-confirmed-november-9-2026); salvage and insurance are only displayed until repair costs and salvage exist. The deadline is recorded but missing it has no effect yet. The numbers live in `MissionTuning`.
+Payment, salvage and insurance are settled when a mission is fought through [Quick Launch](#quick-launch-confirmed-november-9-2026); see [Salvage and insurance](#salvage-and-insurance-confirmed-november-17-2026). The deadline is recorded but missing it has no effect yet. The numbers live in `MissionTuning`.
 
 Generation uses a seeded random number generator whose state is saved, so reloading and advancing repeats the same offers and removals. Saves before version 8 receive a freshly generated board and lose their accepted mission. Offers saved before contract kinds existed stored only whether they were a raid; they load as a raid or a defense and keep their opposition.
 
@@ -341,7 +341,7 @@ The mercenary force has a reputation with each **tracked faction**: the five Gre
 
 - Opponent, honor, building and pirate-raid changes need a battle; abandoning or missing the deadline involves none. Only tracked factions change: pirates and local forces hold no reputation, though sparing them still earns ComStar's respect.
 - **Reasonable effort** means the force lost armor equal to at least a quarter of the most armor its deployed mechs' tonnages allow (the sum of their location armor limits), whatever they actually carried, so fielding damaged or lightly armored mechs doesn't help.
-- Fleeing, building destruction and salvage are reported as zero until those mechanics exist. A MechWarrior dies when the head is destroyed or the cockpit takes a critical hit (see [combat design](combat-design.md#location-loss-and-defeat)).
+- Fleeing and building destruction are reported as zero until those mechanics exist. A MechWarrior dies when the head is destroyed or the cockpit takes a critical hit (see [combat design](combat-design.md#location-loss-and-defeat)).
 
 ## Initial combat design (confirmed October 25, 2026)
 
@@ -358,10 +358,27 @@ A **Quick Launch** button in the hangar, beside **Simulate Deployment**, deploys
   - Deployed mechs keep their battle damage, and every installed bin refills.
   - A MechWarrior whose head was destroyed or whose cockpit took a critical hit dies and leaves the cockpit. A struck cockpit keeps the mech not operational until Repair All mends it.
   - A MechWarrior injured in the battle (by an ammunition explosion, or overheating with Life Support damaged; see [critical hits](combat-design.md#critical-hits-confirmed-november-14-2026)) is Injured for 10–20 days per injury, added together and counted from the settlement day.
-  - Success pays the offer's payment; failure pays nothing.
-  - Reputation changes by the [mission conduct](#reputation-confirmed-november-5-2026) table, with the armor the force lost and the enemy MechWarriors who survived. Fleeing, buildings and salvage count as zero.
+  - Success pays the offer's payment; failure pays no fee. [Insurance](#salvage-and-insurance-confirmed-november-17-2026) pays towards the battle's damage either way.
+  - After a victory, the results offer the field's [salvage](#salvage-and-insurance-confirmed-november-17-2026) first, and settlement waits for **Claim Salvage** or **Take Nothing**.
+  - Reputation changes by the [mission conduct](#reputation-confirmed-november-5-2026) table, with the armor the force lost, the enemy MechWarriors who survived and the salvage picks taken. Fleeing and buildings count as zero.
   - The mission is finished, and the calendar advances one day, with that day's events and any quarterly payment presented on returning to the hangar.
-- Insurance and salvage are not settled yet. Backing out of force selection, or leaving a battle for the main menu before the results, settles nothing: the mission stays current.
+- Backing out of force selection, or leaving a battle for the main menu before the mission settles, settles nothing: the mission stays current.
+
+## Salvage and insurance (confirmed November 17, 2026)
+
+**Salvage** is chosen on the results of a won mission, before it settles. A failed mission has none, and a victory with nothing left to take settles at once.
+
+- **What is on the field.** Every working weapon, ammunition bin, heat sink and jump jet left on an enemy mech, in a location with structure left, is one pick and goes into hangar storage. A bin counts as one bin whatever shots are left. Damaged items, and everything in a lost location, are scrap.
+- **Whole mechs.** An enemy mech that is disabled but not destroyed (head and center torso intact) can be claimed whole: Light 2 picks, Medium 3, Heavy 4, Assault 5. It joins the lance pool with no pilot, its stock loadout and its battle damage, its bins refilled. A mech claimed whole cannot also be stripped.
+- **Picks.** The contract allows its salvage picks. Up to 3 more can be taken, each costing reputation as the [mission conduct](#reputation-confirmed-november-5-2026) table says (employer −2, ComStar −1). The results show the count and the cost of extra picks.
+- **Choosing.** The results list each enemy mech with a toggle for the whole mech and one for each item. **Claim Salvage** settles with the choice; **Take Nothing** settles without salvage. Escape does not close the results until one is pressed. In co-op the leader chooses, and the other players see *Waiting for the leader to choose salvage and settle the mission…* until the settlement arrives.
+
+**Insurance** pays, on any outcome, the cost of repairing the damage the battle did, up to the contract's insurance limit.
+
+- Each deployed mech's claim is what a full repair would cost after the battle less what it would have cost before. Destroyed weapons, bins, heat sinks and jump jets are priced at market price plus installation, as if no spare were in storage. Damage brought into the battle is not covered.
+- The results list *Insurance paid*, with the claim and the limit, then each item and mech salvaged and any picks taken over the allotment.
+
+The numbers live in `SalvageTuning`; insurance prices come from `Repairs.Estimate` and `EquipmentMarket`.
 
 ## Lances and player slots (confirmed November 9, 2026)
 
