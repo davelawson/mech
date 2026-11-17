@@ -88,8 +88,7 @@ public partial class SmokeTests
         Check(!tactical.BattleLog.Visible, "shift-backtick closes the battle log and restores the battlefield width");
         _app.StartAdvancing(true); Check(!_app.IsAdvancing, "campaign calendar cannot run during combat");
         var friendly = sim.Units.First(item => item.Side == CombatSide.Friendly);
-        var distanceControl = tactical.FindChildren("*", "SpinBox", true, false).OfType<SpinBox>().Single();
-        Check(distanceControl.MinValue == 135 && distanceControl.MaxValue == 1890, "preferred-distance control supports the expanded engagement distances");
+        await CheckMaintainRangeRow(tactical, sim);
         Check(sim.Terrain.Seed == 183 && sim.Terrain.Biome == Biome.Valley, "deployment honors the entered terrain seed and chosen biome");
         Check(CombatScreen.HeatReadout(friendly).Contains("× 100%") && CombatScreen.HeatReadout(friendly).Contains("Ambient 10 · +0.20 heat/s"),
             "selected details split cooling into sinks × efficiency and ambient exchange");
@@ -152,27 +151,20 @@ public partial class SmokeTests
         Check(sim.Paused && tactical.Modal == CombatModal.None, "menu Resume preserves an already-paused state");
         await TestTimePanel();
 
-        // Bring a contact into view to exercise attack/priority and enemy inspection through mouse input.
+        // Bring a contact into view to exercise priority targeting and enemy inspection through mouse input.
         var enemy = sim.Units.First(item => item.Side == CombatSide.Enemy);
         enemy.Position = friendly.Position + new Vector2(-150, -60); sim.RefreshDetection(); await Frames();
         var enemyAt = field.GlobalPosition + field.ScreenPoint(enemy.Position, 15);
-        await RightClick(enemyAt);
-        Check(tactical.Selected.Select(sim.Unit).All(item => item.Order == CombatOrder.Attack && item.AttackTarget == enemy.Id), "right-click detected enemy issues group Attack");
-        var priorityButton = tactical.FindChildren("*", "Button", true, false).OfType<Button>().Single(button => button.Text == "Set priority target…");
-        // Scroll to the explicit priority action before using actual mouse input.
-        var scroll = priorityButton.GetParent().GetParent().GetParent<ScrollContainer>();
-        scroll.EnsureControlVisible(priorityButton); await Frames();
-        await Click(priorityButton); Check(tactical.SettingPriority, "separate priority control arms target selection");
-        await RightClick(field.GlobalPosition + field.ScreenPoint(friendly.Position, 15));
-        Check(tactical.SettingPriority && tactical.Selected.Select(sim.Unit).All(item => item.Order == CombatOrder.Attack
-            && item.FollowTarget is null && item.PriorityTarget is null), "friendly click while choosing priority leaves the mode armed and does not issue Follow");
+        var scroll = tactical.MaintainRangeToggle.GetParent().GetParent().GetParent().GetParent<ScrollContainer>();
         MouseButton(enemyAt, Godot.MouseButton.Right, true);
         CameraMotion(enemyAt + new Vector2(6, 0), new Vector2(6, 0));
         MouseButton(enemyAt, Godot.MouseButton.Right, false); await Frames();
-        Check(tactical.SettingPriority && tactical.Selected.Select(sim.Unit).All(item => item.PriorityTarget is null),
-            "right-drag leaves priority targeting armed without choosing a target");
+        Check(tactical.Selected.Select(sim.Unit).All(item => item.PriorityTarget is null), "right-drag over an enemy orbits without choosing a priority target");
+        var ordersBefore = tactical.Selected.Select(sim.Unit).Select(item => item.Order).ToArray();
         await RightClick(enemyAt);
-        Check(tactical.Selected.Select(sim.Unit).All(item => item.PriorityTarget == enemy.Id) && !tactical.SettingPriority, "priority control stores target independently of active orders");
+        Check(tactical.Selected.Select(sim.Unit).All(item => item.PriorityTarget == enemy.Id && item.AttackTarget is null)
+            && tactical.Selected.Select(sim.Unit).Select(item => item.Order).SequenceEqual(ordersBefore),
+            "right-click on a detected enemy sets the group's priority target and issues no order");
         MouseButton(enemyAt, Godot.MouseButton.Left, true); MouseButton(enemyAt, Godot.MouseButton.Left, false); await Delay(.15);
         Check(tactical.Selected.Count == 2 && field.InspectedEnemy == enemy.Id, "enemy inspection retains the friendly command group and range reference");
         var displayed = tactical.FindChildren("*", "Label", true, false).OfType<Label>().Where(label => label.IsVisibleInTree()).Select(label => label.Text).ToArray();
@@ -196,8 +188,9 @@ public partial class SmokeTests
             && !displayed.Any(text => text.Contains("ARMOR / STOCK") || text.Contains("SYSTEMS · CONDITION") || text.Contains(enemy.Spec.Variant)),
             "model-only inspection hides variant, armor, internals, systems and stale detailed readouts");
         await Capture("combat-model-contact");
+        sim.SetPriority([friendly.Id], null);
         await RightClick(field.GlobalPosition + field.ScreenPoint(enemy.Position, 15));
-        Check(friendly.Order == CombatOrder.Attack && friendly.AttackTarget == enemy.Id, "model-only contact accepts an actual mouse Attack order");
+        Check(friendly.PriorityTarget == enemy.Id && friendly.AttackTarget is null, "model-only contact accepts an actual mouse priority target");
         enemy.Position = new Vector2(-1350, -300); sim.RefreshDetection(); await Delay(.15);
         Check(field.InspectedEnemy is null && tactical.Paperdoll.Unit == friendly,
             "losing inspection contact clears live enemy details and restores friendly information");
@@ -484,4 +477,37 @@ public partial class SmokeTests
         tactical.Battlefield.Display(sim); await Frames();
     }
 
+
+    /// <summary>The Maintain Range row: checkbox, label, slider and reading, and the commands they send.</summary>
+    private async Task CheckMaintainRangeRow(CombatScreen tactical, CombatSimulation sim)
+    {
+        var slider = tactical.DistanceSlider; var toggle = tactical.MaintainRangeToggle;
+        var row = toggle.GetParent<HBoxContainer>().GetChildren().ToArray();
+        Check(row.Length == 4 && row[0] == toggle && row[1] is Label { Text: "Maintain Range" } && row[2] == slider && row[3] == tactical.DistanceValue,
+            "the row reads checkbox, Maintain Range, slider, distance");
+        Check(slider.MinValue == 200 && slider.MaxValue == 1800 && slider.Step == 100 && !slider.Scrollable,
+            "the slider covers the preferred-distance rules in 100 m steps and ignores the mouse wheel");
+        Check(!tactical.FindChildren("*", "SpinBox", true, false).Any(), "the tactical view has no text entry to steal hotkeys");
+        var units = tactical.Selected.Select(sim.Unit).ToArray();
+        var saved = units.Select(unit => (unit.PreferredDistance, unit.MaintainRange)).ToArray();
+        foreach (var unit in units) unit.PreferredDistance = 300;
+        await Delay(.15);
+        Check(toggle.ButtonPressed && tactical.DistanceValue.Text == "300 m" && slider.Value == 300, "the row shows the selection's range");
+        Check(!tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.IsVisibleInTree() && label.Text.Contains("Distance:")),
+            "the details no longer repeat the distance");
+        if (units.Length > 1)
+        {
+            units[1].PreferredDistance = 700; await Delay(.15);
+            Check(tactical.DistanceValue.Text == "Mixed" && slider.Value == units[0].PreferredDistance, "differing distances read Mixed at the primary's value");
+        }
+        toggle.ButtonPressed = false; await Delay(.15);
+        Check(units.All(unit => !unit.MaintainRange) && slider.Modulate.A < 1, "unchecking stops the selection maintaining range and dims the slider");
+        slider.EmitSignal(Godot.Range.SignalName.ValueChanged, 500.0);
+        Check(units.All(unit => !unit.MaintainRange), "moving the handle alone sends nothing");
+        slider.EmitSignal(Slider.SignalName.DragStarted); slider.Value = 500; slider.EmitSignal(Slider.SignalName.DragEnded, true);
+        await Delay(.15);
+        Check(units.All(unit => unit.MaintainRange && unit.PreferredDistance == 500) && toggle.ButtonPressed && tactical.DistanceValue.Text == "500 m",
+            "letting go of the slider sets the range for the group and ticks Maintain Range");
+        for (var i = 0; i < units.Length; i++) (units[i].PreferredDistance, units[i].MaintainRange) = saved[i];
+    }
 }

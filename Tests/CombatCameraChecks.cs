@@ -112,12 +112,13 @@ public partial class SmokeTests
             Check(field.Camera.Position.IsEqualApprox(start) && commands == 1, "menu blocks navigation and cancels pending orders");
             await PressKey(Key.Escape);
             await BeginCameraOrbit(at);
-            tactical.FindChildren("*", "SpinBox", true, false).OfType<SpinBox>().Single().GetLineEdit().GrabFocus();
+            field.ReleaseFocus();
             Check(Input.MouseMode == previousMode, "leaving battlefield keyboard focus releases capture");
             start = field.Camera.Position;
             CameraStep(field, .1, Key.W);
             MouseButton(at, Godot.MouseButton.Right, false);
-            Check(field.Camera.Position.IsEqualApprox(start) && commands == 1, "focused UI controls block WASD and prevent stale click orders");
+            Check(!field.Camera.Position.IsEqualApprox(start) && commands == 1,
+                "WASD pans without battlefield focus, and a cancelled orbit leaves no stale click order");
             field.GrabFocus();
 
             await BeginCameraOrbit(at);

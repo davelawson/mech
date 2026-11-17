@@ -214,7 +214,7 @@ internal static class NetworkChecks
     {
         var commands = new CombatCommand[]
         {
-            new MoveCommand(["a", "b"], new Vector2(1.5f, -2.25f)), new AttackCommand(["a"], "enemy-1"), new FollowCommand(["a"], "b"),
+            new MoveCommand(["a", "b"], new Vector2(1.5f, -2.25f)), new MaintainRangeCommand(["a"], false), new FollowCommand(["a"], "b"),
             new JumpCommand(["a"], new Vector2(3, 4)), new HoldCommand(["a"]), new PriorityCommand(["a"], null), new MovementCommand(["a"], MovementMode.Run),
             new FiringCommand(["a"], FiringMode.HoldFire), new HeatPolicyCommand(["a"], HeatPolicy.Aggressive), new DistanceCommand(["a"], 300),
             new WeaponCommand("a", 2, false), new PauseCommand(false)

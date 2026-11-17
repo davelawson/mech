@@ -13,7 +13,8 @@ public sealed record CombatUnitState(string Id, Vector2 Position, Vector2 Destin
     float JumpDuration, float JumpElapsed, float JumpFromHeight, float JumpToHeight, float JumpApexHeight, float Altitude, double JumpRecharge,
     double? LandedAt, float TorsoTwist, bool TorsoTurning, CombatLocationState[] Locations, bool[] WeaponsEnabled, double[] WeaponsRemaining,
     int[] Ammo, int Kills = 0, bool Extracted = false, EquipmentCondition[]? Equipment = null, int Injuries = 0, bool LifeSupportInjury = false,
-    bool Prone = false, double StandUpRemaining = 0, double? FellAt = null, double? StoodAt = null, bool KnockdownPending = false);
+    bool Prone = false, double StandUpRemaining = 0, double? FellAt = null, double? StoodAt = null, bool KnockdownPending = false,
+    bool MaintainRange = true);
 
 public sealed record CombatContactState(CombatSide Side, string UnitId, ContactLevel Level, Vector2 LastKnownPosition, double LastSeenAt);
 
@@ -29,7 +30,7 @@ public sealed partial class CombatUnit
         JumpApexHeight, Altitude, JumpRecharge, LandedAt, TorsoTwist, TorsoTurning,
         Locations.Values.Select(item => new CombatLocationState(item.Location, item.Armor, item.RearArmor, item.Structure)).ToArray(),
         Weapons.Select(item => item.Enabled).ToArray(), Weapons.Select(item => item.Remaining).ToArray(), _ammo.Select(item => item.Shots).ToArray(), Kills, Extracted,
-        EquipmentState(), Injuries, LifeSupportInjury, Prone, StandUpRemaining, FellAt, StoodAt, KnockdownPending);
+        EquipmentState(), Injuries, LifeSupportInjury, Prone, StandUpRemaining, FellAt, StoodAt, KnockdownPending, MaintainRange);
 
     /// <summary>Takes on the leader's state, except the pose, which <see cref="CombatSimulation"/> blends toward it.</summary>
     internal void Apply(CombatUnitState state)
@@ -40,7 +41,7 @@ public sealed partial class CombatUnit
         Destination = state.Destination; Moving = state.Moving; CurrentSpeed = state.CurrentSpeed; AngularVelocity = state.AngularVelocity;
         Order = state.Order; AttackTarget = state.AttackTarget; FollowTarget = state.FollowTarget; PriorityTarget = state.PriorityTarget;
         CurrentTarget = state.CurrentTarget; CurrentRearTarget = state.CurrentRearTarget; Movement = state.Movement; Firing = state.Firing;
-        PreferredDistance = state.PreferredDistance; ShotsFired = state.ShotsFired; Hits = state.Hits; DamageDealt = state.DamageDealt; Kills = state.Kills;
+        PreferredDistance = state.PreferredDistance; MaintainRange = state.MaintainRange; ShotsFired = state.ShotsFired; Hits = state.Hits; DamageDealt = state.DamageDealt; Kills = state.Kills;
         InterferenceRemaining = state.InterferenceRemaining; Extracted = state.Extracted; Heat = state.Heat; HeatPolicy = state.HeatPolicy; Shutdown = state.Shutdown;
         Airborne = state.Airborne; JumpFrom = state.JumpFrom; JumpTo = state.JumpTo; JumpDuration = state.JumpDuration;
         JumpElapsed = state.JumpElapsed; JumpFromHeight = state.JumpFromHeight; JumpToHeight = state.JumpToHeight;

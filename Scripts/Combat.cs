@@ -39,6 +39,14 @@ public static partial class CombatRules
     public const float WeaponRangeScale = 90;
     public const float MinimumPreferredDistance = 1.5f * WeaponRangeScale;
     public const float MaximumPreferredDistance = 21 * WeaponRangeScale;
+    /// <summary>The Maintain Range slider's step; loadout defaults round to it too.</summary>
+    public const float PreferredDistanceStep = 100;
+    /// <summary>The slider's ends: the preferred-distance limits rounded inward to whole steps (200 m and 1800 m).</summary>
+    public static float LowestPreferredStep => MathF.Ceiling(MinimumPreferredDistance / PreferredDistanceStep) * PreferredDistanceStep;
+    public static float HighestPreferredStep => MathF.Floor(MaximumPreferredDistance / PreferredDistanceStep) * PreferredDistanceStep;
+    /// <summary>The nearest slider step to <paramref name="distance"/>.</summary>
+    public static float RoundPreferredDistance(float distance) =>
+        Math.Clamp(MathF.Round(distance / PreferredDistanceStep, MidpointRounding.AwayFromZero) * PreferredDistanceStep, LowestPreferredStep, HighestPreferredStep);
     public const float NoviceDetectionRadius = 1500;
     public static float DetectionRadius(int sensors, int targetTonnage) => NoviceDetectionRadius
         * (1 + (WarriorSkills.Novice - Math.Clamp(sensors, WarriorSkills.Expert, WarriorSkills.Novice))
@@ -206,6 +214,8 @@ public sealed partial class CombatUnit
     public MovementMode Movement { get; set; }
     public FiringMode Firing { get; set; }
     public float PreferredDistance { get; set; }
+    /// <summary>A friendly mech with no Move or Follow order keeps <see cref="PreferredDistance"/> from its priority target.</summary>
+    public bool MaintainRange { get; set; } = true;
     public int ShotsFired { get; internal set; }
     public int Hits { get; internal set; }
     public int DamageDealt { get; internal set; }
@@ -230,9 +240,9 @@ public sealed partial class CombatUnit
         Weapons = Array.AsReadOnly(spec.Weapons.Select(item => new CombatWeapon(item)).ToArray());
         // A damage-weighted short-range preference keeps mixed loadouts relevant.
         var usable = Weapons.Where(WeaponUsable).ToArray();
-        PreferredDistance = usable.Length == 0 ? 3 * CombatRules.WeaponRangeScale : Math.Clamp(
+        PreferredDistance = CombatRules.RoundPreferredDistance(usable.Length == 0 ? 3 * CombatRules.WeaponRangeScale : Math.Clamp(
             usable.Sum(item => item.ShortRange * item.Damage) / usable.Sum(item => item.Damage),
-            CombatRules.WeaponRangeScale, 15 * CombatRules.WeaponRangeScale);
+            CombatRules.WeaponRangeScale, 15 * CombatRules.WeaponRangeScale));
     }
     public bool Intact(MechLocation location) => Locations[location].Structure > 0;
     /// <summary>Physically able to fire: the weapon and at least one compatible bin survive, whether or not it holds shots.</summary>
@@ -630,7 +640,11 @@ public sealed partial class CombatSimulation
     {
         foreach (var unit in ids.Distinct().Select(Unit).Where(item => !item.Defeated))
             if (targetId is null || (Unit(targetId).Side != unit.Side && Detected(unit.Side, targetId) && !Unit(targetId).Defeated))
+            {
+                // A new priority target gets a fresh firing-position search.
+                if (unit.PriorityTarget != targetId) unit.NextFiringSearch = 0;
                 unit.PriorityTarget = targetId;
+            }
     }
     public void Hold(IEnumerable<string> ids)
     {
@@ -831,6 +845,28 @@ public sealed partial class CombatSimulation
             { unit.Order = CombatOrder.Move; unit.Destination = new Vector2(unit.Position.X * .1f, 0); }
         }
     }
+    /// <summary>Where <paramref name="unit"/> goes to keep its preferred distance from a detected <paramref name="target"/>: along the
+    /// line between them while in sight, or to a firing position when sight is blocked. Null when it already holds that range.</summary>
+    private Vector2? RangeGoal(CombatUnit unit, CombatUnit target, out bool reverse)
+    {
+        reverse = false;
+        var away = unit.Position - target.Position;
+        if (away.Length() < .3f) away = unit.Side == CombatSide.Friendly ? Vector2.Down : Vector2.Up;
+        if (!Sight(unit, target))
+        {
+            if (Elapsed >= unit.NextFiringSearch)
+            {
+                var range = unit.Weapons.Where(weapon => weapon.Enabled && unit.WeaponUsable(weapon))
+                    .Select(weapon => weapon.LongRange).DefaultIfEmpty(unit.PreferredDistance).Max();
+                unit.FiringPosition = Terrain.FiringPosition(unit.Position, target.Position, unit.PreferredDistance, range);
+                unit.NextFiringSearch = Elapsed + 1;
+            }
+            return unit.FiringPosition;
+        }
+        if (Math.Abs(away.Length() - unit.PreferredDistance) <= 12) return null;
+        reverse = away.Length() < unit.PreferredDistance;
+        return Terrain.ReachableDestination(unit.Position, target.Position + away.Normalized() * unit.PreferredDistance);
+    }
     private void MoveUnit(CombatUnit unit, float delta)
     {
         Vector2? goal = null;
@@ -861,30 +897,16 @@ public sealed partial class CombatSimulation
             {
                 var target = Unit(id);
                 if (target.Defeated) { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
-                else
-                {
-                    var away = unit.Position - target.Position;
-                    if (away.Length() < .3f) away = unit.Side == CombatSide.Friendly ? Vector2.Down : Vector2.Up;
-                    if (!Sight(unit, target))
-                    {
-                        if (Elapsed >= unit.NextFiringSearch)
-                        {
-                            var range = unit.Weapons.Where(weapon => weapon.Enabled && unit.WeaponUsable(weapon))
-                                .Select(weapon => weapon.LongRange).DefaultIfEmpty(unit.PreferredDistance).Max();
-                            unit.FiringPosition = Terrain.FiringPosition(unit.Position, target.Position, unit.PreferredDistance, range);
-                            unit.NextFiringSearch = Elapsed + 1;
-                        }
-                        goal = unit.FiringPosition;
-                    }
-                    else if (Math.Abs(away.Length() - unit.PreferredDistance) > 12)
-                    {
-                        goal = Terrain.ReachableDestination(unit.Position, target.Position + away.Normalized() * unit.PreferredDistance);
-                        reverse = away.Length() < unit.PreferredDistance;
-                    }
-                }
+                else goal = RangeGoal(unit, target, out reverse);
             }
             else if (_contacts[unit.Side].TryGetValue(id, out var contact)) goal = contact.LastKnownPosition;
             else { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
+        }
+        // An idle player mech keeps its range from its priority target, or goes looking where that target was last seen.
+        else if (unit.Order == CombatOrder.Hold && unit.Side == CombatSide.Friendly && unit.MaintainRange && unit.PriorityTarget is { } priority)
+        {
+            if (Detected(unit.Side, priority)) { if (!Unit(priority).Defeated) goal = RangeGoal(unit, Unit(priority), out reverse); }
+            else if (_contacts[unit.Side].TryGetValue(priority, out var contact)) goal = contact.LastKnownPosition;
         }
         // End the order at its resolved destination, not at an intermediate waypoint.
         if (goal is { } desired && unit.Position.DistanceTo(desired) >= 6)

@@ -31,9 +31,12 @@ public partial class SmokeTests
             Check(new[] { "[X]", "[C]", "[F]", "[G]", "[Z]" }.All(key => labels.Any(text => text.Contains(key))),
                 "order buttons show their hotkeys");
 
-            tactical.PauseButton.GrabFocus();
+            tactical.PauseButton.GrabFocus(); tactical.UnitButtons[0].GrabFocus(); tactical.MaintainRangeToggle.GrabFocus();
+            Check(GetViewport().GuiGetFocusOwner() is not BaseButton, "tactical panels never take keyboard focus");
+            field.ReleaseFocus();
             await PressKey(Key.C);
-            Check(friends.All(unit => unit.Movement == MovementMode.Walk), "order hotkeys need battlefield focus");
+            Check(friends.All(unit => unit.Movement == MovementMode.Run), "order hotkeys work without battlefield focus");
+            await PressKey(Key.X);
             field.GrabFocus();
 
             var at = field.GlobalPosition + field.Size / 2;
@@ -57,11 +60,11 @@ public partial class SmokeTests
             await ModifiedRightClick(ctrl: false, alt: false);
             Check(friends.All(unit => unit.Movement == MovementMode.Walk), "a plain right-click keeps each mech's movement mode");
             var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
-            tactical.FindChildren("*", "Button", true, false).OfType<Button>().Single(button => button.Text.StartsWith("Set priority"))
-                .EmitSignal(BaseButton.SignalName.Pressed);
+            var enemyHome = enemy.Position; enemy.Position = friends[0].Position + new Vector2(0, -300); sim.RefreshDetection();
             tactical.IssueCommand(Vector2.Zero, enemy.Id, MovementMode.Run);
-            Check(!tactical.SettingPriority && friends.All(unit => unit.Movement == MovementMode.Walk && unit.Order == CombatOrder.Move),
-                "choosing a priority target ignores the movement modifier");
+            Check(friends.All(unit => unit.Movement == MovementMode.Run && unit.Order == CombatOrder.Move && unit.PriorityTarget == enemy.Id),
+                "Ctrl+right-click on an enemy sets Run and the priority target without replacing the Move order");
+            enemy.Position = enemyHome; sim.RefreshDetection();
             sim.SetPriority(tactical.Selected, null); sim.Hold(tactical.Selected);
 
             tactical.SelectUnits([friends[0].Id], false); await Frames();
@@ -126,11 +129,9 @@ public partial class SmokeTests
         var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
         tactical.IssueCommand(enemy.Position, enemy.Id);
         Check(tactical.SettingJump && !jumper.Airborne, "right-clicking a mech keeps jump targeting armed");
-        var order = jumper.Order;
         tactical.IssueCommand(jumper.Position + jumper.Facing * 100, null);
         Check(!tactical.SettingJump && jumper.Airborne && jumper.JumpTo.DistanceTo(jumper.Position) <= jumper.JumpRange + .01f,
             "a ground right-click sends the selection on a jump and disarms targeting");
-        Check(order != CombatOrder.Attack || jumper.Order == CombatOrder.Attack, "jumping keeps an Attack order");
         var paused = sim.Paused; sim.Paused = false; sim.Advance(1); sim.Paused = paused; await Frames();
         await Capture("combat-jump-flight");
         Check(jumper.Altitude > 10 && tactical.JumpButton.Disabled && tactical.JumpButton.TooltipText.Contains("Airborne"),

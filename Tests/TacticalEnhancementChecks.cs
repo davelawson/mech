@@ -65,10 +65,9 @@ public partial class SmokeTests
                 Check(friends.Take(2).All(unit => new Rect2(Vector2.One * 16, field.Size - Vector2.One * 32)
                     .HasPoint(field.ScreenPoint(unit.Position, 15))), $"group framing accounts for docked viewport aspect at {size}");
             }
-            var input = screen.FindChildren("*", "SpinBox", true, false).OfType<SpinBox>().Single().GetLineEdit();
-            input.GrabFocus();
-            Check(!KeyPress(Key.Key3) && !KeyPress(Key.Quoteleft), "combat shortcuts preserve editing in numeric input");
-            field.GrabFocus(); screen.OpenMenu();
+            field.ReleaseFocus();
+            Check(KeyPress(Key.Key3) && screen.Selected.SequenceEqual([friends[2].Id]), "selection shortcuts work without battlefield focus");
+            screen.OpenMenu();
             Check(!KeyPress(Key.Key3) && !KeyPress(Key.Quoteleft, true), "combat modal blocks selection and log shortcuts");
             screen.Resume();
             friends[3].ApplyDamage(MechLocation.Head, 10000); KeyPress(Key.Key4);

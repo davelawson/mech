@@ -75,7 +75,6 @@ public partial class CombatScreen : Control
     public Label WaitingText { get; private set; } = null!;
     public Button StopWaitingButton { get; private set; } = null!;
     private bool _othersReady;
-    public bool SettingPriority { get; private set; }
     /// <summary>Jump targeting is armed: the next ground right-click sends the selection on a jump.</summary>
     public bool SettingJump { get; private set; }
     public Button JumpButton { get; private set; } = null!;
@@ -117,12 +116,15 @@ public partial class CombatScreen : Control
     private VBoxContainer _settings = null!;
     private VBoxContainer _weapons = null!;
     private Label _weaponsTitle = null!;
-    private SpinBox _distance = null!;
+    /// <summary>The Maintain Range row: the checkbox, the preferred-distance slider and its reading.</summary>
+    public CheckBox MaintainRangeToggle { get; private set; } = null!;
+    public HSlider DistanceSlider { get; private set; } = null!;
+    public Label DistanceValue { get; private set; } = null!;
+    private bool _draggingDistance;
     private Button _walk = null!;
     private Button _run = null!;
     private Button _fire = null!;
     private Button _hold = null!;
-    private Button _priority = null!;
     private bool _refreshing;
     private bool _resumeRunning;
     private string? _primary;
@@ -137,8 +139,10 @@ public partial class CombatScreen : Control
         Battlefield.SelectionRequested += SelectUnits;
         Battlefield.CommandRequested += IssueCommand;
         BattleLog = new CombatLogPanel(); AddChild(BattleLog);
+        // The tactical view has one global focus: its panels never take keyboard focus, so hotkeys always reach the battle.
+        BattleLog.FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled;
         BattleLog.CloseRequested += ToggleBattleLog;
-        _top = new Control(); AddChild(_top);
+        _top = new Control { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; AddChild(_top);
         _title = Ui.Label(_top, "SIMULATED DEPLOYMENT", 20, Ui.Gold); _title.Position = new Vector2(20, 9);
         _status = Ui.Label(_top, "Select your force", 13, Ui.Muted); _status.Position = new Vector2(20, 36); _status.ClipText = true;
         _timePanel = new PanelContainer(); _top.AddChild(_timePanel);
@@ -153,7 +157,7 @@ public partial class CombatScreen : Control
         FastForwardButton = TimeButton(timeButtons, TimeControlIcon.Glyph.FastForward, "4x  [.]");
         FastForwardButton.Pressed += () => SetSpeed(CombatSimulation.FastTimeScale);
         MenuButton = Ui.Button(_top, "Combat menu  [Esc]"); MenuButton.Pressed += OpenMenu;
-        _sidebar = new PanelContainer(); _sidebar.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Line)); AddChild(_sidebar);
+        _sidebar = new PanelContainer { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; _sidebar.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Line)); AddChild(_sidebar);
         var body = RosterUi.Scroll(_sidebar);
         _selectionTitle = RosterUi.Text(body, "Select a BattleMech", 19, Ui.Gold);
         Paperdoll = new CombatPaperdoll { Visible = false }; body.AddChild(Paperdoll);
@@ -177,19 +181,31 @@ public partial class CombatScreen : Control
         NormalHeatButton.Pressed += () => Send(new HeatPolicyCommand([.. _selected], HeatPolicy.Normal));
         AggressiveHeatButton.Pressed += () => Send(new HeatPolicyCommand([.. _selected], HeatPolicy.Aggressive));
         Ui.Button(_settings, "Stop movement / clear order [Z]").Pressed += StopUnits;
-        RosterUi.Text(_settings, "Preferred engagement distance (m)", 12, Ui.Muted);
-        _distance = new SpinBox { MinValue = CombatRules.MinimumPreferredDistance, MaxValue = CombatRules.MaximumPreferredDistance,
-            Step = 15, AllowGreater = false, AllowLesser = false };
-        _settings.AddChild(_distance);
-        _distance.ValueChanged += value => { if (!_refreshing) Send(new DistanceCommand([.. _selected], (float)value)); };
-        _priority = Ui.Button(_settings, "Set priority target…");
-        _priority.Pressed += () => { SettingPriority = !SettingPriority; SettingJump = false; Battlefield.GrabFocus(); RefreshDetails(); };
-        Ui.Button(_settings, "Clear priority target").Pressed += () => { SettingPriority = false; Send(new PriorityCommand([.. _selected], null)); };
+        var range = new HBoxContainer(); range.AddThemeConstantOverride("separation", 6); _settings.AddChild(range);
+        MaintainRangeToggle = new CheckBox(); range.AddChild(MaintainRangeToggle);
+        MaintainRangeToggle.Toggled += on => { if (!_refreshing) Send(new MaintainRangeCommand([.. _selected], on)); };
+        var rangeLabel = Ui.Label(range, "Maintain Range", 13); rangeLabel.VerticalAlignment = VerticalAlignment.Center;
+        // The wheel zooms the battlefield, never the slider.
+        DistanceSlider = new HSlider { MinValue = CombatRules.LowestPreferredStep, MaxValue = CombatRules.HighestPreferredStep,
+            Step = CombatRules.PreferredDistanceStep, Scrollable = false, SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            SizeFlagsVertical = SizeFlags.ShrinkCenter };
+        range.AddChild(DistanceSlider);
+        DistanceValue = Ui.Label(range, "", 13); DistanceValue.VerticalAlignment = VerticalAlignment.Center;
+        DistanceValue.CustomMinimumSize = new Vector2(56, 0); DistanceValue.HorizontalAlignment = HorizontalAlignment.Right;
+        DistanceSlider.DragStarted += () => _draggingDistance = true;
+        DistanceSlider.ValueChanged += value => { if (_draggingDistance) DistanceValue.Text = $"{value:0} m"; };
+        // One command when the slider is let go, rather than one per step dragged through.
+        DistanceSlider.DragEnded += changed =>
+        {
+            _draggingDistance = false;
+            if (changed) Send(new DistanceCommand([.. _selected], (float)DistanceSlider.Value)); else RefreshDetails();
+        };
+        Ui.Button(_settings, "Clear priority target").Pressed += () => Send(new PriorityCommand([.. _selected], null));
         _weaponsTitle = RosterUi.Text(body, "WEAPONS · PRIMARY SELECTION", 12, Ui.Gold);
         _weapons = new VBoxContainer(); body.AddChild(_weapons);
         _locations = RosterUi.Text(body, "", 12);
         _systems = RosterUi.Text(body, "", 12);
-        _unitBar = new HBoxContainer(); _unitBar.AddThemeConstantOverride("separation", 6); AddChild(_unitBar);
+        _unitBar = new HBoxContainer { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; _unitBar.AddThemeConstantOverride("separation", 6); AddChild(_unitBar);
         _help = Ui.Label(this, "", 12, Ui.Muted); _help.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         WaitingBanner = new PanelContainer { Visible = false }; WaitingBanner.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Gold, 2));
         var waiting = new HBoxContainer(); waiting.AddThemeConstantOverride("separation", 14); WaitingBanner.AddChild(waiting);
@@ -266,7 +282,7 @@ public partial class CombatScreen : Control
         _roster = roster; _mission = mission; _settle = settle; _settlement = null; SalvagePool = []; SalvageChoices.Clear();
         WaitingBanner.Hide();
         Coop = false; Leading = true; ForceReady = false; _othersReady = false; Orders = null;
-        Simulation = null; _primary = null; _selected.Clear(); SettingPriority = SettingJump = false;
+        Simulation = null; _primary = null; _selected.Clear(); SettingJump = false;
         _title.Text = mission is null ? "SIMULATED DEPLOYMENT" : $"MISSION · {mission.Name.ToUpperInvariant()}";
         BattleLog.Hide(); Layout();
         Show();
@@ -425,7 +441,7 @@ public partial class CombatScreen : Control
             button.AddChild(doll);
             doll.SetAnchorsAndOffsetsPreset(LayoutPreset.BottomWide);
             UnitButtons.Add(button); UnitDolls.Add(doll);
-            button.Pressed += () => { Battlefield.InspectedEnemy = null; SelectUnits([unit.Id], Input.IsKeyPressed(Key.Shift)); Battlefield.GrabFocus(); };
+            button.Pressed += () => { Battlefield.InspectedEnemy = null; SelectUnits([unit.Id], Input.IsKeyPressed(Key.Shift)); };
         }
         LayoutUnitCards();
         SelectUnits([OwnUnits.First().Id], false);
@@ -440,17 +456,11 @@ public partial class CombatScreen : Control
             if (Simulation is null || !Simulation.Commands(Slot, Simulation.Unit(id))) continue;
             if (additive && _selected.Contains(id)) _selected.Remove(id); else if (!_selected.Contains(id)) _selected.Add(id);
         }
-        Battlefield.Selection = _selected; SettingPriority = SettingJump = false; RefreshDetails();
+        Battlefield.Selection = _selected; SettingJump = false; RefreshDetails();
     }
     public void IssueCommand(Vector2 ground, string? target, MovementMode? mode = null)
     {
         if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing) return;
-        if (SettingPriority)
-        {
-            if (target is not null && Simulation.Unit(target) is { Side: CombatSide.Enemy, Defeated: false })
-            { Order(new PriorityCommand([.. _selected], target)); SettingPriority = false; }
-            RefreshDetails(); return;
-        }
         if (SettingJump)
         {
             // Mechs are not landing points: a click on one keeps jump targeting armed.
@@ -459,8 +469,10 @@ public partial class CombatScreen : Control
         }
         // Alt/Ctrl+right-click keeps the chosen mode, exactly as the Walk/Run buttons do.
         if (mode is { } movement) Order(new MovementCommand([.. _selected], movement));
-        Order(target is null ? new MoveCommand([.. _selected], ground)
-            : Simulation.Unit(target).Side == CombatSide.Friendly ? new FollowCommand([.. _selected], target) : new AttackCommand([.. _selected], target));
+        // An enemy becomes the priority target; players direct movement only with Move and Follow.
+        if (target is not null && Simulation.Unit(target) is { Side: CombatSide.Enemy } enemy)
+        { if (!enemy.Defeated) Order(new PriorityCommand([.. _selected], target)); }
+        else Order(target is null ? new MoveCommand([.. _selected], ground) : new FollowCommand([.. _selected], target));
         RefreshDetails();
     }
     /// <summary>Sends a command as the local player, then shows its effect.</summary>
@@ -504,8 +516,8 @@ public partial class CombatScreen : Control
     public void ToggleJump()
     {
         if (Simulation is null) return;
-        SettingJump = !SettingJump && JumpUnavailable() is null; SettingPriority = false;
-        Battlefield.GrabFocus(); RefreshDetails();
+        SettingJump = !SettingJump && JumpUnavailable() is null;
+        RefreshDetails();
     }
     private void StopUnits() => Send(new HoldCommand([.. _selected]));
     public void TogglePause()
@@ -520,7 +532,7 @@ public partial class CombatScreen : Control
         if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing || !SetsSpeed) return;
         Simulation.TimeScale = scale;
         if (Simulation.PauseHolds.Contains(Slot)) Send(new PauseCommand(false));
-        RefreshDetails(); Battlefield.GrabFocus();
+        RefreshDetails();
     }
     private bool SetsSpeed => !Coop || Leading;
     private Button TimeButton(Node parent, TimeControlIcon.Glyph glyph, string tooltip)
@@ -686,7 +698,7 @@ public partial class CombatScreen : Control
     private void ToggleBattleLog()
     {
         if (Simulation is null || Modal != CombatModal.None) return;
-        Battlefield.CancelDrag(); BattleLog.Visible = !BattleLog.Visible; Layout(); Battlefield.GrabFocus();
+        Battlefield.CancelDrag(); BattleLog.Visible = !BattleLog.Visible; Layout();
     }
     public bool HandleKey(InputEvent input)
     {
@@ -695,17 +707,16 @@ public partial class CombatScreen : Control
         {
             if (Modal is CombatModal.OpponentSelection or CombatModal.ForceSelection or CombatModal.Results) Exit();
             else if (Modal == CombatModal.Menu) Resume();
-            else if (SettingPriority || SettingJump) { SettingPriority = SettingJump = false; RefreshDetails(); }
+            else if (SettingJump) { SettingJump = false; RefreshDetails(); }
             else OpenMenu();
             return true;
         }
-        if (key.Keycode == Key.Space && Modal == CombatModal.None && Battlefield.HasFocus()) { TogglePause(); return true; }
+        // The tactical view has one global focus: only a modal holds these keys back.
+        if (key.Keycode == Key.Space && Modal == CombatModal.None) { TogglePause(); return true; }
         var speedKey = key.PhysicalKeycode != Key.None ? key.PhysicalKeycode : key.Keycode;
-        if (speedKey is Key.Comma or Key.Period && Modal == CombatModal.None && Battlefield.HasFocus())
+        if (speedKey is Key.Comma or Key.Period && Modal == CombatModal.None)
         { SetSpeed(speedKey == Key.Comma ? 1 : CombatSimulation.FastTimeScale); return true; }
         if (Simulation is null || Modal != CombatModal.None || key.CtrlPressed || key.AltPressed || key.MetaPressed) return false;
-        // Preserve typing in the preferred-distance input; other combat controls share these shortcuts.
-        if (GetViewport().GuiGetFocusOwner() is LineEdit or TextEdit) return false;
         var code = key.PhysicalKeycode != Key.None ? key.PhysicalKeycode : key.Keycode;
         if (code is >= Key.Key1 and <= Key.Key4)
         {
@@ -714,31 +725,29 @@ public partial class CombatScreen : Control
             if (unit is not null)
             {
                 Battlefield.CancelDrag(); Battlefield.InspectedEnemy = null;
-                SelectUnits([unit.Id], key.ShiftPressed); Battlefield.GrabFocus();
+                SelectUnits([unit.Id], key.ShiftPressed);
             }
             return true;
         }
-        if (Battlefield.HasFocus())
+        Action? order = code switch
         {
-            Action? order = code switch
-            {
-                Key.Z => StopUnits,
-                Key.X => () => Send(new MovementCommand([.. _selected], MovementMode.Walk)),
-                Key.C => () => Send(new MovementCommand([.. _selected], MovementMode.Run)),
-                Key.G => () => Send(new FiringCommand([.. _selected], FiringMode.HoldFire)),
-                Key.F => () => Send(new FiringCommand([.. _selected], FiringMode.FireAtWill)),
-                Key.J => ToggleJump,
-                Key.V => () => PingRequested?.Invoke(Battlefield.GroundPoint(Battlefield.GetLocalMousePosition())),
-                _ => null
-            };
-            if (order is not null) { order(); return true; }
-        }
+            Key.Z => StopUnits,
+            Key.X => () => Send(new MovementCommand([.. _selected], MovementMode.Walk)),
+            Key.C => () => Send(new MovementCommand([.. _selected], MovementMode.Run)),
+            Key.G => () => Send(new FiringCommand([.. _selected], FiringMode.HoldFire)),
+            Key.F => () => Send(new FiringCommand([.. _selected], FiringMode.FireAtWill)),
+            Key.J => ToggleJump,
+            Key.V => () => PingRequested?.Invoke(Battlefield.GroundPoint(Battlefield.GetLocalMousePosition())),
+            _ => null
+        };
+        if (order is not null) { order(); return true; }
         if (code == Key.Quoteleft || key.Keycode == Key.Asciitilde)
         {
             if (key.ShiftPressed || key.Keycode == Key.Asciitilde) ToggleBattleLog();
-            else { Battlefield.ResetToSelection(); Battlefield.GrabFocus(); }
+            else Battlefield.ResetToSelection();
             return true;
         }
+        if (key.Keycode == Key.Home) { Battlefield.ResetToArena(); return true; }
         return false;
     }
     public override void _Process(double delta)
@@ -771,9 +780,8 @@ public partial class CombatScreen : Control
         // Jump targeting lapses once no selected unit can still jump.
         if (SettingJump && JumpUnavailable() is not null) SettingJump = false;
         Battlefield.JumpArmed = SettingJump;
-        _help.Text = SettingPriority ? "PRIORITY TARGET: right-click a detected enemy. This changes target preference without ordering pursuit. Escape cancels."
-            : SettingJump ? "JUMP: right-click the ground to jump there, within each mech's range circle. Attack and Follow orders resume on landing. Escape cancels."
-            : $"Click / drag / 1–4: select · Shift: toggle · Right-click: Move / Attack / Follow (Alt: walk · Ctrl: run) · Z: stop · X/C: walk/run · J: jump · G/F: hold/fire at will · Space: pause · ,/.: 1x/4x{(Coop ? " · V: ping" : "")} · WASD / arrows / middle-drag: pan (Shift: fast) · Wheel: zoom · Right-drag / Q/E: orbit · `: frame selection · ~: battle log · Home: arena";
+        _help.Text = SettingJump ? "JUMP: right-click the ground to jump there, within each mech's range circle. Follow orders and Maintain Range resume on landing. Escape cancels."
+            : $"Click / drag / 1–4: select · Shift: toggle · Right-click: Move / Priority target / Follow (Alt: walk · Ctrl: run) · Z: stop · X/C: walk/run · J: jump · G/F: hold/fire at will · Space: pause · ,/.: 1x/4x{(Coop ? " · V: ping" : "")} · WASD / arrows / middle-drag: pan (Shift: fast) · Wheel: zoom · Right-drag / Q/E: orbit · `: frame selection · ~: battle log · Home: arena";
         var friends = OwnUnits.ToArray();
         for (var i = 0; i < UnitButtons.Count; i++)
         {
@@ -835,7 +843,6 @@ public partial class CombatScreen : Control
             _groupInfo.Visible = active.Length > 1;
             _groupInfo.Text = $"{active.Length} units · edits apply to group\n"
                 + $"Movement: {(active.Select(item => item.Movement).Distinct().Count() > 1 ? "Mixed" : active[0].Movement)} · Fire: {(active.Select(item => item.Firing).Distinct().Count() > 1 ? "Mixed" : active[0].Firing == FiringMode.FireAtWill ? "At will" : "Hold")}\n"
-                + $"Distance: {(active.Select(item => item.PreferredDistance).Distinct().Count() > 1 ? "Mixed" : $"{active[0].PreferredDistance:0} m")}\n"
                 + $"Heat policy: {(active.Select(item => item.HeatPolicy).Distinct().Count() > 1 ? "Mixed" : active[0].HeatPolicy.ToString())}";
             _walk.Text = (active.All(item => item.Movement == MovementMode.Walk) ? "● Walk" : "Walk") + " [X]";
             _run.Text = (active.All(item => item.Movement == MovementMode.Run) ? "● Run" : "Run") + " [C]";
@@ -844,12 +851,19 @@ public partial class CombatScreen : Control
             NormalHeatButton.Text = active.All(item => item.HeatPolicy == HeatPolicy.Normal) ? "● Normal heat" : "Normal heat";
             AggressiveHeatButton.Text = active.All(item => item.HeatPolicy == HeatPolicy.Aggressive) ? "● Aggressive heat" : "Aggressive heat";
             _refreshing = true;
-            // Leave the user's edit intact while the spin box owns focus.
-            if (!_distance.GetLineEdit().HasFocus()) _distance.SetValueNoSignal(active[0].PreferredDistance);
-            _distance.TooltipText = active.Select(item => item.PreferredDistance).Distinct().Count() > 1 ? "Mixed distances; editing applies to all selected units that are not defeated." : "Applies to all selected units that are not defeated.";
+            var maintaining = active.All(item => item.MaintainRange);
+            MaintainRangeToggle.SetPressedNoSignal(maintaining);
+            // Leave a drag in progress alone; the reading follows the handle until it is let go.
+            if (!_draggingDistance)
+            {
+                DistanceSlider.SetValueNoSignal(active[0].PreferredDistance);
+                DistanceValue.Text = active.Select(item => item.PreferredDistance).Distinct().Count() > 1 ? "Mixed" : $"{active[0].PreferredDistance:0} m";
+            }
+            DistanceSlider.Modulate = maintaining ? Colors.White : new Color(1, 1, 1, .45f);
+            const string tip = "Without a Move or Follow order, keep this range from the priority target. Applies to all selected units that are not defeated.";
+            MaintainRangeToggle.TooltipText = DistanceSlider.TooltipText = tip;
             _refreshing = false;
         }
-        _priority.Text = SettingPriority ? "Choose enemy on battlefield…" : "Set priority target…";
         var jumpBlocked = JumpUnavailable();
         JumpButton.Disabled = jumpBlocked is not null;
         JumpButton.Text = SettingJump ? "● Jump [J]" : "Jump [J]";

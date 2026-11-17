@@ -24,7 +24,7 @@ The first tactical slice implements [the confirmed combat design](combat-design.
 | Reverse limit | Walking speed, including when Run is selected |
 | One leg lost | Half movement speed |
 | Simulation step | 0.05 seconds, independent of rendering rate |
-| Preferred distance | Damage-weighted average usable scaled short range, clamped to 90–1,350 metres |
+| Preferred distance | Damage-weighted average usable scaled short range, clamped to 90–1,350 metres, then rounded to the nearest 100 metres within 200–1,800 (the Maintain Range slider's steps) |
 | Distance control | 135–1,890 metres; 15-metre increments |
 | Follow spacing | About 90 metres, with normal terrain and occupied-space clearance |
 | Position tolerances | 12 metres engagement distance; 6 metres arrival |

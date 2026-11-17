@@ -88,14 +88,15 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | Click / drag | Select friendly mechs |
 | Shift+click | Add to / remove from selection |
 | 1–4 / Shift+1–4 | Select / toggle a deployment slot |
-| Right-click ground / enemy / friendly | Move / Attack / Follow |
-| Alt+right-click / Ctrl+right-click | The same order, setting the selection to Walk / Run |
+| Right-click ground / enemy / friendly | Move / set priority target / Follow |
+| Alt+right-click / Ctrl+right-click | The same, setting the selection to Walk / Run |
 | Z | Stop the selection and clear its orders |
 | X / C | Walk / Run |
 | J or **Jump**, then right-click ground | Jump there (Escape cancels) |
 | G / F | Hold fire / Fire at will |
 | **Normal heat** / **Aggressive heat** | Set the selection's heat policy |
-| **Set priority target…**, then right-click an enemy | Set the selection's priority target; **Clear priority target** removes it |
+| **Clear priority target** | Remove the selection's priority target |
+| **Maintain Range** checkbox / slider | Keep (or stop keeping) the preferred distance from the priority target / set that distance |
 | Space | Pause or resume (in co-op, your own pause toggle) |
 | , / . | Resume at 1x / fast-forward at 4x (in co-op, the leader only) |
 | V (co-op) | Ping the ground under the cursor for every player |

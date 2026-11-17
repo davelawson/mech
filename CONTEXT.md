@@ -151,10 +151,10 @@ The forced dissolution of the mercenary force when, at the end of its three-mont
 A destroyed BattleMech recovered from a mission, distinct from an unrecoverable mech, which may retain sale value.
 
 **Attack order**:
-A command to reach and attack a specified target, with the MechWarrior finding a path as necessary.
+An enemy AI order to reach and attack a specified target, with the MechWarrior finding a path as necessary. Players have no Attack order.
 
 **Priority target**:
-A preferred target for a MechWarrior to select when an opportunity presents, without itself directing movement or pursuit.
+A preferred target for a MechWarrior to select when an opportunity presents. It directs movement only through Maintain Range.
 _Avoid_: Attack order
 
 **Salvo**:
@@ -174,7 +174,10 @@ An active friendly BattleMech with its own clear sight to the target of an indir
 The temporary accuracy penalty a PPC hit imposes on every attack its target makes.
 
 **Preferred engagement distance**:
-The player-adjustable distance a MechWarrior attempts to establish and maintain from the target of an attack order.
+The player-adjustable distance a MechWarrior attempts to establish and maintain from its priority target (with Maintain Range) or the target of an enemy's attack order.
+
+**Maintain Range**:
+A per-mech setting under which a player mech with no Move or Follow order keeps its preferred engagement distance from its priority target.
 
 **Last-known position**:
 The position at which an enemy was last detected, which does not track its movement after detection is lost.

@@ -88,7 +88,8 @@ internal static partial class CombatChecks
             unit.Position = new(900, 900); unit.Firing = FiringMode.HoldFire;
             if (unit != f) foreach (var weapon in unit.Weapons) weapon.Enabled = false;
         }
-        f.Position = Vector2.Zero; f.Facing = Vector2.Up; f.Firing = FiringMode.FireAtWill;
+        // This check isolates weapon mounts: the mech stays put rather than keeping range from its priority target.
+        f.Position = Vector2.Zero; f.Facing = Vector2.Up; f.Firing = FiringMode.FireAtWill; f.MaintainRange = false;
         enemies[0].Position = new(0, -180); enemies[1].Position = new(0, 240);
         sim.RefreshDetection(); sim.SetPriority([f.Id], enemies[0].Id);
         var rear = f.Weapons.First(weapon => weapon.Spec.Rear);

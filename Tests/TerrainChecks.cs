@@ -320,6 +320,8 @@ internal static class TerrainChecks
         scout.Position = new Vector2(-30, 180); sim.RefreshDetection();
         check(sim.Detected(friend.Side, enemy.Id) && sim.SelectTarget(friend) is null && sim.TerrainHitChance(friend, enemy, friend.Weapons[0]) == 0,
             "shared contact does not permit a shot through a rock");
+        // The fixture's rock is laid out for a 270 m stand-off, under the old unrounded Jenner default.
+        friend.PreferredDistance = 270;
         sim.Attack([friend.Id], enemy.Id); sim.Paused = false; var clear = true;
         for (var step = 0; step < 1200 && friend.ShotsFired == 0; step++) { sim.Advance(.05); clear &= terrain.Passable(friend.Position); }
         check(clear && friend.ShotsFired > 0 && terrain.ClearSight(friend.Position, enemy.Position), "blocked attack orders navigate to a clear firing position");

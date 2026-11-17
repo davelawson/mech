@@ -1061,7 +1061,8 @@ public partial class CombatViewport : Control
     public override void _Process(double delta)
     {
         if (!IsVisibleInTree() || Simulation is null) return;
-        if (HasFocus() && CommandsEnabled && _windowFocused)
+        // The tactical view has one global focus, so the camera keys work whatever was last clicked.
+        if (CommandsEnabled && _windowFocused)
         {
             var pan = Vector2.Zero;
             if (Input.IsPhysicalKeyPressed(Key.W) || Input.IsPhysicalKeyPressed(Key.Up)) pan.Y--;
@@ -1304,9 +1305,9 @@ public partial class CombatViewport : Control
         }
         // Arrow navigation belongs to the camera, not Control's directional focus traversal.
         if (input is InputEventKey { Pressed: true, Keycode: Key.Up or Key.Down or Key.Left or Key.Right }) AcceptEvent();
-        if (input is InputEventKey { Pressed: true, Keycode: Key.Home })
-        { CancelDrag(); _focus = Vector3.Zero; _yaw = 0; _pitch = DefaultPitch; Camera.Size = 6600; UpdateCamera(); AcceptEvent(); }
     }
+    /// <summary>Home: frame the whole arena from the default angle.</summary>
+    public void ResetToArena() { CancelDrag(); _focus = Vector3.Zero; _yaw = 0; _pitch = DefaultPitch; Camera.Size = 6600; UpdateCamera(); }
     private CombatUnit? RangeTarget => Simulation is not null && InspectedEnemy is { } id && Simulation.Detected(CombatSide.Friendly, id) ? Simulation.Unit(id) : null;
     public IReadOnlyList<(CombatUnit Observer, float Identification, float? Detail)> DetectionRanges
     {

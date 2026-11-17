@@ -7,7 +7,6 @@ namespace Mech;
 /// any other ids are ignored.</summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$command")]
 [JsonDerivedType(typeof(MoveCommand), "move")]
-[JsonDerivedType(typeof(AttackCommand), "attack")]
 [JsonDerivedType(typeof(FollowCommand), "follow")]
 [JsonDerivedType(typeof(JumpCommand), "jump")]
 [JsonDerivedType(typeof(HoldCommand), "hold")]
@@ -16,6 +15,7 @@ namespace Mech;
 [JsonDerivedType(typeof(FiringCommand), "firing")]
 [JsonDerivedType(typeof(HeatPolicyCommand), "heat-policy")]
 [JsonDerivedType(typeof(DistanceCommand), "distance")]
+[JsonDerivedType(typeof(MaintainRangeCommand), "maintain-range")]
 [JsonDerivedType(typeof(WeaponCommand), "weapon")]
 [JsonDerivedType(typeof(PauseCommand), "pause")]
 public abstract record CombatCommand
@@ -35,11 +35,6 @@ public abstract record UnitCommand(string[] Units) : CombatCommand
 public sealed record MoveCommand(string[] Units, Vector2 Destination) : UnitCommand(Units)
 {
     private protected override void Apply(CombatSimulation simulation, CombatUnit[] units) => simulation.Move(Ids(units), Destination);
-}
-
-public sealed record AttackCommand(string[] Units, string Target) : UnitCommand(Units)
-{
-    private protected override void Apply(CombatSimulation simulation, CombatUnit[] units) => simulation.Attack(Ids(units), Target);
 }
 
 public sealed record FollowCommand(string[] Units, string Target) : UnitCommand(Units)
@@ -84,7 +79,16 @@ public sealed record HeatPolicyCommand(string[] Units, HeatPolicy Policy) : Unit
 public sealed record DistanceCommand(string[] Units, float Distance) : UnitCommand(Units)
 {
     private protected override void Apply(CombatSimulation simulation, CombatUnit[] units)
-    { foreach (var unit in units.Where(item => !item.Defeated)) unit.PreferredDistance = Distance; }
+    {
+        // Choosing a range means keeping it.
+        foreach (var unit in units.Where(item => !item.Defeated)) { unit.PreferredDistance = Distance; unit.MaintainRange = true; }
+    }
+}
+
+public sealed record MaintainRangeCommand(string[] Units, bool Maintain) : UnitCommand(Units)
+{
+    private protected override void Apply(CombatSimulation simulation, CombatUnit[] units)
+    { foreach (var unit in units.Where(item => !item.Defeated)) unit.MaintainRange = Maintain; }
 }
 
 /// <summary>Turns one weapon of a mech on or off, by its index in the mech's weapon list.</summary>

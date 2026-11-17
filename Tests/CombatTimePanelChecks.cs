@@ -27,12 +27,15 @@ public partial class SmokeTests
         await Click(tactical.PauseButton);
         Check(sim.Paused && tactical.TimeMode == "Pause", "the pause button pauses, as Space does");
 
-        tactical.PauseButton.GrabFocus();
+        tactical.OpenMenu();
         await PressKey(Key.Period);
-        Check(sim.Paused && sim.TimeScale == 1, "speed hotkeys need battlefield focus");
-        field.GrabFocus();
+        Check(sim.Paused && sim.TimeScale == 1, "speed hotkeys do nothing while a modal is open");
+        await PressKey(Key.Escape);
+        // Clicking a time button leaves no control holding the keyboard: the hotkeys still reach the battle.
+        await Click(tactical.PlayButton); await Click(tactical.PauseButton);
+        Check(sim.Paused && GetViewport().GuiGetFocusOwner() is not BaseButton, "clicked time buttons never take keyboard focus");
         await PressKey(Key.Period);
-        Check(!sim.Paused && sim.TimeScale == 4 && tactical.TimeMode == "4x", ". resumes the battle at 4x");
+        Check(!sim.Paused && sim.TimeScale == 4 && tactical.TimeMode == "4x", ". resumes the battle at 4x right after clicking Pause");
         var from = sim.Elapsed; var started = Time.GetTicksMsec();
         await Delay(.3);
         var rate = (sim.Elapsed - from) / ((Time.GetTicksMsec() - started) / 1000d);
@@ -42,7 +45,7 @@ public partial class SmokeTests
         await PressKey(Key.Comma);
         Check(!sim.Paused && sim.TimeScale == 1 && tactical.TimeMode == "1x", ", resumes the battle at 1x");
         await Click(tactical.FastForwardButton);
-        Check(!sim.Paused && sim.TimeScale == 4 && field.HasFocus(), "the fast-forward button sets 4x and returns focus to the battlefield");
+        Check(!sim.Paused && sim.TimeScale == 4 && !tactical.FastForwardButton.HasFocus(), "the fast-forward button sets 4x without taking focus");
         await Click(tactical.PlayButton);
         Check(sim.TimeScale == 1, "the play button sets 1x");
         await PressKey(Key.Space);

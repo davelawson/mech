@@ -123,18 +123,21 @@ internal static partial class CombatChecks
         check(f.Position != original && f.Moving, "resume executes queued movement");
 
         sim = Battle(); Arrange(sim); f = Friendly(sim); e = Enemy(sim);
+        check(f.MaintainRange && e.MaintainRange, "every mech starts out maintaining range");
+        f.MaintainRange = false;
         sim.SetPriority([f.Id], e.Id); sim.Paused = false; sim.Advance(.1);
-        check(f.Position == Vector2.Zero && f.PriorityTarget == e.Id && f.Order == CombatOrder.Hold, "priority target alone does not cause pursuit");
-        sim.Paused = true; sim.Attack([f.Id], e.Id); f.PreferredDistance = 90;
+        check(f.Position == Vector2.Zero && f.PriorityTarget == e.Id && f.Order == CombatOrder.Hold, "without Maintain Range a priority target does not cause pursuit");
+        sim.Paused = true; f.MaintainRange = true; f.PreferredDistance = 90;
         f.Facing = Vector2.Down; // Already aligned: this check isolates order/target independence.
         sim.Move([f.Id], new Vector2(0, 240));
-        check(f.AttackTarget is null && f.PriorityTarget == e.Id, "Move replaces Attack but retains persistent priority");
+        check(f.Order == CombatOrder.Move && f.PriorityTarget == e.Id, "Move takes over from Maintain Range and keeps the priority target");
         sim.Paused = false; sim.Advance(.1);
         check(f.Position.Y > 0 && Math.Abs(f.Position.X) < .03 && f.ShotsFired > 0, "Move fires opportunistically without diverting");
-        sim.Attack([f.Id], e.Id); sim.Advance(.5);
-        check(f.Position.X > 0 && f.Order == CombatOrder.Attack, "Attack pursues preferred distance");
+        sim.Hold([f.Id]); sim.Advance(.5);
+        check(f.Position.X > 0 && f.Order == CombatOrder.Hold, "an idle mech closes to its preferred distance from its priority target");
         sim.Move([f.Id], f.Position); sim.Advance(.1);
         check(f.Order == CombatOrder.Hold, "completed Move holds position");
+        CheckMaintainRange(check);
 
         CheckTargeting(check);
         CheckExtendedRanges(check);
@@ -169,6 +172,35 @@ internal static partial class CombatChecks
         RunEngagements(check);
     }
     /// <summary>Fast-forward steps the same fixed steps four times as fast, and the battle state carries the speed.</summary>
+    /// <summary>Maintain Range: the slider's steps, backing off, searching where the target was last seen, unchecking, and Hold fire.</summary>
+    private static void CheckMaintainRange(Action<bool, string> check)
+    {
+        check(CombatRules.LowestPreferredStep == 200 && CombatRules.HighestPreferredStep == 1800, "the slider runs from 200 m to 1800 m");
+        check(CombatRules.RoundPreferredDistance(90) == 200 && CombatRules.RoundPreferredDistance(249) == 200
+            && CombatRules.RoundPreferredDistance(250) == 300 && CombatRules.RoundPreferredDistance(1890) == 1800, "defaults round to the nearest slider step");
+
+        var sim = Battle(); Arrange(sim, 150); var f = Friendly(sim); var e = Enemy(sim);
+        f.Firing = FiringMode.HoldFire; f.PreferredDistance = 400;
+        sim.SetPriority([f.Id], e.Id); sim.Paused = false; sim.Advance(10);
+        check(f.Position.X < -50 && f.Order == CombatOrder.Hold, $"a mech too close backs away to its preferred distance ({f.Position})");
+        check(f.ShotsFired == 0, "Hold fire fires at nothing, not even the priority target");
+
+        sim.Execute(new MaintainRangeCommand([f.Id], false));
+        var stopped = f.Position; sim.Advance(3);
+        check(!f.MaintainRange && f.Position.DistanceTo(stopped) < 5, "unchecking Maintain Range leaves the mech where it is");
+        sim.Execute(new DistanceCommand([f.Id], 200));
+        check(f.MaintainRange && f.PreferredDistance == 200, "choosing a distance turns Maintain Range back on");
+
+        // Lost contact: head for the last-known position, keep the priority target, and wait there.
+        sim = Battle(); Arrange(sim, 600); f = Friendly(sim); e = Enemy(sim);
+        f.Firing = FiringMode.HoldFire; f.PreferredDistance = 200;
+        sim.SetPriority([f.Id], e.Id);
+        e.Position = new Vector2(-2700, 2700); sim.RefreshDetection();
+        check(!sim.Detected(CombatSide.Friendly, e.Id), "the priority target slips out of detection");
+        sim.Paused = false; sim.Advance(90);
+        check(f.Position.DistanceTo(new Vector2(600, 0)) < 20 && f.PriorityTarget == e.Id && f.Order == CombatOrder.Hold,
+            $"a mech goes to its lost priority target's last-known position and keeps the target ({f.Position})");
+    }
     private static void CheckTimeScale(Action<bool, string> check, Action<Action, string> reject)
     {
         CombatSimulation Moving()
@@ -337,15 +369,15 @@ internal static partial class CombatChecks
                 $"expanded minimum range preserves proportional penalty severity at {distance} m");
         }
         var jenner = Battle(definition: "jenner");
-        check(jenner.Units.All(unit => unit.PreferredDistance == 270), "both sides prefer the tripled medium-laser short range");
+        check(jenner.Units.All(unit => unit.PreferredDistance == 300), "both sides prefer the tripled medium-laser short range, rounded to 300 m");
         var griffin = Battle(definition: "griffin");
-        check(griffin.Units.All(unit => Math.Abs(unit.PreferredDistance - 585) < .03), "mixed long-range loadouts use expanded preferences beyond the old cap");
+        check(griffin.Units.All(unit => unit.PreferredDistance == 600), "mixed long-range loadouts use expanded preferences beyond the old cap, rounded to 600 m");
         check(jenner.Units.All(unit => Math.Abs(unit.Position.Y) == 1920), "expanded deployment doubles initial separation");
         jenner.EnemyAiEnabled = false;
         foreach (var unit in jenner.Units) unit.Firing = FiringMode.HoldFire;
         f = Friendly(jenner); e = Enemy(jenner); f.Position = Vector2.Zero; e.Position = new(720, 0);
         f.Facing = Vector2.Right; jenner.RefreshDetection(); jenner.Attack([f.Id], e.Id); jenner.Paused = false; jenner.Advance(30);
-        check(Math.Abs(f.Position.DistanceTo(e.Position) - 270) < 15, "Attack settles at the extended stand-off distance rather than the original crowded range");
+        check(Math.Abs(f.Position.DistanceTo(e.Position) - 300) < 15, "Attack settles at the extended stand-off distance rather than the original crowded range");
     }
     private static void CheckDetection(Action<bool, string> check)
     {
