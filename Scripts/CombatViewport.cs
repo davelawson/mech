@@ -1073,7 +1073,8 @@ public partial class CombatViewport : Control
             if (Input.IsPhysicalKeyPressed(Key.Q)) { _yaw -= (float)delta; UpdateCamera(); }
             if (Input.IsPhysicalKeyPressed(Key.E)) { _yaw += (float)delta; UpdateCamera(); }
         }
-        SyncModels(!Simulation.Paused && Simulation.Outcome == CombatOutcome.Ongoing ? (float)delta : 0);
+        // Walk cycles keep pace with the battle speed.
+        SyncModels(!Simulation.Paused && Simulation.Outcome == CombatOutcome.Ongoing ? (float)(delta * Simulation.TimeScale) : 0);
         _audio.Listen(Camera, _focus);
         // A destroyed shooter's beam vanishes at once. Bursts fire their due rounds first so their duration is current.
         foreach (var effect in _effects) FireRounds(effect);

@@ -26,7 +26,14 @@ public partial class CombatScreen : Control
     private Label _biomeClimate = null!;
     public Button LaunchButton { get; private set; } = null!;
     public Button BackButton { get; private set; } = null!;
+    /// <summary>The time panel's buttons, in cassette-player order.</summary>
     public Button PauseButton { get; private set; } = null!;
+    public Button PlayButton { get; private set; } = null!;
+    public Button FastForwardButton { get; private set; } = null!;
+    /// <summary>The mission's elapsed time, at the top of the time panel.</summary>
+    public Label TimeLabel { get; private set; } = null!;
+    /// <summary>The highlighted time button: "Pause" while this player's own toggle holds the battle, otherwise "1x" or "4x".</summary>
+    public string TimeMode { get; private set; } = "Pause";
     public Button MenuButton { get; private set; } = null!;
     public Button ResumeButton { get; private set; } = null!;
     public Button EndButton { get; private set; } = null!;
@@ -91,6 +98,8 @@ public partial class CombatScreen : Control
     private readonly List<string> _forceIds = [];
     private readonly List<(CombatWeapon Weapon, CheckButton Control)> _weaponControls = [];
     private Control _top = null!;
+    private PanelContainer _timePanel = null!;
+    private readonly Dictionary<Button, TimeControlIcon> _timeIcons = [];
     private PanelContainer _sidebar = null!;
     private HBoxContainer _unitBar = null!;
     private Control _shade = null!;
@@ -131,8 +140,18 @@ public partial class CombatScreen : Control
         BattleLog.CloseRequested += ToggleBattleLog;
         _top = new Control(); AddChild(_top);
         _title = Ui.Label(_top, "SIMULATED DEPLOYMENT", 20, Ui.Gold); _title.Position = new Vector2(20, 9);
-        _status = Ui.Label(_top, "Select your force", 13, Ui.Muted); _status.Position = new Vector2(20, 36);
-        PauseButton = Ui.Button(_top, "Resume  [Space]"); PauseButton.Pressed += TogglePause;
+        _status = Ui.Label(_top, "Select your force", 13, Ui.Muted); _status.Position = new Vector2(20, 36); _status.ClipText = true;
+        _timePanel = new PanelContainer(); _top.AddChild(_timePanel);
+        var panelBox = Ui.Box(Ui.Panel, Ui.Line); panelBox.ContentMarginTop = panelBox.ContentMarginBottom = 3;
+        _timePanel.AddThemeStyleboxOverride("panel", panelBox);
+        var timeBody = new VBoxContainer(); timeBody.AddThemeConstantOverride("separation", 0); _timePanel.AddChild(timeBody);
+        TimeLabel = Ui.Label(timeBody, "00:00", 20); TimeLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        var timeButtons = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center }; timeButtons.AddThemeConstantOverride("separation", 4);
+        timeBody.AddChild(timeButtons);
+        PauseButton = TimeButton(timeButtons, TimeControlIcon.Glyph.Pause, "Pause  [Space]"); PauseButton.Pressed += TogglePause;
+        PlayButton = TimeButton(timeButtons, TimeControlIcon.Glyph.Play, "1x  [,]"); PlayButton.Pressed += () => SetSpeed(1);
+        FastForwardButton = TimeButton(timeButtons, TimeControlIcon.Glyph.FastForward, "4x  [.]");
+        FastForwardButton.Pressed += () => SetSpeed(CombatSimulation.FastTimeScale);
         MenuButton = Ui.Button(_top, "Combat menu  [Esc]"); MenuButton.Pressed += OpenMenu;
         _sidebar = new PanelContainer(); _sidebar.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Line)); AddChild(_sidebar);
         var body = RosterUi.Scroll(_sidebar);
@@ -199,14 +218,19 @@ public partial class CombatScreen : Control
     {
         WaitingBanner.Size = Vector2.Zero;
         var banner = WaitingBanner.GetCombinedMinimumSize();
-        Ui.Place(WaitingBanner, (Size.X - banner.X) / 2, 72, banner.X, banner.Y);
+        Ui.Place(WaitingBanner, (Size.X - banner.X) / 2, Math.Max(72, _timePanel.Position.Y + _timePanel.Size.Y + 6), banner.X, banner.Y);
     }
     private void Layout()
     {
         if (_top is null) return;
         var sidebar = Size.X < 1100 ? 280 : 330;
         Ui.Place(_top, 0, 0, Size.X, 66);
-        Ui.Place(PauseButton, Size.X - 360, 14, 160, 38); Ui.Place(MenuButton, Size.X - 190, 14, 174, 38);
+        Ui.Place(MenuButton, Size.X - 190, 14, 174, 38);
+        _timePanel.Size = Vector2.Zero;
+        var timePanel = _timePanel.GetCombinedMinimumSize();
+        Ui.Place(_timePanel, Mathf.Round((Size.X - timePanel.X) / 2), 2, timePanel.X, timePanel.Y);
+        // The status line stops short of the time panel so a long objective never runs under it.
+        Ui.Place(_status, 20, 36, Math.Max(0, _timePanel.Position.X - 36), 22);
         var logWidth = BattleLog.Visible ? Math.Clamp(Size.X * .29f, 290, 420) : 0;
         // Unit cards shrink on short windows so the battlefield keeps its height.
         var unitBar = _unitBarHeight = Math.Clamp(Size.Y * .13f, 78, 124);
@@ -489,6 +513,35 @@ public partial class CombatScreen : Control
         if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing) return;
         Send(new PauseCommand(!Simulation.PauseHolds.Contains(Slot)));
     }
+    /// <summary>Play and Fast-forward: the battle runs at <paramref name="scale"/>, releasing this player's pause.
+    /// In co-op only the leader sets the speed.</summary>
+    public void SetSpeed(double scale)
+    {
+        if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing || !SetsSpeed) return;
+        Simulation.TimeScale = scale;
+        if (Simulation.PauseHolds.Contains(Slot)) Send(new PauseCommand(false));
+        RefreshDetails(); Battlefield.GrabFocus();
+    }
+    private bool SetsSpeed => !Coop || Leading;
+    private Button TimeButton(Node parent, TimeControlIcon.Glyph glyph, string tooltip)
+    {
+        var button = Ui.Button(parent, ""); button.CustomMinimumSize = new Vector2(40, 28); button.TooltipText = tooltip;
+        var icon = new TimeControlIcon(glyph); button.AddChild(icon); _timeIcons[button] = icon;
+        return button;
+    }
+    private void RefreshTimePanel()
+    {
+        var elapsed = TimeSpan.FromSeconds(Simulation!.Elapsed);
+        TimeLabel.Text = elapsed.TotalHours >= 1 ? elapsed.ToString(@"h\:mm\:ss") : elapsed.ToString(@"mm\:ss");
+        TimeMode = Simulation.PauseHolds.Contains(Slot) ? "Pause" : Simulation.TimeScale == CombatSimulation.FastTimeScale ? "4x" : "1x";
+        _timeIcons[PauseButton].Color = TimeMode == "Pause" ? Ui.Gold : Ui.Muted;
+        _timeIcons[PlayButton].Color = TimeMode == "1x" ? Ui.Gold : Ui.Muted;
+        _timeIcons[FastForwardButton].Color = TimeMode == "4x" ? Ui.Gold : Ui.Muted;
+        const string leaderOnly = " · Only the leader sets the battle speed.";
+        PlayButton.Disabled = FastForwardButton.Disabled = !SetsSpeed;
+        PlayButton.TooltipText = "1x  [,]" + (SetsSpeed ? "" : leaderOnly);
+        FastForwardButton.TooltipText = "4x  [.]" + (SetsSpeed ? "" : leaderOnly);
+    }
     public void OpenMenu()
     {
         if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing) return;
@@ -647,6 +700,9 @@ public partial class CombatScreen : Control
             return true;
         }
         if (key.Keycode == Key.Space && Modal == CombatModal.None && Battlefield.HasFocus()) { TogglePause(); return true; }
+        var speedKey = key.PhysicalKeycode != Key.None ? key.PhysicalKeycode : key.Keycode;
+        if (speedKey is Key.Comma or Key.Period && Modal == CombatModal.None && Battlefield.HasFocus())
+        { SetSpeed(speedKey == Key.Comma ? 1 : CombatSimulation.FastTimeScale); return true; }
         if (Simulation is null || Modal != CombatModal.None || key.CtrlPressed || key.AltPressed || key.MetaPressed) return false;
         // Preserve typing in the preferred-distance input; other combat controls share these shortcuts.
         if (GetViewport().GuiGetFocusOwner() is LineEdit or TextEdit) return false;
@@ -708,16 +764,16 @@ public partial class CombatScreen : Control
     private void RefreshDetails()
     {
         if (Simulation is null) return;
-        _status.Text = $"{(Simulation.Paused ? $"PAUSED{PauseHolders} · orders available" : "LIVE")}  |  {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}"
+        _status.Text = $"{(Simulation.Paused ? $"PAUSED{PauseHolders} · orders available" : "LIVE")}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}"
             + (Simulation.PatrolObjectiveText() is { } objective ? $"  |  {objective}" : "");
-        // The button shows the local player's own toggle; the battle stays paused while any player holds one.
-        PauseButton.Text = Simulation.PauseHolds.Contains(Slot) ? "Resume  [Space]" : "Pause  [Space]";
+        // The time panel shows the local player's own toggle; the battle stays paused while any player holds one.
+        RefreshTimePanel();
         // Jump targeting lapses once no selected unit can still jump.
         if (SettingJump && JumpUnavailable() is not null) SettingJump = false;
         Battlefield.JumpArmed = SettingJump;
         _help.Text = SettingPriority ? "PRIORITY TARGET: right-click a detected enemy. This changes target preference without ordering pursuit. Escape cancels."
             : SettingJump ? "JUMP: right-click the ground to jump there, within each mech's range circle. Attack and Follow orders resume on landing. Escape cancels."
-            : $"Click / drag / 1–4: select · Shift: toggle · Right-click: Move / Attack / Follow (Alt: walk · Ctrl: run) · Z: stop · X/C: walk/run · J: jump · G/F: hold/fire at will · Space: pause{(Coop ? " · V: ping" : "")} · WASD / arrows / middle-drag: pan (Shift: fast) · Wheel: zoom · Right-drag / Q/E: orbit · `: frame selection · ~: battle log · Home: arena";
+            : $"Click / drag / 1–4: select · Shift: toggle · Right-click: Move / Attack / Follow (Alt: walk · Ctrl: run) · Z: stop · X/C: walk/run · J: jump · G/F: hold/fire at will · Space: pause · ,/.: 1x/4x{(Coop ? " · V: ping" : "")} · WASD / arrows / middle-drag: pan (Shift: fast) · Wheel: zoom · Right-drag / Q/E: orbit · `: frame selection · ~: battle log · Home: arena";
         var friends = OwnUnits.ToArray();
         for (var i = 0; i < UnitButtons.Count; i++)
         {

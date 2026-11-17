@@ -70,6 +70,7 @@ internal static partial class CombatChecks
             .All(pair => pair.First.Spec == pair.Second.Spec && pair.First.Warrior == pair.Second.Warrior), "opposition mirrors definitions and warrior skills");
         Reject(() => Deploy(roster, []), "empty deployment rejected");
         CheckLances(check, Reject);
+        CheckTimeScale(check, Reject);
         Reject(() => Deploy(roster, ["mech-1", "mech-1"]), "duplicate deployment rejected");
         Reject(() => Deploy(roster, ["unknown"]), "unknown deployment rejected");
         var tooMany = Roster(5);
@@ -166,6 +167,29 @@ internal static partial class CombatChecks
         CheckCriticalHits(check);
         CheckKnockdowns(check);
         RunEngagements(check);
+    }
+    /// <summary>Fast-forward steps the same fixed steps four times as fast, and the battle state carries the speed.</summary>
+    private static void CheckTimeScale(Action<bool, string> check, Action<Action, string> reject)
+    {
+        CombatSimulation Moving()
+        {
+            var sim = Battle(2); Arrange(sim); sim.Paused = false;
+            var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).Select(unit => unit.Id).ToArray();
+            sim.Execute(new MoveCommand(friends, new Vector2(0, 600)));
+            return sim;
+        }
+        var normal = Moving(); var fast = Moving();
+        check(fast.TimeScale == 1 && fast.State().TimeScale == 1, "a battle starts at 1x");
+        fast.TimeScale = CombatSimulation.FastTimeScale;
+        for (var i = 0; i < 4; i++) normal.Advance(1);
+        fast.Advance(1);
+        check(Math.Abs(fast.Elapsed - 4) < 1e-6 && Math.Abs(normal.Elapsed - fast.Elapsed) < 1e-6
+            && normal.Units.Zip(fast.Units).All(pair => pair.First.Position.DistanceTo(pair.Second.Position) < 1e-3),
+            "one second at 4x is the same battle as four seconds at 1x");
+        check(fast.State().TimeScale == 4, "the battle state carries the speed");
+        reject(() => fast.TimeScale = 2, "only 1x and 4x are battle speeds");
+        fast.Paused = true; fast.Advance(1);
+        check(Math.Abs(fast.Elapsed - 4) < 1e-6, "a paused battle stays still at 4x");
     }
     private static void CheckRandomizedOpposition(Action<bool, string> check)
     {

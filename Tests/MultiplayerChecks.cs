@@ -228,10 +228,14 @@ public partial class SmokeTests
         tactical.SelectUnits(battle.Units.Where(unit => unit.Lance == 1).Select(unit => unit.Id).ToArray(), false);
         Check(tactical.Selected.Count == 0, "the leader cannot select another player's mechs");
         tactical.TogglePause(); await Frames();
-        Check(battle.Paused && tactical.PauseButton.Text.StartsWith("Pause"), "the leader's toggle is off while the other player's holds the battle");
+        Check(battle.Paused && tactical.TimeMode != "Pause", "the leader's toggle is off while the other player's holds the battle");
         sam.Send(new PauseCommand(false));
         await Exchange(() => !battle.Paused, "the battle runs once both toggles are off", client: sam);
         await Exchange(() => sam.Battle!.Elapsed > 0, "the running battle reaches the other player", client: sam);
+        tactical.Battlefield.GrabFocus(); await PressKey(Key.Period);
+        await Exchange(() => battle.TimeScale == 4 && sam.Battle!.TimeScale == 4, "the leader's fast-forward reaches the other player", client: sam);
+        await PressKey(Key.Comma);
+        await Exchange(() => sam.Battle!.TimeScale == 1, "the leader's 1x reaches the other player", client: sam);
         sam.Ping(new Vector2(0, 100));
         await Exchange(() => tactical.Battlefield.Pings.Any(ping => ping.Label == "Sam"), "the other player's ping appears on the leader's battlefield", client: sam);
         int? pinged = null; sam.Pinged += (slot, _) => pinged = slot;
@@ -270,6 +274,11 @@ public partial class SmokeTests
             "the joined player commands their own lance on the leader's terrain");
         tactical.TogglePause();
         await Exchange(() => !battle.PauseHolds.Contains(1), "the joined player's pause toggle reaches the leader", host);
+        await Frames();
+        Check(tactical.PlayButton.Disabled && tactical.FastForwardButton.Disabled && !tactical.PauseButton.Disabled
+            && tactical.FastForwardButton.TooltipText.Contains("Only the leader"), "only the leader sets the battle speed");
+        tactical.Battlefield.GrabFocus(); await PressKey(Key.Period); tactical.SetSpeed(CombatSimulation.FastTimeScale);
+        Check(tactical.Simulation!.TimeScale == 1 && battle.TimeScale == 1, "the joined player's speed keys and buttons do nothing");
         tactical.IssueCommand(new Vector2(0, 0), null);
         await Exchange(() => mine.All(id => battle.Unit(id).Order == CombatOrder.Move), "the joined player's orders reach the leader's battle", host);
         await Exchange(() => tactical.Simulation!.Units.Where(unit => mine.Contains(unit.Id)).All(unit => unit.Order == CombatOrder.Move), "the joined player sees their orders carried out", host);

@@ -150,6 +150,7 @@ public partial class SmokeTests
         await PressKey(Key.Space); Check(sim.Paused, "Space pauses resumed combat");
         await PressKey(Key.Escape); await PressKey(Key.Escape);
         Check(sim.Paused && tactical.Modal == CombatModal.None, "menu Resume preserves an already-paused state");
+        await TestTimePanel();
 
         // Bring a contact into view to exercise attack/priority and enemy inspection through mouse input.
         var enemy = sim.Units.First(item => item.Side == CombatSide.Enemy);

@@ -20,7 +20,9 @@ Status: confirmed October 25, 2026. The initial design interview is complete. Th
 - MechWarriors automatically choose and fire ready, enabled weapons within the selected Normal or Aggressive heat policy. The player may enable or disable individual weapons. The confirmed heat extension below specifies limits and volley selection.
 - Provisional pacing targets are five to ten minutes for an ordinary engagement, excluding pauses, and roughly ten-second cycles for major weapons. These are tuning targets, not settled per-weapon statistics.
 - Manual pause allows inspection and all normal commands. Orders issued while paused take effect when time resumes, without a separate planning-phase commitment.
-- The first slice provides pause and normal speed. Additional speeds and automatic pause triggers are deferred.
+- The battle runs at 1x or 4x (fast-forward), and starts paused at 1x. Fast-forward runs the same fixed simulation steps four times as often, so the battle plays out identically and only real time is shortened. Walk cycles speed up with it. Automatic pause triggers are deferred.
+- **Time panel.** A small panel at the top center of the tactical view shows the mission's elapsed time (`mm:ss`, `h:mm:ss` past an hour). Beneath it are three cassette-style icon buttons: Pause (two vertical bars, Space), Play (a right-pointing triangle, 1x, `,`) and Fast-forward (two right-pointing triangles, 4x, `.`). The tooltips name each speed and hotkey. Pause toggles exactly as Space does. Play and Fast-forward set their speed and release the player's own pause. The icon for the current state is gold: Pause while the player's own toggle is on, otherwise the running speed. Speed is kept while paused. Like Space, the hotkeys act only while the battlefield has focus.
+- In co-op only the leader sets the speed. It travels with the leader's battle state, and each replica runs its clock at that speed between states. Other players' Play and Fast-forward buttons are disabled and say so, and their `,` and `.` do nothing. Every player keeps their own pause toggle.
 - An explicit Attack order authorizes firing at its target even with Hold fire set. Hold fire still suppresses opportunistic shots at other enemies; individually disabled weapons remain disabled regardless of orders.
 - Mechs without active orders hold position and fire opportunistically according to their firing setting and priority target; they do not autonomously pursue enemies. Completing a move returns a mech to this behavior.
 - Losing detection of an attack target sends the attacking mech to the last-known position without tracking hidden movement. Reacquiring that target resumes pursuit; otherwise arrival ends the order. Opportunistic fire at other detected enemies is permitted during this movement.
@@ -184,7 +186,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 - Infantry, vehicles, aircraft, and other combatant types.
 - Heat damage and heat-triggered ammunition explosions, water cooling bonuses, ammunition consumption, falls, Death from Above, and MechWarrior casualties beyond death and [injury](#critical-hits-confirmed-november-14-2026).
 - Physical projectile collision, friendly fire, melee, called shots, deliberate ammunition dumping, and other special actions.
-- Separate sensor/visual contacts, additional stances, formations, coordinated enemy tactics, additional time speeds, and automatic pause triggers.
+- Separate sensor/visual contacts, additional stances, formations, coordinated enemy tactics, speeds other than 1x and 4x, and automatic pause triggers.
 - Deployment placement, an opponent editor, tactical retreat/recovery mechanics, and saving in-progress simulations.
 - Campaign mission launch, persistent battle consequences, and objective types beyond destroying the enemy and [patrols](#patrols-confirmed-november-13-2026).
 

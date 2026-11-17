@@ -388,6 +388,15 @@ public sealed partial class CombatSimulation
         get => _pauseHolds.Count > 0;
         set { _pauseHolds.Clear(); if (value) _pauseHolds.UnionWith(Players); }
     }
+    /// <summary>Simulation seconds per real second: 1 or 4. The leader sets it in co-op, and replicas take it from the leader's state.</summary>
+    public double TimeScale
+    {
+        get => _timeScale;
+        set => _timeScale = value is 1 or FastTimeScale ? value : throw new ArgumentOutOfRangeException(nameof(value), "The battle runs at 1x or 4x.");
+    }
+    private double _timeScale = 1;
+    /// <summary>The fast-forward speed.</summary>
+    public const double FastTimeScale = 4;
     /// <summary>The player slots commanding friendly lances in this battle.</summary>
     public IReadOnlyList<int> Players { get; }
     /// <summary>The player slots whose pause toggle is on. Every toggle starts on.</summary>
@@ -637,7 +646,7 @@ public sealed partial class CombatSimulation
         if (!double.IsFinite(delta) || delta < 0) throw new ArgumentOutOfRangeException(nameof(delta));
         if (Replica) { AdvanceReplica(delta); return; }
         if (Paused || Outcome != CombatOutcome.Ongoing) return;
-        _accumulator += delta;
+        _accumulator += delta * TimeScale;
         while (_accumulator + 1e-9 >= CombatRules.StepSeconds && Outcome == CombatOutcome.Ongoing)
         { _accumulator -= CombatRules.StepSeconds; Step((float)CombatRules.StepSeconds); }
     }

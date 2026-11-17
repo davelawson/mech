@@ -97,6 +97,7 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | **Normal heat** / **Aggressive heat** | Set the selection's heat policy |
 | **Set priority target…**, then right-click an enemy | Set the selection's priority target; **Clear priority target** removes it |
 | Space | Pause or resume (in co-op, your own pause toggle) |
+| , / . | Resume at 1x / fast-forward at 4x (in co-op, the leader only) |
 | V (co-op) | Ping the ground under the cursor for every player |
 | **Stop Waiting** (co-op leader) | End the game while a player is disconnected; the campaign resumes from the mission-start save |
 | WASD / arrows, middle-drag | Pan (hold Shift for 5× speed) |

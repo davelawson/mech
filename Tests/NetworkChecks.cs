@@ -56,7 +56,25 @@ internal static class NetworkChecks
         CheckHostAddress(check);
     }
     /// <summary>A whole battle replayed on a replica and matched field by field, the longest single check.</summary>
-    public static void RunReplica(Action<bool, string> check) => CheckReplica(check);
+    public static void RunReplica(Action<bool, string> check) { CheckReplica(check); CheckReplicaSpeed(check); }
+
+    /// <summary>A replica takes the leader's battle speed and runs its clock at it between states.</summary>
+    private static void CheckReplicaSpeed(Action<bool, string> check)
+    {
+        var roster = InitialDraft.CreateRandom(new Random(4)).Establish();
+        var force = roster.LanceMechs(0).Select(mech => mech.Id).ToArray();
+        CombatSimulation Deploy() => CombatSimulation.Deploy(roster, force, seed: 9, terrainSeed: 12);
+        var battle = Deploy(); var replica = Deploy(); replica.BecomeReplica();
+        battle.Paused = false; battle.TimeScale = CombatSimulation.FastTimeScale;
+        battle.Advance(CombatSimulation.StateInterval);
+        var state = ((BattleStateMessage)NetProtocol.Decode(NetProtocol.Encode(new BattleStateMessage(battle.State())))!).State;
+        replica.Apply(state);
+        var clock = replica.Clock; replica.Advance(CombatSimulation.StateInterval / 2);
+        check(replica.TimeScale == 4 && Math.Abs(replica.Clock - clock - 2 * CombatSimulation.StateInterval) < 1e-6,
+            $"a replica runs at the leader's 4x between states (clock +{replica.Clock - clock:0.000}s)");
+        battle.TimeScale = 1; replica.Apply(battle.State());
+        check(replica.TimeScale == 1, "a replica returns to 1x with the leader");
+    }
 
     private static void CheckHostAddress(Action<bool, string> check)
     {

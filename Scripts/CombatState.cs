@@ -19,7 +19,7 @@ public sealed record CombatContactState(CombatSide Side, string UnitId, ContactL
 
 /// <summary>A battle as the leader's machine last stepped it, with the log entries from <see cref="HistoryStart"/> on.</summary>
 public sealed record CombatState(double Elapsed, CombatOutcome Outcome, double? WindDownEnds, int[] PauseHolds, CombatUnitState[] Units,
-    CombatContactState[] Contacts, int HistoryStart, CombatLogEntry[] History, PatrolProgress? Patrol = null);
+    CombatContactState[] Contacts, int HistoryStart, CombatLogEntry[] History, PatrolProgress? Patrol = null, double TimeScale = 1);
 
 public sealed partial class CombatUnit
 {
@@ -91,7 +91,7 @@ public sealed partial class CombatSimulation
         return new(Elapsed, Outcome, WindDownEnds, [.. _pauseHolds.Order()], Units.Select(unit => unit.State()).ToArray(),
             _contacts.SelectMany(side => side.Value.Values.Select(contact => new CombatContactState(side.Key, contact.UnitId, contact.Level,
                 contact.LastKnownPosition, contact.LastSeenAt))).ToArray(),
-            historyStart, _history.Skip(historyStart).ToArray(), Patrol?.Progress());
+            historyStart, _history.Skip(historyStart).ToArray(), Patrol?.Progress(), TimeScale);
     }
 
     /// <summary>A replica takes on the leader's battle: log entries it lacks are added and their shots fired, in order.</summary>
@@ -106,7 +106,8 @@ public sealed partial class CombatSimulation
         if (state.Patrol is { } progress) Patrol!.Apply(progress);
         var clock = Clock;
         Elapsed = state.Elapsed; Outcome = state.Outcome; WindDownEnds = state.WindDownEnds;
-        _accumulator = Math.Clamp(clock - Elapsed, 0, ReplicaLead);
+        TimeScale = state.TimeScale;
+        _accumulator = Math.Clamp(clock - Elapsed, 0, ReplicaLead * TimeScale);
         _pauseHolds.Clear(); _pauseHolds.UnionWith(state.PauseHolds);
         foreach (var item in state.Units)
         {
@@ -126,7 +127,8 @@ public sealed partial class CombatSimulation
     private void AdvanceReplica(double delta)
     {
         if (Paused || Outcome != CombatOutcome.Ongoing) { Blend(1); return; }
-        _sinceState += delta; _accumulator = Math.Min(ReplicaLead, _accumulator + delta);
+        // States arrive on real time, while the clock runs at the leader's speed.
+        _sinceState += delta; _accumulator = Math.Min(ReplicaLead * TimeScale, _accumulator + delta * TimeScale);
         Blend((float)Math.Min(1, _sinceState / StateInterval));
     }
 
