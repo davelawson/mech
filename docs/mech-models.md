@@ -212,6 +212,8 @@ Hovering a front or rear region shows a tooltip headed by the location name, lis
 
 Each combat unit card shows a compact doll: the same regions and colours with the rear-torso strip moved 26 units left to sit beside the front view, and no labels, legend or tooltip. It is centred beneath the callsign and chassis lines, filling the card height the two text lines leave. The unit bar is 13% of the screen height, between 78 and 124 pixels, so short windows keep battlefield height; at the minimum the doll is about 24 pixels tall.
 
+Both dolls draw a [jump-fuel and a heat bar](combat-design.md#heat-and-jump-fuel-bars-confirmed-november-17-2026) inside their own control, and shrink the schematic to leave room for them. The fuel bar sits outside the doll's left edge and the heat bar outside its right edge (beyond the rear-torso inset in the sidebar), with a gap of 0.6 bar widths. On cards a bar spans the compact doll's height and is 10% of the doll height wide, 5–8 pixels; in the sidebar it spans the front schematic from head to feet and is 5% of the control height wide, 10–16 pixels. The icon, twice the bar width, takes the bottom of that span. Fill colours are pale blue `#a8d8f0` for fuel and the damage colours `#f1d34c`, `#ef8a32` and `#e84c43` for heat; the track is `#121a18` with a `#62706b` outline and `#c8cdcb` ticks. The icons are white SVGs in `Assets/Icons/` (`jump-fuel.svg`, `heat.svg`) tinted at draw time.
+
 An outer band represents armor and the inner core represents structure, independently. Each uses the stock maximum in `MechSpec.Locations`, including when a unit deploys already damaged. Deployment-time condition is not a maximum.
 
 | Remaining fraction | Color |

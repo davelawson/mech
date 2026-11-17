@@ -34,7 +34,24 @@ public partial class SmokeTests
             Check(tactical.NormalHeatButton.IsVisibleInTree() && tactical.AggressiveHeatButton.IsVisibleInTree(), "single shut-down selection retains command and heat controls");
             tactical.AggressiveHeatButton.EmitSignal(BaseButton.SignalName.Pressed);
             Check(friends[0].HeatPolicy == HeatPolicy.Aggressive, "shutdown policy can be changed before restart");
-            Check(tactical.UnitButtons[0].Text.Contains("H 35.0") && tactical.UnitButtons[0].TooltipText.Contains("Automatic restart below 10"), "friendly card shows excess heat and restart information");
+            Check(!tactical.UnitButtons[0].Text.Contains("H 35.0") && tactical.UnitButtons[0].TooltipText.Contains("Automatic restart below 10"),
+                "friendly card leaves heat to its bar and keeps restart information in the tooltip");
+            Check(CombatPaperdoll.HeatColor(9.9) == CombatPaperdoll.LightDamage && CombatPaperdoll.HeatColor(10) == CombatPaperdoll.ModerateDamage
+                && CombatPaperdoll.HeatColor(19.9) == CombatPaperdoll.ModerateDamage && CombatPaperdoll.HeatColor(20) == CombatPaperdoll.CriticalDamage,
+                "heat bar is yellow below 10, orange below 20 and red from 20");
+            Check(CombatPaperdoll.HeatFraction(friends[0]) == 1 && CombatPaperdoll.HeatFraction(friends[2]) == 0, "heat bar fills to the shutdown threshold and caps there");
+            await Frames();
+            foreach (var doll in tactical.UnitDolls.Append(tactical.Paperdoll))
+            {
+                var bounds = new Rect2(Vector2.Zero, doll.Size);
+                var heatBar = doll.HeatBarRect; var fuelBar = doll.FuelBarRect;
+                var shapes = Enumerable.Range(0, (int)doll.Size.X).Where(x => doll.LocationAt(new(x, heatBar.GetCenter().Y)) is not null || doll.LocationAt(new(x, fuelBar.GetCenter().Y)) is not null).ToArray();
+                Check(bounds.Encloses(heatBar) && bounds.Encloses(fuelBar) && fuelBar.End.X < heatBar.Position.X && heatBar.Size.Y > 0
+                    && shapes.Length > 0 && fuelBar.End.X <= shapes.Min() && heatBar.Position.X >= shapes.Max(),
+                    $"{(doll.Compact ? "card" : "sidebar")} doll keeps fuel left and heat right of its schematic, inside the control: size {doll.Size} fuel {fuelBar} heat {heatBar} shapes {(shapes.Length > 0 ? $"{shapes.Min()}–{shapes.Max()}" : "none")}");
+                Check(!doll.ShowsFuel, "mechs without jump jets reserve an empty fuel slot");
+            }
+            Check(tactical.Paperdoll.HeatBarRect.Size.X > tactical.UnitDolls[0].HeatBarRect.Size.X, "sidebar bars are wider than card bars");
             Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.IsVisibleInTree()
                 && label.Text.Contains(CombatScreen.HeatReadout(friends[0]))), "selected details show heat band, policy, effective cooling and restart threshold");
             var toggle = tactical.FindChildren("*", "CheckButton", true, false).OfType<CheckButton>().First();

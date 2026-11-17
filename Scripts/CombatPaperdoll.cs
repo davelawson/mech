@@ -13,6 +13,7 @@ public sealed record SystemGroup(int Count, string Name, ComponentCondition Cond
 /// <summary>
 /// A shared front/rear schematic. The armor rim and internal core are independent.
 /// Compact dolls (unit cards) draw only the regions; the full doll lists each location's systems on hover.
+/// Both carry a jump-fuel bar on the left and a heat bar on the right, without text.
 /// </summary>
 public partial class CombatPaperdoll : Control
 {
@@ -28,6 +29,19 @@ public partial class CombatPaperdoll : Control
         system.StatusText == "Critically damaged" ? ModerateDamage : SystemColor(system.Condition);
     public static Color ConditionColor(int remaining, int maximum) => remaining >= maximum ? Full
         : remaining * 3 > maximum * 2 ? LightDamage : remaining * 3 > maximum ? ModerateDamage : CriticalDamage;
+    public static readonly Color FuelColor = new("a8d8f0"), BarTrack = new("121a18"), BarTick = new("c8cdcb");
+    /// <summary>Heat colour by band: yellow below 10, orange below 20, red from 20.</summary>
+    public static Color HeatColor(double heat) => heat < CombatRules.WarmHeat ? LightDamage : heat < CombatRules.HotHeat ? ModerateDamage : CriticalDamage;
+    /// <summary>The heat bar's fill, full at the shutdown threshold.</summary>
+    public static float HeatFraction(CombatUnit unit) => (float)Math.Clamp(unit.Heat / CombatRules.ShutdownHeat, 0, 1);
+    /// <summary>Jump readiness as "fuel": empty from takeoff, refilling over the recharge after landing.</summary>
+    public static float FuelFraction(CombatUnit unit) => unit.Airborne ? 0
+        : (float)Math.Clamp(1 - unit.JumpRecharge / CombatRules.JumpRechargeSeconds, 0, 1);
+    /// <summary>Only friendly mechs with jump jets show fuel; the slot stays reserved otherwise.</summary>
+    public bool ShowsFuel => Unit is { Side: CombatSide.Friendly, Spec.Jump: > 0 };
+    private static Texture2D? _fuelIcon, _heatIcon;
+    private static Texture2D FuelIcon => _fuelIcon ??= GD.Load<Texture2D>("res://Assets/Icons/jump-fuel.svg");
+    private static Texture2D HeatIcon => _heatIcon ??= GD.Load<Texture2D>("res://Assets/Icons/heat.svg");
     private static readonly Dictionary<MechLocation, Vector2[]> Shapes = new()
     {
         [MechLocation.Head] = [new(76, 25), new(102, 25), new(106, 36), new(100, 49), new(78, 49), new(72, 36)],
@@ -80,9 +94,27 @@ public partial class CombatPaperdoll : Control
             .Select(item => item with { Status = item.Status == item.Condition.ToString() ? null : item.Status })
             .GroupBy(item => item).Select(group => new SystemGroup(group.Count(), group.Key.Name, group.Key.Condition, group.Key.Status)).ToArray();
     }
-    private float DrawScale => Compact ? Math.Min(Size.X / CompactBounds.Size.X, Size.Y / CompactBounds.Size.Y) : Math.Min(Size.X / 300, Size.Y / 244);
+    // The full doll's front schematic spans these heights; the bars run alongside it, outside the arms and rear inset.
+    private const float FullLeft = 7, FullRight = 288, FullTop = 25, FullBottom = 208;
+    /// <summary>Bar width in pixels: about 5–8 on a card, twice that in the sidebar.</summary>
+    private float BarWidth => Compact ? Math.Clamp(Size.Y * .1f, 5, 8) : Math.Clamp(Size.Y * .05f, 10, 16);
+    private float BarGap => BarWidth * .6f;
+    private float DrawScale => Compact ? Math.Min(Math.Max(1, Size.X - 2 * (BarWidth + BarGap + 1)) / CompactBounds.Size.X, Size.Y / CompactBounds.Size.Y)
+        : Math.Min(Math.Max(1, Size.X - 2 * (BarWidth + BarGap + 1)) / (FullRight - FullLeft), Size.Y / 244);
     private Vector2 Origin => Compact ? (Size - CompactBounds.Size * DrawScale) / 2 - CompactBounds.Position * DrawScale
-        : new Vector2((Size.X - 300 * DrawScale) / 2, 0);
+        : new Vector2((Size.X - (FullRight - FullLeft) * DrawScale) / 2 - FullLeft * DrawScale, 0);
+    /// <summary>The whole fuel bar slot, icon included, beside the doll's left edge.</summary>
+    public Rect2 FuelBarRect => BarSlot(left: true);
+    /// <summary>The whole heat bar slot, icon included, beside the doll's right edge.</summary>
+    public Rect2 HeatBarRect => BarSlot(left: false);
+    private Rect2 BarSlot(bool left)
+    {
+        var scale = DrawScale; var origin = Origin;
+        var (minX, maxX, top, bottom) = Compact ? (CompactBounds.Position.X, CompactBounds.End.X, CompactBounds.Position.Y, CompactBounds.End.Y)
+            : (FullLeft, FullRight, FullTop, FullBottom);
+        var x = left ? origin.X + minX * scale - BarGap - BarWidth : origin.X + maxX * scale + BarGap;
+        return new Rect2(x, origin.Y + top * scale, BarWidth, (bottom - top) * scale);
+    }
     /// <summary>The location drawn under a point in this control's coordinates, front or rear.</summary>
     public MechLocation? LocationAt(Vector2 at)
     {
@@ -114,6 +146,23 @@ public partial class CombatPaperdoll : Control
             Ui.Label(box, system.Condition == ComponentCondition.Operational ? system.Text : $"{system.Text} · {system.StatusText}", 12, SystemColor(system));
         return box;
     }
+    /// <summary>A vertical bar filling from the bottom, with its tinted icon beneath it in the same slot.</summary>
+    private void Bar(Rect2 slot, float fraction, Color color, Texture2D icon, bool ticks)
+    {
+        var iconSize = Math.Min(slot.Size.X * 2, slot.Size.Y * .4f);
+        var track = new Rect2(slot.Position, new Vector2(slot.Size.X, Math.Max(1, slot.Size.Y - iconSize - 2)));
+        DrawRect(track, BarTrack);
+        var fill = track.Size.Y * fraction;
+        if (fill > 0) DrawRect(new Rect2(track.Position.X, track.End.Y - fill, track.Size.X, fill), color);
+        if (ticks)
+            foreach (var heat in new[] { CombatRules.WarmHeat, CombatRules.HotHeat })
+            {
+                var y = track.End.Y - track.Size.Y * (float)(heat / CombatRules.ShutdownHeat);
+                DrawLine(new(track.Position.X, y), new(track.End.X, y), BarTick, 1);
+            }
+        DrawRect(track, new Color("62706b"), false, 1);
+        DrawTextureRect(icon, new Rect2(slot.Position.X + (slot.Size.X - iconSize) / 2, slot.End.Y - iconSize, iconSize, iconSize), false, color);
+    }
     public override void _Draw()
     {
         if (Unit is null) return;
@@ -142,6 +191,8 @@ public partial class CombatPaperdoll : Control
             DrawString(ThemeDB.FallbackFont, At(center) + new Vector2(-textWidth / 2, fontSize * .35f), abbreviation,
                 HorizontalAlignment.Left, -1, fontSize, state.Structure > 0 ? new Color("101916") : Ui.Muted);
         }
+        if (ShowsFuel) Bar(FuelBarRect, FuelFraction(Unit), FuelColor, FuelIcon, false);
+        Bar(HeatBarRect, HeatFraction(Unit), HeatColor(Unit.Heat), HeatIcon, true);
         foreach (var (location, shape) in Shapes) Region(location, shape, false);
         foreach (var (location, shape) in RearShapes)
             Region(location, Compact ? shape.Select(point => point + CompactRearShift).ToArray() : shape, true);

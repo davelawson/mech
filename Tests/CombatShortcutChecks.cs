@@ -117,6 +117,8 @@ public partial class SmokeTests
             $"mechs without jump jets cannot arm a jump and say why: {tactical.JumpButton.TooltipText}");
         Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Jump: no jump jets")),
             "selected details report a mech without jump jets");
+        Check(tactical.UnitDolls.Single(doll => doll.Unit == jumper).ShowsFuel && !tactical.UnitDolls.Single(doll => doll.Unit == grounded).ShowsFuel
+            && CombatPaperdoll.FuelFraction(jumper) == 1, "only jump-capable cards show a fuel bar, full while ready");
         tactical.SelectUnits([jumper.Id], false); field.GrabFocus();
         await PressKey(Key.J);
         Check(tactical.SettingJump && field.JumpArmed && tactical.JumpButton.Text.StartsWith("●"),
@@ -136,8 +138,11 @@ public partial class SmokeTests
         await Capture("combat-jump-flight");
         Check(jumper.Altitude > 10 && tactical.JumpButton.Disabled && tactical.JumpButton.TooltipText.Contains("Airborne"),
             $"the mech rises in flight and cannot jump again until it lands: {tactical.JumpButton.TooltipText}");
+        Check(CombatPaperdoll.FuelFraction(jumper) == 0 && tactical.Paperdoll.ShowsFuel, "the fuel bar empties from takeoff");
         tactical.SelectUnits([jumper.Id, grounded.Id], false); await Frames();
         Check(tactical.JumpButton.Disabled, "a group with no mech able to jump cannot arm a jump");
+        sim.Paused = false; sim.Advance(jumper.JumpDuration + CombatRules.JumpRechargeSeconds / 2 - 1); sim.Paused = true;
+        Check(!jumper.Airborne && CombatPaperdoll.FuelFraction(jumper) is > .3f and < .7f, $"the fuel bar refills over the recharge after landing: {CombatPaperdoll.FuelFraction(jumper)}");
         sim.Paused = false; sim.Advance(CombatRules.JumpRechargeSeconds + 5); sim.Paused = true; tactical.SelectUnits([jumper.Id, grounded.Id], false);
         Check(!tactical.JumpButton.Disabled && tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Ready")),
             "a group jumps when any member can, and details report ready jets");

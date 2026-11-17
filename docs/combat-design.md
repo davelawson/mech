@@ -302,7 +302,7 @@ All shots at the same simulation instant use the heat penalties from the start o
 
 Explicit sink component groups contribute their grouped sink count. A Destroyed group or lost mounting location removes that contribution once, including sinks in an attached lost arm. Damaged groups retain full output. Internal sinks are the stock remainder and remain available while the mech survives. Individual component criticals and engine heat remain deferred.
 
-Above each friendly mech the battlefield shows only its pilot's callsign over a heat bar; unit cards show heat. Selected details show current heat, band, policy and effective cooling. Normal/Aggressive controls apply per mech or to the selected group, including shut-down units, with mixed-policy feedback. Weapon readouts explain heat withholding. Exact enemy heat appears only at Detailed contact tier. Numerical implementation details and checks are recorded in [tactical tuning](combat-tuning.md#heat).
+Above each friendly mech the battlefield shows only its pilot's callsign over a heat bar; unit cards and the sidebar paperdoll show heat as a bar (see [heat and jump-fuel bars](#heat-and-jump-fuel-bars-confirmed-november-17-2026)). Selected details show current heat, band, policy and effective cooling. Normal/Aggressive controls apply per mech or to the selected group, including shut-down units, with mixed-policy feedback. Weapon readouts explain heat withholding. Exact enemy heat appears only at Detailed contact tier. Numerical implementation details and checks are recorded in [tactical tuning](combat-tuning.md#heat).
 
 ## Engagement spacing (confirmed October 29, 2026)
 
@@ -344,7 +344,18 @@ Holding Shift pans the camera with WASD or the arrows at five times the normal s
 
 Hovering a location of the sidebar paperdoll lists every weapon, component and ammunition bin installed there. Front and rear torso regions list the same location. Identical systems in the same condition are grouped as a count, such as "3 x Medium Laser", and rear-mounted weapons are grouped separately. Each line is coloured by condition only: green when operational, yellow when damaged and red when destroyed. Everything in a lost location is red. Empty ammunition and weapons that are intact but cannot fire stay green. An inspected enemy shows the tooltip only at Detailed contact tier, when its paperdoll is visible.
 
-Each friendly unit card carries a compact paperdoll of its mech's current armor and structure, with no labels or tooltip, beneath the existing callsign, status, chassis and heat text. Destroyed and disabled mechs keep theirs.
+Each friendly unit card carries a compact paperdoll of its mech's current armor and structure, with no labels or tooltip, beneath the existing callsign, status and chassis text. Destroyed and disabled mechs keep theirs.
+
+### Heat and jump-fuel bars (confirmed November 17, 2026)
+
+Every paperdoll, on the unit cards and in the right sidebar, has two vertical bars without text or numbers: jump fuel on the left of the doll and heat on its right. Each bar fills from the bottom over a dark outlined track, with a small icon beneath it.
+
+- **Jump fuel** shows jump readiness: full while the mech can jump, empty from takeoff, and refilling over the recharge after landing. It is pale blue with a pale-blue water drop. A mech without jump jets keeps the slot empty so every doll lines up. The game has no separate fuel resource.
+- **Heat** is full at the shutdown threshold. Light ticks mark heat 10 and 20. The whole bar and its thermometer icon are yellow below 10, orange from 10 and red from 20.
+- Shut-down, disabled and destroyed mechs show their real values without special styling.
+- An enemy inspected at Detailed tier shows its heat bar but no fuel bar.
+
+Unit cards no longer print heat; their tooltip and the sidebar keep the exact figure. Sizes and colours are in [model and paperdoll details](mech-models.md#shared-paperdoll).
 
 A mech travelling in reverse takes the running penalty on its own shots, whatever its selected mode. As a target it still counts as walking, unless it is set to Run. Reversing heat is unchanged.
 

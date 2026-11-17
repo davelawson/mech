@@ -170,6 +170,7 @@ public partial class SmokeTests
         var displayed = tactical.FindChildren("*", "Label", true, false).OfType<Label>().Where(label => label.IsVisibleInTree()).Select(label => label.Text).ToArray();
         Check(tactical.Paperdoll.Unit == enemy && displayed.Contains(CombatPaperdoll.Readout(enemy))
             && displayed.Contains(CombatScreen.SystemsReadout(enemy, enemy: true)), "close enemy inspection reveals exact location condition and effective systems status");
+        Check(!tactical.Paperdoll.ShowsFuel, "detailed enemy inspection shows heat but no fuel bar");
         var radius = CombatRules.DetectionRadius(friendly, enemy);
         Check(field.DetectionRanges.Count == 2 && field.DetectionRanges.All(range => range.Identification == CombatRules.DetectionRadius(range.Observer, enemy)
             && range.Detail == range.Identification * .5f) && field.SensorRangeText.StartsWith("Selected mechs"),

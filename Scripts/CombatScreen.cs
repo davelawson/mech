@@ -786,7 +786,7 @@ public partial class CombatScreen : Control
         for (var i = 0; i < UnitButtons.Count; i++)
         {
             var friend = friends[i]; var button = UnitButtons[i];
-            button.Text = $"{i + 1} · {friend.Warrior.Callsign} · {friend.Status}{(friend.Prone ? " · Prone" : "")}\n{friend.Spec.DisplayName} · H {friend.Heat:0.0}";
+            button.Text = $"{i + 1} · {friend.Warrior.Callsign} · {friend.Status}{(friend.Prone ? " · Prone" : "")}\n{friend.Spec.DisplayName}";
             button.TooltipText = $"{friend.Spec.DisplayName} · {friend.Status}{friend.StanceText()}\n{HeatReadout(friend)}";
             button.AddThemeStyleboxOverride("normal", CardBox(Ui.Box(_selected.Contains(friend.Id) ? new Color("344431") : Ui.Panel, _selected.Contains(friend.Id) ? Ui.Gold : Ui.Line)));
             UnitDolls[i].Display(friend);
