@@ -372,6 +372,15 @@ The sidebar doll, not the unit cards, carries a horizontal speed gauge along its
 - **Tooltip.** Hovering the gauge shows the gait, the actual speed and the desired speed, with reverse written negative: "Running 62 km/h / 70 km/h", "Reverse -16 km/h / 30 km/h", "Walking …" or "Stopped 0 km/h / 40 km/h". An inspected enemy's gauge has no pointer, and its tooltip leaves out the desired speed.
 - **No movement buttons.** The sidebar has no Walk, Run, Jump or Stop movement buttons; X, C, J and Z do those jobs. The group readout gives the desired speed ("Speed: 50 km/h" or "Mixed").
 
+### Ammo economy (confirmed November 18, 2026)
+
+Each mech has an ammo economy setting: a whole step from 0 to 10 that decides how freely its MechWarrior spends ammunition. It starts every battle at 0, is not saved, and the enemy AI keeps 0.
+
+- **Rule.** Only ammo-fed weapons (autocannons, LRMs, SRMs and machine guns) are restricted; lasers, PPCs and flamers fire as before. A shot's *penalty* is everything its [target number](combat-tuning.md#weapons-and-hit-rolls) adds to gunnery and the base aim modifier: range band, minimum range, vegetation and indirect fire, the shooter's heat, PPC interference and critical damage, and both mechs' movement or jumping. The mech's own condition counts too. Step *n* accepts a penalty of at most 10 − *n*: at 0 every shot that can hit is taken (no shot over +10 can hit), and at 10 an ammo weapon fires only a perfect shot, at short range with neither mech moving, no cover, a cool shooter and no damage. Heat limits still apply on top.
+- **Held weapons.** An ammo weapon the economy holds back is not chosen at all: it spends no ammunition and no heat, stays ready, and the volley carries on with the next weapon in heat order. Its sidebar status reads "Saving ammo (+4 over +2)".
+- **Gauge.** Beneath the speed gauge, pinned with the doll, a yellow horizontal gauge shows the ammunition left: shots remaining in intact bins over the stock load, so destroyed bins show as losses. To its left is an icon of three upright shells, also yellow. Ticks mark the steps. On a friendly mech still in the battle a white line and triangle beneath the track mark the economy; dragging the pointer, or clicking the gauge, sets it in whole steps for the whole selection, also while paused, and the step shows while dragging. Fully left is no restriction and fully right optimal shots only. The gauge is left out for mechs without ammo weapons, and an inspected enemy's has no pointer.
+- **Tooltip.** "No restriction · 140/150 shots", "Economy 4 · fires at +6 or better · 140/150 shots" or "Optimal shots only · 140/150 shots"; an enemy's gives only the shots. The group readout adds "Ammo economy: N" (or Mixed).
+
 A mech travelling in reverse takes the running penalty on its own shots, whatever its selected mode. As a target it still counts as walking, unless it is set to Run. Reversing heat is unchanged.
 
 ## Jumping (confirmed November 2, 2026)

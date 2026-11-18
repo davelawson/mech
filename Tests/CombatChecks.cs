@@ -139,6 +139,7 @@ internal static partial class CombatChecks
         check(f.Order == CombatOrder.Hold, "completed Move holds position");
         CheckMaintainRange(check);
         CheckDesiredSpeed(check);
+        CheckAmmoEconomy(check);
 
         CheckTargeting(check);
         CheckExtendedRanges(check);
@@ -236,6 +237,56 @@ internal static partial class CombatChecks
         for (var i = 0; i < 40; i++) { sim.Advance(.25); slowest = Math.Min(slowest, f.CurrentSpeed); }
         check(slowest < 0 && Kmh(-slowest) <= 10.01f, $"reverse is capped by the desired speed ({Kmh(slowest):0.0} km/h)");
     }
+    /// <summary>Ammo economy holds back ammo-fed weapons whose shots carry more penalty modifiers than its step allows; energy
+    /// weapons and heat are untouched.</summary>
+    private static void CheckAmmoEconomy(Action<bool, string> check)
+    {
+        check(CombatRules.AmmoAllowance(0) == 10 && CombatRules.AmmoAllowance(10) == 0 && CombatRules.AmmoAllowance(4) == 6
+            && CombatRules.AmmoAllowance(-3) == 10 && CombatRules.AmmoAllowance(99) == 0, "each economy step accepts one less modifier, +10 down to +0");
+        var sim = Battle(definition: "thunderbolt");
+        var f = Friendly(sim); var e = Enemy(sim);
+        var gun = f.Weapons.Where(item => item.Spec.AmmoKind is not null && item.Spec.Minimum == 0 && !item.Spec.Rear)
+            .OrderByDescending(item => item.ShortRange).First();
+        var energy = f.Weapons.Where(item => item.Spec.AmmoKind is null && !item.Spec.Rear).OrderByDescending(item => item.MediumRange).First();
+        check(f.AmmoEconomy == 0 && e.AmmoEconomy == 0, "every mech starts with no ammo restriction");
+        bool Chosen(CombatWeapon weapon) => sim.HeatOrderedCandidates(f, e, null).Any(shot => shot.Weapon == weapon);
+        void Place(float distance) { Arrange(sim, distance); f.Moving = e.Moving = false; f.CurrentSpeed = e.CurrentSpeed = 0; }
+
+        Place(gun.ShortRange * .8f);
+        check(sim.TerrainPenalty(f, e, gun) == 0 && Combat(sim, f, e, gun), "a still shooter at short range against a still target has no penalty");
+        sim.Execute(new AmmoEconomyCommand([f.Id], 10));
+        check(f.AmmoEconomy == 10 && Chosen(gun), "at full economy an ammo weapon still takes a perfect shot");
+        Place((gun.ShortRange + gun.MediumRange) / 2);
+        check(sim.TerrainPenalty(f, e, gun) == 2 && !Chosen(gun) && sim.WeaponStatus(f, gun, e).StartsWith("Saving ammo (+2 over +0)"),
+            $"at full economy medium range holds an ammo weapon back: {sim.WeaponStatus(f, gun, e)}");
+        check(energy.MediumRange < f.Position.DistanceTo(e.Position) || Chosen(energy), "energy weapons ignore ammo economy");
+        sim.Execute(new AmmoEconomyCommand([f.Id], 9));
+        check(!Chosen(gun), "economy 9 accepts only +1");
+        sim.Execute(new AmmoEconomyCommand([f.Id], 8));
+        check(Chosen(gun), "economy 8 accepts the +2 of medium range");
+
+        // A held weapon spends neither ammunition nor heat.
+        sim.Execute(new AmmoEconomyCommand([f.Id], 10));
+        var kind = gun.Spec.AmmoKind!.Value; var shots = f.AmmoRemaining(kind);
+        foreach (var weapon in f.Weapons) weapon.Enabled = weapon == gun;
+        var heat = f.Heat; sim.EnemyAiEnabled = false; e.Firing = FiringMode.HoldFire;
+        sim.Paused = false; sim.Advance(.05); sim.Paused = true;
+        check(f.AmmoRemaining(kind) == shots && gun.Remaining == 0 && f.Heat <= heat + .001, "a weapon saving ammo does not fire, spend shots or add heat");
+        foreach (var weapon in f.Weapons) weapon.Enabled = true;
+
+        Place(gun.ShortRange * .8f);
+        f.AddHeat(CombatRules.WarmHeat + .5);
+        check(f.HeatAimModifier == 1 && sim.TerrainPenalty(f, e, gun) == 1 && !Chosen(gun),
+            "the shooter's own heat counts against full economy");
+        sim.Execute(new AmmoEconomyCommand([f.Id], 0));
+        Place(gun.LongRange * .95f); f.Moving = true; f.CurrentSpeed = f.UnheatedRunningSpeed;
+        check(sim.TerrainPenalty(f, e, gun) >= 6 && Chosen(gun) == (sim.TerrainHitChance(f, e, gun) > 0),
+            "with no restriction an ammo weapon fires at long range on the run whenever it can hit");
+        sim.Execute(new AmmoEconomyCommand([f.Id], 42));
+        check(f.AmmoEconomy == 10, "the economy command clamps to 10");
+    }
+    private static bool Combat(CombatSimulation sim, CombatUnit f, CombatUnit e, CombatWeapon weapon) =>
+        sim.HeatOrderedCandidates(f, e, null).Any(shot => shot.Weapon == weapon);
     private static void CheckTimeScale(Action<bool, string> check, Action<Action, string> reject)
     {
         CombatSimulation Moving()

@@ -166,7 +166,8 @@ Hit chance is the exact probability of 2d6 meeting this threshold:
 - Range: +0 short, +2 medium, +4 long; no shots beyond long range.
 - Minimum range: `ceil((scaled minimum − distance) / 90)` when inside minimum, preserving penalty severity at equivalent relative distances.
 - Vegetation contributes +1 per intersected patch, including target vegetation, capped at +2. Indirect LRM fire counts the spotter's line to the target instead. It does not block detection or reduce damage.
-- Each moving mech contributes +1 walking or +2 running; stationary contributes zero. An attacker travelling in reverse contributes +2 whatever its mode; a reversing target contributes as its mode does.
+- Each moving mech contributes +1 walking or +2 running, judged by actual speed (above the unheated walking speed is running); stationary contributes zero. An attacker travelling in reverse contributes +2; a reversing target contributes +1, since reverse never exceeds walking speed.
+- Ammo economy: everything after `Gunnery + 3` is the shot's penalty (`CombatSimulation.TerrainPenalty`). An ammo-fed weapon fires only while its penalty is at most `10 − economy` (`CombatRules.AmmoAllowance`); a held weapon is left out of the heat-ordered volley, spending neither ammunition nor heat. Energy weapons are never held.
 - There is no artificial minimum/maximum chance clamp. Closing range and stopping can improve accuracy.
 - Target preference does not wait for cooldowns. Valid current targets persist until invalid or superseded by Attack / priority.
 

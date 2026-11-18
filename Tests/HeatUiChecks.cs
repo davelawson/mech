@@ -40,11 +40,12 @@ public partial class SmokeTests
             Check(sidebar.EditsHeatLimit, "a single shut-down selection keeps the heat-limit handle");
             await ClickHeatLimit(sidebar, 5);
             Check(friends[0].HeatLimit == 5 && friends[1].HeatLimit == 12, "a shut-down mech's limit can be changed before restart");
-            var strip = sidebar.SpeedStrip;
+            var strip = sidebar.SpeedStrip; var ammo = sidebar.AmmoStrip;
             Check(sidebar.HeatBarRect.Position.Y <= 4 && strip.Position.Y >= sidebar.HeatBarRect.End.Y - 1 && strip.Position.Y - sidebar.HeatBarRect.End.Y <= 4
-                && strip.End.Y <= sidebar.Size.Y + .5f && strip.End.Y >= sidebar.Size.Y - 4,
-                $"the sidebar doll has no gaps: the schematic fills its top and the speed gauge its foot: size {sidebar.Size} heat {sidebar.HeatBarRect} speed {strip}");
+                && Math.Abs(ammo.Position.Y - strip.End.Y) < .5f && ammo.End.Y <= sidebar.Size.Y + .5f && ammo.End.Y >= sidebar.Size.Y - 4,
+                $"the sidebar doll has no gaps: the schematic fills its top, then the speed and ammo gauges: size {sidebar.Size} heat {sidebar.HeatBarRect} speed {strip} ammo {ammo}");
             await CheckSpeedGauge(tactical, friends);
+            await CheckAmmoGauge(tactical, friends);
             var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
             sidebar.Display(enemy);
             Check(!sidebar.EditsHeatLimit && sidebar.DisplayedHeatLimit is null && !CombatScreen.HeatReadout(enemy).Contains("limit"),
@@ -170,6 +171,50 @@ public partial class SmokeTests
         sidebar.Display(enemy);
         Check(sidebar.ShowsSpeed && !sidebar.EditsDesiredSpeed && sidebar.DisplayedDesiredSpeed is null
             && !sidebar._GetTooltip(sidebar.SpeedStrip.GetCenter()).Contains(" / "), "an inspected enemy's gauge has no pointer or desired speed");
+        tactical.SelectUnits(friends.Select(unit => unit.Id).ToArray(), false); await Frames();
+    }
+
+    /// <summary>The ammo economy gauge under the speed gauge: steps, dragging for a group, the fill, tooltip and readout,
+    /// no pointer for an enemy and no gauge for a mech without ammo weapons.</summary>
+    private async Task CheckAmmoGauge(CombatScreen tactical, CombatUnit[] friends)
+    {
+        var sidebar = tactical.Paperdoll; var sim = tactical.Simulation!;
+        var shooter = friends[2];
+        tactical.SelectUnits(friends.Skip(2).Select(unit => unit.Id).ToArray(), false); await Frames();
+        Check(sidebar.Unit == shooter && sidebar.ShowsAmmo && sidebar.EditsAmmoEconomy && sidebar.DisplayedAmmoEconomy == 0,
+            "a friendly with ammo weapons shows the ammo gauge with its pointer fully left");
+        Check(Enumerable.Range(0, 11).All(step => sidebar.AmmoEconomyAt(sidebar.AmmoTrackX(step)) == step)
+            && sidebar.AmmoEconomyAt(sidebar.AmmoTrack.Position.X - 40) == 0 && sidebar.AmmoEconomyAt(sidebar.AmmoTrack.End.X + 40) == 10,
+            "the ammo track maps to whole steps 0–10, clamped at its ends");
+        Vector2 At(int step) => sidebar.GetGlobalTransform() * new Vector2(sidebar.AmmoTrackX(step), sidebar.AmmoTrack.GetCenter().Y);
+        MouseMotion(At(0), Vector2.Zero);
+        MouseButton(At(0), Godot.MouseButton.Left, true); await Frames();
+        MouseMotion(At(4), At(4) - At(0)); await Frames();
+        MouseMotion(At(7), At(7) - At(4)); await Frames();
+        MouseButton(At(7), Godot.MouseButton.Left, false); await Frames();
+        Check(friends.Skip(2).All(unit => unit.AmmoEconomy == 7) && friends[0].AmmoEconomy == 0, "dragging the pointer sets ammo economy for the selection only");
+        await Frames(); await Frames();
+        Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.IsVisibleInTree() && label.Text.Contains("Ammo economy: 7")),
+            "the group readout reports the ammo economy");
+        var (left, stock) = CombatPaperdoll.AmmoShots(shooter);
+        Check(stock > 0 && left == stock && CombatPaperdoll.AmmoFraction(shooter) == 1 && CombatPaperdoll.AmmoColor == CombatPaperdoll.LightDamage,
+            "the yellow fill shows a full ammunition load");
+        Check(sidebar._GetTooltip(sidebar.AmmoStrip.GetCenter()) == $"Economy 7 · fires at +3 or better · {stock}/{stock} shots",
+            $"hovering the gauge describes the economy and the shots left: {sidebar._GetTooltip(sidebar.AmmoStrip.GetCenter())}");
+        Check(CombatPaperdoll.AmmoTooltip(shooter, 0) == $"No restriction · {stock}/{stock} shots"
+            && CombatPaperdoll.AmmoTooltip(shooter, 10) == $"Optimal shots only · {stock}/{stock} shots", "the gauge's ends read no restriction and optimal shots only");
+        await Capture("combat-ammo-gauge");
+        var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
+        sidebar.Display(enemy);
+        Check(sidebar.ShowsAmmo && !sidebar.EditsAmmoEconomy && sidebar.DisplayedAmmoEconomy is null
+            && sidebar._GetTooltip(sidebar.AmmoStrip.GetCenter()) == $"{stock}/{stock} shots", "an inspected enemy's ammo gauge has no pointer, only its shots");
+        var energyRoster = ForceRoster.Create("Energy only", [DraftCatalog.Mech("awesome")], DraftCatalog.Warriors.Take(1));
+        energyRoster.Assign(energyRoster.Mechs[0].Id, energyRoster.Warriors[0].Id);
+        var energyOnly = CombatSimulation.DeployOnTerrain(energyRoster, [energyRoster.Mechs[0].Id], BattlefieldTerrain.Flat, 41)
+            .Units.First(unit => unit.Side == CombatSide.Friendly);
+        sidebar.Display(energyOnly);
+        Check(!sidebar.ShowsAmmo && !sidebar.EditsAmmoEconomy && sidebar.ShowsSpeed, "a mech without ammo weapons shows no ammo gauge");
+        foreach (var unit in friends) unit.AmmoEconomy = 0;
         tactical.SelectUnits(friends.Select(unit => unit.Id).ToArray(), false); await Frames();
     }
 

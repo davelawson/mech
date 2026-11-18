@@ -1040,10 +1040,16 @@ public sealed partial class CombatSimulation
         return Units.Where(Engageable).OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
     }
     public double TerrainHitChance(CombatUnit attacker, CombatUnit target, CombatWeapon weapon) =>
-        Sight(attacker, target)
-            ? HitChance(attacker, target, weapon, Terrain.VegetationModifier(attacker.Position, target.Position))
-            : IndirectSpotter(attacker, target, weapon) is { } spotter ? HitChance(attacker, target, weapon,
-                Terrain.VegetationModifier(spotter.Position, target.Position) + CombatRules.IndirectFireModifier) : 0;
+        TerrainModifier(attacker, target, weapon) is { } terrain ? HitChance(attacker, target, weapon, terrain) : 0;
+    /// <summary>Vegetation along the line of fire, or along a spotter's with the indirect-fire modifier; null with no line of fire.</summary>
+    public int? TerrainModifier(CombatUnit attacker, CombatUnit target, CombatWeapon weapon) =>
+        Sight(attacker, target) ? Terrain.VegetationModifier(attacker.Position, target.Position)
+            : IndirectSpotter(attacker, target, weapon) is { } spotter
+                ? Terrain.VegetationModifier(spotter.Position, target.Position) + CombatRules.IndirectFireModifier : null;
+    /// <summary>Every modifier added to the shot's target number above the MechWarrior's gunnery and the base aim modifier,
+    /// terrain included. Without a line of fire the shot cannot be taken, so it counts as no allowance could cover it.</summary>
+    public int TerrainPenalty(CombatUnit attacker, CombatUnit target, CombatWeapon weapon) =>
+        TerrainModifier(attacker, target, weapon) is { } terrain ? PenaltyModifier(attacker, target, weapon, terrain) : int.MaxValue;
     /// <summary>Clear sight, or an indirect LRM salvo guided by a spotter.</summary>
     public bool LineOfFire(CombatUnit unit, CombatUnit target, CombatWeapon weapon) =>
         Sight(unit, target) || IndirectSpotter(unit, target, weapon) is not null;
@@ -1063,19 +1069,26 @@ public sealed partial class CombatSimulation
     {
         var distance = attacker.Position.DistanceTo(target.Position);
         if (distance > weapon.LongRange || !attacker.WeaponUsable(weapon) || !CombatRules.InFiringArc(attacker, target, weapon)) return 0;
+        var threshold = attacker.Warrior.Gunnery + CombatRules.AimModifier + PenaltyModifier(attacker, target, weapon, terrainModifier);
+        var successes = 0;
+        for (var a = 1; a <= 6; a++) for (var b = 1; b <= 6; b++) if (a + b >= threshold) successes++;
+        return successes / 36.0;
+    }
+    /// <summary>The target-number modifiers beyond gunnery and the base aim: range band, minimum range, terrain, heat,
+    /// interference, critical damage, and both sides' movement or jumping.</summary>
+    public static int PenaltyModifier(CombatUnit attacker, CombatUnit target, CombatWeapon weapon, int terrainModifier = 0)
+    {
+        var distance = attacker.Position.DistanceTo(target.Position);
         var range = distance <= weapon.ShortRange ? 0 : distance <= weapon.MediumRange ? 2 : 4;
         var minimum = distance < weapon.MinimumRange
             ? (int)Math.Ceiling((weapon.MinimumRange - distance) / CombatRules.WeaponRangeScale) : 0;
-        var threshold = attacker.Warrior.Gunnery + CombatRules.AimModifier + range + minimum + terrainModifier + attacker.HeatAimModifier
+        return range + minimum + terrainModifier + attacker.HeatAimModifier
             + attacker.InterferenceAimModifier + attacker.CriticalAimModifier(weapon)
             // Actual speed decides walking or running. Reversing spoils the attacker's own aim as badly as running; as a target
             // it still counts as walking. Jumping replaces either side's ground movement modifier.
             + (attacker.Airborne ? CombatRules.JumpToHitModifier
                 : attacker.Moving ? attacker.Gait is Gait.Running or Gait.Reverse ? 2 : 1 : 0)
             + (target.Airborne ? CombatRules.JumpToHitModifier : target.Moving ? target.Gait == Gait.Running ? 2 : 1 : 0);
-        var successes = 0;
-        for (var a = 1; a <= 6; a++) for (var b = 1; b <= 6; b++) if (a + b >= threshold) successes++;
-        return successes / 36.0;
     }
     private MechLocation RollAdjacentLocation(MechLocation location)
     {

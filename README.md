@@ -93,6 +93,7 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | Z | Stop the selection and clear its orders |
 | X / C | Set the desired speed to walk / run |
 | Drag / click the sidebar speed gauge | Set the selection's desired speed (10 km/h up to run speed) |
+| Drag / click the sidebar ammo gauge | Set how sparingly the selection fires ammunition (left: freely; right: optimal shots only) |
 | J, then right-click ground | Jump there (Escape cancels) |
 | G / F | Hold fire / Fire at will |
 | Drag / click the sidebar heat bar | Set the selection's heat limit (0–30): weapons and jumps wait while heat is above it |

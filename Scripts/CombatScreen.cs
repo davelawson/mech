@@ -176,6 +176,7 @@ public partial class CombatScreen : Control
         Paperdoll.HeatLimitChanged += limit => Send(new HeatLimitCommand([.. _selected], limit));
         // Dragging the speed gauge's pointer sets the same desired speed for the whole selection; X, C, J and Z remain hotkeys only.
         Paperdoll.DesiredSpeedChanged += speed => Send(new SpeedCommand([.. _selected], speed));
+        Paperdoll.AmmoEconomyChanged += economy => Send(new AmmoEconomyCommand([.. _selected], economy));
         _unitInfo = RosterUi.Text(body, "", 13);
         _targetInfo = RosterUi.Text(body, "", 12, Ui.Gold);
         _settings = new VBoxContainer(); body.AddChild(_settings);
@@ -926,7 +927,8 @@ public partial class CombatScreen : Control
             _groupInfo.Visible = active.Length > 1;
             _groupInfo.Text = $"{active.Length} units · edits apply to group\n"
                 + $"Speed: {(active.Select(item => CombatPaperdoll.Kmh(item.DesiredSpeed)).Distinct().Count() > 1 ? "Mixed" : $"{CombatPaperdoll.Kmh(active[0].DesiredSpeed)} km/h")} · Fire: {(active.Select(item => item.Firing).Distinct().Count() > 1 ? "Mixed" : active[0].Firing == FiringMode.FireAtWill ? "At will" : "Hold")}\n"
-                + $"Heat limit: {(active.Select(item => item.HeatLimit).Distinct().Count() > 1 ? "Mixed" : active[0].HeatLimit.ToString())}";
+                + $"Heat limit: {(active.Select(item => item.HeatLimit).Distinct().Count() > 1 ? "Mixed" : active[0].HeatLimit.ToString())}"
+                + $" · Ammo economy: {(active.Select(item => item.AmmoEconomy).Distinct().Count() > 1 ? "Mixed" : active[0].AmmoEconomy.ToString())}";
             _fire.Text = (active.All(item => item.Firing == FiringMode.FireAtWill) ? "● Fire at will" : "Fire at will") + " [F]";
             _hold.Text = (active.All(item => item.Firing == FiringMode.HoldFire) ? "● Hold fire" : "Hold fire") + " [G]";
             _refreshing = true;

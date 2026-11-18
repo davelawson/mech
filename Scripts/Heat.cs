@@ -11,6 +11,12 @@ public static partial class CombatRules
     /// <summary>Every mech starts each battle with this heat limit; the enemy keeps it.</summary>
     public const int DefaultHeatLimit = 10, MaxHeatLimit = 30;
     public static int ClampHeatLimit(int limit) => Math.Clamp(limit, 0, MaxHeatLimit);
+    /// <summary>Ammo economy runs in whole steps from 0 (fire freely) to 10 (only shots with no penalty modifier at all).</summary>
+    public const int MaxAmmoEconomy = 10;
+    public static int ClampAmmoEconomy(int economy) => Math.Clamp(economy, 0, MaxAmmoEconomy);
+    /// <summary>The largest penalty modifier an ammo weapon accepts at an economy step: +10 at 0, which no shot can exceed and
+    /// still hit, down to +0 at 10.</summary>
+    public static int AmmoAllowance(int economy) => MaxAmmoEconomy - ClampAmmoEconomy(economy);
     /// <summary>A weapon or jump may start while heat is at or below the limit, so it can carry heat past it.</summary>
     public static bool WithinHeatLimit(double heat, int limit) => heat <= limit + 1e-9;
     public static int FlamerHeat(WeaponSpec weapon) => weapon.DamageProfile.TargetHeat;
@@ -22,6 +28,9 @@ public sealed partial class CombatUnit
     private int _heatLimit = CombatRules.DefaultHeatLimit;
     /// <summary>Whole heat 0–30: weapons and jumps are held once heat rises above it.</summary>
     public int HeatLimit { get => _heatLimit; set => _heatLimit = CombatRules.ClampHeatLimit(value); }
+    private int _ammoEconomy;
+    /// <summary>Whole steps 0–10: how sparingly ammo-fed weapons fire. See <see cref="CombatRules.AmmoAllowance"/>.</summary>
+    public int AmmoEconomy { get => _ammoEconomy; set => _ammoEconomy = CombatRules.ClampAmmoEconomy(value); }
     public bool Shutdown { get; private set; }
     public string HeatBand => Shutdown ? "Shutdown" : Heat >= CombatRules.HotHeat ? "Hot"
         : Heat >= CombatRules.WarmHeat ? "Warm" : "Cool";
@@ -77,13 +86,17 @@ public sealed partial class CombatSimulation
             var weapon = unit.Weapons[i];
             var target = weapon.Spec.Rear ? rearTarget : mainTarget;
             if (weapon.Remaining > .000001 || target is null || !CanFire(unit, target, weapon)) continue;
-            // A weapon that cannot hit never fires, and so never spends heat.
+            // A weapon that cannot hit never fires, and so never spends heat; nor does an ammo weapon its economy holds back.
             var chance = TerrainHitChance(unit, target, weapon);
-            if (chance > 0) candidates.Add((weapon, target, weapon.Damage * chance, i));
+            if (chance > 0 && !SavingAmmo(unit, target, weapon)) candidates.Add((weapon, target, weapon.Damage * chance, i));
         }
         return candidates.OrderByDescending(item => Math.Round(item.Expected, 9)).ThenBy(item => item.Weapon.Spec.Heat)
             .ThenBy(item => item.Index).Select(item => (item.Weapon, item.Target)).ToArray();
     }
+
+    /// <summary>An ammo-fed weapon whose shot carries more penalty modifiers than the unit's ammo economy allows.</summary>
+    public bool SavingAmmo(CombatUnit unit, CombatUnit target, CombatWeapon weapon) => weapon.Spec.AmmoKind is not null
+        && TerrainPenalty(unit, target, weapon) > CombatRules.AmmoAllowance(unit.AmmoEconomy);
 
     /// <summary>Weapons are checked one at a time in <see cref="HeatOrderedCandidates"/> order. Each fires only while the
     /// heat so far this step, including weapons already chosen, is at or below the unit's limit.</summary>

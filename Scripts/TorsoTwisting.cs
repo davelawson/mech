@@ -141,6 +141,8 @@ public sealed partial class CombatSimulation
                     ? "Outside firing arc" : "Turning to target";
         if (weapon.Remaining > .000001) return $"Ready in {weapon.Remaining:0.0}s";
         if (TerrainHitChance(unit, target, weapon) == 0) return "Cannot hit";
+        if (SavingAmmo(unit, target, weapon))
+            return $"Saving ammo (+{TerrainPenalty(unit, target, weapon)} over +{CombatRules.AmmoAllowance(unit.AmmoEconomy)})";
         return null;
     }
 }

@@ -51,7 +51,10 @@ public partial class CombatControlsPanel : PanelContainer
         Section("FIRING AND WEAPONS",
             ("G / F", "Hold fire / Fire at will"),
             ("Weapon toggles", "The WEAPONS list in the sidebar switches each weapon of the primary selection on or off. "
-                + "A disabled weapon stays off whatever the orders; it is not weapon loss and comes back on when toggled."));
+                + "A disabled weapon stays off whatever the orders; it is not weapon loss and comes back on when toggled."),
+            ("Ammo gauge", "The yellow gauge under the speed gauge shows ammunition left. Drag its pointer to set ammo economy for the selection: "
+                + "fully left, ammo weapons fire freely; each step right accepts one less penalty modifier (range, movement, cover, heat, "
+                + "damage), until fully right fires only perfect shots. Energy weapons are unaffected."));
         Section("HEAT LIMIT",
             ("Drag / click heat bar", "Set the heat limit (0–30) on the sidebar paperdoll's heat bar, for the whole selection, "
                 + "shut-down mechs included, also while paused."),

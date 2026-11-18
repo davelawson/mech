@@ -335,6 +335,10 @@ internal static class NetworkChecks
         sam.Send(new MovementCommand([samMechs[0], leaderMechs[0]], MovementMode.Run)); Pump();
         check(battle.Unit(samMechs[0]).Movement == MovementMode.Run && battle.Unit(leaderMechs[0]).Movement == MovementMode.Walk
             && replica!.Unit(samMechs[0]).Movement == MovementMode.Run, "a player orders only their own lance, and sees the result");
+        sam.Send(new AmmoEconomyCommand([samMechs[0]], 6)); sam.Send(new SpeedCommand([samMechs[0]], 30 / CombatRules.KmhPerMetrePerSecond)); Pump();
+        check(battle.Unit(samMechs[0]).AmmoEconomy == 6 && replica!.Unit(samMechs[0]).AmmoEconomy == 6
+            && Math.Abs(replica.Unit(samMechs[0]).DesiredSpeed - battle.Unit(samMechs[0]).DesiredSpeed) < .0001f,
+            "a player's ammo economy and desired speed reach the leader's battle and come back in its state");
         check(battle.Paused && battle.PauseHolds.SetEquals([0, 1]), "every player's pause toggle starts on");
         battle.Execute(new PauseCommand(false)); Pump();
         check(battle.Paused && replica!.Paused && replica.PauseHolds.SetEquals([1]), "the battle waits for every toggle to come off");

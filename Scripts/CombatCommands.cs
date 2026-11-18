@@ -15,6 +15,7 @@ namespace Mech;
 [JsonDerivedType(typeof(SpeedCommand), "speed")]
 [JsonDerivedType(typeof(FiringCommand), "firing")]
 [JsonDerivedType(typeof(HeatLimitCommand), "heat-limit")]
+[JsonDerivedType(typeof(AmmoEconomyCommand), "ammo-economy")]
 [JsonDerivedType(typeof(DistanceCommand), "distance")]
 [JsonDerivedType(typeof(MaintainRangeCommand), "maintain-range")]
 [JsonDerivedType(typeof(WeaponCommand), "weapon")]
@@ -85,6 +86,13 @@ public sealed record HeatLimitCommand(string[] Units, int Limit) : UnitCommand(U
 {
     private protected override void Apply(CombatSimulation simulation, CombatUnit[] units)
     { foreach (var unit in units.Where(item => !item.Defeated)) unit.HeatLimit = Limit; }
+}
+
+/// <summary>Sets how sparingly ammo-fed weapons fire, 0 (freely) to 10 (only shots without penalty modifiers).</summary>
+public sealed record AmmoEconomyCommand(string[] Units, int Economy) : UnitCommand(Units)
+{
+    private protected override void Apply(CombatSimulation simulation, CombatUnit[] units)
+    { foreach (var unit in units.Where(item => !item.Defeated)) unit.AmmoEconomy = Economy; }
 }
 
 public sealed record DistanceCommand(string[] Units, float Distance) : UnitCommand(Units)

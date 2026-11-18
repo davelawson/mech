@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Three upright shells in a row: pointed tip, straight case, wider base rim. -->
+  <g fill="#ffffff">
+    <path d="M4 26 Q4 12 11 4 Q18 12 18 26 Z"/>
+    <rect x="4" y="28" width="14" height="24"/>
+    <rect x="2" y="54" width="18" height="6"/>
+    <path d="M25 26 Q25 12 32 4 Q39 12 39 26 Z"/>
+    <rect x="25" y="28" width="14" height="24"/>
+    <rect x="23" y="54" width="18" height="6"/>
+    <path d="M46 26 Q46 12 53 4 Q60 12 60 26 Z"/>
+    <rect x="46" y="28" width="14" height="24"/>
+    <rect x="44" y="54" width="18" height="6"/>
+  </g>
+</svg>
