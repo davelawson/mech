@@ -26,6 +26,32 @@ public static class EquipmentRules
     public static bool HasRearArmor(MechLocation location) => location is MechLocation.LeftTorso or MechLocation.CenterTorso or MechLocation.RightTorso;
     /// <summary>Heat sinks the engine holds without using critical slots.</summary>
     public static int EngineHeatSinks(MechSpec spec) => spec.HeatSinks - spec.Components.Sum(item => item.HeatSinkCount);
+    /// <summary>Every mech's first ten heat sinks weigh nothing, wherever they sit; each one beyond costs a ton, single or double.</summary>
+    public const int FreeHeatSinks = 10;
+    /// <summary>The mass of all the mech's heat sinks: a ton for each beyond the first ten.</summary>
+    public static int HeatSinkTons(MechSpec spec) => Math.Max(0, spec.HeatSinks - FreeHeatSinks);
+    /// <summary>The engine's sinks count first toward the free ten.</summary>
+    public static int FreeEngineHeatSinks(MechSpec spec) => Math.Min(EngineHeatSinks(spec), FreeHeatSinks);
+    /// <summary>"12 heat sinks inside the engine · 10 free, 2 at 1 t each".</summary>
+    public static string EngineSinksText(MechSpec spec)
+    {
+        var inside = EngineHeatSinks(spec); var free = FreeEngineHeatSinks(spec);
+        var detail = inside == free ? "all free" : free == 0 ? "1 t each" : $"{free} free, {inside - free} at 1 t each";
+        return $"{inside} heat {(inside == 1 ? "sink" : "sinks")} inside the engine · {detail}";
+    }
+    /// <summary>How many sinks of a slotted heat sink item are free: what the engine leaves of the ten goes to slotted sinks in
+    /// mount order, stock first, then those installed in the hangar.</summary>
+    public static int FreeSinksIn(MechSpec spec, string id)
+    {
+        var budget = Math.Max(0, FreeHeatSinks - EngineHeatSinks(spec));
+        foreach (var sink in spec.Components.Where(item => item.Kind == ComponentKind.HeatSink))
+        {
+            var free = Math.Min(budget, sink.HeatSinkCount);
+            if (sink.Id == id) return free;
+            budget -= free;
+        }
+        return 0;
+    }
     public static int JumpJets(MechSpec spec) => spec.Components.Where(item => item.Kind == ComponentKind.JumpJet).Sum(item => item.Slots);
 }
 
@@ -294,7 +320,7 @@ public static class Loadout
         : spec.Ammo.Any(item => item.Id == id) ? 1
         : spec.Components.FirstOrDefault(item => item.Id == id) is { } component ? component.Kind switch
         {
-            ComponentKind.HeatSink => component.HeatSinkCount,
+            ComponentKind.HeatSink => component.HeatSinkCount - EquipmentRules.FreeSinksIn(spec, component.Id),
             ComponentKind.JumpJet => component.Slots * EquipmentRules.JumpJetTons(spec.Tonnage),
             _ => null
         } : null;

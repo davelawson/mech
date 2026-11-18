@@ -75,6 +75,7 @@ internal static class HangarChecks
             check(rejected, $"storage restore rejects an {reason}");
         }
         LoadoutChecks(check);
+        FreeHeatSinkChecks(check);
         InstallChecks(check);
         DamageNoticeChecks(check);
         check(StorageCatalog.Describe(StorageCatalog.JumpJetId(55))!.Tons == .5f && StorageCatalog.Describe(StorageCatalog.JumpJetId(60))!.Tons == 1
@@ -224,6 +225,41 @@ internal static class HangarChecks
     }
 
     /// <summary>Individual heat sinks and jump jets, removal, storage on apply, scrapping, suspect items and saved loadouts.</summary>
+/// <summary>A mech's first ten heat sinks weigh nothing, engine-held ones counted first; each beyond costs a ton.</summary>
+    private static void FreeHeatSinkChecks(Action<bool, string> check)
+    {
+        check(DraftCatalog.AllMechs.All(mech => EquipmentRules.EngineHeatSinks(mech) > 0), "every engine holds some heat sinks");
+        var atlas = DraftCatalog.Mech("atlas"); var flea = DraftCatalog.Mech("flea"); var blackjack = DraftCatalog.Mech("blackjack");
+        check(EquipmentRules.EngineHeatSinks(atlas) == 12 && EquipmentRules.FreeEngineHeatSinks(atlas) == 10 && EquipmentRules.HeatSinkTons(atlas) == 10
+            && atlas.Components.Where(item => item.Kind == ComponentKind.HeatSink).All(item => Loadout.Tons(atlas, item.Id) == 1),
+            "an Atlas's 300 engine holds 12 sinks, 10 of them free, and every slotted sink costs a ton");
+        var fleaSinks = flea.Components.Where(item => item.Kind == ComponentKind.HeatSink).ToArray();
+        check(flea.HeatSinks == 10 && EquipmentRules.EngineHeatSinks(flea) == 4 && EquipmentRules.HeatSinkTons(flea) == 0
+            && fleaSinks.All(item => Loadout.Tons(flea, item.Id) == 0 && EquipmentRules.FreeSinksIn(flea, item.Id) == 1),
+            "a Flea's ten sinks, four in the engine and six slotted, are all free");
+        var jackSinks = blackjack.Components.Where(item => item.Kind == ComponentKind.HeatSink).ToArray();
+        check(EquipmentRules.EngineHeatSinks(blackjack) == 7 && jackSinks.Length == 4
+            && jackSinks.Take(3).All(item => Loadout.Tons(blackjack, item.Id) == 0) && Loadout.Tons(blackjack, jackSinks[3].Id) == 1,
+            "a Blackjack's engine takes 7 of the free ten, its first three slotted sinks the rest, and its fourth costs a ton");
+        check(EquipmentRules.EngineSinksText(atlas) == "12 heat sinks inside the engine · 10 free, 2 at 1 t each"
+            && EquipmentRules.EngineSinksText(blackjack) == "7 heat sinks inside the engine · all free", "the engine reports its internal sinks and their mass");
+
+        var roster = ForceRoster.Create("Free sinks", [flea, blackjack], DraftCatalog.Warriors.Take(2));
+        var fleaMech = roster.Mechs[0]; var jackMech = roster.Mechs[1];
+        var lighterFlea = fleaMech.WithLoadout(LoadoutPlan.Removing(new HashSet<string> { fleaSinks[0].Id }));
+        check(lighterFlea.Spec.HeatSinks == 9 && lighterFlea.Tons == flea.Tonnage, "removing a free heat sink frees no tonnage");
+        var lighterJack = jackMech.WithLoadout(LoadoutPlan.Removing(new HashSet<string> { jackSinks[0].Id }));
+        check(lighterJack.Tons == blackjack.Tonnage - 1 && Loadout.Tons(lighterJack.Spec, jackSinks[3].Id) == 0,
+            "removing any sink above ten frees a ton, and the next slotted sink becomes free");
+        var sinkId = StorageCatalog.HeatSinkId(flea.HeatSinkType);
+        int Free(OwnedMech owned, MechLocation location) => EquipmentRules.Capacity(location) - CriticalLayout.Used(CriticalLayout.For(owned.Spec)[location]);
+        var room = Enum.GetValues<MechLocation>().First(location => Free(fleaMech, location) >= EquipmentRules.HeatSinkSlots(flea.HeatSinkType));
+        var refilled = lighterFlea.WithLoadout(lighterFlea.Plan with { Installed = [new(Loadout.NextId(lighterFlea.Installed), sinkId, room)] });
+        check(refilled.Spec.HeatSinks == 10 && refilled.Tons == flea.Tonnage, "a sink installed back up to ten is free");
+        var eleventh = fleaMech.WithLoadout(fleaMech.Plan with { Installed = [new(Loadout.NextId(fleaMech.Installed), sinkId, room)] });
+        check(eleventh.Spec.HeatSinks == 11 && eleventh.Tons == flea.Tonnage + 1 && Loadout.Tons(eleventh.Spec, eleventh.Installed[0].Id) == 1,
+            "an eleventh sink costs a ton");
+    }
     private static void LoadoutChecks(Action<bool, string> check)
     {
         check(DraftCatalog.AllMechs.All(mech => mech.Components.All(c => c.Kind switch
@@ -355,6 +391,20 @@ public partial class SmokeTests
         var mech = hangar.SelectedMech; var stock = mech.Spec;
         Check(hangar.ApplyButton.Disabled && hangar.ResetButton.Disabled && hangar.TonnageText.Text == $"{stock.Tonnage} / {stock.Tonnage} t",
             "a stock mech shows full tonnage, with Apply and Reset disabled");
+        var engineCentre = hangar.LocationPanels[MechLocation.CenterTorso];
+        var engineBlock = engineCentre.Blocks.First(item => item.Kind == SlotKind.Engine);
+        Check(engineCentre.BlockLabel(engineBlock).EndsWith($" · {EquipmentRules.EngineHeatSinks(stock)} HS")
+            && engineCentre._GetTooltip(engineCentre.BlockRect(engineBlock).GetCenter()).Contains(EquipmentRules.EngineSinksText(stock)),
+            $"the engine slot shows how many heat sinks it holds: {engineCentre.BlockLabel(engineBlock)}");
+        var sinkBlocks = hangar.LocationPanels.Values.SelectMany(item => item.Blocks.Where(b => b.Kind == SlotKind.HeatSink).Select(b => (Panel: item, Block: b))).ToArray();
+        Check(sinkBlocks.All(item => item.Panel.BlockLabel(item.Block).Contains("free") == (EquipmentRules.FreeSinksIn(stock, item.Block.ItemId!) > 0)),
+            "slotted heat sinks within the free ten are labelled free, the rest are not");
+        var freeIndex = roster.Mechs.ToList().FindIndex(owned => owned.Spec.Components.Any(c => c.Kind == ComponentKind.HeatSink && EquipmentRules.FreeSinksIn(owned.Spec, c.Id) > 0));
+        if (freeIndex >= 0)
+        {
+            hangar.Select(freeIndex); await Frames(); await Capture("hangar-free-heat-sinks");
+            hangar.Select(index); await Frames();
+        }
 
         // A fixed system ignores the right click and does not leave the hangar.
         var (fixedPanel, fixedBlock) = FindBlock(hangar, block => block.Kind is SlotKind.Engine or SlotKind.Actuator);

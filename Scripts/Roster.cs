@@ -268,9 +268,13 @@ public sealed class OwnedMech
         Locations = Array.AsReadOnly(save.Locations.ToArray()); Equipment = Array.AsReadOnly(save.Equipment.ToArray()); Ammo = Array.AsReadOnly(save.Ammo.ToArray());
     }
     /// <summary>Rated tonnage less the mass of removed items plus that of installed ones and of armor added (16 stock points a ton);
-    /// stock designs are taken to be exactly at their rating.</summary>
-    public float Tons => Definition.Tonnage - Removed.Sum(id => Loadout.Tons(Definition, id) ?? 0) + Installed.Sum(item => Loadout.Tons(Spec, item.Id) ?? 0)
+    /// stock designs are taken to be exactly at their rating. Heat sinks count as a whole: a ton for each beyond the free ten, so
+    /// removing or adding one changes the mass only above ten.</summary>
+    public float Tons => Definition.Tonnage - Removed.Where(id => !HeatSink(Definition, id)).Sum(id => Loadout.Tons(Definition, id) ?? 0)
+        + Installed.Where(item => !HeatSink(Spec, item.Id)).Sum(item => Loadout.Tons(Spec, item.Id) ?? 0)
+        + EquipmentRules.HeatSinkTons(Spec) - EquipmentRules.HeatSinkTons(Definition)
         + (Spec.ArmorTotal - Definition.ArmorTotal) / (float)(EquipmentRules.ArmorPointsPerTon * CombatRules.DamageScale);
+    private static bool HeatSink(MechSpec spec, string id) => spec.Components.Any(item => item.Id == id && item.Kind == ComponentKind.HeatSink);
     public bool OverTonnage => Tons > Definition.Tonnage;
     /// <summary>A detached copy with this loadout, for previewing pending hangar changes.</summary>
     public OwnedMech WithLoadout(LoadoutPlan plan)

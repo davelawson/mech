@@ -140,16 +140,31 @@ public partial class HangarLocationPanel : Control
         }
         if (BlockAt(atPosition) is not { ItemId: { } id } block || _mech is null) return DraftCatalog.LocationName(Location);
         var split = block.Length < block.ItemSlots ? $" ({block.Length} here)" : "";
-        var mass = Loadout.Tons(_mech.Spec, id) is { } tons ? $"{tons:0.#} t · " : "";
+        var mass = HeatSinkSplit(block) is var (free, sinks) && free > 0
+            ? free == sinks ? $"Free (within the first {EquipmentRules.FreeHeatSinks} heat sinks) · " : $"{sinks - free} t ({free} of {sinks} free) · "
+            : Loadout.Tons(_mech.Spec, id) is { } tons ? $"{tons:0.#} t · " : "";
+        var engine = block.Kind == SlotKind.Engine ? $"\n{EquipmentRules.EngineSinksText(_mech.Spec)}" : "";
         var condition = Condition(block);
         var warning = !Suspect.Contains(id) ? "" : block.Kind == SlotKind.Ammo ? "\n⚠ No weapon uses this ammunition" : "\n⚠ No compatible ammunition installed";
         var purchase = Purchased.Contains(id) ? $"\nPending purchase · {HangarScreen.Money(EquipmentMarket.Price(_mech.Installed.First(item => item.Id == id).StorageId))}" : "";
         var remove = !Loadout.Removable(block.Kind) ? "" : condition == ComponentCondition.Destroyed ? "\nRight-click to scrap" : "\nRight-click to remove";
         var covering = !Mounts.Covered.TryGetValue(id, out var covers) ? ""
             : string.Concat(covers.GroupBy(type => type).Select(group => $"\nCovering {MountCount(group.Key, group.Count())}"));
-        return $"{block.Name}\n{mass}{block.ItemSlots} {(block.ItemSlots == 1 ? "slot" : "slots")}{split}\n{_mech.ConditionText(id, levels: true)}{purchase}{covering}{warning}{remove}";
+        return $"{block.Name}\n{mass}{block.ItemSlots} {(block.ItemSlots == 1 ? "slot" : "slots")}{split}{engine}\n{_mech.ConditionText(id, levels: true)}{purchase}{covering}{warning}{remove}";
     }
 
+    /// <summary>For a slotted heat sink item, how many of its sinks are free and how many it holds; null for anything else.</summary>
+    public (int Free, int Sinks)? HeatSinkSplit(CriticalBlock block) =>
+        block.Kind == SlotKind.HeatSink && block.ItemId is { } id && _mech?.Spec.Components.FirstOrDefault(item => item.Id == id) is { } sink
+            ? (EquipmentRules.FreeSinksIn(_mech.Spec, id), sink.HeatSinkCount) : null;
+    /// <summary>The centre-torso engine block's label: "Fusion Engine · 12 HS".</summary>
+    public string BlockLabel(CriticalBlock block) =>
+        block.Kind == SlotKind.Engine && Location == MechLocation.CenterTorso && _mech is not null
+            ? $"{block.Name} · {EquipmentRules.EngineHeatSinks(_mech.Spec)} HS"
+        : HeatSinkSplit(block) is var (free, sinks) && free > 0 ? $"{block.Name} ({(free == sinks ? "free" : $"{free} free")})"
+        : block.Name;
+    /// <summary>Free heat sinks are drawn in a lighter shade than those that cost tonnage.</summary>
+    public static readonly Color FreeHeatSinkColor = new("a9d8f2");
     /// <summary>A weapon's slots take its hardpoint class colour; every other item its kind's colour.</summary>
     public Color BlockColor(CriticalBlock block) =>
         block.Kind == SlotKind.Weapon && _mech?.Spec.Weapons.FirstOrDefault(item => item.Id == block.ItemId) is { } weapon
@@ -243,7 +258,15 @@ public partial class HangarLocationPanel : Control
                 inset = 3;
             }
             var size = RowHeight >= 14 ? 10 : 9;
-            var text = mount is { } free ? MountName(free) : block.Length < block.ItemSlots ? $"{block.Name} ({block.Length}/{block.ItemSlots})" : block.Name;
+            // Free heat sinks are shaded lighter, row by row, so a grouped item that is partly free shows which part.
+            if (condition == ComponentCondition.Operational && HeatSinkSplit(block) is var (freeSinks, sinkCount) && freeSinks > 0)
+            {
+                var rows = Math.Min(block.Length, (int)Math.Round(block.ItemSlots * (double)freeSinks / sinkCount));
+                var shade = new Rect2(rect.Position, new Vector2(rect.Size.X, rows * RowHeight - 1));
+                DrawRect(shade, new Color(FreeHeatSinkColor, .34f)); DrawRect(shade, new Color(FreeHeatSinkColor, .8f), false, 1);
+            }
+            var label = BlockLabel(block);
+            var text = mount is { } free ? MountName(free) : block.Length < block.ItemSlots ? $"{label} ({block.Length}/{block.ItemSlots})" : label;
             var baseline = rect.Position.Y + Math.Min(rect.Size.Y, RowHeight) / 2 + size * .38f;
             var suspect = block.ItemId is { } id && Suspect.Contains(id);
             var marker = suspect ? size + 4 : 0;
