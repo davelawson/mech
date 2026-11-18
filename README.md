@@ -107,6 +107,7 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | Home | Arena overview |
 | Backtick (`` ` ``) | Reset camera and frame the selection |
 | Shift+backtick (~) | Toggle the battle log |
+| ? (Shift+/) | Show or hide the controls panel (the battle keeps running) |
 | Hover a detected enemy | Show range lines from selected friendlies |
 | Hover a paperdoll location | List the systems installed there by condition |
 | Escape | Combat menu (Resume, Mission Details, Audio, and End Simulation or Withdraw from a mission) |

@@ -20,6 +20,8 @@ public partial class CombatScreen : Control
     public Button MissionDetailsButton { get; private set; } = null!;
     public Button MissionDetailsBackButton { get; private set; } = null!;
     public CombatLogPanel BattleLog { get; private set; } = null!;
+    /// <summary>The controls reference toggled with ?; it never pauses the battle.</summary>
+    public CombatControlsPanel ControlsPanel { get; private set; } = null!;
     public List<CheckBox> ForceChoices { get; } = [];
     public Button RandomizedEnemyButton { get; private set; } = null!;
     public Button MirrorMatchButton { get; private set; } = null!;
@@ -111,7 +113,6 @@ public partial class CombatScreen : Control
     private PanelContainer _modalPanel = null!;
     private VBoxContainer _modalContent = null!;
     private Label _status = null!;
-    private Label _help = null!;
     private Label _selectionTitle = null!;
     private Label _unitInfo = null!;
     private Label _targetInfo = null!;
@@ -146,6 +147,8 @@ public partial class CombatScreen : Control
         // The tactical view has one global focus: its panels never take keyboard focus, so hotkeys always reach the battle.
         BattleLog.FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled;
         BattleLog.CloseRequested += ToggleBattleLog;
+        ControlsPanel = new CombatControlsPanel { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; AddChild(ControlsPanel);
+        ControlsPanel.CloseRequested += ToggleControls;
         _top = new Control { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; AddChild(_top);
         _title = Ui.Label(_top, "SIMULATED DEPLOYMENT", 20, Ui.Gold); _title.Position = new Vector2(20, 9);
         _status = Ui.Label(_top, "Select your force", 13, Ui.Muted); _status.Position = new Vector2(20, 36); _status.ClipText = true;
@@ -211,7 +214,6 @@ public partial class CombatScreen : Control
         _weaponsTitle = RosterUi.Text(body, "WEAPONS · PRIMARY SELECTION", 12, Ui.Gold);
         _weapons = new VBoxContainer(); body.AddChild(_weapons);
         _unitBar = new HBoxContainer { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; _unitBar.AddThemeConstantOverride("separation", 6); AddChild(_unitBar);
-        _help = Ui.Label(this, "", 12, Ui.Muted); _help.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         WaitingBanner = new PanelContainer { Visible = false }; WaitingBanner.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Gold, 2));
         var waiting = new HBoxContainer(); waiting.AddThemeConstantOverride("separation", 14); WaitingBanner.AddChild(waiting);
         WaitingText = Ui.Label(waiting, "", 15, Ui.Gold); WaitingText.VerticalAlignment = VerticalAlignment.Center;
@@ -262,14 +264,16 @@ public partial class CombatScreen : Control
         var logWidth = BattleLog.Visible ? Math.Clamp(Size.X * .29f, 290, 420) : 0;
         // Unit cards shrink on short windows so the battlefield keeps its height.
         var unitBar = _unitBarHeight = Math.Clamp(Size.Y * .13f, 78, 124);
-        var field = Size.Y - 120 - unitBar;
+        var field = Size.Y - 82 - unitBar;
         Ui.Place(BattleLog, 0, 66, logWidth, Math.Min(field, 12 * 56 + 56));
         Ui.Place(Battlefield, logWidth, 66, Size.X - sidebar - 8 - logWidth, field);
         Ui.Place(_sidebar, Size.X - sidebar, 66, sidebar - 12, field);
+        // The controls lie over the battlefield's right edge, beside the sidebar, without resizing the field.
+        var controls = Math.Clamp(Size.X * .3f, 300, 440);
+        Ui.Place(ControlsPanel, Size.X - sidebar - 8 - controls, 66, controls, field);
         // Shrink the cards first: a container never sizes below its children's current minimum.
         LayoutUnitCards();
-        Ui.Place(_unitBar, 16, Size.Y - 46 - unitBar, Size.X - 32, unitBar);
-        Ui.Place(_help, 16, Size.Y - 43, Size.X - 32, 40);
+        Ui.Place(_unitBar, 16, Size.Y - 8 - unitBar, Size.X - 32, unitBar);
         if (WaitingBanner is not null) PlaceBanner();
         var width = Math.Min(760, Size.X - 48); var height = Math.Min(650, Size.Y - 48);
         Ui.Place(_modalPanel, (Size.X - width) / 2, (Size.Y - height) / 2, width, height);
@@ -296,13 +300,13 @@ public partial class CombatScreen : Control
         Coop = false; Leading = true; ForceReady = false; _othersReady = false; Orders = null;
         Simulation = null; _primary = null; _selected.Clear(); SettingJump = false;
         _title.Text = mission is null ? "SIMULATED DEPLOYMENT" : $"MISSION · {mission.Name.ToUpperInvariant()}";
-        BattleLog.Hide(); Layout();
+        BattleLog.Hide(); ControlsPanel.Hide(); Layout();
         Show();
     }
     private Biome MissionBiome => StarChart.Instance[_mission!.SystemId].Biome ?? Biome.Valley;
     private void BeginModal(CombatModal modal, string title)
     {
-        Modal = modal; Battlefield.CommandsEnabled = false; Battlefield.CancelDrag();
+        Modal = modal; Battlefield.CommandsEnabled = false; Battlefield.CancelDrag(); ControlsPanel.Hide();
         Battlefield.MouseFilter = MouseFilterEnum.Ignore;
         RosterUi.Clear(_modalContent); Ui.Label(_modalContent, title, 24, Ui.Gold); _shade.Show();
     }
@@ -776,6 +780,12 @@ public partial class CombatScreen : Control
         if (Simulation is null || Modal != CombatModal.None) return;
         Battlefield.CancelDrag(); BattleLog.Visible = !BattleLog.Visible; Layout();
     }
+    private void ToggleControls()
+    {
+        if (ControlsPanel.Visible) { ControlsPanel.Hide(); return; }
+        if (Simulation is null || Modal != CombatModal.None) return;
+        ControlsPanel.Display(Coop); ControlsPanel.Show();
+    }
     public bool HandleKey(InputEvent input)
     {
         if (input is not InputEventKey { Pressed: true, Echo: false } key) return false;
@@ -785,6 +795,7 @@ public partial class CombatScreen : Control
             else if (Modal == CombatModal.Menu) Resume();
             else if (Modal == CombatModal.MissionDetails) CloseMissionDetails();
             else if (SettingJump) { SettingJump = false; RefreshDetails(); }
+            else if (ControlsPanel.Visible) ControlsPanel.Hide();
             else OpenMenu();
             return true;
         }
@@ -795,6 +806,8 @@ public partial class CombatScreen : Control
         { SetSpeed(speedKey == Key.Comma ? 1 : CombatSimulation.FastTimeScale); return true; }
         if (Simulation is null || Modal != CombatModal.None || key.CtrlPressed || key.AltPressed || key.MetaPressed) return false;
         var code = key.PhysicalKeycode != Key.None ? key.PhysicalKeycode : key.Keycode;
+        // ? is Shift+/ on most layouts; the typed character covers the others.
+        if (key.Unicode == '?' || code == Key.Slash && key.ShiftPressed) { ToggleControls(); return true; }
         if (code is >= Key.Key1 and <= Key.Key4)
         {
             var slot = (int)code - (int)Key.Key1;
@@ -857,8 +870,6 @@ public partial class CombatScreen : Control
         // Jump targeting lapses once no selected unit can still jump.
         if (SettingJump && JumpUnavailable() is not null) SettingJump = false;
         Battlefield.JumpArmed = SettingJump;
-        _help.Text = SettingJump ? "JUMP: right-click the ground to jump there, within each mech's range circle. Follow orders and Maintain Range resume on landing. Escape cancels."
-            : $"Click / drag / 1–4: select · Shift: toggle · Right-click: Move / Priority target / Follow (Alt: walk · Ctrl: run) · Z: stop · X/C: walk/run · J: jump · G/F: hold/fire at will · Space: pause · ,/.: 1x/4x{(Coop ? " · V: ping" : "")} · WASD / arrows / middle-drag: pan (Shift: fast) · Wheel: zoom · Right-drag / Q/E: orbit · `: frame selection · ~: battle log · Home: arena";
         var friends = OwnUnits.ToArray();
         for (var i = 0; i < UnitButtons.Count; i++)
         {

@@ -45,21 +45,6 @@ public static class BattlefieldTerrainView
             new(-55, -30, 0), new("fff4e0"), 1.1f, new("1d2a22")),
     };
 
-    /// <summary>What each colour on this biome's battlefield means for movement and fire.</summary>
-    public static string Legend(Biome? biome) => biome switch
-    {
-        Biome.Arctic => "Rocks, buildings: blocked · Dark green: soft cover · Ice: open, full speed · Grey rock: steep",
-        Biome.Lunar => "Boulders, buildings: blocked · Dark slopes: steep",
-        Biome.Highlands => "Rocks, buildings: blocked · Dark green: soft cover · Blue: slow water · Grey rock: steep",
-        Biome.Desert => "Rocks, buildings: blocked · Olive scrub: soft cover · Blue: slow water · Rust: steep",
-        Biome.Tropical => "Rocks, buildings: blocked · Dark green: soft cover · Teal: slow water · Brown: steep",
-        Biome.Grassland => "Rocks, buildings: blocked · Green: soft cover · Blue: slow water · Tan: steep",
-        Biome.Archipelago => "Rocks, buildings, deep blue channels: blocked · Light blue: slow shallows · Green: soft cover · Grey: steep",
-        Biome.Volcanic => "Rocks, buildings, lava: blocked · Dark slopes: steep",
-        Biome.Toxic => "Rocks, buildings: blocked · Purple: soft cover · Green pools: slow · Brown: steep",
-        _ => "Rocks, buildings: blocked · Green: soft cover · Blue: slow water · Tan: steep",
-    };
-
     private const string GroundShader = """
         shader_type spatial;
         render_mode cull_disabled;

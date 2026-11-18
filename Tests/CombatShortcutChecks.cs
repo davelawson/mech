@@ -88,9 +88,12 @@ public partial class SmokeTests
                     && tactical.UnitButtons[i].GetGlobalRect().Encloses(card.GetGlobalRect()) && card.Size.X > 40).All(item => item),
                 "each unit card carries a compact paperdoll of its mech");
             Check(tactical.UnitDolls[0]._GetTooltip(tactical.UnitDolls[0].Size / 2) == "", "unit card paperdolls have no location tooltip");
+
+            await CheckControlsPanel(tactical);
         }
         finally
         {
+            tactical.ControlsPanel.Hide();
             for (var i = 0; i < friends.Length; i++) (friends[i].Movement, friends[i].Firing) = settings[i];
             tactical.SelectUnits(selection, false); field.GrabFocus();
         }
@@ -147,6 +150,46 @@ public partial class SmokeTests
         Check(!tactical.JumpButton.Disabled && jumper.JumpUnavailableReason is null,
             "a group jumps when any member can, and its jets read ready");
         await PressKey(Key.Escape); await Click(tactical.EndButton); await Click(tactical.ReturnButton);
+    }
+    /// <summary>? opens the controls reference without pausing; Escape and × close it before anything else.</summary>
+    private async Task CheckControlsPanel(CombatScreen tactical)
+    {
+        var sim = tactical.Simulation!; var panel = tactical.ControlsPanel;
+        async Task Question()
+        {
+            foreach (var pressed in new[] { true, false })
+            {
+                Input.ParseInputEvent(new InputEventKey { Keycode = Key.Slash, PhysicalKeycode = Key.Slash, ShiftPressed = true,
+                    Unicode = pressed ? '?' : 0, Pressed = pressed });
+                await Frames();
+            }
+        }
+        var paused = sim.Paused;
+        await Question();
+        Check(panel.Visible && tactical.Modal == CombatModal.None && sim.Paused == paused, "? opens the controls panel without pausing or a modal");
+        var text = string.Join("\n", panel.FindChildren("*", "Label", true, false).OfType<Label>().Select(label => label.Text));
+        Check(new[] { "Weapon toggles", "heat limit", "Maintain Range", "Walk / Run", "1x", "Pause" }.All(item => text.Contains(item)),
+            "the controls panel explains weapon toggles, the heat limit and speed controls");
+        Check(panel.GetGlobalRect().Intersects(tactical.Battlefield.GetGlobalRect()) && panel.Size.Y > 200, $"the controls panel lies over the battlefield: {panel.GetGlobalRect()}");
+        sim.Paused = false; var before = sim.Clock;
+        await Frames(); await Frames();
+        Check(sim.Clock > before, "the battle keeps running with the controls panel open");
+        sim.Paused = paused;
+        var movement = tactical.Simulation!.Unit(tactical.Selected.First()).Movement;
+        await PressKey(movement == MovementMode.Run ? Key.X : Key.C);
+        Check(sim.Unit(tactical.Selected.First()).Movement != movement, "order hotkeys work with the controls panel open");
+        await PressKey(movement == MovementMode.Run ? Key.C : Key.X);
+        await Capture("combat-controls-panel");
+        await PressKey(Key.Escape);
+        Check(!panel.Visible && tactical.Modal == CombatModal.None, "Escape closes the controls panel before opening the combat menu");
+        await Question(); await Question();
+        Check(!panel.Visible, "? toggles the controls panel closed");
+        await Question(); await Click(panel.CloseButton);
+        Check(!panel.Visible, "× closes the controls panel");
+        Check(!tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Click / drag") && !panel.IsAncestorOf(label)),
+            "the combat screen has no hint bar");
+        var cards = tactical.UnitButtons[0].GetParent<Control>().GetGlobalRect();
+        Check(tactical.GetGlobalRect().End.Y - cards.End.Y <= 10, $"the unit cards sit at the foot of the screen: {cards} in {tactical.GetGlobalRect()}");
     }
     private static void CheckLocationSystems(Action<bool, string> check)
     {

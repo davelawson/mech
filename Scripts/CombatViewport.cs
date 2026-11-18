@@ -1322,6 +1322,7 @@ public partial class CombatViewport : Control
             }).ToArray();
         }
     }
+    /// <summary>The sensor ranges in words; the battlefield draws only the rings, so this is for checks.</summary>
     public string SensorRangeText => RangeText(DetectionRanges);
     private string RangeText(IReadOnlyList<(CombatUnit Observer, float Identification, float? Detail)> ranges)
     {
@@ -1394,13 +1395,6 @@ public partial class CombatViewport : Control
     {
         if (Simulation is null || Camera is null) return;
         var font = ThemeDB.FallbackFont;
-        var header = $"Terrain seed: {Simulation.Terrain.Seed} · {CombatScreen.BiomeText(Simulation)}";
-        var legend = BattlefieldTerrainView.Legend(Simulation.Terrain.Biome);
-        // A dark backing keeps the header readable over snow as well as grass and regolith.
-        var width = Math.Max(font.GetStringSize(header, HorizontalAlignment.Left, -1, 12).X, font.GetStringSize(legend, HorizontalAlignment.Left, -1, 11).X);
-        DrawRect(new Rect2(6, 4, width + 12, 36), new Color(0, 0, 0, .45f));
-        DrawString(font, new Vector2(12, 18), header, HorizontalAlignment.Left, -1, 12, Ui.Gold);
-        DrawString(font, new Vector2(12, 34), legend, HorizontalAlignment.Left, -1, 11, Ui.Text);
         if (Simulation.Patrol is { } patrol) DrawPatrol(patrol, font);
         else
         {
@@ -1422,7 +1416,6 @@ public partial class CombatViewport : Control
             DrawRangeUnion(ranges.Select(range => new CircleUnion.Circle(range.Observer.Position, range.Identification)).ToArray(), new Color("7fb8bf"));
             if (ranges[0].Detail is not null)
                 DrawRangeUnion(ranges.Select(range => new CircleUnion.Circle(range.Observer.Position, range.Detail!.Value)).ToArray(), Ui.Gold);
-            DrawString(font, new Vector2(12, 50), RangeText(ranges), HorizontalAlignment.Left, -1, 11, Ui.Text);
         }
         foreach (var unit in Simulation.Units)
         {
