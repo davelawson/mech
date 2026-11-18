@@ -33,11 +33,11 @@ internal static partial class CombatChecks
         check(!jenner.Airborne && jenner.JumpUnavailableReason == "Recharging", "recharging jets refuse another jump");
         sim.Advance(CombatRules.JumpRechargeSeconds);
         check(jenner.JumpUnavailableReason is null, "jets are ready again after the recharge");
-        jenner.AddHeat(16 - jenner.Heat);
+        jenner.AddHeat(20.5 - jenner.Heat);
         sim.Jump([jenner.Id], Vector2.Zero);
-        check(!jenner.Airborne && Math.Abs(jenner.Heat - 16) < .1, "a jump whose heat would reach the Normal policy limit is refused");
-        jenner.HeatPolicy = HeatPolicy.Aggressive; sim.Jump([jenner.Id], Vector2.Zero);
-        check(jenner.Airborne, "Aggressive heat policy permits the same jump");
+        check(!jenner.Airborne && jenner.JumpUnavailableReason == "Too hot", "a jump is refused while heat is above the limit");
+        jenner.HeatLimit = 21; sim.Jump([jenner.Id], Vector2.Zero);
+        check(jenner.Airborne && jenner.Heat > 21, "at or below the limit the jump starts and may carry heat past it");
 
         var awesome = Battle(); Arrange(awesome); Quiet(awesome);
         Friendly(awesome).Position = Vector2.Zero; awesome.Jump([Friendly(awesome).Id], new Vector2(0, -100));

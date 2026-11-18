@@ -118,7 +118,9 @@ public sealed partial class CombatSimulation
 
     private static string VolleyStatus(CombatUnit unit, CombatWeapon weapon,
         IReadOnlyList<(CombatWeapon Weapon, CombatUnit Target)> volley) =>
-        volley.Any(shot => shot.Weapon == weapon) ? "Ready" : $"Cooling · {unit.HeatPolicy} heat policy";
+        volley.Any(shot => shot.Weapon == weapon) || unit.Side != CombatSide.Friendly ? "Ready" : TooHot;
+    /// <summary>A friendly weapon held by the heat limit. Enemy readouts never give heat as the reason.</summary>
+    public const string TooHot = "Too Hot!";
 
     // A null result means only the shared heat-budget decision remains.
     private string? WeaponRestriction(CombatUnit unit, CombatWeapon weapon, CombatUnit? target)

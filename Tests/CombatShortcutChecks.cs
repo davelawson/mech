@@ -115,8 +115,8 @@ public partial class SmokeTests
         tactical.SelectUnits([grounded.Id], false); field.GrabFocus(); await PressKey(Key.J);
         Check(!tactical.SettingJump && tactical.JumpButton.Disabled && tactical.JumpButton.TooltipText.Contains("No jump jets"),
             $"mechs without jump jets cannot arm a jump and say why: {tactical.JumpButton.TooltipText}");
-        Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Jump: no jump jets")),
-            "selected details report a mech without jump jets");
+        Check(!tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Jump: no jump jets")),
+            "selected details leave jump availability to the Jump button");
         Check(tactical.UnitDolls.Single(doll => doll.Unit == jumper).ShowsFuel && !tactical.UnitDolls.Single(doll => doll.Unit == grounded).ShowsFuel
             && CombatPaperdoll.FuelFraction(jumper) == 1, "only jump-capable cards show a fuel bar, full while ready");
         tactical.SelectUnits([jumper.Id], false); field.GrabFocus();
@@ -144,8 +144,8 @@ public partial class SmokeTests
         sim.Paused = false; sim.Advance(jumper.JumpDuration + CombatRules.JumpRechargeSeconds / 2 - 1); sim.Paused = true;
         Check(!jumper.Airborne && CombatPaperdoll.FuelFraction(jumper) is > .3f and < .7f, $"the fuel bar refills over the recharge after landing: {CombatPaperdoll.FuelFraction(jumper)}");
         sim.Paused = false; sim.Advance(CombatRules.JumpRechargeSeconds + 5); sim.Paused = true; tactical.SelectUnits([jumper.Id, grounded.Id], false);
-        Check(!tactical.JumpButton.Disabled && tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Ready")),
-            "a group jumps when any member can, and details report ready jets");
+        Check(!tactical.JumpButton.Disabled && jumper.JumpUnavailableReason is null,
+            "a group jumps when any member can, and its jets read ready");
         await PressKey(Key.Escape); await Click(tactical.EndButton); await Click(tactical.ReturnButton);
     }
     private static void CheckLocationSystems(Action<bool, string> check)

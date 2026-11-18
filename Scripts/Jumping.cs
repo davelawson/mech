@@ -47,8 +47,9 @@ public sealed partial class CombatUnit
     /// <summary>Why this unit cannot start the shortest jump now, or null when it can.</summary>
     public string? JumpUnavailableReason => Spec.Jump == 0 ? "No jump jets" : Defeated ? Status.ToString()
         : JumpRange <= 0 ? "Jump jets lost" : Shutdown ? "Shut down" : Airborne ? "Airborne" : Prone ? "Prone"
-        : JumpRecharge > 0 ? "Recharging" : !JumpHeatPermitted(CombatRules.MinimumJump) ? "Too hot" : null;
-    public bool JumpHeatPermitted(float distance) => Heat + CombatRules.JumpHeat(distance) < CombatRules.HeatLimit(HeatPolicy);
+        : JumpRecharge > 0 ? "Recharging" : !JumpHeatPermitted ? "Too hot" : null;
+    /// <summary>Like a weapon, a jump may start while heat is at or below the limit.</summary>
+    public bool JumpHeatPermitted => CombatRules.WithinHeatLimit(Heat, HeatLimit);
 }
 
 public sealed partial class CombatSimulation
@@ -89,7 +90,7 @@ public sealed partial class CombatSimulation
     private bool TakeOff(CombatUnit unit, Vector2 landing)
     {
         var distance = unit.Position.DistanceTo(landing);
-        if (unit.JumpUnavailableReason is not null || distance < CombatRules.MinimumJump || !unit.JumpHeatPermitted(distance)) return false;
+        if (unit.JumpUnavailableReason is not null || distance < CombatRules.MinimumJump) return false;
         unit.JumpFrom = unit.Position; unit.JumpTo = landing;
         unit.JumpFromHeight = Terrain.HeightAt(unit.Position); unit.JumpToHeight = Terrain.HeightAt(landing);
         // Rise at least high enough to clear every rock and ridge beneath the arc.

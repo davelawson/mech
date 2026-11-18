@@ -41,7 +41,7 @@ internal static partial class CombatChecks
     {
         var sim = HeatFixture([HeatGun("test", 7, 1)]);
         var f = Friendly(sim); var e = Enemy(sim); e.Firing = FiringMode.HoldFire;
-        check(sim.Units.All(unit => unit.Heat == 0 && unit.HeatPolicy == HeatPolicy.Normal), "both sides deploy cold with Normal heat policy");
+        check(sim.Units.All(unit => unit.Heat == 0 && unit.HeatLimit == CombatRules.DefaultHeatLimit), "both sides deploy cold with a heat limit of 10");
         sim.Paused = false; sim.Advance(.05);
         check(f.Heat == 7 && f.ShotsFired == 1 && e.Heat == 0, "weapon adds stock heat immediately on discharge");
         sim.Paused = true; sim.Advance(20);
@@ -137,65 +137,73 @@ internal static partial class CombatChecks
     private static void CheckHeatSelection(Action<bool, string> check)
     {
         var sim = HeatFixture([HeatGun("first", 10, 10), HeatGun("second", 10, 10), HeatGun("third", 10, 10)]);
-        var f = Friendly(sim); var e = Enemy(sim);
-        check(sim.SelectHeatVolley(f, e, null).Select(shot => shot.Weapon.Spec.Id).SequenceEqual(new[] { "first" }), "Normal excludes the twenty-heat boundary and breaks equal-value ties by catalog order");
-        f.HeatPolicy = HeatPolicy.Aggressive;
-        check(sim.SelectHeatVolley(f, e, null).Count == 2, "Aggressive permits a stronger volley but excludes the thirty-heat boundary");
+        var f = Friendly(sim); var e = Enemy(sim); f.HeatLimit = 20;
+        IEnumerable<string> Ids() => sim.SelectHeatVolley(f, e, null).Select(shot => shot.Weapon.Spec.Id);
+        check(Ids().SequenceEqual(new[] { "first", "second", "third" }),
+            "each weapon fires while heat so far is at or below the limit, so a limit of 20 lets the third reach 30; ties fall to mount order");
+        f.HeatLimit = 10;
+        check(Ids().Count() == 2, "a weapon fired earlier in the step counts against the next one checked");
+        f.HeatLimit = 0;
+        check(Ids().Count() == 1, "a limit of 0 fires one weapon from cold");
         f.AddHeat(.1);
-        check(sim.SelectHeatVolley(f, e, null).Count == 2, "fractional heat correctly budgets integer per-shot costs");
-        f.AddHeat(9.9);
-        check(sim.SelectHeatVolley(f, e, null).Count == 1, "exact current heat respects exclusive policy ceiling");
+        check(!Ids().Any(), "any heat above the limit holds fire until it dissipates");
+        f.HeatLimit = 40; check(f.HeatLimit == CombatRules.MaxHeatLimit, "the limit is capped at the shutdown threshold");
+        f.HeatLimit = -3; check(f.HeatLimit == 0, "the limit never falls below zero");
+        f.HeatLimit = 20; f.AddHeat(19.9);
+        check(Ids().Count() == 1, "heat exactly at the limit still fires once");
 
         sim = HeatFixture([HeatGun("expensive", 12, 11), HeatGun("efficient-a", 9, 9), HeatGun("efficient-b", 9, 9)]);
-        f = Friendly(sim); e = Enemy(sim);
-        check(sim.SelectHeatVolley(f, e, null).Select(shot => shot.Weapon.Spec.Id).SequenceEqual(new[] { "efficient-a", "efficient-b" }), "volley optimizer selects the best combination rather than first or largest weapon");
-        sim.Paused = false; e.Firing = FiringMode.HoldFire; sim.Advance(.05);
-        check(f.ShotsFired == 2 && f.Heat == 18 && f.Weapons[0].Remaining == 0, "withheld weapon stays ready and unspent while selected weapons generate heat");
-        check(sim.WeaponStatus(f, f.Weapons[0], e).StartsWith("Cooling"), "weapon status explains withholding for heat");
+        f = Friendly(sim); e = Enemy(sim); f.HeatLimit = 10;
+        check(Ids().SequenceEqual(new[] { "expensive" }), "the highest expected-damage weapon is checked first");
+        sim.Paused = false; sim.Advance(.05);
+        check(f.ShotsFired == 1 && f.Heat == 12 && f.Weapons[1].Remaining == 0, "withheld weapons stay ready and unspent while the fired weapon adds heat");
+        check(sim.WeaponStatus(f, f.Weapons[1], e) == CombatSimulation.TooHot, "a friendly weapon held by heat reads Too Hot!");
+        e.Firing = FiringMode.FireAtWill; e.HeatLimit = 0; e.AddHeat(5); e.Weapons[0].Remaining = 0;
+        check(sim.WeaponStatus(e, e.Weapons[0], f) == "Ready", "an enemy weapon held by heat never gives heat as the reason");
 
-        sim = HeatFixture([HeatGun("more-heat", 9, 5), HeatGun("less-heat", 8, 5)]); f = Friendly(sim); e = Enemy(sim); f.AddHeat(5);
-        check(sim.SelectHeatVolley(f, e, null).Single().Weapon.Spec.Id == "less-heat", "equal expected damage favors less heat before catalog order");
+        sim = HeatFixture([HeatGun("more-heat", 9, 5), HeatGun("less-heat", 8, 5)]); f = Friendly(sim); e = Enemy(sim);
+        f.AddHeat(5); f.HeatLimit = 10;
+        check(Ids().SequenceEqual(new[] { "less-heat" }), "equal expected damage checks less heat first, before mount order");
         sim = HeatFixture([HeatGun("first", 12, 5), HeatGun("last", 12, 10) with { Short = 1, Medium = 1 }]);
-        f = Friendly(sim); e = Enemy(sim);
-        check(sim.SelectHeatVolley(f, e, null).Single().Weapon.Spec.Id == "last", "guaranteed-hit higher damage wins when both weapons fit individually");
+        f = Friendly(sim); e = Enemy(sim); f.HeatLimit = 5;
+        check(Ids().SequenceEqual(new[] { "last" }), "guaranteed-hit higher damage is checked first");
         sim = HeatFixture([HeatGun("accurate", 12, 5), HeatGun("inaccurate", 12, 10) with { Short = 1, Medium = 1 }], gunnery: 4);
-        f = Friendly(sim); e = Enemy(sim);
+        f = Friendly(sim); e = Enemy(sim); f.HeatLimit = 5;
         e.Position = new(180, 0);
-        check(sim.SelectHeatVolley(f, e, null).Single().Weapon.Spec.Id == "accurate", "optimizer accounts for range-dependent hit chance rather than raw damage");
+        check(Ids().SequenceEqual(new[] { "accurate" }), "check order accounts for range-dependent hit chance rather than raw damage");
 
-        sim = HeatFixture([HeatGun("free-a", 0, 1), HeatGun("free-b", 0, 1), HeatGun("hot", 12, 1)]); f = Friendly(sim); e = Enemy(sim); f.AddHeat(19.5);
-        check(sim.SelectHeatVolley(f, e, null).Count == 2, "zero-heat weapons each fire once when no positive-heat weapon fits");
+        sim = HeatFixture([HeatGun("free-a", 0, 1), HeatGun("free-b", 0, 1), HeatGun("hot", 12, 1)]); f = Friendly(sim); e = Enemy(sim);
+        f.HeatLimit = 20; f.AddHeat(19.5);
+        check(Ids().Count() == 3, "below the limit every ready weapon may start, carrying heat past it");
         f.Weapons[0].Enabled = false; f.Weapons[1].Remaining = 1;
-        check(sim.SelectHeatVolley(f, e, null).Count == 0, "heat selection preserves weapon toggles and independent cooldowns");
-        f.AddHeat(.5);
-        check(sim.SelectHeatVolley(f, e, null).Count == 0, "Normal waits to cool when already at its ceiling");
+        check(Ids().SequenceEqual(new[] { "hot" }), "heat selection preserves weapon toggles and independent cooldowns");
+        f.AddHeat(1);
+        check(!Ids().Any(), "above the limit even zero-heat weapons wait to cool");
 
-        // An exhaustive small-loadout oracle checks the optimizer against every legal subset.
+        // Random loadouts: the volley is the longest prefix of the check order that starts each weapon within the limit.
         var random = new Random(173);
-        var optimal = true;
+        var consistent = true;
         for (var sample = 0; sample < 40; sample++)
         {
             var weapons = Enumerable.Range(0, 8).Select(index => HeatGun($"gun-{index}", random.Next(0, 13), random.Next(1, 21))).ToArray();
             sim = HeatFixture(weapons); f = Friendly(sim); e = Enemy(sim);
-            f.HeatPolicy = sample % 2 == 0 ? HeatPolicy.Normal : HeatPolicy.Aggressive;
-            f.AddHeat(random.Next(0, 38) / 2d);
-            var expectedDamage = 0; var expectedHeat = 0;
-            for (var mask = 0; mask < 1 << weapons.Length; mask++)
+            f.HeatLimit = random.Next(0, 31);
+            f.AddHeat(random.Next(0, 62) / 2d);
+            var order = sim.HeatOrderedCandidates(f, e, null);
+            var damages = order.Select(shot => shot.Weapon.Damage).ToArray();
+            consistent &= damages.Zip(damages.Skip(1)).All(pair => pair.First >= pair.Second);
+            var expected = new List<CombatWeapon>(); var heat = f.Heat;
+            foreach (var (weapon, _) in order)
             {
-                var subset = weapons.Where((_, index) => (mask & (1 << index)) != 0).ToArray();
-                var heat = subset.Sum(weapon => weapon.Heat); var damage = subset.Sum(CombatRules.Damage);
-                if (f.Heat + heat >= CombatRules.HeatLimit(f.HeatPolicy)) continue;
-                if (damage > expectedDamage || damage == expectedDamage && heat < expectedHeat)
-                { expectedDamage = damage; expectedHeat = heat; }
+                if (heat > f.HeatLimit + 1e-9) break;
+                expected.Add(weapon); heat += weapon.Spec.Heat;
             }
-            var actual = sim.SelectHeatVolley(f, e, null);
-            optimal &= actual.Sum(shot => shot.Weapon.Damage) == expectedDamage
-                && actual.Sum(shot => shot.Weapon.Spec.Heat) == expectedHeat;
+            consistent &= sim.SelectHeatVolley(f, e, null).Select(shot => shot.Weapon).SequenceEqual(expected);
         }
-        check(optimal, "heat-budget optimizer matches exhaustive subset selection across mixed loadouts and policies");
+        check(consistent, "random loadouts check weapons best-first and stop once heat so far passes the limit");
         sim = HeatFixture([HeatGun("impossible", 3, 1)], gunnery: 20); f = Friendly(sim); e = Enemy(sim);
         check(sim.SelectHeatVolley(f, e, null).Count == 0 && sim.WeaponStatus(f, f.Weapons[0], e) == "Cannot hit",
-            "zero-probability weapons explain their firing solution rather than falsely reporting cooling");
+            "zero-probability weapons explain their firing solution rather than reporting Too Hot!");
     }
 
     private static void CheckWeaponPreviews(Action<bool, string> check)
@@ -220,9 +228,9 @@ internal static partial class CombatChecks
         }
         Equivalent("independent front/rear targets share a heat budget");
         var statuses = sim.WeaponStatuses(f, e, rear, e);
-        check(statuses.Any(status => status == "Ready") && statuses.Any(status => status.StartsWith("Cooling")),
+        check(statuses.Any(status => status == "Ready") && statuses.Any(status => status == CombatSimulation.TooHot),
             "mixed loadout previews distinguish selected and withheld weapons");
-        f.HeatPolicy = HeatPolicy.Aggressive; Equivalent("policy changes while paused");
+        f.HeatLimit = 30; Equivalent("limit changes while paused");
         f.AddHeat(9); Equivalent("fractional remaining heat budget");
         f.Weapons[0].Enabled = false; f.Weapons[1].Remaining = 2; Equivalent("toggles and cooldowns");
         f.Weapons[0].Enabled = true; f.Weapons[1].Remaining = 0;
@@ -309,7 +317,7 @@ internal static partial class CombatChecks
             var f = Friendly(sim); var e = Enemy(sim);
             f.Weapons[^1].Enabled = false;
             foreach (var weapon in e.Weapons.Take(4)) weapon.Enabled = false;
-            e.HeatPolicy = HeatPolicy.Aggressive; e.AddHeat(28);
+            e.HeatLimit = 30; e.AddHeat(28);
             var shots = new List<CombatShot>(); sim.ShotFired += shots.Add;
             sim.Paused = false; sim.Advance(.05);
             check(f.ShotsFired == 4 && e.ShotsFired == 1 && e.Heat == 36 && e.Shutdown && f.Heat == 12,
@@ -329,7 +337,7 @@ internal static partial class CombatChecks
             var control = HeatFixture([HeatGun("a", 0, 1), HeatGun("b", 0, 1)], seed: seed, gunnery: 4);
             foreach (var battle in new[] { heated, control })
             {
-                Friendly(battle).AddHeat(9); Friendly(battle).HeatPolicy = HeatPolicy.Aggressive;
+                Friendly(battle).AddHeat(9); Friendly(battle).HeatLimit = 30;
                 Enemy(battle).Firing = FiringMode.HoldFire;
                 battle.Paused = false; battle.Advance(.05);
             }
@@ -343,6 +351,6 @@ internal static partial class CombatChecks
         a.Paused = b.Paused = false; a.Advance(5);
         for (var i = 0; i < 50; i++) b.Advance(.1);
         check(a.Units.Zip(b.Units).All(pair => Math.Abs(pair.First.Heat - pair.Second.Heat) < .000001
-            && pair.First.ShotsFired == pair.Second.ShotsFired && pair.First.Shutdown == pair.Second.Shutdown), "heat and policy selection remain independent of frame partitioning");
+            && pair.First.ShotsFired == pair.Second.ShotsFired && pair.First.Shutdown == pair.Second.Shutdown), "heat and limit selection remain independent of frame partitioning");
     }
 }

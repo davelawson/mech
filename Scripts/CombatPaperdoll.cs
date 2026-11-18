@@ -13,12 +13,20 @@ public sealed record SystemGroup(int Count, string Name, ComponentCondition Cond
 /// <summary>
 /// A shared front/rear schematic. The armor rim and internal core are independent.
 /// Compact dolls (unit cards) draw only the regions; the full doll lists each location's systems on hover.
-/// Both carry a jump-fuel bar on the left and a heat bar on the right, without text.
+/// Both carry a jump-fuel bar on the left and a heat bar on the right, without text. The full doll of a friendly mech
+/// adds a draggable heat-limit handle beside its heat bar.
 /// </summary>
 public partial class CombatPaperdoll : Control
 {
     public CombatUnit? Unit { get; private set; }
     public bool Compact { get; init; }
+    /// <summary>Raised with the whole heat limit 0–30 while the player clicks or drags the heat bar.</summary>
+    public event Action<int>? HeatLimitChanged;
+    /// <summary>Only the sidebar doll of a friendly mech still in the battle offers the heat-limit handle.</summary>
+    public bool EditsHeatLimit => !Compact && Unit is { Side: CombatSide.Friendly, Defeated: false };
+    private int? _dragLimit;
+    /// <summary>The limit the handle shows: the one being dragged, else the unit's own.</summary>
+    public int? DisplayedHeatLimit => !EditsHeatLimit ? null : _dragLimit ?? Unit!.HeatLimit;
     public static readonly Color Full = new("b4b8b6"), LightDamage = new("f1d34c"),
         ModerateDamage = new("ef8a32"), CriticalDamage = new("e84c43"), Healthy = new("6fcf6a");
     public static Color SystemColor(ComponentCondition condition) => condition switch
@@ -60,14 +68,14 @@ public partial class CombatPaperdoll : Control
         (MechLocation.CenterTorso, [new(231, 57), new(259, 57), new(261, 113), new(229, 113)]),
         (MechLocation.RightTorso, [new(265, 58), new(288, 55), new(285, 105), new(265, 112)])
     ];
-    // The compact doll tucks the rear strip beside the front view and crops the labels and legend.
+    // The compact doll tucks the rear strip beside the front view.
     private static readonly Vector2 CompactRearShift = new(-26, 0);
     private static readonly Rect2 CompactBounds = new(4, 22, 262, 188);
     private MechLocation? _tooltipLocation;
     public override void _Ready()
     {
         // Pass keeps wheel scrolling in the sidebar while the doll shows tooltips.
-        CustomMinimumSize = Compact ? Vector2.Zero : new(0, 220);
+        CustomMinimumSize = Compact ? Vector2.Zero : new(0, FullMinimumHeight);
         MouseFilter = Compact ? MouseFilterEnum.Ignore : MouseFilterEnum.Pass;
         // A width-dependent minimum height can oscillate with an automatic scrollbar.
         // Keep layout stable and fit the drawing to the allocated size instead.
@@ -96,13 +104,18 @@ public partial class CombatPaperdoll : Control
     }
     // The full doll's front schematic spans these heights; the bars run alongside it, outside the arms and rear inset.
     private const float FullLeft = 7, FullRight = 288, FullTop = 25, FullBottom = 208;
+    // The full doll is cropped to the schematic with a small margin. The height matches the width-bound drawing in the
+    // usual sidebar, so the details below sit directly under the feet.
+    private const float FullViewTop = 23, FullViewBottom = 210, FullMinimumHeight = 163;
     /// <summary>Bar width in pixels: about 5–8 on a card, twice that in the sidebar.</summary>
     private float BarWidth => Compact ? Math.Clamp(Size.Y * .1f, 5, 8) : Math.Clamp(Size.Y * .05f, 10, 16);
     private float BarGap => BarWidth * .6f;
+    /// <summary>The heat-limit pointer's width, reserved beyond the sidebar heat bar.</summary>
+    private float PointerWidth => Compact ? 0 : BarWidth * .8f;
     private float DrawScale => Compact ? Math.Min(Math.Max(1, Size.X - 2 * (BarWidth + BarGap + 1)) / CompactBounds.Size.X, Size.Y / CompactBounds.Size.Y)
-        : Math.Min(Math.Max(1, Size.X - 2 * (BarWidth + BarGap + 1)) / (FullRight - FullLeft), Size.Y / 244);
+        : Math.Min(Math.Max(1, Size.X - 2 * (BarWidth + BarGap + 1) - PointerWidth) / (FullRight - FullLeft), Size.Y / (FullViewBottom - FullViewTop));
     private Vector2 Origin => Compact ? (Size - CompactBounds.Size * DrawScale) / 2 - CompactBounds.Position * DrawScale
-        : new Vector2((Size.X - (FullRight - FullLeft) * DrawScale) / 2 - FullLeft * DrawScale, 0);
+        : new Vector2((Size.X - PointerWidth - (FullRight - FullLeft) * DrawScale) / 2 - FullLeft * DrawScale, -FullViewTop * DrawScale);
     /// <summary>The whole fuel bar slot, icon included, beside the doll's left edge.</summary>
     public Rect2 FuelBarRect => BarSlot(left: true);
     /// <summary>The whole heat bar slot, icon included, beside the doll's right edge.</summary>
@@ -114,6 +127,43 @@ public partial class CombatPaperdoll : Control
             : (FullLeft, FullRight, FullTop, FullBottom);
         var x = left ? origin.X + minX * scale - BarGap - BarWidth : origin.X + maxX * scale + BarGap;
         return new Rect2(x, origin.Y + top * scale, BarWidth, (bottom - top) * scale);
+    }
+    /// <summary>The bar's track above its icon, within a bar slot.</summary>
+    private static Rect2 Track(Rect2 slot)
+    {
+        var iconSize = Math.Min(slot.Size.X * 2, slot.Size.Y * .4f);
+        return new Rect2(slot.Position, new Vector2(slot.Size.X, Math.Max(1, slot.Size.Y - iconSize - 2)));
+    }
+    /// <summary>The heat bar's track, where 0 heat is the bottom and the shutdown threshold the top.</summary>
+    public Rect2 HeatTrack => Track(HeatBarRect);
+    /// <summary>Where the heat-limit handle can be grabbed: the track and its pointer, with a little slack.</summary>
+    private Rect2 HeatGrabArea => HeatTrack.GrowIndividual(3, 6, PointerWidth + 3, 6);
+    /// <summary>The whole-number limit for a height in this control, 0 at the track bottom and 30 at its top.</summary>
+    public int HeatLimitAt(float y)
+    {
+        var track = HeatTrack;
+        return CombatRules.ClampHeatLimit((int)Math.Round((track.End.Y - y) / track.Size.Y * CombatRules.MaxHeatLimit));
+    }
+    /// <summary>The height of a heat value on the heat track.</summary>
+    public float HeatTrackY(double heat) => HeatTrack.End.Y - HeatTrack.Size.Y * (float)(heat / CombatRules.ShutdownHeat);
+    public override void _GuiInput(InputEvent @event)
+    {
+        if (!EditsHeatLimit) { _dragLimit = null; return; }
+        if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Left } button)
+        {
+            if (button.Pressed && HeatGrabArea.HasPoint(button.Position)) { DragHeatLimit(button.Position.Y); AcceptEvent(); }
+            else if (!button.Pressed && _dragLimit is not null) { _dragLimit = null; QueueRedraw(); AcceptEvent(); }
+        }
+        else if (@event is InputEventMouseMotion motion && _dragLimit is not null)
+        {
+            DragHeatLimit(motion.Position.Y); AcceptEvent();
+        }
+    }
+    private void DragHeatLimit(float y)
+    {
+        var limit = HeatLimitAt(y);
+        if (limit != (_dragLimit ?? Unit!.HeatLimit)) HeatLimitChanged?.Invoke(limit);
+        _dragLimit = limit; QueueRedraw();
     }
     /// <summary>The location drawn under a point in this control's coordinates, front or rear.</summary>
     public MechLocation? LocationAt(Vector2 at)
@@ -131,6 +181,7 @@ public partial class CombatPaperdoll : Control
             : "No systems");
     public override string _GetTooltip(Vector2 atPosition)
     {
+        if (DisplayedHeatLimit is { } limit && HeatGrabArea.HasPoint(atPosition)) { _tooltipLocation = null; return $"Heat limit {limit}"; }
         _tooltipLocation = Compact ? null : LocationAt(atPosition);
         return _tooltipLocation is { } location ? LocationTooltip(location) : "";
     }
@@ -150,7 +201,7 @@ public partial class CombatPaperdoll : Control
     private void Bar(Rect2 slot, float fraction, Color color, Texture2D icon, bool ticks)
     {
         var iconSize = Math.Min(slot.Size.X * 2, slot.Size.Y * .4f);
-        var track = new Rect2(slot.Position, new Vector2(slot.Size.X, Math.Max(1, slot.Size.Y - iconSize - 2)));
+        var track = Track(slot);
         DrawRect(track, BarTrack);
         var fill = track.Size.Y * fraction;
         if (fill > 0) DrawRect(new Rect2(track.Position.X, track.End.Y - fill, track.Size.X, fill), color);
@@ -168,8 +219,6 @@ public partial class CombatPaperdoll : Control
         if (Unit is null) return;
         var scale = DrawScale; var origin = Origin;
         Vector2 At(Vector2 point) => origin + point * scale;
-        void Text(Vector2 at, string text, Color color, int size = 11) =>
-            DrawString(ThemeDB.FallbackFont, At(at), text, HorizontalAlignment.Left, -1, Math.Max(9, (int)(size * scale)), color);
         void Region(MechLocation location, Vector2[] shape, bool rear)
         {
             var spec = Unit.Spec.Locations.Single(item => item.Location == location);
@@ -196,17 +245,20 @@ public partial class CombatPaperdoll : Control
         foreach (var (location, shape) in Shapes) Region(location, shape, false);
         foreach (var (location, shape) in RearShapes)
             Region(location, Compact ? shape.Select(point => point + CompactRearShift).ToArray() : shape, true);
-        if (Compact) return;
-        Text(new(62, 14), "FRONT", Ui.Muted);
-        Text(new(204, 38), "REAR TORSO", Ui.Muted, 10);
-        Text(new(199, 139), "RIM: ARMOR", Ui.Muted, 10);
-        Text(new(199, 155), "CORE: INTERNAL", Ui.Muted, 10);
-        var colors = new[] { Full, LightDamage, ModerateDamage, CriticalDamage };
-        var labels = new[] { "Full", "Light", "Moderate", "Critical" };
-        for (var i = 0; i < colors.Length; i++)
-        {
-            DrawRect(new Rect2(At(new(i * 76 + 3, 228)), new Vector2(8, 8) * scale), colors[i]);
-            Text(new(i * 76 + 15, 236), labels[i], Ui.Muted, 10);
-        }
+        if (DisplayedHeatLimit is { } limit) HeatLimitHandle(limit);
     }
+    /// <summary>A line across the heat track at the limit and a pointer beyond its right edge; the number shows while dragging.</summary>
+    private void HeatLimitHandle(int limit)
+    {
+        var track = HeatTrack; var y = HeatTrackY(limit); var width = PointerWidth;
+        DrawLine(new(track.Position.X, y), new(track.End.X, y), HeatLimitColor, 2);
+        DrawColoredPolygon([new(track.End.X + 1, y), new(track.End.X + 1 + width, y - width * .7f), new(track.End.X + 1 + width, y + width * .7f)], HeatLimitColor);
+        if (_dragLimit is null) return;
+        var text = limit.ToString(); const int fontSize = 12;
+        var size = ThemeDB.FallbackFont.GetStringSize(text, fontSize: fontSize);
+        var box = new Rect2(track.Position.X - BarGap - size.X - 6, y - size.Y / 2 - 1, size.X + 6, size.Y + 2);
+        DrawRect(box, BarTrack); DrawRect(box, new Color("62706b"), false, 1);
+        DrawString(ThemeDB.FallbackFont, new(box.Position.X + 3, y + fontSize * .35f), text, HorizontalAlignment.Left, -1, fontSize, HeatLimitColor);
+    }
+    public static readonly Color HeatLimitColor = new("f2f4f3");
 }

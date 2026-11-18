@@ -719,10 +719,15 @@ public sealed partial class CombatSimulation
         {
             var mainTarget = unit.CurrentTarget is { } main ? Unit(main) : null;
             var rearTarget = SelectRearTarget(unit); unit.CurrentRearTarget = rearTarget?.Id;
-            foreach (var (weapon, target) in SelectHeatVolley(unit, mainTarget, rearTarget))
+            // Weapons are checked one at a time; each that fires adds its heat before the next is checked.
+            // The heat itself is applied after every discharge this step, so hit chances use the starting heat.
+            var volleyHeat = unit.Heat;
+            foreach (var (weapon, target) in HeatOrderedCandidates(unit, mainTarget, rearTarget))
             {
+                if (!CombatRules.WithinHeatLimit(volleyHeat, unit.HeatLimit)) break;
                 // A shared bin emptied by an earlier weapon in this volley withholds the rest; they remain ready.
                 if (weapon.Spec.AmmoKind is { } ammo && !unit.ConsumeAmmo(ammo)) continue;
+                volleyHeat += weapon.Spec.Heat;
                 var chance = TerrainHitChance(unit, target, weapon);
                 var spotter = IndirectSpotter(unit, target, weapon);
                 var salvo = CombatRules.FiresSalvo(weapon.Spec.Kind);

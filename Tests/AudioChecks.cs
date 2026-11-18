@@ -84,6 +84,8 @@ public partial class SmokeTests
             var sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(unit => unit.Id), BattlefieldTerrain.Flat);
             var friendly = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
             for (var i = 0; i < friendly.Length; i++) { friendly[i].Position = new Vector2(240 * i, 0); friendly[i].Facing = Vector2.Up; }
+            // Sound checks need every weapon type to fire, not just the best-first ones a lower heat limit allows.
+            foreach (var unit in friendly) unit.HeatLimit = CombatRules.MaxHeatLimit;
             var spread = 0;
             foreach (var other in sim.Units.Where(unit => unit.Side == CombatSide.Enemy)) { other.Position = new Vector2(200 * spread++, -360); other.Facing = Vector2.Down; }
             field.Display(sim); sim.RefreshDetection(); sim.Paused = false;

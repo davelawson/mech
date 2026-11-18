@@ -13,13 +13,21 @@ internal static class RosterUi
     }
     public static Label Text(Node parent, string text, int size = 14, Color? color = null)
     { var label = Ui.Label(parent, text, size, color); label.AutowrapMode = TextServer.AutowrapMode.WordSmart; return label; }
-    public static VBoxContainer Scroll(Node parent)
+    /// <summary>A vertical scroll area's body. A margin pads the body inside the scroll, leaving the scrollbar outside it.</summary>
+    public static VBoxContainer Scroll(Node parent, int margin = 0)
     {
         var scroll = new ScrollContainer { SizeFlagsVertical = Control.SizeFlags.ExpandFill, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
         parent.AddChild(scroll);
+        Node holder = scroll;
+        if (margin > 0)
+        {
+            var padding = new MarginContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+            foreach (var side in new[] { "left", "top", "right", "bottom" }) padding.AddThemeConstantOverride($"margin_{side}", margin);
+            scroll.AddChild(padding); holder = padding;
+        }
         var body = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-        body.AddThemeConstantOverride("separation", 10); scroll.AddChild(body); return body;
+        body.AddThemeConstantOverride("separation", 10); holder.AddChild(body); return body;
     }
     public static void Clear(Node parent)
     { foreach (var child in parent.GetChildren()) { parent.RemoveChild(child); child.QueueFree(); } }

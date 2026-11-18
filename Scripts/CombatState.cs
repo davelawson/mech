@@ -9,7 +9,7 @@ public sealed record CombatLocationState(MechLocation Location, int Armor, int R
 public sealed record CombatUnitState(string Id, Vector2 Position, Vector2 Destination, Vector2 Facing, bool Moving, float CurrentSpeed,
     float AngularVelocity, CombatOrder Order, string? AttackTarget, string? FollowTarget, string? PriorityTarget, string? CurrentTarget,
     string? CurrentRearTarget, MovementMode Movement, FiringMode Firing, float PreferredDistance, int ShotsFired, int Hits, int DamageDealt,
-    double InterferenceRemaining, double Heat, HeatPolicy HeatPolicy, bool Shutdown, bool Airborne, Vector2 JumpFrom, Vector2 JumpTo,
+    double InterferenceRemaining, double Heat, int HeatLimit, bool Shutdown, bool Airborne, Vector2 JumpFrom, Vector2 JumpTo,
     float JumpDuration, float JumpElapsed, float JumpFromHeight, float JumpToHeight, float JumpApexHeight, float Altitude, double JumpRecharge,
     double? LandedAt, float TorsoTwist, bool TorsoTurning, CombatLocationState[] Locations, bool[] WeaponsEnabled, double[] WeaponsRemaining,
     int[] Ammo, int Kills = 0, bool Extracted = false, EquipmentCondition[]? Equipment = null, int Injuries = 0, bool LifeSupportInjury = false,
@@ -26,7 +26,7 @@ public sealed partial class CombatUnit
 {
     internal CombatUnitState State() => new(Id, Position, Destination, Facing, Moving, CurrentSpeed, AngularVelocity, Order, AttackTarget,
         FollowTarget, PriorityTarget, CurrentTarget, CurrentRearTarget, Movement, Firing, PreferredDistance, ShotsFired, Hits, DamageDealt,
-        InterferenceRemaining, Heat, HeatPolicy, Shutdown, Airborne, JumpFrom, JumpTo, JumpDuration, JumpElapsed, JumpFromHeight, JumpToHeight,
+        InterferenceRemaining, Heat, HeatLimit, Shutdown, Airborne, JumpFrom, JumpTo, JumpDuration, JumpElapsed, JumpFromHeight, JumpToHeight,
         JumpApexHeight, Altitude, JumpRecharge, LandedAt, TorsoTwist, TorsoTurning,
         Locations.Values.Select(item => new CombatLocationState(item.Location, item.Armor, item.RearArmor, item.Structure)).ToArray(),
         Weapons.Select(item => item.Enabled).ToArray(), Weapons.Select(item => item.Remaining).ToArray(), _ammo.Select(item => item.Shots).ToArray(), Kills, Extracted,
@@ -42,7 +42,7 @@ public sealed partial class CombatUnit
         Order = state.Order; AttackTarget = state.AttackTarget; FollowTarget = state.FollowTarget; PriorityTarget = state.PriorityTarget;
         CurrentTarget = state.CurrentTarget; CurrentRearTarget = state.CurrentRearTarget; Movement = state.Movement; Firing = state.Firing;
         PreferredDistance = state.PreferredDistance; MaintainRange = state.MaintainRange; ShotsFired = state.ShotsFired; Hits = state.Hits; DamageDealt = state.DamageDealt; Kills = state.Kills;
-        InterferenceRemaining = state.InterferenceRemaining; Extracted = state.Extracted; Heat = state.Heat; HeatPolicy = state.HeatPolicy; Shutdown = state.Shutdown;
+        InterferenceRemaining = state.InterferenceRemaining; Extracted = state.Extracted; Heat = state.Heat; HeatLimit = state.HeatLimit; Shutdown = state.Shutdown;
         Airborne = state.Airborne; JumpFrom = state.JumpFrom; JumpTo = state.JumpTo; JumpDuration = state.JumpDuration;
         JumpElapsed = state.JumpElapsed; JumpFromHeight = state.JumpFromHeight; JumpToHeight = state.JumpToHeight;
         JumpApexHeight = state.JumpApexHeight; JumpRecharge = state.JumpRecharge; LandedAt = state.LandedAt; TorsoTurning = state.TorsoTurning;

@@ -170,8 +170,9 @@ public partial class SmokeTests
 
             // Behind each mech a hill catches missed beams that clear the flat ground; either scorches where the beam strikes.
             Deploy(terrain: new BattlefieldTerrain(0, [], [new TerrainHill(new Vector2(0, 700), 250, 300), new TerrainHill(new Vector2(0, -1060), 250, 300)]));
-            var scorching = Fresh(shot => !shot.Hit);
-            Check(scorching is not null, "the hill exchange produced a visible laser miss");
+            // Pick a miss whose beam reaches the ground or a hill, rather than whichever laser happens to miss first.
+            var scorching = Fresh(shot => !shot.Hit && field.ShotPaths().Any(path => path.Shot == shot) && MissBeam(shot).Ground is not null);
+            Check(scorching is not null, "the hill exchange produced a visible laser miss that strikes the ground");
             foreach (var unit in sim.Units) foreach (var weapon in unit.Weapons) weapon.Enabled = false;
             sim.Advance(.2); field._Process(0);
             var hillMiss = MissBeam(scorching!);

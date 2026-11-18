@@ -120,10 +120,16 @@ public partial class SmokeTests
                 await ContactAt(720);
                 tactical.Battlefield.InspectedEnemy = enemy.Id;
                 tactical.SelectUnits([friendly.Id], false);
-                Check(tactical.Paperdoll.Unit == enemy && VisibleText().Contains(CombatScreen.SystemsReadout(enemy, enemy: true))
-                    && VisibleText().Any(text => text.Contains(CombatScreen.HeatReadout(enemy))),
-                    $"detailed inspection shows live condition at {size}");
+                Check(tactical.Paperdoll.Unit == enemy && !tactical.PilotRow.IsVisibleInTree() && VisibleText().Contains(CombatScreen.SystemsReadout(enemy, enemy: true))
+                    && VisibleText().Any(text => text.StartsWith($"OPPOSITION · {enemy.Spec.Tonnage}t"))
+                    && !VisibleText().Any(text => text.Contains("Cooling ")),
+                    $"detailed inspection shows live condition without the pilot block at {size}");
                 await Capture($"combat-contact-details-{size.X}x{size.Y}");
+                tactical.Battlefield.InspectedEnemy = null; tactical.SelectUnits([friendly.Id], false); await Frames();
+                var sidebarPanel = tactical.Paperdoll.GetParent().GetParent<Control>();
+                Check(tactical.GetGlobalRect().Encloses(sidebarPanel.GetGlobalRect()) && sidebarPanel.GetGlobalRect().Encloses(tactical.Paperdoll.GetGlobalRect()),
+                    $"the padded sidebar, its wrapping buttons and the doll fit the window at {size}: panel {sidebarPanel.GetGlobalRect()}");
+                tactical.Battlefield.InspectedEnemy = enemy.Id; tactical.SelectUnits([friendly.Id], false); await Frames();
                 await ContactAt(1440);
                 Check(tactical.Paperdoll.Unit is null && !VisibleText().Any(text => text.Contains("SYSTEMS · CONDITION")
                     || text.Contains("ARMOR / STOCK") || text.Contains("Heat ")), $"model-only inspection clears detailed readouts including heat at {size}");

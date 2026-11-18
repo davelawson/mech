@@ -1,7 +1,5 @@
 namespace Mech;
 
-public enum HeatPolicy { Normal, Aggressive }
-
 public static partial class CombatRules
 {
     public const double WarmHeat = 10, HotHeat = 20, ShutdownHeat = 30;
@@ -10,14 +8,20 @@ public static partial class CombatRules
     public const double AmbientExchangeDifference = 5;
     /// <summary>Heat per second from travelling at walking speed, and above the unheated walking limit.</summary>
     public const double WalkingHeatRate = 1 / HeatClockSeconds, RunningHeatRate = 2 / HeatClockSeconds;
-    public static double HeatLimit(HeatPolicy policy) => policy == HeatPolicy.Aggressive ? ShutdownHeat : HotHeat;
+    /// <summary>Every mech starts each battle with this heat limit; the enemy keeps it.</summary>
+    public const int DefaultHeatLimit = 10, MaxHeatLimit = 30;
+    public static int ClampHeatLimit(int limit) => Math.Clamp(limit, 0, MaxHeatLimit);
+    /// <summary>A weapon or jump may start while heat is at or below the limit, so it can carry heat past it.</summary>
+    public static bool WithinHeatLimit(double heat, int limit) => heat <= limit + 1e-9;
     public static int FlamerHeat(WeaponSpec weapon) => weapon.DamageProfile.TargetHeat;
 }
 
 public sealed partial class CombatUnit
 {
     public double Heat { get; private set; }
-    public HeatPolicy HeatPolicy { get; set; }
+    private int _heatLimit = CombatRules.DefaultHeatLimit;
+    /// <summary>Whole heat 0–30: weapons and jumps are held once heat rises above it.</summary>
+    public int HeatLimit { get => _heatLimit; set => _heatLimit = CombatRules.ClampHeatLimit(value); }
     public bool Shutdown { get; private set; }
     public string HeatBand => Shutdown ? "Shutdown" : Heat >= CombatRules.HotHeat ? "Hot"
         : Heat >= CombatRules.WarmHeat ? "Warm" : "Cool";
@@ -62,48 +66,36 @@ public sealed partial class CombatUnit
 
 public sealed partial class CombatSimulation
 {
-    private sealed record HeatCandidate(CombatWeapon Weapon, CombatUnit Target, double ExpectedDamage);
-    private sealed record HeatVolley(double ExpectedDamage, int[] Indices);
+    /// <summary>Ready, enabled weapons with a target, best expected damage first, then lower heat, then mount order.</summary>
+    internal IReadOnlyList<(CombatWeapon Weapon, CombatUnit Target)> HeatOrderedCandidates(
+        CombatUnit unit, CombatUnit? mainTarget, CombatUnit? rearTarget)
+    {
+        if (!unit.Active) return [];
+        var candidates = new List<(CombatWeapon Weapon, CombatUnit Target, double Expected, int Index)>();
+        for (var i = 0; i < unit.Weapons.Count; i++)
+        {
+            var weapon = unit.Weapons[i];
+            var target = weapon.Spec.Rear ? rearTarget : mainTarget;
+            if (weapon.Remaining > .000001 || target is null || !CanFire(unit, target, weapon)) continue;
+            // A weapon that cannot hit never fires, and so never spends heat.
+            var chance = TerrainHitChance(unit, target, weapon);
+            if (chance > 0) candidates.Add((weapon, target, weapon.Damage * chance, i));
+        }
+        return candidates.OrderByDescending(item => Math.Round(item.Expected, 9)).ThenBy(item => item.Weapon.Spec.Heat)
+            .ThenBy(item => item.Index).Select(item => (item.Weapon, item.Target)).ToArray();
+    }
 
-    /// <summary>Exact bounded selection, independent of rolls, emitted in stable catalog order.</summary>
+    /// <summary>Weapons are checked one at a time in <see cref="HeatOrderedCandidates"/> order. Each fires only while the
+    /// heat so far this step, including weapons already chosen, is at or below the unit's limit.</summary>
     internal IReadOnlyList<(CombatWeapon Weapon, CombatUnit Target)> SelectHeatVolley(
         CombatUnit unit, CombatUnit? mainTarget, CombatUnit? rearTarget)
     {
-        var limit = CombatRules.HeatLimit(unit.HeatPolicy);
-        if (!unit.Active || unit.Heat >= limit) return [];
-        var candidates = new List<HeatCandidate>();
-        foreach (var weapon in unit.Weapons)
+        var heat = unit.Heat; var selected = new List<(CombatWeapon Weapon, CombatUnit Target)>();
+        foreach (var shot in HeatOrderedCandidates(unit, mainTarget, rearTarget))
         {
-            var target = weapon.Spec.Rear ? rearTarget : mainTarget;
-            if (weapon.Remaining > .000001 || target is null || !CanFire(unit, target, weapon)) continue;
-            candidates.Add(new(weapon, target, weapon.Damage * TerrainHitChance(unit, target, weapon)));
+            if (!CombatRules.WithinHeatLimit(heat, unit.HeatLimit)) break;
+            selected.Add(shot); heat += shot.Weapon.Spec.Heat;
         }
-        if (candidates.Count == 0) return [];
-        // Weapon heat is integral; current heat is continuous. The policy ceiling is strictly exclusive.
-        var capacity = Math.Max(0, (int)Math.Ceiling(limit - unit.Heat - 1e-9) - 1);
-        var best = new HeatVolley?[capacity + 1]; best[0] = new(0, []);
-        for (var i = 0; i < candidates.Count; i++)
-        {
-            var cost = candidates[i].Weapon.Spec.Heat;
-            for (var heat = capacity; heat >= cost; heat--)
-            {
-                if (best[heat - cost] is not { } previous) continue;
-                var volley = new HeatVolley(previous.ExpectedDamage + candidates[i].ExpectedDamage, [.. previous.Indices, i]);
-                if (BetterVolley(volley, best[heat])) best[heat] = volley;
-            }
-        }
-        var selected = best[0]!;
-        for (var heat = 1; heat <= capacity; heat++)
-            // Ascending cost makes equal-damage ties favor lower heat before catalog order.
-            if (best[heat] is { } volley && volley.ExpectedDamage > selected.ExpectedDamage + 1e-9) selected = volley;
-        return selected.Indices.Select(index => (candidates[index].Weapon, candidates[index].Target)).ToArray();
-    }
-    private static bool BetterVolley(HeatVolley candidate, HeatVolley? current)
-    {
-        if (current is null || candidate.ExpectedDamage > current.ExpectedDamage + 1e-9) return true;
-        if (Math.Abs(candidate.ExpectedDamage - current.ExpectedDamage) > 1e-9) return false;
-        for (var i = 0; i < Math.Min(candidate.Indices.Length, current.Indices.Length); i++)
-            if (candidate.Indices[i] != current.Indices[i]) return candidate.Indices[i] < current.Indices[i];
-        return candidate.Indices.Length < current.Indices.Length;
+        return selected;
     }
 }

@@ -216,7 +216,7 @@ internal static class NetworkChecks
         {
             new MoveCommand(["a", "b"], new Vector2(1.5f, -2.25f)), new MaintainRangeCommand(["a"], false), new FollowCommand(["a"], "b"),
             new JumpCommand(["a"], new Vector2(3, 4)), new HoldCommand(["a"]), new PriorityCommand(["a"], null), new MovementCommand(["a"], MovementMode.Run),
-            new FiringCommand(["a"], FiringMode.HoldFire), new HeatPolicyCommand(["a"], HeatPolicy.Aggressive), new DistanceCommand(["a"], 300),
+            new FiringCommand(["a"], FiringMode.HoldFire), new HeatLimitCommand(["a"], 30), new DistanceCommand(["a"], 300),
             new WeaponCommand("a", 2, false), new PauseCommand(false)
         };
         foreach (var command in commands)
@@ -237,7 +237,7 @@ internal static class NetworkChecks
         var battle = Deploy(); var replica = Deploy(); replica.BecomeReplica();
         var shots = 0; replica.ShotFired += _ => shots++;
         battle.Paused = false;
-        battle.Execute(new MovementCommand(force, MovementMode.Run)); battle.Execute(new HeatPolicyCommand(force, HeatPolicy.Aggressive));
+        battle.Execute(new MovementCommand(force, MovementMode.Run)); battle.Execute(new HeatLimitCommand(force, 30));
         battle.Execute(new MoveCommand(force, Vector2.Zero));
         var sent = 0; var largest = 0; var differences = new List<string>();
         for (var tick = 0; tick < 9000 && battle.Outcome == CombatOutcome.Ongoing; tick++)

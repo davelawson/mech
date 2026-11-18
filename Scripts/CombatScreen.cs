@@ -2,7 +2,7 @@ using Godot;
 
 namespace Mech;
 
-public enum CombatModal { None, OpponentSelection, ForceSelection, Menu, Results }
+public enum CombatModal { None, OpponentSelection, ForceSelection, Menu, MissionDetails, Results }
 
 public partial class CombatScreen : Control
 {
@@ -11,6 +11,14 @@ public partial class CombatScreen : Control
     public CombatViewport Battlefield { get; private set; } = null!;
     public CombatModal Modal { get; private set; }
     public CombatPaperdoll Paperdoll { get; private set; } = null!;
+    /// <summary>The primary friendly's MechWarrior, laid out as in the hangar: portrait beside callsign, name and skills.</summary>
+    public HBoxContainer PilotRow { get; private set; } = null!;
+    public TextureRect PilotPortrait { get; private set; } = null!;
+    public Label PilotInfo { get; private set; } = null!;
+    /// <summary>The sidebar's scrolling area, below the pinned title and paperdoll.</summary>
+    public ScrollContainer SidebarScroll { get; private set; } = null!;
+    public Button MissionDetailsButton { get; private set; } = null!;
+    public Button MissionDetailsBackButton { get; private set; } = null!;
     public CombatLogPanel BattleLog { get; private set; } = null!;
     public List<CheckBox> ForceChoices { get; } = [];
     public Button RandomizedEnemyButton { get; private set; } = null!;
@@ -39,8 +47,6 @@ public partial class CombatScreen : Control
     public Button EndButton { get; private set; } = null!;
     public Button AudioButton { get; private set; } = null!;
     public Button ReturnButton { get; private set; } = null!;
-    public Button NormalHeatButton { get; private set; } = null!;
-    public Button AggressiveHeatButton { get; private set; } = null!;
     public List<Button> UnitButtons { get; } = [];
     /// <summary>The compact paperdoll on each unit card, in card order.</summary>
     public List<CombatPaperdoll> UnitDolls { get; } = [];
@@ -158,29 +164,32 @@ public partial class CombatScreen : Control
         FastForwardButton.Pressed += () => SetSpeed(CombatSimulation.FastTimeScale);
         MenuButton = Ui.Button(_top, "Combat menu  [Esc]"); MenuButton.Pressed += OpenMenu;
         _sidebar = new PanelContainer { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; _sidebar.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Line)); AddChild(_sidebar);
-        var body = RosterUi.Scroll(_sidebar);
-        _selectionTitle = RosterUi.Text(body, "Select a BattleMech", 19, Ui.Gold);
-        Paperdoll = new CombatPaperdoll { Visible = false }; body.AddChild(Paperdoll);
+        // The title and paperdoll stay pinned at the top; only the details below them scroll.
+        var column = new VBoxContainer(); column.AddThemeConstantOverride("separation", 6); _sidebar.AddChild(column);
+        _selectionTitle = RosterUi.Text(column, "Select a BattleMech", 19, Ui.Gold);
+        _selectionTitle.HorizontalAlignment = HorizontalAlignment.Center;
+        Paperdoll = new CombatPaperdoll { Visible = false }; column.AddChild(Paperdoll);
+        var body = RosterUi.Scroll(column, margin: 10);
+        SidebarScroll = body.GetParent().GetParent<ScrollContainer>();
+        PilotRow = new HBoxContainer(); PilotRow.AddThemeConstantOverride("separation", 8); body.AddChild(PilotRow);
+        PilotPortrait = RosterUi.Picture(PilotRow, "", new Vector2(72, 72));
+        PilotInfo = RosterUi.Text(PilotRow, "", 13); PilotInfo.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        // Dragging the heat bar's handle sets the limit for the whole selection, shut-down mechs included.
+        Paperdoll.HeatLimitChanged += limit => Send(new HeatLimitCommand([.. _selected], limit));
         _unitInfo = RosterUi.Text(body, "", 13);
         _targetInfo = RosterUi.Text(body, "", 12, Ui.Gold);
         _settings = new VBoxContainer(); body.AddChild(_settings);
         _groupInfo = RosterUi.Text(_settings, "", 12, Ui.Muted);
         var movement = new HBoxContainer(); _settings.AddChild(movement);
-        _walk = Ui.Button(movement, "Walk"); _run = Ui.Button(movement, "Run");
+        _walk = Fit(Ui.Button(movement, "Walk")); _run = Fit(Ui.Button(movement, "Run"));
         _walk.Pressed += () => Send(new MovementCommand([.. _selected], MovementMode.Walk));
         _run.Pressed += () => Send(new MovementCommand([.. _selected], MovementMode.Run));
-        JumpButton = Ui.Button(movement, "Jump [J]"); JumpButton.Pressed += ToggleJump;
+        JumpButton = Fit(Ui.Button(movement, "Jump [J]")); JumpButton.Pressed += ToggleJump;
         var fire = new HBoxContainer(); _settings.AddChild(fire);
-        _fire = Ui.Button(fire, "Fire at will"); _hold = Ui.Button(fire, "Hold fire");
+        _fire = Fit(Ui.Button(fire, "Fire at will")); _hold = Fit(Ui.Button(fire, "Hold fire"));
         _fire.Pressed += () => Send(new FiringCommand([.. _selected], FiringMode.FireAtWill));
         _hold.Pressed += () => Send(new FiringCommand([.. _selected], FiringMode.HoldFire));
-        var heat = new HBoxContainer(); _settings.AddChild(heat);
-        NormalHeatButton = Ui.Button(heat, "Normal heat"); AggressiveHeatButton = Ui.Button(heat, "Aggressive heat");
-        NormalHeatButton.TooltipText = "Fire the highest expected-damage volley that keeps heat below 20.";
-        AggressiveHeatButton.TooltipText = "Allow heat below 30 for a stronger burst, accepting movement and accuracy penalties.";
-        NormalHeatButton.Pressed += () => Send(new HeatPolicyCommand([.. _selected], HeatPolicy.Normal));
-        AggressiveHeatButton.Pressed += () => Send(new HeatPolicyCommand([.. _selected], HeatPolicy.Aggressive));
-        Ui.Button(_settings, "Stop movement / clear order [Z]").Pressed += StopUnits;
+        Fit(Ui.Button(_settings, "Stop movement / clear order [Z]")).Pressed += StopUnits;
         var range = new HBoxContainer(); range.AddThemeConstantOverride("separation", 6); _settings.AddChild(range);
         MaintainRangeToggle = new CheckBox(); range.AddChild(MaintainRangeToggle);
         MaintainRangeToggle.Toggled += on => { if (!_refreshing) Send(new MaintainRangeCommand([.. _selected], on)); };
@@ -191,7 +200,7 @@ public partial class CombatScreen : Control
             SizeFlagsVertical = SizeFlags.ShrinkCenter };
         range.AddChild(DistanceSlider);
         DistanceValue = Ui.Label(range, "", 13); DistanceValue.VerticalAlignment = VerticalAlignment.Center;
-        DistanceValue.CustomMinimumSize = new Vector2(56, 0); DistanceValue.HorizontalAlignment = HorizontalAlignment.Right;
+        DistanceValue.CustomMinimumSize = new Vector2(48, 0); DistanceValue.HorizontalAlignment = HorizontalAlignment.Right;
         DistanceSlider.DragStarted += () => _draggingDistance = true;
         DistanceSlider.ValueChanged += value => { if (_draggingDistance) DistanceValue.Text = $"{value:0} m"; };
         // One command when the slider is let go, rather than one per step dragged through.
@@ -200,7 +209,7 @@ public partial class CombatScreen : Control
             _draggingDistance = false;
             if (changed) Send(new DistanceCommand([.. _selected], (float)DistanceSlider.Value)); else RefreshDetails();
         };
-        Ui.Button(_settings, "Clear priority target").Pressed += () => Send(new PriorityCommand([.. _selected], null));
+        Fit(Ui.Button(_settings, "Clear priority target")).Pressed += () => Send(new PriorityCommand([.. _selected], null));
         _weaponsTitle = RosterUi.Text(body, "WEAPONS · PRIMARY SELECTION", 12, Ui.Gold);
         _weapons = new VBoxContainer(); body.AddChild(_weapons);
         _locations = RosterUi.Text(body, "", 12);
@@ -217,6 +226,13 @@ public partial class CombatScreen : Control
         tint.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); _shade.AddChild(tint);
         _modalPanel = new PanelContainer(); _modalPanel.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Gold, 2)); _shade.AddChild(_modalPanel);
         _modalContent = new VBoxContainer(); _modalContent.AddThemeConstantOverride("separation", 12); _modalPanel.AddChild(_modalContent);
+        // Right-click goes back from Mission Details, as Escape does; the battle's own right-click orders are disabled under a modal.
+        void BackOnRightClick(InputEvent input)
+        {
+            if (Modal == CombatModal.MissionDetails && input is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right })
+            { CloseMissionDetails(); AcceptEvent(); }
+        }
+        _shade.GuiInput += BackOnRightClick; _modalPanel.GuiInput += BackOnRightClick;
         // The banner stays above force selection and the combat menu.
         AddChild(WaitingBanner);
         Resized += Layout; Layout(); Hide();
@@ -317,10 +333,7 @@ public partial class CombatScreen : Control
     }
     private void ShowForceSelection(string selectedMechId)
     {
-        BeginModal(CombatModal.ForceSelection, _mission?.Name ?? Opponent switch
-        {
-            SimulationOpponent.Mirror => "Mirror match", SimulationOpponent.Randomized => "Randomized enemy", _ => "Patrol",
-        });
+        BeginModal(CombatModal.ForceSelection, _mission?.Name ?? OpponentName(Opponent));
         if (_mission is not null)
             RosterUi.Text(_modalContent, $"Choose 1–4 BattleMechs. They deploy as they stand, and the battle's damage, losses and result are settled into your campaign.\n"
                 + (_mission.Kind == MissionKind.Patrol ? $"Patrol: {MissionsPanel.PatrolText(_mission)}.\n" : "")
@@ -558,18 +571,85 @@ public partial class CombatScreen : Control
     {
         if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing) return;
         _resumeRunning = !Simulation.PauseHolds.Contains(Slot); Order(new PauseCommand(true));
+        ShowMenu();
+    }
+    /// <summary>The Combat menu itself; returning from Mission Details reopens it without touching the pause.</summary>
+    private void ShowMenu()
+    {
         BeginModal(CombatModal.Menu, "Combat paused");
-        RosterUi.Text(_modalContent, $"Terrain seed: {Simulation.Terrain.Seed} · {BiomeText(Simulation)}", 14, Ui.Gold);
-        var seedCopy = new LineEdit { Text = Simulation.Terrain.Seed.ToString(System.Globalization.CultureInfo.InvariantCulture), Editable = false };
-        _modalContent.AddChild(seedCopy);
         RosterUi.Text(_modalContent, _mission is null ? "Resume the simulation or end it and review damage. This practice battle has no campaign consequences."
             : "Resume the battle, or withdraw and fail the mission. Damage and losses so far are kept.", 16);
         var spacer = new Control { SizeFlagsVertical = SizeFlags.ExpandFill }; _modalContent.AddChild(spacer);
         var actions = ModalActions(); ResumeButton = Ui.Button(actions, "Resume"); ResumeButton.Pressed += Resume;
+        MissionDetailsButton = Ui.Button(actions, "Mission Details"); MissionDetailsButton.Pressed += OpenMissionDetails;
         AudioButton = Ui.Button(actions, "Audio"); AudioButton.Pressed += () => AudioRequested?.Invoke();
         EndButton = Ui.Button(actions, _mission is null ? "End Simulation" : "Withdraw"); EndButton.Pressed += EndSimulation;
         EndButton.Disabled = !Leading; EndButton.TooltipText = Leading ? "" : "Only the leader withdraws from the battle.";
         ResumeButton.CallDeferred(Control.MethodName.GrabFocus); RosterUi.TrapFocus(_shade);
+    }
+    /// <summary>The mission's briefing and terms, or the practice battle's opponent, and the battlefield, over the paused battle.</summary>
+    public void OpenMissionDetails()
+    {
+        if (Simulation is null || Modal != CombatModal.Menu) return;
+        BeginModal(CombatModal.MissionDetails, _mission?.Name ?? $"Practice battle · {OpponentName(Opponent)}");
+        var body = RosterUi.Scroll(_modalContent);
+        RosterUi.Text(body, "MISSION", 13, Ui.Gold);
+        RosterUi.Text(body, MissionText(), 14);
+        RosterUi.Text(body, "BATTLEFIELD", 13, Ui.Gold);
+        RosterUi.Text(body, BattlefieldText(Simulation), 14);
+        var seedRow = new HBoxContainer(); seedRow.AddThemeConstantOverride("separation", 8); body.AddChild(seedRow);
+        var seedLabel = Ui.Label(seedRow, "Terrain seed", 14, Ui.Gold); seedLabel.VerticalAlignment = VerticalAlignment.Center;
+        // Read-only, so the seed can be copied to recreate this battlefield.
+        var seedCopy = new LineEdit { Text = Simulation.Terrain.Seed.ToString(System.Globalization.CultureInfo.InvariantCulture), Editable = false,
+            SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        seedRow.AddChild(seedCopy);
+        var actions = ModalActions();
+        MissionDetailsBackButton = Ui.Sound(Ui.Button(actions, "Back"), Cue.UiCancel); MissionDetailsBackButton.Pressed += CloseMissionDetails;
+        MissionDetailsBackButton.CallDeferred(Control.MethodName.GrabFocus); RosterUi.TrapFocus(_shade);
+    }
+    public void CloseMissionDetails()
+    {
+        if (Modal != CombatModal.MissionDetails) return;
+        ShowMenu();
+    }
+    private static string OpponentName(SimulationOpponent opponent) => opponent switch
+    {
+        SimulationOpponent.Mirror => "Mirror match", SimulationOpponent.Randomized => "Randomized enemy", _ => "Patrol",
+    };
+    private string MissionText()
+    {
+        if (_mission is { } offer)
+            return $"{offer.Briefing}\n\nOBJECTIVE\n{offer.Objective}\n\n{MissionsPanel.ContractTerms(offer)}"
+                + $"\nOPPOSITION  {offer.OppositionTonnage} t\nEXPECTED OPPOSITION\n{MissionsPanel.OppositionLines(offer)}";
+        return Opponent switch
+        {
+            SimulationOpponent.Mirror => "A simulated battle against a mirror of your force and pilot skills.",
+            SimulationOpponent.Randomized => "A simulated battle against a fresh enemy draft matching your count and weight categories.",
+            _ => "A simulated patrol, rolled from your reputation.",
+        } + " It has no campaign consequences.";
+    }
+    internal static string BattlefieldText(CombatSimulation simulation)
+    {
+        var terrain = simulation.Terrain;
+        var lines = new List<string>();
+        if (terrain.Biome is { } biome)
+        {
+            var spec = Biomes.Spec(biome);
+            lines.Add($"BIOME  {spec.Name} · {spec.Description}");
+            lines.Add($"CLIMATE  {spec.ClimateText}");
+        }
+        else lines.Add("BIOME  Test terrain");
+        string Count(int count, string one, string many) => $"{count} {(count == 1 ? one : many)}";
+        var features = new List<string> { Count(terrain.Hills.Count, "hill", "hills") };
+        foreach (var (kind, one, many) in new[] { (TerrainKind.Rock, "rock outcrop", "rock outcrops"), (TerrainKind.Vegetation, "stand of vegetation", "stands of vegetation"),
+            (TerrainKind.Water, "pool of water", "pools of water"), (TerrainKind.DeepWater, "deep lake", "deep lakes"), (TerrainKind.Ice, "ice sheet", "ice sheets"),
+            (TerrainKind.Lava, "lava field", "lava fields") })
+            if (terrain.Patches.Count(patch => patch.Kind == kind) is > 0 and var count) features.Add(Count(count, one, many));
+        if (terrain.Buildings.Count > 0) features.Add(Count(terrain.Buildings.Count, "building", "buildings"));
+        lines.Add($"TERRAIN  {string.Join(" · ", features)}");
+        if (simulation.Patrol is { } patrol) lines.Add($"PATROL  {patrol.Visited} of {patrol.Layout.PatrolPoints} points visited");
+        lines.Add($"COMBAT TIME  {TimeSpan.FromSeconds(simulation.Elapsed):mm\\:ss}");
+        return string.Join("\n", lines);
     }
     public void Resume()
     {
@@ -707,6 +787,7 @@ public partial class CombatScreen : Control
         {
             if (Modal is CombatModal.OpponentSelection or CombatModal.ForceSelection or CombatModal.Results) Exit();
             else if (Modal == CombatModal.Menu) Resume();
+            else if (Modal == CombatModal.MissionDetails) CloseMissionDetails();
             else if (SettingJump) { SettingJump = false; RefreshDetails(); }
             else OpenMenu();
             return true;
@@ -800,13 +881,19 @@ public partial class CombatScreen : Control
         _weapons.Visible = inspected is null;
         _weaponsTitle.Visible = unit is not null && inspected is null;
         Paperdoll.Display(unit);
+        PilotRow.Visible = unit is not null && inspected is null;
+        if (unit is not null && inspected is null && PilotInfo.Text != PilotText(unit.Warrior))
+        {
+            PilotPortrait.Texture = Ui.LoadTexture(unit.Warrior.Artwork);
+            PilotInfo.Text = PilotText(unit.Warrior); PilotInfo.TooltipText = RosterUi.SkillBudgetText(unit.Warrior);
+        }
         if (_primary != primary)
         {
             _primary = primary; RosterUi.Clear(_weapons); _weaponControls.Clear();
             if (unit is not null)
                 foreach (var weapon in unit.Weapons)
                 {
-                    var toggle = new CheckButton { ButtonPressed = weapon.Enabled };
+                    var toggle = new CheckButton { ButtonPressed = weapon.Enabled, AutowrapMode = TextServer.AutowrapMode.WordSmart };
                     _weapons.AddChild(toggle); _weaponControls.Add((weapon, toggle));
                     var index = _weaponControls.Count - 1;
                     toggle.Toggled += value => Simulation!.Execute(new WeaponCommand(primary!, index, value), Slot);
@@ -817,7 +904,7 @@ public partial class CombatScreen : Control
             var enemy = Simulation.Unit(inspected);
             var detailed = Simulation.DetailsVisible(CombatSide.Friendly, inspected);
             _selectionTitle.Text = detailed ? enemy.Spec.DisplayName : enemy.Spec.Chassis;
-            _unitInfo.Text = detailed ? $"OPPOSITION · {enemy.Spec.Tonnage}t · {enemy.Status}{enemy.StanceText()}\n{HeatReadout(enemy)}"
+            _unitInfo.Text = detailed ? $"OPPOSITION · {enemy.Spec.Tonnage}t · {enemy.Status}{enemy.StanceText()}"
                 : "OPPOSITION · Model identified\nClose to half detection range for armour, internals and systems.";
             Paperdoll.Display(detailed ? enemy : null);
             _locations.Text = detailed ? CombatPaperdoll.Readout(enemy) : "";
@@ -833,23 +920,18 @@ public partial class CombatScreen : Control
             return;
         }
         _selectionTitle.Text = _selected.Count > 1 ? $"{_selected.Count} selected · {unit.Warrior.Callsign}" : $"{unit.Warrior.Callsign} · {unit.Spec.Chassis}";
-        var orderTarget = unit.FollowTarget ?? unit.AttackTarget;
-        _unitInfo.Text = $"{unit.Spec.DisplayName} · {unit.Status}{unit.StanceText()}\n{RosterUi.SkillLines(unit.Warrior)}\nOrder: {unit.Order}{(orderTarget is { } targetId ? $" → {Simulation.Unit(targetId).Warrior.Callsign} · {Simulation.Unit(targetId).Spec.Chassis}" : "")}";
-        _unitInfo.Text += $"\n{HeatReadout(unit)}";
-        if (unit.InterferenceRemaining > 0)
-            _unitInfo.Text += FormattableString.Invariant($"\nElectro-interference: +{CombatRules.InterferenceModifier} hit difficulty ({Math.Ceiling(unit.InterferenceRemaining):0}s)");
+        // Heat, cooling, jump and order state are left to the dolls, cards, controls and battlefield.
+        _unitInfo.Text = $"{unit.Spec.DisplayName} · {unit.Status}{unit.StanceText()}";
         if (active.Length > 0)
         {
             _groupInfo.Visible = active.Length > 1;
             _groupInfo.Text = $"{active.Length} units · edits apply to group\n"
                 + $"Movement: {(active.Select(item => item.Movement).Distinct().Count() > 1 ? "Mixed" : active[0].Movement)} · Fire: {(active.Select(item => item.Firing).Distinct().Count() > 1 ? "Mixed" : active[0].Firing == FiringMode.FireAtWill ? "At will" : "Hold")}\n"
-                + $"Heat policy: {(active.Select(item => item.HeatPolicy).Distinct().Count() > 1 ? "Mixed" : active[0].HeatPolicy.ToString())}";
+                + $"Heat limit: {(active.Select(item => item.HeatLimit).Distinct().Count() > 1 ? "Mixed" : active[0].HeatLimit.ToString())}";
             _walk.Text = (active.All(item => item.Movement == MovementMode.Walk) ? "● Walk" : "Walk") + " [X]";
             _run.Text = (active.All(item => item.Movement == MovementMode.Run) ? "● Run" : "Run") + " [C]";
             _fire.Text = (active.All(item => item.Firing == FiringMode.FireAtWill) ? "● Fire at will" : "Fire at will") + " [F]";
             _hold.Text = (active.All(item => item.Firing == FiringMode.HoldFire) ? "● Hold fire" : "Hold fire") + " [G]";
-            NormalHeatButton.Text = active.All(item => item.HeatPolicy == HeatPolicy.Normal) ? "● Normal heat" : "Normal heat";
-            AggressiveHeatButton.Text = active.All(item => item.HeatPolicy == HeatPolicy.Aggressive) ? "● Aggressive heat" : "Aggressive heat";
             _refreshing = true;
             var maintaining = active.All(item => item.MaintainRange);
             MaintainRangeToggle.SetPressedNoSignal(maintaining);
@@ -868,12 +950,10 @@ public partial class CombatScreen : Control
         JumpButton.Disabled = jumpBlocked is not null;
         JumpButton.Text = SettingJump ? "● Jump [J]" : "Jump [J]";
         JumpButton.TooltipText = jumpBlocked ?? "Choose a landing point, then right-click the ground.";
-        _unitInfo.Text += $"\n{JumpReadout(unit)}";
         var firingTarget = Simulation.SelectAimTarget(unit);
         var target = firingTarget ?? Simulation.Units.Where(item => item.Side != unit.Side && !item.Defeated && Simulation.Detected(unit.Side, item.Id))
             .OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
-        _targetInfo.Text = $"Priority: {(unit.PriorityTarget is { } priority ? Simulation.Unit(priority).Spec.Chassis : "none")}\n"
-            + (target is null ? (Simulation.Patrol is null ? "No contact · move toward arena center" : "No contact · continue the patrol") : $"{(firingTarget is null ? "Aim preview" : "Target")}: {target.Spec.Chassis} · {unit.Position.DistanceTo(target.Position):0} m");
+        _targetInfo.Text = (target is null ? (Simulation.Patrol is null ? "No contact · move toward arena center" : "No contact · continue the patrol") : $"{(firingTarget is null ? "Aim preview" : "Target")}: {target.Spec.Chassis} · {unit.Position.DistanceTo(target.Position):0} m");
         if (target is not null)
         {
             var clear = Simulation.Sight(unit, target);
@@ -883,8 +963,6 @@ public partial class CombatScreen : Control
             _targetInfo.Text += spotter is not null ? $"\nIndirect fire · spotted by {Simulation.SlotLabel(spotter)} · +{CombatRules.IndirectFireModifier}"
                 : !clear ? "\nLine of fire blocked by terrain" : cover > 0 ? $"\nVegetation: +{cover} hit difficulty" : "\nClear line of fire";
         }
-        _unitInfo.Text += Simulation.Terrain.Contains(TerrainKind.Water, unit.Position) ? "\nWater slows movement" :
-            Simulation.Terrain.Contains(TerrainKind.Vegetation, unit.Position) ? "\nVegetation slows movement" : "";
         var rearTarget = Simulation.SelectRearTarget(unit);
         var weaponStatuses = Simulation.WeaponStatuses(unit, firingTarget, rearTarget, target);
         for (var i = 0; i < _weaponControls.Count; i++)
@@ -902,15 +980,18 @@ public partial class CombatScreen : Control
         _systems.Text = SystemsReadout(unit);
 
     }
+    /// <summary>A sidebar button that shares its row's width and wraps its label, so the narrow sidebar never overflows.</summary>
+    private static Button Fit(Button button)
+    {
+        button.AutowrapMode = TextServer.AutowrapMode.WordSmart; button.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        return button;
+    }
+    internal static string PilotText(WarriorSpec warrior) => $"“{warrior.Callsign}”\n{warrior.Name}\n{RosterUi.SkillLines(warrior)}";
     /// <summary>In co-op, who is holding the battle paused.</summary>
     private string PauseHolders => !Coop || Simulation is null ? "" : $" by {string.Join(", ", Simulation.PauseHolds.Select(PlayerName))}";
-    internal static string JumpReadout(CombatUnit unit) => unit.Spec.Jump == 0 ? "Jump: no jump jets"
-        : FormattableString.Invariant($"Jump {unit.JumpRange:0} m · ") + (unit.Airborne ? "Airborne"
-            : unit.JumpRecharge > 0 ? FormattableString.Invariant($"Recharging {Math.Ceiling(unit.JumpRecharge):0}s")
-            : unit.JumpUnavailableReason ?? "Ready");
     internal static string BiomeText(CombatSimulation simulation) => simulation.Terrain.Biome is { } biome ? Biomes.Spec(biome).Name : "Test terrain";
     internal static string HeatReadout(CombatUnit unit) =>
-        $"Heat {unit.Heat:0.0} · {unit.HeatBand} · {unit.HeatPolicy}\n"
+        $"Heat {unit.Heat:0.0} · {unit.HeatBand}{(unit.Side == CombatSide.Friendly ? $" · Heat limit {unit.HeatLimit}" : "")}\n"
         + $"Cooling {unit.CoolingRate:0.00} heat/s · {unit.EffectiveHeatSinks}/{unit.Spec.HeatSinks} {DefinitionText.HeatSinks(unit.Spec.HeatSinkType)} sinks"
         + (unit.Climate is { } climate ? $" × {climate.EfficiencyText}"
             + $"\nAmbient {climate.Ambient:0} · {(unit.AmbientHeatRate >= 0 ? "+" : "−")}{Math.Abs(unit.AmbientHeatRate):0.00} heat/s" : "")

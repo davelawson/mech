@@ -122,8 +122,9 @@ public partial class SmokeTests
             && leader.Order == CombatOrder.Move && leader.Destination == leaderDestination && tactical.Selected.Count == 2,
             "right-click friendly queues Follow for the group without changing the selected leader's order");
         await Delay(.15);
-        Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.IsVisibleInTree()
-            && label.Text.Contains($"Order: Follow → {leader.Warrior.Callsign}")), "selected-unit details identify the Follow leader");
+        Check(!tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.IsVisibleInTree()
+            && (label.Text.Contains("Order: ") || label.Text.Contains("Priority: ") || label.Text.StartsWith("Jump "))),
+            "selected-unit details no longer list the order, priority or jump lines");
         await Capture("combat-follow-order");
         await RightClick(destination);
         var oldSize = field.Camera.Size;
@@ -141,8 +142,8 @@ public partial class SmokeTests
         var pausedAt = sim.Elapsed;
         Check(tactical.Modal == CombatModal.Menu && sim.Paused, "Escape opens suspended combat menu");
         await Delay(.15); Check(sim.Elapsed == pausedAt, "combat menu freezes combat clock");
-        Check(TacticalText().Any(text => text.Contains("Terrain seed: 183 · Valley")), "combat menu shows the biome beside the seed");
         await Capture("combat-menu");
+        await TestMissionDetails(tactical, sim);
         await TestCombatAudioSettings(tactical, sim);
         await Click(tactical.ResumeButton);
         Check(!sim.Paused && tactical.Modal == CombatModal.None, "menu Resume restores running state");
@@ -155,7 +156,7 @@ public partial class SmokeTests
         var enemy = sim.Units.First(item => item.Side == CombatSide.Enemy);
         enemy.Position = friendly.Position + new Vector2(-150, -60); sim.RefreshDetection(); await Frames();
         var enemyAt = field.GlobalPosition + field.ScreenPoint(enemy.Position, 15);
-        var scroll = tactical.MaintainRangeToggle.GetParent().GetParent().GetParent().GetParent<ScrollContainer>();
+        var scroll = tactical.SidebarScroll;
         MouseButton(enemyAt, Godot.MouseButton.Right, true);
         CameraMotion(enemyAt + new Vector2(6, 0), new Vector2(6, 0));
         MouseButton(enemyAt, Godot.MouseButton.Right, false); await Frames();
@@ -248,6 +249,35 @@ public partial class SmokeTests
     }
     /// <summary>Quick Launch fights the accepted mission from the hangar and settles it into the campaign.</summary>
     /// <summary>Audio settings from the open Combat menu, over the paused battle.</summary>
+    private async Task TestMissionDetails(CombatScreen tactical, CombatSimulation sim)
+    {
+        var pausedAt = sim.Elapsed;
+        await Click(tactical.MissionDetailsButton);
+        Check(tactical.Modal == CombatModal.MissionDetails && sim.Paused, "the Combat menu's Mission Details opens over the paused battle");
+        var text = string.Join("\n", TacticalText());
+        Check(text.Contains("MISSION") && text.Contains("no campaign consequences") && text.Contains("BATTLEFIELD")
+            && text.Contains($"BIOME  {Biomes.Spec(Biome.Valley).Name}") && text.Contains($"CLIMATE  {Biomes.Spec(Biome.Valley).ClimateText}")
+            && text.Contains("TERRAIN  ") && text.Contains("COMBAT TIME"), $"Mission Details describe the practice battle and its battlefield:\n{text}");
+        Check(tactical.FindChildren("*", "LineEdit", true, false).OfType<LineEdit>().Any(edit => edit.IsVisibleInTree() && !edit.Editable && edit.Text == "183"),
+            "Mission Details offer the terrain seed for copying");
+        Check(!TacticalText().Any(line => line.Contains("Terrain seed: ")), "the seed has moved from the Combat menu into Mission Details");
+        GetWindow().Size = new Vector2I(900, 500); await Frames();
+        Check(tactical.GetGlobalRect().Encloses(tactical.MissionDetailsBackButton.GetGlobalRect()), "Mission Details' Back fits the minimum window");
+        await Capture("combat-mission-details-900x500");
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        await Capture("combat-mission-details");
+        await PressKey(Key.Escape);
+        Check(tactical.Modal == CombatModal.Menu && sim.Paused, "Escape returns from Mission Details to the Combat menu, still paused");
+        await Click(tactical.MissionDetailsButton);
+        var center = tactical.MissionDetailsBackButton.GetGlobalRect().GetCenter() + new Vector2(0, -60);
+        MouseMotion(center, Vector2.Zero);
+        MouseButton(center, Godot.MouseButton.Right, true); MouseButton(center, Godot.MouseButton.Right, false); await Frames();
+        Check(tactical.Modal == CombatModal.Menu, "right-click returns from Mission Details to the Combat menu");
+        await Click(tactical.MissionDetailsButton);
+        await Click(tactical.MissionDetailsBackButton);
+        Check(tactical.Modal == CombatModal.Menu && sim.Paused && sim.Elapsed == pausedAt, "Back returns to the Combat menu without advancing the battle");
+    }
+
     private async Task TestCombatAudioSettings(CombatScreen tactical, CombatSimulation sim)
     {
         var pausedAt = sim.Elapsed;

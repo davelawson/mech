@@ -94,7 +94,7 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | X / C | Walk / Run |
 | J or **Jump**, then right-click ground | Jump there (Escape cancels) |
 | G / F | Hold fire / Fire at will |
-| **Normal heat** / **Aggressive heat** | Set the selection's heat policy |
+| Drag / click the sidebar heat bar | Set the selection's heat limit (0–30): weapons and jumps wait while heat is above it |
 | **Clear priority target** | Remove the selection's priority target |
 | **Maintain Range** checkbox / slider | Keep (or stop keeping) the preferred distance from the priority target / set that distance |
 | Space | Pause or resume (in co-op, your own pause toggle) |
@@ -109,7 +109,7 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | Shift+backtick (~) | Toggle the battle log |
 | Hover a detected enemy | Show range lines from selected friendlies |
 | Hover a paperdoll location | List the systems installed there by condition |
-| Escape | Combat menu (Resume, Audio, and End Simulation or Withdraw from a mission) |
+| Escape | Combat menu (Resume, Mission Details, Audio, and End Simulation or Withdraw from a mission) |
 
 ## Build and test
 

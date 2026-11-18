@@ -131,18 +131,25 @@ public partial class MissionsPanel : Control
         var travel = _campaign.TravelDaysTo(offer.SystemId);
         var deadline = isCurrent ? DateText(_board.Deadline!.Value)
             : _campaign.DeadlineDays(offer) is { } days ? $"{days} days after acceptance" : "Unreachable";
-        var opposition = string.Join("\n", offer.Opposition.Select(item =>
-        {
-            var spec = DraftCatalog.Mech(item.MechId);
-            return $"  {(item.Group is { } group ? $"Group {group + 1}: " : "")}{spec.DisplayName} · {spec.Tonnage}t — {item.Rank}";
-        }));
-        return $"EMPLOYER  {offer.Employer.Name}{Standing(offer.Employer)}\nOPPONENT  {offer.Opponent.Name}{Standing(offer.Opponent)}"
+        return ContractTerms(offer, Standing)
+            + $"\nTRAVEL ESTIMATE  {travel switch { null => "Unreachable", 0 => "In orbit", 1 => "1 day", _ => $"{travel} days" }}"
+            + $"\nDEADLINE  {deadline}\nOPPOSITION  {offer.OppositionTonnage} t\nEXPECTED OPPOSITION\n{OppositionLines(offer)}\nABANDONMENT PENALTY  None";
+    }
+    /// <summary>The contract's fixed terms, shared by the mission board and the battle's Mission Details.
+    /// <paramref name="standing"/> adds the company's reputation with each party, when a campaign is at hand.</summary>
+    public static string ContractTerms(MissionOffer offer, Func<Party, string>? standing = null)
+    {
+        string Party(Party party) => party.Name + (standing?.Invoke(party) ?? "");
+        return $"EMPLOYER  {Party(offer.Employer)}\nOPPONENT  {Party(offer.Opponent)}"
             + $"\nCONTRACT  {offer.KindText}" + (offer.Kind == MissionKind.Patrol ? $"\nPATROL  {PatrolText(offer)}" : "") + $"\nPOSTED  {DateText(offer.Posted)}\nPAYMENT  {CBills(offer.Payment)}\nSALVAGE  {offer.SalvagePicks} {(offer.SalvagePicks == 1 ? "pick" : "picks")}"
             + $"\nINSURANCE  Up to {CBills(offer.InsuranceLimit)}\nLOCATION  {StarChart.Instance[offer.SystemId].Name}"
-            + $"\nBIOME  {StarChart.Instance[offer.SystemId].BiomeText}"
-            + $"\nTRAVEL ESTIMATE  {travel switch { null => "Unreachable", 0 => "In orbit", 1 => "1 day", _ => $"{travel} days" }}"
-            + $"\nDEADLINE  {deadline}\nOPPOSITION  {offer.OppositionTonnage} t\nEXPECTED OPPOSITION\n{opposition}\nABANDONMENT PENALTY  None";
+            + $"\nBIOME  {StarChart.Instance[offer.SystemId].BiomeText}";
     }
+    public static string OppositionLines(MissionOffer offer) => string.Join("\n", offer.Opposition.Select(item =>
+    {
+        var spec = DraftCatalog.Mech(item.MechId);
+        return $"  {(item.Group is { } group ? $"Group {group + 1}: " : "")}{spec.DisplayName} · {spec.Tonnage}t — {item.Rank}";
+    }));
 
     /// <summary>"2 points + extraction · 3 enemy groups".</summary>
     public static string PatrolText(MissionOffer offer) =>

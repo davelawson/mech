@@ -13,7 +13,7 @@ namespace Mech;
 [JsonDerivedType(typeof(PriorityCommand), "priority")]
 [JsonDerivedType(typeof(MovementCommand), "movement")]
 [JsonDerivedType(typeof(FiringCommand), "firing")]
-[JsonDerivedType(typeof(HeatPolicyCommand), "heat-policy")]
+[JsonDerivedType(typeof(HeatLimitCommand), "heat-limit")]
 [JsonDerivedType(typeof(DistanceCommand), "distance")]
 [JsonDerivedType(typeof(MaintainRangeCommand), "maintain-range")]
 [JsonDerivedType(typeof(WeaponCommand), "weapon")]
@@ -70,10 +70,10 @@ public sealed record FiringCommand(string[] Units, FiringMode Mode) : UnitComman
     { foreach (var unit in units.Where(item => !item.Defeated)) unit.Firing = Mode; }
 }
 
-public sealed record HeatPolicyCommand(string[] Units, HeatPolicy Policy) : UnitCommand(Units)
+public sealed record HeatLimitCommand(string[] Units, int Limit) : UnitCommand(Units)
 {
     private protected override void Apply(CombatSimulation simulation, CombatUnit[] units)
-    { foreach (var unit in units.Where(item => !item.Defeated)) unit.HeatPolicy = Policy; }
+    { foreach (var unit in units.Where(item => !item.Defeated)) unit.HeatLimit = Limit; }
 }
 
 public sealed record DistanceCommand(string[] Units, float Distance) : UnitCommand(Units)

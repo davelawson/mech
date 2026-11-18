@@ -20,20 +20,33 @@ public partial class SmokeTests
             var sim = tactical.Simulation!;
             var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
             tactical.SelectUnits(friends.Select(unit => unit.Id).ToArray(), false);
-            Check(tactical.NormalHeatButton.Text.StartsWith("●") && friends.All(unit => unit.HeatPolicy == HeatPolicy.Normal), "heat controls show the initial shared Normal policy");
-            tactical.AggressiveHeatButton.EmitSignal(BaseButton.SignalName.Pressed);
-            Check(friends.All(unit => unit.HeatPolicy == HeatPolicy.Aggressive) && tactical.AggressiveHeatButton.Text.StartsWith("●"), "Aggressive heat button edits all selected friendlies");
-            friends[0].AddHeat(35); friends[1].HeatPolicy = HeatPolicy.Normal;
+            var sidebar = tactical.Paperdoll; await Frames();
+            Check(friends.All(unit => unit.HeatLimit == CombatRules.DefaultHeatLimit) && sidebar.DisplayedHeatLimit == CombatRules.DefaultHeatLimit,
+                "every friendly starts with a heat limit of 10, shown on the sidebar handle");
+            Check(tactical.FindChildren("*", "Button", true, false).OfType<Button>().All(button => !button.Text.Contains("heat")),
+                "the Normal and Aggressive heat buttons are gone");
+            Check(sidebar.HeatLimitAt(sidebar.HeatTrackY(30)) == 30 && sidebar.HeatLimitAt(sidebar.HeatTrack.Position.Y - 50) == 30
+                && sidebar.HeatLimitAt(sidebar.HeatTrackY(12.4)) == 12 && sidebar.HeatLimitAt(sidebar.HeatTrack.End.Y + 50) == 0,
+                "the heat track maps to whole limits 0–30, clamped at its ends");
+            await DragHeatLimit(sidebar, CombatRules.DefaultHeatLimit, 30);
+            Check(friends.All(unit => unit.HeatLimit == 30) && sidebar.DisplayedHeatLimit == 30, "dragging the handle edits all selected friendlies");
+            friends[0].AddHeat(35); friends[1].HeatLimit = 20;
             tactical.SelectUnits(friends.Select(unit => unit.Id).ToArray(), false);
-            Check(!tactical.NormalHeatButton.Text.StartsWith("●") && !tactical.AggressiveHeatButton.Text.StartsWith("●"), "mixed heat policies leave both mode indicators unselected");
             Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.IsVisibleInTree()
-                && label.Text.Contains("Heat policy: Mixed")), "group readout explicitly reports mixed heat policies");
-            tactical.NormalHeatButton.EmitSignal(BaseButton.SignalName.Pressed);
-            Check(friends.All(unit => unit.HeatPolicy == HeatPolicy.Normal), "group policy edits include shut-down units");
-            tactical.SelectUnits([friends[0].Id], false);
-            Check(tactical.NormalHeatButton.IsVisibleInTree() && tactical.AggressiveHeatButton.IsVisibleInTree(), "single shut-down selection retains command and heat controls");
-            tactical.AggressiveHeatButton.EmitSignal(BaseButton.SignalName.Pressed);
-            Check(friends[0].HeatPolicy == HeatPolicy.Aggressive, "shutdown policy can be changed before restart");
+                && label.Text.Contains("Heat limit: Mixed")), "group readout explicitly reports mixed heat limits");
+            await ClickHeatLimit(sidebar, 12);
+            Check(friends.All(unit => unit.HeatLimit == 12), "clicking the bar sets the limit for the group, including shut-down units");
+            tactical.SelectUnits([friends[0].Id], false); await Frames();
+            Check(sidebar.EditsHeatLimit, "a single shut-down selection keeps the heat-limit handle");
+            await ClickHeatLimit(sidebar, 5);
+            Check(friends[0].HeatLimit == 5 && friends[1].HeatLimit == 12, "a shut-down mech's limit can be changed before restart");
+            Check(sidebar.HeatBarRect.Position.Y <= 4 && sidebar.HeatBarRect.End.Y >= sidebar.Size.Y - 4,
+                $"the sidebar doll has no label or legend gaps above or below its schematic: size {sidebar.Size} heat {sidebar.HeatBarRect}");
+            var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
+            sidebar.Display(enemy);
+            Check(!sidebar.EditsHeatLimit && sidebar.DisplayedHeatLimit is null && !CombatScreen.HeatReadout(enemy).Contains("limit"),
+                "an inspected enemy shows neither a heat-limit handle nor its limit");
+            sidebar.Display(friends[0]);
             Check(!tactical.UnitButtons[0].Text.Contains("H 35.0") && tactical.UnitButtons[0].TooltipText.Contains("Automatic restart below 10"),
                 "friendly card leaves heat to its bar and keeps restart information in the tooltip");
             Check(CombatPaperdoll.HeatColor(9.9) == CombatPaperdoll.LightDamage && CombatPaperdoll.HeatColor(10) == CombatPaperdoll.ModerateDamage
@@ -52,8 +65,11 @@ public partial class SmokeTests
                 Check(!doll.ShowsFuel, "mechs without jump jets reserve an empty fuel slot");
             }
             Check(tactical.Paperdoll.HeatBarRect.Size.X > tactical.UnitDolls[0].HeatBarRect.Size.X, "sidebar bars are wider than card bars");
-            Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.IsVisibleInTree()
-                && label.Text.Contains(CombatScreen.HeatReadout(friends[0]))), "selected details show heat band, policy, effective cooling and restart threshold");
+            await CheckSidebarLayout(tactical, friends[0]);
+            Check(!tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.IsVisibleInTree()
+                && (label.Text.Contains("Cooling ") || label.Text.Contains("Ambient ") || label.Text.Contains("Automatic restart"))),
+                "selected details leave heat, cooling and ambient readouts to the heat bar and the card tooltip");
+            Check(tactical.UnitButtons[0].TooltipText.Contains(CombatScreen.HeatReadout(friends[0])), "the card tooltip keeps the exact heat readout");
             var toggle = tactical.FindChildren("*", "CheckButton", true, false).OfType<CheckButton>().First();
             Check(!toggle.Disabled && toggle.Text.Contains("Thermal shutdown"), "shutdown weapon readout explains firing restriction while allowing configuration");
             toggle.ButtonPressed = false;
@@ -66,11 +82,44 @@ public partial class SmokeTests
             await Capture("combat-heat-shutdown");
             friends[0].ApplyDamage(MechLocation.Head, 1000);
             tactical.SelectUnits([friends[0].Id], false);
-            Check(!tactical.NormalHeatButton.IsVisibleInTree(), "physically defeated units do not retain heat policy controls");
+            await Frames();
+            Check(!tactical.Paperdoll.EditsHeatLimit, "physically defeated units do not retain the heat-limit handle");
         }
         finally
         {
             RemoveChild(tactical); tactical.QueueFree(); await Frames();
         }
     }
+
+    /// <summary>The title and paperdoll stay pinned above the padded scrolling details, which start with the hangar-style pilot block.</summary>
+    private async Task CheckSidebarLayout(CombatScreen tactical, CombatUnit unit)
+    {
+        tactical.SelectUnits([unit.Id], false); await Frames();
+        var title = tactical.FindChildren("*", "Label", true, false).OfType<Label>().First(label => label.Text == $"{unit.Warrior.Callsign} · {unit.Spec.Chassis}");
+        Check(title.HorizontalAlignment == HorizontalAlignment.Center && !tactical.SidebarScroll.IsAncestorOf(title)
+            && !tactical.SidebarScroll.IsAncestorOf(tactical.Paperdoll), "the centred title and paperdoll sit outside the scrolling details");
+        Check(tactical.PilotRow.IsVisibleInTree() && tactical.PilotPortrait.Texture is not null
+            && tactical.PilotInfo.Text == CombatScreen.PilotText(unit.Warrior) && tactical.PilotInfo.Text.Contains(RosterUi.SkillLines(unit.Warrior)),
+            "the pilot block shows the portrait, callsign, name and skills");
+        var scrollRect = tactical.SidebarScroll.GetGlobalRect(); var pilotRect = tactical.PilotRow.GetGlobalRect();
+        Check(pilotRect.Position.X - scrollRect.Position.X >= 9 && pilotRect.Position.Y - scrollRect.Position.Y >= 9,
+            $"the scrolling details are padded: scroll {scrollRect} pilot {pilotRect}");
+        var titleAt = title.GetGlobalRect(); var dollAt = tactical.Paperdoll.GetGlobalRect();
+        tactical.SidebarScroll.ScrollVertical = 100000; await Frames();
+        Check(title.GetGlobalRect() == titleAt && tactical.Paperdoll.GetGlobalRect() == dollAt && tactical.PilotRow.GetGlobalRect() != pilotRect,
+            "scrolling the details leaves the title and paperdoll pinned");
+        tactical.SidebarScroll.ScrollVertical = 0; await Frames();
+    }
+
+    /// <summary>Presses the sidebar heat bar at one limit and drags the handle to another.</summary>
+    private async Task DragHeatLimit(CombatPaperdoll doll, int from, int to)
+    {
+        Vector2 At(int limit) => doll.GetGlobalTransform() * new Vector2(doll.HeatTrack.GetCenter().X, doll.HeatTrackY(limit));
+        MouseMotion(At(from), Vector2.Zero);
+        MouseButton(At(from), Godot.MouseButton.Left, true); await Frames();
+        MouseMotion(At((from + to) / 2), At((from + to) / 2) - At(from)); await Frames();
+        MouseMotion(At(to), At(to) - At((from + to) / 2)); await Frames();
+        MouseButton(At(to), Godot.MouseButton.Left, false); await Frames();
+    }
+    private Task ClickHeatLimit(CombatPaperdoll doll, int limit) => DragHeatLimit(doll, limit, limit);
 }
