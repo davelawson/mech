@@ -60,7 +60,8 @@ internal static partial class CombatChecks
         var weapon = damaged.Weapons.First(w => w.Spec.Location is MechLocation.LeftArm or MechLocation.RightArm);
         damaged.ApplyDamage(weapon.Spec.Location, damaged.Locations[weapon.Spec.Location].Armor + damaged.Locations[weapon.Spec.Location].Structure);
         check(damaged.Equipment[weapon.Spec.Id] == ComponentCondition.Operational && !damaged.WeaponUsable(weapon)
-            && CombatScreen.SystemsReadout(damaged).Contains($"{weapon.Spec.Name}: Lost"), "systems inspection derives lost equipment from location integrity");
+            && CombatPaperdoll.LocationSystems(damaged, weapon.Spec.Location).Any(item => item.Name.StartsWith(weapon.Spec.Name) && item.Condition == ComponentCondition.Destroyed),
+            "paperdoll inspection derives lost equipment from location integrity");
     }
 
     private static void CheckCircleUnions(Action<bool, string> check)

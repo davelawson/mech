@@ -120,7 +120,7 @@ public partial class SmokeTests
                 await ContactAt(720);
                 tactical.Battlefield.InspectedEnemy = enemy.Id;
                 tactical.SelectUnits([friendly.Id], false);
-                Check(tactical.Paperdoll.Unit == enemy && !tactical.PilotRow.IsVisibleInTree() && VisibleText().Contains(CombatScreen.SystemsReadout(enemy, enemy: true))
+                Check(tactical.Paperdoll.Unit == enemy && !tactical.PilotRow.IsVisibleInTree()
                     && VisibleText().Any(text => text.StartsWith($"OPPOSITION · {enemy.Spec.Tonnage}t"))
                     && !VisibleText().Any(text => text.Contains("Cooling ")),
                     $"detailed inspection shows live condition without the pilot block at {size}");
@@ -131,15 +131,13 @@ public partial class SmokeTests
                     $"the padded sidebar, its wrapping buttons and the doll fit the window at {size}: panel {sidebarPanel.GetGlobalRect()}");
                 tactical.Battlefield.InspectedEnemy = enemy.Id; tactical.SelectUnits([friendly.Id], false); await Frames();
                 await ContactAt(1440);
-                Check(tactical.Paperdoll.Unit is null && !VisibleText().Any(text => text.Contains("SYSTEMS · CONDITION")
-                    || text.Contains("ARMOR / STOCK") || text.Contains("Heat ")), $"model-only inspection clears detailed readouts including heat at {size}");
+                Check(tactical.Paperdoll.Unit is null && !VisibleText().Any(text => text.Contains("Heat ")), $"model-only inspection clears detailed readouts including heat at {size}");
                 await Capture($"combat-contact-model-{size.X}x{size.Y}");
                 await ContactAt(1800);
                 Check(tactical.Battlefield.InspectedEnemy is null && tactical.Paperdoll.Unit == friendly,
                     $"lost inspection restores the friendly sidebar at {size}");
                 tactical.SelectUnits([], false);
-                Check(!VisibleText().Any(text => text.Contains("SYSTEMS · CONDITION")),
-                    $"clearing selection removes stale systems text at {size}");
+                Check(tactical.Paperdoll.Unit is null, $"clearing selection removes the stale paperdoll at {size}");
                 tactical.SelectUnits([friendly.Id], false);
                 Check(sim.Units.All(unit => unit.ShotsFired == 0) && sim.Outcome == CombatOutcome.Ongoing,
                     $"layout transitions remain responsive without firing at {size}");

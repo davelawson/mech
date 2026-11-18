@@ -82,14 +82,6 @@ public partial class CombatPaperdoll : Control
         Resized += QueueRedraw;
     }
     public void Display(CombatUnit? unit) { Unit = unit; Visible = unit is not null; QueueRedraw(); }
-    public static string Readout(CombatUnit unit) => "ARMOR / STOCK · INTERNAL / STOCK\n"
-        + string.Join("\n", unit.Spec.Locations.Select(spec =>
-        {
-            var state = unit.Locations[spec.Location];
-            return $"{DraftCatalog.Abbreviation(spec.Location)}  A {state.Armor}/{spec.Armor} · I {state.Structure}/{spec.Structure}"
-                + (state.Structure == 0 ? " · LOST" : "")
-                + (spec.RearArmor > 0 ? $"\n       Rear {state.RearArmor}/{spec.RearArmor}" : "");
-        }));
     /// <summary>Weapons, components and ammunition in one location, grouped by name and condition in mount order.</summary>
     public static IReadOnlyList<SystemGroup> LocationSystems(CombatUnit unit, MechLocation location)
     {

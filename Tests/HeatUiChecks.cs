@@ -101,6 +101,9 @@ public partial class SmokeTests
         Check(tactical.PilotRow.IsVisibleInTree() && tactical.PilotPortrait.Texture is not null
             && tactical.PilotInfo.Text == CombatScreen.PilotText(unit.Warrior) && tactical.PilotInfo.Text.Contains(RosterUi.SkillLines(unit.Warrior)),
             "the pilot block shows the portrait, callsign, name and skills");
+        Check(!tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.IsVisibleInTree()
+            && (label.Text.Contains("ARMOR / STOCK") || label.Text.Contains("Ground markers") || label.Text.Contains("Primary unit's") || label.Text.Contains("SYSTEMS ·"))),
+            "the sidebar has no armour, systems, ground-marker or primary-unit text");
         var scrollRect = tactical.SidebarScroll.GetGlobalRect(); var pilotRect = tactical.PilotRow.GetGlobalRect();
         Check(pilotRect.Position.X - scrollRect.Position.X >= 9 && pilotRect.Position.Y - scrollRect.Position.Y >= 9,
             $"the scrolling details are padded: scroll {scrollRect} pilot {pilotRect}");

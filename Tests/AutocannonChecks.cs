@@ -61,13 +61,11 @@ internal static partial class CombatChecks
             "an emptied autocannon stops firing without disabling its mech");
         check(sim.WeaponStatuses(friendly, Enemy(sim), null, Enemy(sim))[0] == "Out of ammunition",
             "the weapon readout explains an empty autocannon");
-        check(CombatScreen.SystemsReadout(friendly).Contains("Ammo A: Operational · Empty")
-                && CombatScreen.SystemsReadout(Enemy(sim)).Contains("Ammo A: Operational · 3 shots"),
-            "friendly inspection shows remaining shots per bin");
-        var hidden = CombatScreen.SystemsReadout(friendly, enemy: true);
-        check(hidden.Contains("Test Cannon: Operational") && hidden.Contains("Ammo A: Operational\n") && !hidden.Contains("Empty")
-                && !hidden.Contains("shots") && !hidden.Contains("Unavailable"),
-            "enemy inspection never reveals ammunition depletion");
+        check(friendly.Shots("bin-a") == 0 && Enemy(sim).Shots("bin-a") == 3, "spent shots are tracked per bin");
+        var hidden = CombatPaperdoll.LocationSystems(friendly, MechLocation.LeftTorso).Concat(CombatPaperdoll.LocationSystems(friendly, MechLocation.RightArm)).ToArray();
+        check(hidden.Any(item => item.Name == "Test Cannon" && item.Condition == ComponentCondition.Operational)
+                && hidden.Any(item => item.Name == "Ammo A" && item.Condition == ComponentCondition.Operational),
+            "paperdoll inspection never reveals ammunition depletion");
 
         static void Destroy(CombatUnit unit, MechLocation location)
         { var part = unit.Locations[location]; unit.ApplyDamage(location, part.Armor + part.Structure); }

@@ -115,8 +115,6 @@ public partial class CombatScreen : Control
     private Label _selectionTitle = null!;
     private Label _unitInfo = null!;
     private Label _targetInfo = null!;
-    private Label _locations = null!;
-    private Label _systems = null!;
     private Label _forceCount = null!;
     private Label _groupInfo = null!;
     private VBoxContainer _settings = null!;
@@ -212,8 +210,6 @@ public partial class CombatScreen : Control
         Fit(Ui.Button(_settings, "Clear priority target")).Pressed += () => Send(new PriorityCommand([.. _selected], null));
         _weaponsTitle = RosterUi.Text(body, "WEAPONS · PRIMARY SELECTION", 12, Ui.Gold);
         _weapons = new VBoxContainer(); body.AddChild(_weapons);
-        _locations = RosterUi.Text(body, "", 12);
-        _systems = RosterUi.Text(body, "", 12);
         _unitBar = new HBoxContainer { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; _unitBar.AddThemeConstantOverride("separation", 6); AddChild(_unitBar);
         _help = Ui.Label(this, "", 12, Ui.Muted); _help.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         WaitingBanner = new PanelContainer { Visible = false }; WaitingBanner.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Gold, 2));
@@ -905,10 +901,8 @@ public partial class CombatScreen : Control
             var detailed = Simulation.DetailsVisible(CombatSide.Friendly, inspected);
             _selectionTitle.Text = detailed ? enemy.Spec.DisplayName : enemy.Spec.Chassis;
             _unitInfo.Text = detailed ? $"OPPOSITION · {enemy.Spec.Tonnage}t · {enemy.Status}{enemy.StanceText()}"
-                : "OPPOSITION · Model identified\nClose to half detection range for armour, internals and systems.";
+                : "OPPOSITION · Model identified\nClose to half detection range for its condition.";
             Paperdoll.Display(detailed ? enemy : null);
-            _locations.Text = detailed ? CombatPaperdoll.Readout(enemy) : "";
-            _systems.Text = detailed ? SystemsReadout(enemy, enemy: true) : "";
             _targetInfo.Text = "";
             return;
         }
@@ -916,7 +910,7 @@ public partial class CombatScreen : Control
         {
             _selectionTitle.Text = "Select a BattleMech";
             _unitInfo.Text = "Click a friendly unit or its card below. Drag across the field to select a group.";
-            _locations.Text = _targetInfo.Text = _systems.Text = "";
+            _targetInfo.Text = "";
             return;
         }
         _selectionTitle.Text = _selected.Count > 1 ? $"{_selected.Count} selected · {unit.Warrior.Callsign}" : $"{unit.Warrior.Callsign} · {unit.Spec.Chassis}";
@@ -975,10 +969,6 @@ public partial class CombatScreen : Control
                 + status + (weapon.Spec.AmmoKind is { } ammo ? $" · {unit.AmmoRemaining(ammo)} shots" : "") + (weaponTarget is null ? "" : $" · {Simulation.TerrainHitChance(unit, weaponTarget, weapon):P0} hit")
                 + (weapon.Spec.Rear && weaponTarget is not null ? $" · {weaponTarget.Spec.Chassis}" : "");
         }
-        _locations.Text = CombatPaperdoll.Readout(unit)
-            + "\nGround markers: team color = legs; gold dot = torso.\nPrimary unit's weapons and locations shown; group orders and settings include shut-down selections.";
-        _systems.Text = SystemsReadout(unit);
-
     }
     /// <summary>A sidebar button that shares its row's width and wraps its label, so the narrow sidebar never overflows.</summary>
     private static Button Fit(Button button)
@@ -996,23 +986,5 @@ public partial class CombatScreen : Control
         + (unit.Climate is { } climate ? $" × {climate.EfficiencyText}"
             + $"\nAmbient {climate.Ambient:0} · {(unit.AmbientHeatRate >= 0 ? "+" : "−")}{Math.Abs(unit.AmbientHeatRate):0.00} heat/s" : "")
         + (unit.Shutdown && !unit.Defeated ? "\nAutomatic restart below 10 heat" : "");
-
-    // Enemy ammunition depletion is never known: inspection shows only physical equipment loss.
-    internal static string SystemsReadout(CombatUnit unit, bool enemy = false)
-    {
-        string State(string id, MechLocation location, bool usable = true) => !unit.Intact(location) ? "Lost"
-            : unit.Equipment[id] == ComponentCondition.Destroyed ? "Destroyed"
-            : !usable ? $"{unit.ConditionText(id, levels: true)} · Unavailable" : unit.ConditionText(id, levels: true);
-        string Bin(AmmoSpec bin)
-        {
-            var state = State(bin.Id, bin.Location);
-            if (enemy || state is "Lost" or "Destroyed") return state;
-            return unit.Shots(bin.Id) > 0 ? $"{state} · {unit.Shots(bin.Id)} shots" : $"{state} · Empty";
-        }
-        return "SYSTEMS · CONDITION / AVAILABILITY\n" + string.Join("\n",
-            unit.Weapons.Select(weapon => $"{DraftCatalog.Abbreviation(weapon.Spec.Location)} · {weapon.Spec.Name}{(weapon.Spec.Rear ? " (rear)" : "")}: {State(weapon.Spec.Id, weapon.Spec.Location, enemy ? unit.WeaponIntact(weapon) : unit.WeaponUsable(weapon))}")
-            .Concat(unit.Spec.Components.Select(item => $"{DraftCatalog.Abbreviation(item.Location)} · {item.Name}: {State(item.Id, item.Location)}"))
-            .Concat(unit.Spec.Ammo.Select(item => $"{DraftCatalog.Abbreviation(item.Location)} · {item.Name}: {Bin(item)}")));
-    }
 
 }

@@ -225,7 +225,7 @@ An outer band represents armor and the inner core represents structure, independ
 | No armor | Armor band disappears |
 | No structure | Faint empty location outline |
 
-This follows the MWO visual language described in the [community Mech Manual](https://mwo.fandom.com/wiki/Mech_Manual). These RGB values and thirds-based thresholds are this project's explicit choices, not claimed exact MWO constants. Friendly and enemy numeric readouts both show current/stock front armor, internal structure and rear torso armor. Rear armor reflects stored values; combat's existing front-only damage rules remain in effect.
+This follows the MWO visual language described in the [community Mech Manual](https://mwo.fandom.com/wiki/Mech_Manual). These RGB values and thirds-based thresholds are this project's explicit choices, not claimed exact MWO constants. Rear armor reflects stored values; combat's existing front-only damage rules remain in effect.
 
 ## Verification
 
