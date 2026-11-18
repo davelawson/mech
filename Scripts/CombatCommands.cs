@@ -12,6 +12,7 @@ namespace Mech;
 [JsonDerivedType(typeof(HoldCommand), "hold")]
 [JsonDerivedType(typeof(PriorityCommand), "priority")]
 [JsonDerivedType(typeof(MovementCommand), "movement")]
+[JsonDerivedType(typeof(SpeedCommand), "speed")]
 [JsonDerivedType(typeof(FiringCommand), "firing")]
 [JsonDerivedType(typeof(HeatLimitCommand), "heat-limit")]
 [JsonDerivedType(typeof(DistanceCommand), "distance")]
@@ -62,6 +63,16 @@ public sealed record MovementCommand(string[] Units, MovementMode Mode) : UnitCo
 {
     private protected override void Apply(CombatSimulation simulation, CombatUnit[] units)
     { foreach (var unit in units.Where(item => !item.Defeated)) unit.Movement = Mode; }
+}
+
+/// <summary>Sets the desired speed in metres per second, from 10 km/h up to each mech's unheated running speed.</summary>
+public sealed record SpeedCommand(string[] Units, float Speed) : UnitCommand(Units)
+{
+    private protected override void Apply(CombatSimulation simulation, CombatUnit[] units)
+    {
+        foreach (var unit in units.Where(item => !item.Defeated))
+            unit.DesiredSpeed = Math.Clamp(Speed, CombatRules.MinimumDesiredSpeed, Math.Max(CombatRules.MinimumDesiredSpeed, unit.UnheatedRunningSpeed));
+    }
 }
 
 public sealed record FiringCommand(string[] Units, FiringMode Mode) : UnitCommand(Units)

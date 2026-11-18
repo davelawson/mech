@@ -46,7 +46,7 @@ public sealed partial class CombatUnit
     public double AmbientHeatRate => Climate is { } climate
         ? (climate.Ambient - Heat) / CombatRules.AmbientExchangeDifference / CombatRules.HeatClockSeconds : 0;
     public double MovementHeatRate => !Moving || !Active ? 0
-        : CurrentSpeed > UnheatedWalkingSpeed + .00001f ? CombatRules.RunningHeatRate : CombatRules.WalkingHeatRate;
+        : Gait == Gait.Running ? CombatRules.RunningHeatRate : CombatRules.WalkingHeatRate;
 
     internal void AdvanceHeat(double delta) => AddHeat((MovementHeatRate + EngineHeatRate - CoolingRate + AmbientHeatRate) * delta);
     internal void AddHeat(double amount)

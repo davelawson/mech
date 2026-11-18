@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- A sprinting figure leaning into its stride, with speed lines trailing behind it. -->
+  <circle cx="43" cy="10" r="6" fill="#ffffff"/>
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Torso, leaning forward -->
+    <path d="M39 19 L31 36" stroke-width="7"/>
+    <!-- Arms: forward arm bent up, rear arm swung back -->
+    <path d="M38 22 L47 27 L53 21" stroke-width="5"/>
+    <path d="M36 21 L27 24 L22 31" stroke-width="5"/>
+    <!-- Legs: front leg reaching, rear leg kicking back -->
+    <path d="M31 36 L41 43 L39 56" stroke-width="6"/>
+    <path d="M31 36 L25 47 L14 50" stroke-width="6"/>
+  </g>
+  <!-- Speed lines -->
+  <g stroke="#ffffff" stroke-width="3.5" stroke-linecap="round">
+    <path d="M4 22 L17 22"/>
+    <path d="M2 32 L19 32"/>
+    <path d="M5 42 L15 42"/>
+  </g>
+</svg>

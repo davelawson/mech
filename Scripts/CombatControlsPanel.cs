@@ -57,7 +57,10 @@ public partial class CombatControlsPanel : PanelContainer
                 + "shut-down mechs included, also while paused."),
             ("", "Weapons and jumps wait while heat is above the limit. A volley may carry heat past it. Every mech starts at 10."));
         Section("SPEED",
-            ("X / C", "Walk / Run: each mech's movement speed limit (also the sidebar buttons)"),
+            ("Speed gauge", "Drag or click the gauge under the sidebar paperdoll to set the selection's desired speed, "
+                + "from 10 km/h up to the running speed (it snaps to the walk and run notches). Hover it for the actual and desired speed."),
+            ("X / C", "Set the desired speed to the walking / running speed"),
+            ("", "Walking or running is read from actual speed: faster than walking speed counts as running for heat and aim."),
             ("Maintain Range", "Tick the box to keep the slider's distance from the priority target when there is no Move or "
                 + "Follow order. The slider sets that distance, applied when you let go."),
             ("Space", coop ? "Pause or resume (your own pause; the battle waits while any player holds one)" : "Pause or resume"),

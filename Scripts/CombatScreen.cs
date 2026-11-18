@@ -85,7 +85,6 @@ public partial class CombatScreen : Control
     private bool _othersReady;
     /// <summary>Jump targeting is armed: the next ground right-click sends the selection on a jump.</summary>
     public bool SettingJump { get; private set; }
-    public Button JumpButton { get; private set; } = null!;
     private ForceRoster _roster = null!;
     private MissionOffer? _mission;
     private Func<CombatSimulation, SalvageClaim[], string>? _settle;
@@ -126,8 +125,6 @@ public partial class CombatScreen : Control
     public HSlider DistanceSlider { get; private set; } = null!;
     public Label DistanceValue { get; private set; } = null!;
     private bool _draggingDistance;
-    private Button _walk = null!;
-    private Button _run = null!;
     private Button _fire = null!;
     private Button _hold = null!;
     private bool _refreshing;
@@ -177,20 +174,16 @@ public partial class CombatScreen : Control
         PilotInfo = RosterUi.Text(PilotRow, "", 13); PilotInfo.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         // Dragging the heat bar's handle sets the limit for the whole selection, shut-down mechs included.
         Paperdoll.HeatLimitChanged += limit => Send(new HeatLimitCommand([.. _selected], limit));
+        // Dragging the speed gauge's pointer sets the same desired speed for the whole selection; X, C, J and Z remain hotkeys only.
+        Paperdoll.DesiredSpeedChanged += speed => Send(new SpeedCommand([.. _selected], speed));
         _unitInfo = RosterUi.Text(body, "", 13);
         _targetInfo = RosterUi.Text(body, "", 12, Ui.Gold);
         _settings = new VBoxContainer(); body.AddChild(_settings);
         _groupInfo = RosterUi.Text(_settings, "", 12, Ui.Muted);
-        var movement = new HBoxContainer(); _settings.AddChild(movement);
-        _walk = Fit(Ui.Button(movement, "Walk")); _run = Fit(Ui.Button(movement, "Run"));
-        _walk.Pressed += () => Send(new MovementCommand([.. _selected], MovementMode.Walk));
-        _run.Pressed += () => Send(new MovementCommand([.. _selected], MovementMode.Run));
-        JumpButton = Fit(Ui.Button(movement, "Jump [J]")); JumpButton.Pressed += ToggleJump;
         var fire = new HBoxContainer(); _settings.AddChild(fire);
         _fire = Fit(Ui.Button(fire, "Fire at will")); _hold = Fit(Ui.Button(fire, "Hold fire"));
         _fire.Pressed += () => Send(new FiringCommand([.. _selected], FiringMode.FireAtWill));
         _hold.Pressed += () => Send(new FiringCommand([.. _selected], FiringMode.HoldFire));
-        Fit(Ui.Button(_settings, "Stop movement / clear order [Z]")).Pressed += StopUnits;
         var range = new HBoxContainer(); range.AddThemeConstantOverride("separation", 6); _settings.AddChild(range);
         MaintainRangeToggle = new CheckBox(); range.AddChild(MaintainRangeToggle);
         MaintainRangeToggle.Toggled += on => { if (!_refreshing) Send(new MaintainRangeCommand([.. _selected], on)); };
@@ -520,6 +513,7 @@ public partial class CombatScreen : Control
         return box;
     }
     /// <summary>Why no selected unit can jump now, or null when at least one can.</summary>
+    public string? JumpBlockedReason => Simulation is null ? "No battle" : JumpUnavailable();
     private string? JumpUnavailable()
     {
         var units = _selected.Select(Simulation!.Unit).ToArray();
@@ -931,10 +925,8 @@ public partial class CombatScreen : Control
         {
             _groupInfo.Visible = active.Length > 1;
             _groupInfo.Text = $"{active.Length} units · edits apply to group\n"
-                + $"Movement: {(active.Select(item => item.Movement).Distinct().Count() > 1 ? "Mixed" : active[0].Movement)} · Fire: {(active.Select(item => item.Firing).Distinct().Count() > 1 ? "Mixed" : active[0].Firing == FiringMode.FireAtWill ? "At will" : "Hold")}\n"
+                + $"Speed: {(active.Select(item => CombatPaperdoll.Kmh(item.DesiredSpeed)).Distinct().Count() > 1 ? "Mixed" : $"{CombatPaperdoll.Kmh(active[0].DesiredSpeed)} km/h")} · Fire: {(active.Select(item => item.Firing).Distinct().Count() > 1 ? "Mixed" : active[0].Firing == FiringMode.FireAtWill ? "At will" : "Hold")}\n"
                 + $"Heat limit: {(active.Select(item => item.HeatLimit).Distinct().Count() > 1 ? "Mixed" : active[0].HeatLimit.ToString())}";
-            _walk.Text = (active.All(item => item.Movement == MovementMode.Walk) ? "● Walk" : "Walk") + " [X]";
-            _run.Text = (active.All(item => item.Movement == MovementMode.Run) ? "● Run" : "Run") + " [C]";
             _fire.Text = (active.All(item => item.Firing == FiringMode.FireAtWill) ? "● Fire at will" : "Fire at will") + " [F]";
             _hold.Text = (active.All(item => item.Firing == FiringMode.HoldFire) ? "● Hold fire" : "Hold fire") + " [G]";
             _refreshing = true;
@@ -951,10 +943,6 @@ public partial class CombatScreen : Control
             MaintainRangeToggle.TooltipText = DistanceSlider.TooltipText = tip;
             _refreshing = false;
         }
-        var jumpBlocked = JumpUnavailable();
-        JumpButton.Disabled = jumpBlocked is not null;
-        JumpButton.Text = SettingJump ? "● Jump [J]" : "Jump [J]";
-        JumpButton.TooltipText = jumpBlocked ?? "Choose a landing point, then right-click the ground.";
         var firingTarget = Simulation.SelectAimTarget(unit);
         var target = firingTarget ?? Simulation.Units.Where(item => item.Side != unit.Side && !item.Defeated && Simulation.Detected(unit.Side, item.Id))
             .OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();

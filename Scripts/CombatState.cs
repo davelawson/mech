@@ -8,7 +8,7 @@ public sealed record CombatLocationState(MechLocation Location, int Armor, int R
 /// on the leader's machine, which alone steps the battle.</summary>
 public sealed record CombatUnitState(string Id, Vector2 Position, Vector2 Destination, Vector2 Facing, bool Moving, float CurrentSpeed,
     float AngularVelocity, CombatOrder Order, string? AttackTarget, string? FollowTarget, string? PriorityTarget, string? CurrentTarget,
-    string? CurrentRearTarget, MovementMode Movement, FiringMode Firing, float PreferredDistance, int ShotsFired, int Hits, int DamageDealt,
+    string? CurrentRearTarget, float DesiredSpeed, FiringMode Firing, float PreferredDistance, int ShotsFired, int Hits, int DamageDealt,
     double InterferenceRemaining, double Heat, int HeatLimit, bool Shutdown, bool Airborne, Vector2 JumpFrom, Vector2 JumpTo,
     float JumpDuration, float JumpElapsed, float JumpFromHeight, float JumpToHeight, float JumpApexHeight, float Altitude, double JumpRecharge,
     double? LandedAt, float TorsoTwist, bool TorsoTurning, CombatLocationState[] Locations, bool[] WeaponsEnabled, double[] WeaponsRemaining,
@@ -25,7 +25,7 @@ public sealed record CombatState(double Elapsed, CombatOutcome Outcome, double? 
 public sealed partial class CombatUnit
 {
     internal CombatUnitState State() => new(Id, Position, Destination, Facing, Moving, CurrentSpeed, AngularVelocity, Order, AttackTarget,
-        FollowTarget, PriorityTarget, CurrentTarget, CurrentRearTarget, Movement, Firing, PreferredDistance, ShotsFired, Hits, DamageDealt,
+        FollowTarget, PriorityTarget, CurrentTarget, CurrentRearTarget, DesiredSpeed, Firing, PreferredDistance, ShotsFired, Hits, DamageDealt,
         InterferenceRemaining, Heat, HeatLimit, Shutdown, Airborne, JumpFrom, JumpTo, JumpDuration, JumpElapsed, JumpFromHeight, JumpToHeight,
         JumpApexHeight, Altitude, JumpRecharge, LandedAt, TorsoTwist, TorsoTurning,
         Locations.Values.Select(item => new CombatLocationState(item.Location, item.Armor, item.RearArmor, item.Structure)).ToArray(),
@@ -40,7 +40,7 @@ public sealed partial class CombatUnit
             throw new ArgumentException("The battle state does not match this battle.", nameof(state));
         Destination = state.Destination; Moving = state.Moving; CurrentSpeed = state.CurrentSpeed; AngularVelocity = state.AngularVelocity;
         Order = state.Order; AttackTarget = state.AttackTarget; FollowTarget = state.FollowTarget; PriorityTarget = state.PriorityTarget;
-        CurrentTarget = state.CurrentTarget; CurrentRearTarget = state.CurrentRearTarget; Movement = state.Movement; Firing = state.Firing;
+        CurrentTarget = state.CurrentTarget; CurrentRearTarget = state.CurrentRearTarget; DesiredSpeed = state.DesiredSpeed; Firing = state.Firing;
         PreferredDistance = state.PreferredDistance; MaintainRange = state.MaintainRange; ShotsFired = state.ShotsFired; Hits = state.Hits; DamageDealt = state.DamageDealt; Kills = state.Kills;
         InterferenceRemaining = state.InterferenceRemaining; Extracted = state.Extracted; Heat = state.Heat; HeatLimit = state.HeatLimit; Shutdown = state.Shutdown;
         Airborne = state.Airborne; JumpFrom = state.JumpFrom; JumpTo = state.JumpTo; JumpDuration = state.JumpDuration;

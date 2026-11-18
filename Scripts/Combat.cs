@@ -8,6 +8,8 @@ public enum CombatSide { Friendly, Enemy }
 public enum SimulationOpponent { Mirror, Randomized, Patrol }
 public enum CombatOrder { Hold, Move, Attack, Follow }
 public enum MovementMode { Walk, Run }
+/// <summary>How a mech is moving, read from its actual speed: above the unheated walking speed it runs.</summary>
+public enum Gait { Stopped, Walking, Running, Reverse }
 public enum FiringMode { FireAtWill, HoldFire }
 public enum CombatOutcome { Ongoing, Victory, Defeat, Draw, Ended }
 public enum CombatStatus { Active, Shutdown, Disabled, Destroyed, Extracted }
@@ -58,6 +60,11 @@ public static partial class CombatRules
     public const float FollowDistance = 90;
     /// <summary>Metres per second per stock movement point: exactly 10 km/h.</summary>
     public const float MovementScale = 25f / 9;
+    public const float KmhPerMetrePerSecond = 3.6f;
+    /// <summary>The slowest desired speed a player can set: 10 km/h, so a Move order always gets a mech going.</summary>
+    public const float MinimumDesiredSpeed = 10 / KmhPerMetrePerSecond;
+    /// <summary>The speed gauge's full scale: 150 km/h, above every chassis's run.</summary>
+    public const float SpeedGaugeMaximum = 150 / KmhPerMetrePerSecond;
     public const int AimModifier = 3;
     public const double StepSeconds = .05;
     // Shared by combat, hangar previews and future chassis; catalog MP remain stock.
@@ -211,7 +218,16 @@ public sealed partial class CombatUnit
     public string? FollowTarget { get; internal set; }
     public string? PriorityTarget { get; internal set; }
     public string? CurrentTarget { get; internal set; }
-    public MovementMode Movement { get; set; }
+    /// <summary>The top speed the player asks for, in metres per second. The mech travels at the lower of this and its current
+    /// running speed, or walking speed in reverse.</summary>
+    public float DesiredSpeed { get; set; }
+    /// <summary>Walk or Run as a preset of <see cref="DesiredSpeed"/>: setting it picks the current walking or running speed, and
+    /// it reads Run while the desired speed is above the unheated walking speed.</summary>
+    public MovementMode Movement
+    {
+        get => DesiredSpeed > UnheatedWalkingSpeed + .001f ? MovementMode.Run : MovementMode.Walk;
+        set => DesiredSpeed = Math.Max(CombatRules.MinimumDesiredSpeed, value == MovementMode.Run ? CurrentRunningSpeed : CurrentWalkingSpeed);
+    }
     public FiringMode Firing { get; set; }
     public float PreferredDistance { get; set; }
     /// <summary>A friendly mech with no Move or Follow order keeps <see cref="PreferredDistance"/> from its priority target.</summary>
@@ -238,6 +254,7 @@ public sealed partial class CombatUnit
         _layout = CriticalLayout.For(spec);
         _ammo = ammo.ToArray(); Ammo = Array.AsReadOnly(_ammo);
         Weapons = Array.AsReadOnly(spec.Weapons.Select(item => new CombatWeapon(item)).ToArray());
+        DesiredSpeed = Math.Max(CombatRules.MinimumDesiredSpeed, CombatRules.MovementSpeed(spec, MovementMode.Walk));
         // A damage-weighted short-range preference keeps mixed loadouts relevant.
         var usable = Weapons.Where(WeaponUsable).ToArray();
         PreferredDistance = CombatRules.RoundPreferredDistance(usable.Length == 0 ? 3 * CombatRules.WeaponRangeScale : Math.Clamp(
@@ -285,7 +302,13 @@ public sealed partial class CombatUnit
     public float UnheatedRunningSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Run) * Mobility * CriticalSpeedMultiplier;
     public float WalkingSpeed => Active && !Prone ? UnheatedWalkingSpeed * HeatSpeedMultiplier : 0;
     public float RunningSpeed => Active && !Prone ? UnheatedRunningSpeed * HeatSpeedMultiplier : 0;
-    public float Speed => Movement == MovementMode.Run ? RunningSpeed : WalkingSpeed;
+    /// <summary>Walking and running speeds with heat but not shutdown or a fall: the gauge's notches and the Walk/Run presets.</summary>
+    public float CurrentWalkingSpeed => UnheatedWalkingSpeed * HeatSpeedMultiplier;
+    public float CurrentRunningSpeed => UnheatedRunningSpeed * HeatSpeedMultiplier;
+    /// <summary>The forward speed limit: the desired speed, capped by the running speed.</summary>
+    public float Speed => Math.Min(DesiredSpeed, RunningSpeed);
+    public Gait Gait => CurrentSpeed < -.03f ? Gait.Reverse : CurrentSpeed > UnheatedWalkingSpeed + .00001f ? Gait.Running
+        : Moving || Math.Abs(CurrentSpeed) > .03f ? Gait.Walking : Gait.Stopped;
     // Nine / Walk seconds to full run, half that to stop. No independent mass modifier.
     public float Acceleration => UnheatedRunningSpeed * Spec.Walk / 9f;
     public float Braking => Acceleration * 2;
@@ -946,7 +969,7 @@ public sealed partial class CombatSimulation
             // Brake into sharp turns. Broad moving turns retain forward travel, never lateral sliding.
             if (error < Mathf.DegToRad(60))
             {
-                var limit = (reverse ? unit.WalkingSpeed : unit.Speed) * Terrain.SpeedFactor(unit.Position);
+                var limit = (reverse ? Math.Min(unit.DesiredSpeed, unit.WalkingSpeed) : unit.Speed) * Terrain.SpeedFactor(unit.Position);
                 var arrivalSpeed = Mathf.Sqrt(2 * unit.Braking * Math.Max(0, remaining.Length() - 5.4f));
                 desiredSpeed = Math.Min(limit * Mathf.Cos(error), arrivalSpeed) * (reverse ? -1 : 1);
             }
@@ -1045,11 +1068,11 @@ public sealed partial class CombatSimulation
             ? (int)Math.Ceiling((weapon.MinimumRange - distance) / CombatRules.WeaponRangeScale) : 0;
         var threshold = attacker.Warrior.Gunnery + CombatRules.AimModifier + range + minimum + terrainModifier + attacker.HeatAimModifier
             + attacker.InterferenceAimModifier + attacker.CriticalAimModifier(weapon)
-            // Reversing spoils the attacker's own aim as badly as running; as a target it still counts as walking.
-            // Jumping replaces either side's ground movement modifier.
+            // Actual speed decides walking or running. Reversing spoils the attacker's own aim as badly as running; as a target
+            // it still counts as walking. Jumping replaces either side's ground movement modifier.
             + (attacker.Airborne ? CombatRules.JumpToHitModifier
-                : attacker.Moving ? attacker.Movement == MovementMode.Run || attacker.CurrentSpeed < 0 ? 2 : 1 : 0)
-            + (target.Airborne ? CombatRules.JumpToHitModifier : target.Moving ? target.Movement == MovementMode.Run ? 2 : 1 : 0);
+                : attacker.Moving ? attacker.Gait is Gait.Running or Gait.Reverse ? 2 : 1 : 0)
+            + (target.Airborne ? CombatRules.JumpToHitModifier : target.Moving ? target.Gait == Gait.Running ? 2 : 1 : 0);
         var successes = 0;
         for (var a = 1; a <= 6; a++) for (var b = 1; b <= 6; b++) if (a + b >= threshold) successes++;
         return successes / 36.0;

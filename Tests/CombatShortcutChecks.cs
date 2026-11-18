@@ -28,8 +28,9 @@ public partial class SmokeTests
             await PressKey(Key.Z);
             Check(friends.All(unit => unit.Order == CombatOrder.Hold), "Z stops the selected mechs and clears their orders");
             var labels = tactical.FindChildren("*", "Button", true, false).OfType<Button>().Select(button => button.Text).ToArray();
-            Check(new[] { "[X]", "[C]", "[F]", "[G]", "[Z]" }.All(key => labels.Any(text => text.Contains(key))),
-                "order buttons show their hotkeys");
+            Check(new[] { "[F]", "[G]" }.All(key => labels.Any(text => text.Contains(key))), "firing buttons show their hotkeys");
+            Check(!labels.Any(text => text.Contains("Walk") || text.Contains("Run") || text.Contains("Jump") || text.Contains("Stop movement")),
+                $"the sidebar has no movement buttons, only hotkeys and the speed gauge: {string.Join(", ", labels)}");
 
             tactical.PauseButton.GrabFocus(); tactical.UnitButtons[0].GrabFocus(); tactical.MaintainRangeToggle.GrabFocus();
             Check(GetViewport().GuiGetFocusOwner() is not BaseButton, "tactical panels never take keyboard focus");
@@ -116,20 +117,19 @@ public partial class SmokeTests
         var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
         var jumper = friends.Single(unit => unit.Spec.Id == "jenner"); var grounded = friends.Single(unit => unit.Spec.Id == "awesome");
         tactical.SelectUnits([grounded.Id], false); field.GrabFocus(); await PressKey(Key.J);
-        Check(!tactical.SettingJump && tactical.JumpButton.Disabled && tactical.JumpButton.TooltipText.Contains("No jump jets"),
-            $"mechs without jump jets cannot arm a jump and say why: {tactical.JumpButton.TooltipText}");
+        Check(!tactical.SettingJump && tactical.JumpBlockedReason?.Contains("No jump jets") == true,
+            $"mechs without jump jets cannot arm a jump and say why: {tactical.JumpBlockedReason}");
         Check(!tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Jump: no jump jets")),
             "selected details leave jump availability to the Jump button");
         Check(tactical.UnitDolls.Single(doll => doll.Unit == jumper).ShowsFuel && !tactical.UnitDolls.Single(doll => doll.Unit == grounded).ShowsFuel
             && CombatPaperdoll.FuelFraction(jumper) == 1, "only jump-capable cards show a fuel bar, full while ready");
         tactical.SelectUnits([jumper.Id], false); field.GrabFocus();
         await PressKey(Key.J);
-        Check(tactical.SettingJump && field.JumpArmed && tactical.JumpButton.Text.StartsWith("●"),
-            "J arms jump targeting");
+        Check(tactical.SettingJump && field.JumpArmed, "J arms jump targeting");
         await PressKey(Key.Escape);
         Check(!tactical.SettingJump && !field.JumpArmed && tactical.Modal == CombatModal.None, "Escape cancels jump targeting before opening the menu");
-        tactical.JumpButton.EmitSignal(BaseButton.SignalName.Pressed);
-        Check(tactical.SettingJump, "the Jump button arms jump targeting");
+        await PressKey(Key.J);
+        Check(tactical.SettingJump, "J arms jump targeting again after Escape");
         await Frames(); await Capture("combat-jump-targeting");
         var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
         tactical.IssueCommand(enemy.Position, enemy.Id);
@@ -139,15 +139,15 @@ public partial class SmokeTests
             "a ground right-click sends the selection on a jump and disarms targeting");
         var paused = sim.Paused; sim.Paused = false; sim.Advance(1); sim.Paused = paused; await Frames();
         await Capture("combat-jump-flight");
-        Check(jumper.Altitude > 10 && tactical.JumpButton.Disabled && tactical.JumpButton.TooltipText.Contains("Airborne"),
-            $"the mech rises in flight and cannot jump again until it lands: {tactical.JumpButton.TooltipText}");
+        Check(jumper.Altitude > 10 && tactical.JumpBlockedReason?.Contains("Airborne") == true,
+            $"the mech rises in flight and cannot jump again until it lands: {tactical.JumpBlockedReason}");
         Check(CombatPaperdoll.FuelFraction(jumper) == 0 && tactical.Paperdoll.ShowsFuel, "the fuel bar empties from takeoff");
         tactical.SelectUnits([jumper.Id, grounded.Id], false); await Frames();
-        Check(tactical.JumpButton.Disabled, "a group with no mech able to jump cannot arm a jump");
+        Check(tactical.JumpBlockedReason is not null, "a group with no mech able to jump cannot arm a jump");
         sim.Paused = false; sim.Advance(jumper.JumpDuration + CombatRules.JumpRechargeSeconds / 2 - 1); sim.Paused = true;
         Check(!jumper.Airborne && CombatPaperdoll.FuelFraction(jumper) is > .3f and < .7f, $"the fuel bar refills over the recharge after landing: {CombatPaperdoll.FuelFraction(jumper)}");
         sim.Paused = false; sim.Advance(CombatRules.JumpRechargeSeconds + 5); sim.Paused = true; tactical.SelectUnits([jumper.Id, grounded.Id], false);
-        Check(!tactical.JumpButton.Disabled && jumper.JumpUnavailableReason is null,
+        Check(tactical.JumpBlockedReason is null && jumper.JumpUnavailableReason is null,
             "a group jumps when any member can, and its jets read ready");
         await PressKey(Key.Escape); await Click(tactical.EndButton); await Click(tactical.ReturnButton);
     }

@@ -138,6 +138,7 @@ internal static partial class CombatChecks
         sim.Move([f.Id], f.Position); sim.Advance(.1);
         check(f.Order == CombatOrder.Hold, "completed Move holds position");
         CheckMaintainRange(check);
+        CheckDesiredSpeed(check);
 
         CheckTargeting(check);
         CheckExtendedRanges(check);
@@ -200,6 +201,40 @@ internal static partial class CombatChecks
         sim.Paused = false; sim.Advance(90);
         check(f.Position.DistanceTo(new Vector2(600, 0)) < 20 && f.PriorityTarget == e.Id && f.Order == CombatOrder.Hold,
             $"a mech goes to its lost priority target's last-known position and keeps the target ({f.Position})");
+    }
+    /// <summary>The speed gauge's desired speed: a fixed km/h for the selection, capped by the current running speed (walking in
+    /// reverse), at least 10 km/h, with Walk and Run as presets.</summary>
+    private static void CheckDesiredSpeed(Action<bool, string> check)
+    {
+        static float Kmh(float speed) => speed * CombatRules.KmhPerMetrePerSecond;
+        var sim = Battle(); Arrange(sim, 3000); var f = Friendly(sim);
+        f.Firing = FiringMode.HoldFire;
+        check(Math.Abs(f.DesiredSpeed - f.UnheatedWalkingSpeed) < .001f && f.Movement == MovementMode.Walk, "a mech starts with its walking speed desired");
+        sim.Execute(new SpeedCommand([f.Id], 20 / CombatRules.KmhPerMetrePerSecond));
+        sim.Move([f.Id], new Vector2(0, 2500)); sim.Paused = false; sim.Advance(15);
+        check(Math.Abs(Kmh(f.CurrentSpeed) - 20) < .5f && f.Gait == Gait.Walking, $"a mech travels at its desired 20 km/h ({Kmh(f.CurrentSpeed):0.0})");
+        sim.Execute(new SpeedCommand([f.Id], 1));
+        check(Math.Abs(Kmh(f.DesiredSpeed) - 10) < .01f, "the desired speed is at least 10 km/h");
+        sim.Execute(new SpeedCommand([f.Id], 500));
+        check(Math.Abs(f.DesiredSpeed - f.UnheatedRunningSpeed) < .001f && f.Movement == MovementMode.Run, "the desired speed is capped at the running speed");
+        f.AddHeat(CombatRules.HotHeat + 1);
+        check(Math.Abs(f.Speed - f.UnheatedRunningSpeed * .75f) < .001f, "a hot mech's lower running speed caps its desired speed");
+        f.Movement = MovementMode.Walk;
+        check(Math.Abs(f.DesiredSpeed - f.CurrentWalkingSpeed) < .001f && f.Movement == MovementMode.Walk, "Walk sets the current walking speed");
+        f.Movement = MovementMode.Run;
+        check(Math.Abs(f.DesiredSpeed - f.CurrentRunningSpeed) < .001f, "Run sets the current running speed");
+        sim.Advance(15);
+        check(f.Gait == Gait.Running == (f.CurrentSpeed > f.UnheatedWalkingSpeed + .00001f) && f.MovementHeatRate == (f.Gait == Gait.Running
+            ? CombatRules.RunningHeatRate : CombatRules.WalkingHeatRate), "running heat follows actual speed above the walking speed");
+
+        // Backing away to the preferred distance reverses at no more than the desired speed.
+        sim = Battle(); Arrange(sim, 150); f = Friendly(sim); var e = Enemy(sim);
+        f.Firing = FiringMode.HoldFire; f.PreferredDistance = 400;
+        sim.Execute(new SpeedCommand([f.Id], 10 / CombatRules.KmhPerMetrePerSecond));
+        sim.SetPriority([f.Id], e.Id); sim.Paused = false;
+        var slowest = 0f;
+        for (var i = 0; i < 40; i++) { sim.Advance(.25); slowest = Math.Min(slowest, f.CurrentSpeed); }
+        check(slowest < 0 && Kmh(-slowest) <= 10.01f, $"reverse is capped by the desired speed ({Kmh(slowest):0.0} km/h)");
     }
     private static void CheckTimeScale(Action<bool, string> check, Action<Action, string> reject)
     {
@@ -325,11 +360,16 @@ internal static partial class CombatChecks
         f.Weapons[1].Enabled = true; sim.Paused = false; sim.Advance(.05);
         check(f.ShotsFired == 2 && f.Weapons[0].Remaining < f.Weapons[1].Remaining, "newly enabled weapon fires on its independent clock");
         var walking = CombatSimulation.HitChance(f, enemies[0], f.Weapons[0]);
-        f.Moving = true; f.Movement = MovementMode.Run;
-        check(CombatSimulation.HitChance(f, enemies[0], f.Weapons[0]) < walking, "running reduces firing accuracy");
+        f.Moving = true; f.Movement = MovementMode.Run; f.CurrentSpeed = 1;
+        var walkingPace = CombatSimulation.HitChance(f, enemies[0], f.Weapons[0]);
+        check(walkingPace < walking && f.Gait == Gait.Walking, "moving at walking pace reduces accuracy, whatever the desired speed");
+        f.Movement = MovementMode.Walk; f.CurrentSpeed = f.UnheatedWalkingSpeed + 1;
+        check(CombatSimulation.HitChance(f, enemies[0], f.Weapons[0]) < walkingPace && f.Gait == Gait.Running,
+            "actual speed above walking speed counts as running for aim, even with a walking desired speed");
         var running = CombatSimulation.HitChance(f, enemies[0], f.Weapons[0]);
-        f.Movement = MovementMode.Walk; f.CurrentSpeed = -1;
-        check(CombatSimulation.HitChance(f, enemies[0], f.Weapons[0]) == running, "reversing in Walk mode aims as badly as running");
+        f.CurrentSpeed = -1;
+        check(CombatSimulation.HitChance(f, enemies[0], f.Weapons[0]) == running && f.Gait == Gait.Reverse, "reversing aims as badly as running");
+        f.CurrentSpeed = 0; f.Moving = false;
         var facing = enemies[0].Facing; enemies[0].Facing = Vector2.Left;
         var reply = enemies[0].Weapons.First(weapon => !weapon.Spec.Rear);
         var shotAtReverser = CombatSimulation.HitChance(enemies[0], f, reply);
@@ -426,7 +466,8 @@ internal static partial class CombatChecks
         var sideArmor = unit.Locations[MechLocation.LeftTorso].Armor;
         unit.ApplyDamage(MechLocation.LeftLeg, leg.Armor + leg.Structure + 2);
         check(center.Armor == centerArmor - 2 && unit.Locations[MechLocation.LeftTorso].Armor == sideArmor, "leg overkill goes directly to center torso front armor");
-        check(Math.Abs(unit.Speed - speed / 2) < .001 && unit.Active, "one lost leg halves movement without defeat");
+        check(Math.Abs(unit.WalkingSpeed - speed / 2) < .001 && Math.Abs(unit.Speed - Math.Min(unit.DesiredSpeed, unit.RunningSpeed)) < .001
+            && unit.Active, "one lost leg halves walking and running speeds without defeat; the desired speed holds until the run caps it");
         unit.ApplyDamage(MechLocation.RightLeg, unit.Locations[MechLocation.RightLeg].Armor + unit.Locations[MechLocation.RightLeg].Structure);
         check(unit.Status == CombatStatus.Disabled && unit.Speed == 0, "both legs lost disables rather than destroys");
         sim = Battle(definition: "griffin"); unit = Friendly(sim);

@@ -40,8 +40,11 @@ public partial class SmokeTests
             Check(sidebar.EditsHeatLimit, "a single shut-down selection keeps the heat-limit handle");
             await ClickHeatLimit(sidebar, 5);
             Check(friends[0].HeatLimit == 5 && friends[1].HeatLimit == 12, "a shut-down mech's limit can be changed before restart");
-            Check(sidebar.HeatBarRect.Position.Y <= 4 && sidebar.HeatBarRect.End.Y >= sidebar.Size.Y - 4,
-                $"the sidebar doll has no label or legend gaps above or below its schematic: size {sidebar.Size} heat {sidebar.HeatBarRect}");
+            var strip = sidebar.SpeedStrip;
+            Check(sidebar.HeatBarRect.Position.Y <= 4 && strip.Position.Y >= sidebar.HeatBarRect.End.Y - 1 && strip.Position.Y - sidebar.HeatBarRect.End.Y <= 4
+                && strip.End.Y <= sidebar.Size.Y + .5f && strip.End.Y >= sidebar.Size.Y - 4,
+                $"the sidebar doll has no gaps: the schematic fills its top and the speed gauge its foot: size {sidebar.Size} heat {sidebar.HeatBarRect} speed {strip}");
+            await CheckSpeedGauge(tactical, friends);
             var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
             sidebar.Display(enemy);
             Check(!sidebar.EditsHeatLimit && sidebar.DisplayedHeatLimit is null && !CombatScreen.HeatReadout(enemy).Contains("limit"),
@@ -112,6 +115,62 @@ public partial class SmokeTests
         Check(title.GetGlobalRect() == titleAt && tactical.Paperdoll.GetGlobalRect() == dollAt && tactical.PilotRow.GetGlobalRect() != pilotRect,
             "scrolling the details leaves the title and paperdoll pinned");
         tactical.SidebarScroll.ScrollVertical = 0; await Frames();
+    }
+
+    /// <summary>The speed gauge along the sidebar doll's foot: the pointer's mapping, snapping and limits, dragging it for a group,
+    /// the readout, the tooltip and colours, and no pointer for an enemy.</summary>
+    private async Task CheckSpeedGauge(CombatScreen tactical, CombatUnit[] friends)
+    {
+        static float Speed(float kmh) => kmh / CombatRules.KmhPerMetrePerSecond;
+        var sidebar = tactical.Paperdoll; var sim = tactical.Simulation!;
+        var mover = friends[2];
+        tactical.SelectUnits(friends.Skip(2).Select(unit => unit.Id).ToArray(), false); await Frames();
+        Check(sidebar.Unit == mover && sidebar.ShowsSpeed && sidebar.EditsDesiredSpeed && sidebar.DisplayedDesiredSpeed == mover.DesiredSpeed,
+            "a friendly's sidebar doll shows the speed gauge with its desired-speed pointer");
+        Check(!tactical.UnitDolls.Any(doll => doll.ShowsSpeed), "unit cards have no speed gauge");
+        var track = sidebar.SpeedTrack;
+        Check(Math.Abs(sidebar.SpeedTrackX(CombatRules.SpeedGaugeMaximum) - track.End.X) < .01f && Math.Abs(sidebar.SpeedTrackX(0) - track.Position.X) < .01f,
+            "the gauge runs from 0 at its left edge to 150 km/h at its right");
+        Check(sidebar.DesiredSpeedAt(sidebar.SpeedTrackX(mover.CurrentWalkingSpeed) + 2) == mover.CurrentWalkingSpeed
+            && sidebar.DesiredSpeedAt(sidebar.SpeedTrackX(mover.CurrentRunningSpeed) - 2) == mover.CurrentRunningSpeed,
+            "the pointer snaps to the walking and running notches");
+        Check(sidebar.DesiredSpeedAt(track.Position.X - 50) == CombatRules.MinimumDesiredSpeed && sidebar.DesiredSpeedAt(track.End.X + 50) == mover.CurrentRunningSpeed,
+            "the pointer is held between 10 km/h and the running speed");
+        Check(CombatPaperdoll.Kmh(sidebar.DesiredSpeedAt(sidebar.SpeedTrackX(Speed(22)))) == 22, "the pointer picks whole km/h between the notches");
+        Vector2 At(float speed) => sidebar.GetGlobalTransform() * new Vector2(sidebar.SpeedTrackX(speed), track.GetCenter().Y);
+        MouseMotion(At(mover.DesiredSpeed), Vector2.Zero);
+        MouseButton(At(mover.DesiredSpeed), Godot.MouseButton.Left, true); await Frames();
+        MouseMotion(At(Speed(22)), At(Speed(22)) - At(mover.DesiredSpeed)); await Frames();
+        MouseButton(At(Speed(22)), Godot.MouseButton.Left, false); await Frames();
+        Check(friends.Skip(2).All(unit => CombatPaperdoll.Kmh(unit.DesiredSpeed) == 22), "dragging the pointer sets the same desired speed for the selection");
+        await Frames(); await Frames();
+        Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.IsVisibleInTree() && label.Text.Contains("Speed: 22 km/h")),
+            "the group readout reports the desired speed");
+
+        var (speed, moving, desired) = (mover.CurrentSpeed, mover.Moving, mover.DesiredSpeed);
+        try
+        {
+            mover.DesiredSpeed = Speed(60); mover.Moving = true; mover.CurrentSpeed = Speed(55);
+            Check(CombatPaperdoll.SpeedTooltip(mover, mover.DesiredSpeed) == "Running 55 km/h / 60 km/h" && CombatPaperdoll.SpeedColor(mover) == CombatPaperdoll.Healthy,
+                $"a running mech's tooltip gives its speed and desired speed: {CombatPaperdoll.SpeedTooltip(mover, mover.DesiredSpeed)}");
+            Check(sidebar._GetTooltip(sidebar.SpeedStrip.GetCenter()) == "Running 55 km/h / 60 km/h", "hovering the gauge shows that tooltip");
+            mover.CurrentSpeed = Speed(-16);
+            Check(CombatPaperdoll.SpeedTooltip(mover, Speed(30)) == "Reverse -16 km/h / 30 km/h" && CombatPaperdoll.SpeedColor(mover) == CombatPaperdoll.ReverseColor
+                && Math.Abs(CombatPaperdoll.SpeedFraction(mover) - 16f / 150) < .001f,
+                "reversing fills the gauge as a positive speed in dark green, written negative in the tooltip");
+            mover.CurrentSpeed = Speed(25);
+            Check(CombatPaperdoll.SpeedTooltip(mover, Speed(30)) == "Walking 25 km/h / 30 km/h", "walking pace reads Walking");
+            mover.Moving = false; mover.CurrentSpeed = 0;
+            Check(CombatPaperdoll.SpeedTooltip(mover, Speed(30)) == "Stopped 0 km/h / 30 km/h", "a still mech reads Stopped");
+            await Frames(); await Capture("combat-speed-gauge");
+        }
+        finally { (mover.CurrentSpeed, mover.Moving, mover.DesiredSpeed) = (speed, moving, desired); }
+
+        var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
+        sidebar.Display(enemy);
+        Check(sidebar.ShowsSpeed && !sidebar.EditsDesiredSpeed && sidebar.DisplayedDesiredSpeed is null
+            && !sidebar._GetTooltip(sidebar.SpeedStrip.GetCenter()).Contains(" / "), "an inspected enemy's gauge has no pointer or desired speed");
+        tactical.SelectUnits(friends.Select(unit => unit.Id).ToArray(), false); await Frames();
     }
 
     /// <summary>Presses the sidebar heat bar at one limit and drags the handle to another.</summary>

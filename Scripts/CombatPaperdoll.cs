@@ -14,7 +14,8 @@ public sealed record SystemGroup(int Count, string Name, ComponentCondition Cond
 /// A shared front/rear schematic. The armor rim and internal core are independent.
 /// Compact dolls (unit cards) draw only the regions; the full doll lists each location's systems on hover.
 /// Both carry a jump-fuel bar on the left and a heat bar on the right, without text. The full doll of a friendly mech
-/// adds a draggable heat-limit handle beside its heat bar.
+/// adds a draggable heat-limit handle beside its heat bar. The full doll also has a speed gauge pinned along its foot, with a
+/// draggable desired-speed pointer for a friendly mech.
 /// </summary>
 public partial class CombatPaperdoll : Control
 {
@@ -27,6 +28,14 @@ public partial class CombatPaperdoll : Control
     private int? _dragLimit;
     /// <summary>The limit the handle shows: the one being dragged, else the unit's own.</summary>
     public int? DisplayedHeatLimit => !EditsHeatLimit ? null : _dragLimit ?? Unit!.HeatLimit;
+    /// <summary>Raised with the desired speed in metres per second while the player clicks or drags the speed gauge.</summary>
+    public event Action<float>? DesiredSpeedChanged;
+    public bool EditsDesiredSpeed => EditsHeatLimit;
+    private float? _dragSpeed;
+    /// <summary>The desired speed the pointer shows: the one being dragged, else the unit's own.</summary>
+    public float? DisplayedDesiredSpeed => !EditsDesiredSpeed ? null : _dragSpeed ?? Unit!.DesiredSpeed;
+    /// <summary>Only the full doll carries the speed gauge.</summary>
+    public bool ShowsSpeed => !Compact && Unit is not null;
     public static readonly Color Full = new("b4b8b6"), LightDamage = new("f1d34c"),
         ModerateDamage = new("ef8a32"), CriticalDamage = new("e84c43"), Healthy = new("6fcf6a");
     public static Color SystemColor(ComponentCondition condition) => condition switch
@@ -47,7 +56,21 @@ public partial class CombatPaperdoll : Control
         : (float)Math.Clamp(1 - unit.JumpRecharge / CombatRules.JumpRechargeSeconds, 0, 1);
     /// <summary>Only friendly mechs with jump jets show fuel; the slot stays reserved otherwise.</summary>
     public bool ShowsFuel => Unit is { Side: CombatSide.Friendly, Spec.Jump: > 0 };
-    private static Texture2D? _fuelIcon, _heatIcon;
+    public static readonly Color ReverseColor = new("3a7a3c");
+    /// <summary>The speed gauge's fill: green going forward, dark green in reverse.</summary>
+    public static Color SpeedColor(CombatUnit unit) => unit.CurrentSpeed < 0 ? ReverseColor : Healthy;
+    /// <summary>The gauge's fill fraction, reverse shown as positive, full at 150 km/h.</summary>
+    public static float SpeedFraction(CombatUnit unit) => Math.Clamp(Math.Abs(unit.CurrentSpeed) / CombatRules.SpeedGaugeMaximum, 0, 1);
+    public static int Kmh(float metresPerSecond) => Mathf.RoundToInt(metresPerSecond * CombatRules.KmhPerMetrePerSecond);
+    /// <summary>"Running 62 km/h / 70 km/h": gait, signed actual speed (negative in reverse) and, when given, the desired speed.</summary>
+    public static string SpeedTooltip(CombatUnit unit, float? desired)
+    {
+        var speed = Kmh(unit.CurrentSpeed);
+        var gait = unit.Gait switch { Gait.Reverse => "Reverse", Gait.Running => "Running", Gait.Walking => "Walking", _ => "Stopped" };
+        return $"{gait} {(unit.Gait == Gait.Reverse ? -Math.Abs(speed) : Math.Abs(speed))} km/h" + (desired is { } wanted ? $" / {Kmh(wanted)} km/h" : "");
+    }
+    private static Texture2D? _fuelIcon, _heatIcon, _speedIcon;
+    private static Texture2D SpeedIcon => _speedIcon ??= GD.Load<Texture2D>("res://Assets/Icons/speed.svg");
     private static Texture2D FuelIcon => _fuelIcon ??= GD.Load<Texture2D>("res://Assets/Icons/jump-fuel.svg");
     private static Texture2D HeatIcon => _heatIcon ??= GD.Load<Texture2D>("res://Assets/Icons/heat.svg");
     private static readonly Dictionary<MechLocation, Vector2[]> Shapes = new()
@@ -98,14 +121,18 @@ public partial class CombatPaperdoll : Control
     private const float FullLeft = 7, FullRight = 288, FullTop = 25, FullBottom = 208;
     // The full doll is cropped to the schematic with a small margin. The height matches the width-bound drawing in the
     // usual sidebar, so the details below sit directly under the feet.
-    private const float FullViewTop = 23, FullViewBottom = 210, FullMinimumHeight = 163;
+    private const float FullViewTop = 23, FullViewBottom = 210, FullMinimumHeight = 163 + SpeedStripHeight;
+    /// <summary>The strip along the full doll's foot that holds the speed gauge and its pointer.</summary>
+    private const float SpeedStripHeight = 28, SpeedTrackHeight = 10, SpeedTrackTop = 4;
+    /// <summary>The height the schematic and its vertical bars are fitted into.</summary>
+    private float SchematicHeight => Compact ? Size.Y : Math.Max(1, Size.Y - SpeedStripHeight);
     /// <summary>Bar width in pixels: about 5–8 on a card, twice that in the sidebar.</summary>
     private float BarWidth => Compact ? Math.Clamp(Size.Y * .1f, 5, 8) : Math.Clamp(Size.Y * .05f, 10, 16);
     private float BarGap => BarWidth * .6f;
     /// <summary>The heat-limit pointer's width, reserved beyond the sidebar heat bar.</summary>
     private float PointerWidth => Compact ? 0 : BarWidth * .8f;
     private float DrawScale => Compact ? Math.Min(Math.Max(1, Size.X - 2 * (BarWidth + BarGap + 1)) / CompactBounds.Size.X, Size.Y / CompactBounds.Size.Y)
-        : Math.Min(Math.Max(1, Size.X - 2 * (BarWidth + BarGap + 1) - PointerWidth) / (FullRight - FullLeft), Size.Y / (FullViewBottom - FullViewTop));
+        : Math.Min(Math.Max(1, Size.X - 2 * (BarWidth + BarGap + 1) - PointerWidth) / (FullRight - FullLeft), SchematicHeight / (FullViewBottom - FullViewTop));
     private Vector2 Origin => Compact ? (Size - CompactBounds.Size * DrawScale) / 2 - CompactBounds.Position * DrawScale
         : new Vector2((Size.X - PointerWidth - (FullRight - FullLeft) * DrawScale) / 2 - FullLeft * DrawScale, -FullViewTop * DrawScale);
     /// <summary>The whole fuel bar slot, icon included, beside the doll's left edge.</summary>
@@ -138,18 +165,66 @@ public partial class CombatPaperdoll : Control
     }
     /// <summary>The height of a heat value on the heat track.</summary>
     public float HeatTrackY(double heat) => HeatTrack.End.Y - HeatTrack.Size.Y * (float)(heat / CombatRules.ShutdownHeat);
+    /// <summary>The speed strip under the schematic, from the fuel bar's left edge to beyond the heat pointer.</summary>
+    public Rect2 SpeedStrip
+    {
+        get
+        {
+            var left = FuelBarRect.Position.X; var right = HeatBarRect.End.X + PointerWidth;
+            // Directly under the drawn feet, so a width-bound schematic leaves no gap above the gauge.
+            var top = Math.Min(SchematicHeight, Origin.Y + FullViewBottom * DrawScale);
+            return new Rect2(left, top, right - left, SpeedStripHeight);
+        }
+    }
+    private Rect2 SpeedIconRect
+    {
+        get { var strip = SpeedStrip; var size = SpeedStripHeight - 8; return new Rect2(strip.Position.X, strip.Position.Y + 2, size, size); }
+    }
+    /// <summary>The horizontal speed track: 0 at its left edge, 150 km/h at its right.</summary>
+    public Rect2 SpeedTrack
+    {
+        get
+        {
+            var strip = SpeedStrip; var icon = SpeedIconRect; var left = icon.End.X + 4;
+            return new Rect2(left, strip.Position.Y + SpeedTrackTop, Math.Max(1, strip.End.X - left - 2), SpeedTrackHeight);
+        }
+    }
+    /// <summary>Where the desired-speed pointer can be grabbed: the track and the pointer beneath it, with a little slack.</summary>
+    private Rect2 SpeedGrabArea => SpeedTrack.GrowIndividual(6, 3, 6, PointerWidth + 3);
+    public float SpeedTrackX(float metresPerSecond) => SpeedTrack.Position.X + SpeedTrack.Size.X * Math.Clamp(metresPerSecond / CombatRules.SpeedGaugeMaximum, 0, 1);
+    /// <summary>The desired speed for a position on the track, in metres per second: whole km/h, snapping to the walk and run notches
+    /// within a few pixels, and held between 10 km/h and the current running speed.</summary>
+    public float DesiredSpeedAt(float x)
+    {
+        var unit = Unit!;
+        var top = Math.Max(CombatRules.MinimumDesiredSpeed, unit.CurrentRunningSpeed);
+        foreach (var notch in new[] { unit.CurrentWalkingSpeed, unit.CurrentRunningSpeed })
+            if (Math.Abs(x - SpeedTrackX(notch)) <= SpeedSnapPixels) return Math.Clamp(notch, CombatRules.MinimumDesiredSpeed, top);
+        var kmh = Mathf.Round((x - SpeedTrack.Position.X) / SpeedTrack.Size.X * CombatRules.SpeedGaugeMaximum * CombatRules.KmhPerMetrePerSecond);
+        return Math.Clamp(kmh / CombatRules.KmhPerMetrePerSecond, CombatRules.MinimumDesiredSpeed, top);
+    }
+    private const float SpeedSnapPixels = 4;
     public override void _GuiInput(InputEvent @event)
     {
-        if (!EditsHeatLimit) { _dragLimit = null; return; }
+        if (!EditsHeatLimit) { _dragLimit = null; _dragSpeed = null; return; }
         if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Left } button)
         {
             if (button.Pressed && HeatGrabArea.HasPoint(button.Position)) { DragHeatLimit(button.Position.Y); AcceptEvent(); }
-            else if (!button.Pressed && _dragLimit is not null) { _dragLimit = null; QueueRedraw(); AcceptEvent(); }
+            else if (button.Pressed && SpeedGrabArea.HasPoint(button.Position)) { DragSpeed(button.Position.X); AcceptEvent(); }
+            else if (!button.Pressed && (_dragLimit is not null || _dragSpeed is not null))
+            { _dragLimit = null; _dragSpeed = null; QueueRedraw(); AcceptEvent(); }
         }
-        else if (@event is InputEventMouseMotion motion && _dragLimit is not null)
+        else if (@event is InputEventMouseMotion motion)
         {
-            DragHeatLimit(motion.Position.Y); AcceptEvent();
+            if (_dragLimit is not null) { DragHeatLimit(motion.Position.Y); AcceptEvent(); }
+            else if (_dragSpeed is not null) { DragSpeed(motion.Position.X); AcceptEvent(); }
         }
+    }
+    private void DragSpeed(float x)
+    {
+        var speed = DesiredSpeedAt(x);
+        if (Math.Abs(speed - (_dragSpeed ?? Unit!.DesiredSpeed)) > .001f) DesiredSpeedChanged?.Invoke(speed);
+        _dragSpeed = speed; QueueRedraw();
     }
     private void DragHeatLimit(float y)
     {
@@ -174,6 +249,7 @@ public partial class CombatPaperdoll : Control
     public override string _GetTooltip(Vector2 atPosition)
     {
         if (DisplayedHeatLimit is { } limit && HeatGrabArea.HasPoint(atPosition)) { _tooltipLocation = null; return $"Heat limit {limit}"; }
+        if (ShowsSpeed && SpeedStrip.HasPoint(atPosition)) { _tooltipLocation = null; return SpeedTooltip(Unit!, DisplayedDesiredSpeed); }
         _tooltipLocation = Compact ? null : LocationAt(atPosition);
         return _tooltipLocation is { } location ? LocationTooltip(location) : "";
     }
@@ -238,7 +314,40 @@ public partial class CombatPaperdoll : Control
         foreach (var (location, shape) in RearShapes)
             Region(location, Compact ? shape.Select(point => point + CompactRearShift).ToArray() : shape, true);
         if (DisplayedHeatLimit is { } limit) HeatLimitHandle(limit);
+        if (ShowsSpeed) SpeedGauge(Unit);
     }
+    /// <summary>A track filling from the left, with notches every 20 km/h, taller ones at the walking and running speeds, the icon
+    /// to its left and, for a friendly mech, the desired-speed pointer beneath it.</summary>
+    private void SpeedGauge(CombatUnit unit)
+    {
+        var track = SpeedTrack; var color = SpeedColor(unit);
+        DrawRect(track, BarTrack);
+        var fill = track.Size.X * SpeedFraction(unit);
+        if (fill > 0) DrawRect(new Rect2(track.Position, new Vector2(fill, track.Size.Y)), color);
+        for (var kmh = 20; kmh < 150; kmh += 20)
+        {
+            var x = SpeedTrackX(kmh / CombatRules.KmhPerMetrePerSecond);
+            DrawLine(new(x, track.End.Y - track.Size.Y * .45f), new(x, track.End.Y), BarTick, 1);
+        }
+        foreach (var notch in new[] { unit.CurrentWalkingSpeed, unit.CurrentRunningSpeed })
+        {
+            var x = SpeedTrackX(notch);
+            DrawLine(new(x, track.Position.Y - 3), new(x, track.End.Y + 3), SpeedNotchColor, 2);
+        }
+        DrawRect(track, new Color("62706b"), false, 1);
+        DrawTextureRect(SpeedIcon, SpeedIconRect, false, color);
+        if (DisplayedDesiredSpeed is not { } desired) return;
+        var at = SpeedTrackX(desired); var width = PointerWidth;
+        DrawLine(new(at, track.Position.Y), new(at, track.End.Y), HeatLimitColor, 2);
+        DrawColoredPolygon([new(at, track.End.Y + 1), new(at - width * .7f, track.End.Y + 1 + width), new(at + width * .7f, track.End.Y + 1 + width)], HeatLimitColor);
+        if (_dragSpeed is null) return;
+        var text = $"{Kmh(desired)} km/h"; const int fontSize = 12;
+        var size = ThemeDB.FallbackFont.GetStringSize(text, fontSize: fontSize);
+        var box = new Rect2(Math.Clamp(at - size.X / 2 - 3, 0, Math.Max(0, Size.X - size.X - 6)), track.Position.Y - size.Y - 6, size.X + 6, size.Y + 2);
+        DrawRect(box, BarTrack); DrawRect(box, new Color("62706b"), false, 1);
+        DrawString(ThemeDB.FallbackFont, new(box.Position.X + 3, box.End.Y - 4), text, HorizontalAlignment.Left, -1, fontSize, HeatLimitColor);
+    }
+    public static readonly Color SpeedNotchColor = new("f2f4f3");
     /// <summary>A line across the heat track at the limit and a pointer beyond its right edge; the number shows while dragging.</summary>
     private void HeatLimitHandle(int limit)
     {
