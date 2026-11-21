@@ -730,15 +730,17 @@ public partial class CombatScreen : Control
     private void ShowResults()
     {
         if (Simulation is null) return;
-        if (_mission is not null && _settle is not null && _settlement is null)
+        if (_mission is not null && _settlement is null)
         {
             // A victory with something to salvage waits for the leader's choice; anything else settles at once.
+            // The other co-op players see the same pool, read-only, until the settlement arrives.
             var report = Simulation.MissionReport();
             SalvagePool = report.Outcome == MissionOutcome.Success ? Salvage.Pool(report) : [];
-            if (SalvagePool.Count == 0) _settlement = _settle(Simulation, []);
+            if (SalvagePool.Count == 0 && _settle is not null) _settlement = _settle(Simulation, []);
         }
         else SalvagePool = [];
-        var choosing = SalvagePool.Count > 0;
+        var choosing = Leading && _settle is not null && SalvagePool.Count > 0;
+        var viewing = !choosing && SalvagePool.Count > 0;
         var extractedEarly = Simulation.Patrol is not null && Simulation.Units.Any(unit => unit.Extracted);
         var title = Simulation.Outcome == CombatOutcome.Ended ? (extractedEarly ? "Extracted before the patrol was complete" + (_mission is null ? "" : " · Mission failed")
                 : _mission is null ? "Simulation ended" : "Withdrew · Mission failed")
@@ -750,12 +752,14 @@ public partial class CombatScreen : Control
         if (_settlement is not null) RosterUi.Text(_modalContent, _settlement, 14);
         else if (choosing) RosterUi.Text(_modalContent, $"Choose salvage from the field: the contract allows {Picks(_mission!.SalvagePicks)}. "
             + $"Up to {Picks(SalvageTuning.ExtraPicks)} more can be taken, at a cost to your reputation.", 14);
+        else if (viewing) RosterUi.Text(_modalContent, $"The leader is choosing salvage: the contract allows {Picks(_mission!.SalvagePicks)}, "
+            + $"and up to {Picks(SalvageTuning.ExtraPicks)} more at a cost to reputation.", 14, Ui.Muted);
         else if (_mission is not null) RosterUi.Text(_modalContent, Simulation.Outcome == CombatOutcome.Victory
             ? "Waiting for the leader to choose salvage and settle the mission…" : "Waiting for the leader to settle the mission…", 14, Ui.Muted);
         RosterUi.Text(_modalContent, $"Terrain seed: {Simulation.Terrain.Seed} · {BiomeText(Simulation)}", 14, Ui.Muted);
         if (choosing) SalvageCount = RosterUi.Text(_modalContent, "", 14, Ui.Gold);
         var body = RosterUi.Scroll(_modalContent);
-        if (choosing) ShowSalvage(body);
+        if (choosing || viewing) ShowSalvage(body, readOnly: viewing);
         foreach (var side in Enum.GetValues<CombatSide>())
         {
             RosterUi.Text(body, side == CombatSide.Enemy ? "OPPOSITION" : Coop ? "THE COMPANY" : "YOUR FORCE", 16, Ui.Gold);
@@ -782,8 +786,9 @@ public partial class CombatScreen : Control
         ReturnButton.CallDeferred(Control.MethodName.GrabFocus); RosterUi.TrapFocus(_shade);
     }
     private static string Picks(int count) => $"{count} {(count == 1 ? "pick" : "picks")}";
-    /// <summary>One block per enemy mech: the whole mech, when it can be taken, then each item left working.</summary>
-    private void ShowSalvage(VBoxContainer body)
+    /// <summary>One block per enemy mech: the whole mech, when it can be taken, then each item left working.
+    /// Read-only for a co-op player other than the leader: labels to look over, not toggles.</summary>
+    private void ShowSalvage(VBoxContainer body, bool readOnly = false)
     {
         SalvageChoices.Clear();
         RosterUi.Text(body, "SALVAGE", 16, Ui.Gold);
@@ -794,6 +799,13 @@ public partial class CombatScreen : Control
             var row = new HFlowContainer(); row.AddThemeConstantOverride("h_separation", 14); body.AddChild(row);
             foreach (var option in unit)
             {
+                if (readOnly)
+                {
+                    var item = RosterUi.Text(row, option.WholeMech ? $"Whole mech · {Picks(option.Picks)}" : $"{option.Name} · {Picks(option.Picks)}", 13);
+                    item.MouseFilter = MouseFilterEnum.Pass;
+                    item.TooltipText = option.WholeMech ? "Joins the hangar's lance pool as it stands, with no pilot" : "Goes into hangar storage";
+                    continue;
+                }
                 var choice = new CheckBox { Text = option.WholeMech ? $"Claim whole · {Picks(option.Picks)}" : $"{option.Name} · {Picks(option.Picks)}",
                     FocusMode = FocusModeEnum.All, TooltipText = option.WholeMech ? "Joins your hangar's lance pool as it stands, with no pilot" : "Goes into hangar storage" };
                 row.AddChild(choice); SalvageChoices[option.Claim] = choice;

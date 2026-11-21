@@ -466,7 +466,7 @@ The third step of [co-op multiplayer](adr/0003-cooperative-multiplayer.md); depl
 - **Orders.** A player's orders, settings and pause toggle go to the leader's battle, and their effect shows when the next state arrives. Each player selects and orders only their own lance: the unit cards and 1–4 keys cover it, and other players' mechs cannot be selected. Every player shares the company's vision and has their own camera and selection.
 - **Pausing.** The status line names whoever holds the battle paused (*PAUSED by Dave, Sam*). A player who disconnects holds it paused.
 - **Pings.** V marks the ground under the cursor for every player with pulsing rings and the player's name, fading after five seconds. Your own pings are gold, other players' blue.
-- **Leader controls.** Only the leader withdraws: the other players' **Withdraw** is disabled. Their results show *Waiting for the leader to settle the mission…* until the settlement arrives, and their return button reads *Waiting for leader*.
+- **Leader controls.** Only the leader withdraws: the other players' **Withdraw** is disabled. Until the settlement arrives, their results show *Waiting for the leader to settle the mission…*, or, on a won mission with something to salvage, the salvage list, read-only. Their return button reads *Waiting for leader*.
 - **The whole company** is listed on the results under *THE COMPANY*.
 
 ## Patrols (confirmed November 13, 2026)

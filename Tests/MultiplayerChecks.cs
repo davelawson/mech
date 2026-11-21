@@ -256,7 +256,8 @@ public partial class SmokeTests
     private async Task JoinMission(CoopHost host)
     {
         var campaign = host.Campaign!;
-        campaign.AcceptMission(campaign.Missions.Available.First(item => campaign.DeadlineDays(item) is not null).Id); host.MarkDirty();
+        // A patrol ends by extraction, not by beating the opposition, so this mission is fought to a victory.
+        campaign.AcceptMission(campaign.Missions.Available.First(item => campaign.DeadlineDays(item) is not null && item.Kind != MissionKind.Patrol).Id); host.MarkDirty();
         await Exchange(() => _app.State.Missions.Current is not null, "the joined player sees the accepted mission", host);
         Check(_app.Hangar.QuickLaunchBlock == "Only the leader launches missions.", "only the leader launches missions");
         host.OpenDeployment();
@@ -284,9 +285,25 @@ public partial class SmokeTests
         await Exchange(() => tactical.Simulation!.Units.Where(unit => mine.Contains(unit.Id)).All(unit => unit.Order == CombatOrder.Move), "the joined player sees their orders carried out", host);
         tactical.OpenMenu(); await Frames();
         Check(tactical.EndButton.Disabled, "only the leader withdraws"); tactical.Resume(); await Frames();
-        battle.End(); host.FinishBattle("Withdrew");
-        await Exchange(() => tactical.Modal == CombatModal.Results, "the joined player sees the battle's results", host);
-        Check(tactical.ReturnButton.Disabled && tactical.ReturnButton.Text == "Waiting for leader", "only the leader leaves the results");
+        // The lightest enemy loses both legs, disabled but whole; the rest lose their center torso.
+        var enemies = battle.Units.Where(unit => unit.Side == CombatSide.Enemy).OrderBy(unit => unit.Spec.WeightClass).ToArray();
+        foreach (var leg in new[] { MechLocation.LeftLeg, MechLocation.RightLeg })
+            enemies[0].ApplyDamage(leg, enemies[0].Locations[leg].Armor + enemies[0].Locations[leg].Structure);
+        foreach (var enemy in enemies.Skip(1)) enemy.ApplyDamage(MechLocation.CenterTorso, 100000);
+        battle.Paused = false;
+        for (var step = 0; step < 2000 && battle.Outcome == CombatOutcome.Ongoing; step++) battle.Advance(CombatRules.StepSeconds);
+        Check(battle.Outcome == CombatOutcome.Victory, "the leader's battle is won");
+        await Exchange(() => tactical.Modal == CombatModal.Results && tactical.SalvagePool.Count > 0, "the joined player sees the battle's results with the field's salvage", host);
+        var labels = tactical.FindChildren("*", "Label", true, false).OfType<Label>().Select(label => label.Text).ToArray();
+        Check(tactical.SalvagePool.Any(option => option.WholeMech && option.UnitId == enemies[0].Id) && tactical.SalvageChoices.Count == 0
+            && labels.Contains("SALVAGE") && labels.Any(text => text.StartsWith("The leader is choosing salvage"))
+            && labels.Any(text => text.StartsWith("Whole mech · ")), "the joined player looks over the salvage, read-only, while the leader chooses");
+        Check(tactical.ReturnButton.Disabled && tactical.ReturnButton.Text == "Waiting for leader"
+            && !tactical.FindChildren("*", "Button", true, false).OfType<Button>().Any(button => button.Text is "Claim Salvage" or "Take Nothing"),
+            "only the leader claims salvage and leaves the results");
+        host.FinishBattle("Salvage settled by the leader");
+        await Exchange(() => tactical.SalvagePool.Count == 0 && tactical.FindChildren("*", "Label", true, false).OfType<Label>()
+            .Any(label => label.Text == "Salvage settled by the leader"), "the leader's settlement replaces the salvage list", host);
         await PressKey(Key.Escape);
         Check(tactical.Visible, "the joined player stays on the results until the leader leaves them");
         host.CloseBattle();
