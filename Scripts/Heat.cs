@@ -19,6 +19,10 @@ public static partial class CombatRules
     public static int AmmoAllowance(int economy) => MaxAmmoEconomy - ClampAmmoEconomy(economy);
     /// <summary>A weapon or jump may start while heat is at or below the limit, so it can carry heat past it.</summary>
     public static bool WithinHeatLimit(double heat, int limit) => heat <= limit + 1e-9;
+    /// <summary>A weapon that generates no heat may fire at any heat; any other fires only while the running heat is within the limit.</summary>
+    public static bool HeatPermits(double runningHeat, int limit, WeaponSpec weapon) => weapon.Heat <= 0 || WithinHeatLimit(runningHeat, limit);
+    /// <summary>Expected damage per point of heat; a weapon that generates no heat ranks above every one that does.</summary>
+    public static double DamagePerHeat(double expected, int heat) => heat > 0 ? expected / heat : double.PositiveInfinity;
     public static int FlamerHeat(WeaponSpec weapon) => weapon.DamageProfile.TargetHeat;
 }
 
@@ -75,7 +79,8 @@ public sealed partial class CombatUnit
 
 public sealed partial class CombatSimulation
 {
-    /// <summary>Ready, enabled weapons with a target, best expected damage first, then lower heat, then mount order.</summary>
+    /// <summary>Ready, enabled weapons with a target, best expected damage per heat first (weapons that generate no heat before all
+    /// others), then higher expected damage, then mount order.</summary>
     internal IReadOnlyList<(CombatWeapon Weapon, CombatUnit Target)> HeatOrderedCandidates(
         CombatUnit unit, CombatUnit? mainTarget, CombatUnit? rearTarget)
     {
@@ -90,23 +95,24 @@ public sealed partial class CombatSimulation
             var chance = TerrainHitChance(unit, target, weapon);
             if (chance > 0 && !SavingAmmo(unit, target, weapon)) candidates.Add((weapon, target, weapon.Damage * chance, i));
         }
-        return candidates.OrderByDescending(item => Math.Round(item.Expected, 9)).ThenBy(item => item.Weapon.Spec.Heat)
-            .ThenBy(item => item.Index).Select(item => (item.Weapon, item.Target)).ToArray();
+        return candidates.OrderByDescending(item => Math.Round(CombatRules.DamagePerHeat(item.Expected, item.Weapon.Spec.Heat), 9))
+            .ThenByDescending(item => Math.Round(item.Expected, 9)).ThenBy(item => item.Index).Select(item => (item.Weapon, item.Target)).ToArray();
     }
 
     /// <summary>An ammo-fed weapon whose shot carries more penalty modifiers than the unit's ammo economy allows.</summary>
     public bool SavingAmmo(CombatUnit unit, CombatUnit target, CombatWeapon weapon) => weapon.Spec.AmmoKind is not null
         && TerrainPenalty(unit, target, weapon) > CombatRules.AmmoAllowance(unit.AmmoEconomy);
 
-    /// <summary>Weapons are checked one at a time in <see cref="HeatOrderedCandidates"/> order. Each fires only while the
-    /// heat so far this step, including weapons already chosen, is at or below the unit's limit.</summary>
+    /// <summary>Weapons are checked one at a time in <see cref="HeatOrderedCandidates"/> order. A weapon that generates no heat
+    /// always fires; any other fires only while the heat so far this step, including weapons already chosen, is at or below the
+    /// unit's limit.</summary>
     internal IReadOnlyList<(CombatWeapon Weapon, CombatUnit Target)> SelectHeatVolley(
         CombatUnit unit, CombatUnit? mainTarget, CombatUnit? rearTarget)
     {
         var heat = unit.Heat; var selected = new List<(CombatWeapon Weapon, CombatUnit Target)>();
         foreach (var shot in HeatOrderedCandidates(unit, mainTarget, rearTarget))
         {
-            if (!CombatRules.WithinHeatLimit(heat, unit.HeatLimit)) break;
+            if (!CombatRules.HeatPermits(heat, unit.HeatLimit, shot.Weapon.Spec)) continue;
             selected.Add(shot); heat += shot.Weapon.Spec.Heat;
         }
         return selected;

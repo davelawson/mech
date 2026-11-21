@@ -154,16 +154,22 @@ internal static partial class CombatChecks
 
         sim = HeatFixture([HeatGun("expensive", 12, 11), HeatGun("efficient-a", 9, 9), HeatGun("efficient-b", 9, 9)]);
         f = Friendly(sim); e = Enemy(sim); f.HeatLimit = 10;
-        check(Ids().SequenceEqual(new[] { "expensive" }), "the highest expected-damage weapon is checked first");
+        check(Ids().SequenceEqual(new[] { "efficient-a", "efficient-b" }),
+            "the best expected damage per heat is checked first, ahead of a heavier but less efficient weapon");
         sim.Paused = false; sim.Advance(.05);
-        check(f.ShotsFired == 1 && f.Heat == 12 && f.Weapons[1].Remaining == 0, "withheld weapons stay ready and unspent while the fired weapon adds heat");
-        check(sim.WeaponStatus(f, f.Weapons[1], e) == CombatSimulation.TooHot, "a friendly weapon held by heat reads Too Hot!");
+        check(f.ShotsFired == 2 && f.Heat == 18 && f.Weapons[0].Remaining == 0, "withheld weapons stay ready and unspent while the fired weapons add heat");
+        check(sim.WeaponStatus(f, f.Weapons[0], e) == CombatSimulation.TooHot, "a friendly weapon held by heat reads Too Hot!");
         e.Firing = FiringMode.FireAtWill; e.HeatLimit = 0; e.AddHeat(5); e.Weapons[0].Remaining = 0;
         check(sim.WeaponStatus(e, e.Weapons[0], f) == "Ready", "an enemy weapon held by heat never gives heat as the reason");
 
         sim = HeatFixture([HeatGun("more-heat", 9, 5), HeatGun("less-heat", 8, 5)]); f = Friendly(sim); e = Enemy(sim);
         f.AddHeat(5); f.HeatLimit = 10;
-        check(Ids().SequenceEqual(new[] { "less-heat" }), "equal expected damage checks less heat first, before mount order");
+        check(Ids().SequenceEqual(new[] { "less-heat" }), "equal expected damage checks less heat first: it has more damage per heat");
+        sim = HeatFixture([HeatGun("small", 5, 5), HeatGun("big", 10, 10)]); f = Friendly(sim); e = Enemy(sim); f.HeatLimit = 0;
+        check(Ids().SequenceEqual(new[] { "big" }), "equal damage per heat checks the higher expected damage first, before mount order");
+        sim = HeatFixture([HeatGun("hot", 1, 50), HeatGun("free-small", 0, 1), HeatGun("free-big", 0, 2)]); f = Friendly(sim); e = Enemy(sim);
+        check(sim.HeatOrderedCandidates(f, e, null).Select(shot => shot.Weapon.Spec.Id).SequenceEqual(new[] { "free-big", "free-small", "hot" }),
+            "weapons that generate no heat are checked before all others, best expected damage first");
         sim = HeatFixture([HeatGun("first", 12, 5), HeatGun("last", 12, 10) with { Short = 1, Medium = 1 }]);
         f = Friendly(sim); e = Enemy(sim); f.HeatLimit = 5;
         check(Ids().SequenceEqual(new[] { "last" }), "guaranteed-hit higher damage is checked first");
@@ -178,9 +184,15 @@ internal static partial class CombatChecks
         f.Weapons[0].Enabled = false; f.Weapons[1].Remaining = 1;
         check(Ids().SequenceEqual(new[] { "hot" }), "heat selection preserves weapon toggles and independent cooldowns");
         f.AddHeat(1);
-        check(!Ids().Any(), "above the limit even zero-heat weapons wait to cool");
+        check(!Ids().Any(), "above the limit a heat-generating weapon waits to cool");
+        f.Weapons[0].Enabled = true; f.Weapons[1].Remaining = 0;
+        check(Ids().SequenceEqual(new[] { "free-a", "free-b" }), "above the limit weapons that generate no heat still fire");
+        check(sim.WeaponStatus(f, f.Weapons[0], e) == "Ready" && sim.WeaponStatus(f, f.Weapons[2], e) == CombatSimulation.TooHot,
+            "above the limit a zero-heat weapon reads Ready while a heat-generating one reads Too Hot!");
+        sim.Paused = false; sim.Advance(.05);
+        check(f.ShotsFired == 2 && f.Weapons[2].Remaining == 0, "a mech above its limit discharges only its zero-heat weapons");
 
-        // Random loadouts: the volley is the longest prefix of the check order that starts each weapon within the limit.
+        // Random loadouts: every zero-heat weapon fires, and each other weapon in check order fires while heat so far is within the limit.
         var random = new Random(173);
         var consistent = true;
         for (var sample = 0; sample < 40; sample++)
@@ -190,17 +202,17 @@ internal static partial class CombatChecks
             f.HeatLimit = random.Next(0, 31);
             f.AddHeat(random.Next(0, 62) / 2d);
             var order = sim.HeatOrderedCandidates(f, e, null);
-            var damages = order.Select(shot => shot.Weapon.Damage).ToArray();
-            consistent &= damages.Zip(damages.Skip(1)).All(pair => pair.First >= pair.Second);
+            var ratios = order.Select(shot => shot.Weapon.Spec.Heat == 0 ? double.PositiveInfinity : (double)shot.Weapon.Damage / shot.Weapon.Spec.Heat).ToArray();
+            consistent &= ratios.Zip(ratios.Skip(1)).All(pair => pair.First >= pair.Second - 1e-9);
             var expected = new List<CombatWeapon>(); var heat = f.Heat;
             foreach (var (weapon, _) in order)
             {
-                if (heat > f.HeatLimit + 1e-9) break;
+                if (weapon.Spec.Heat > 0 && heat > f.HeatLimit + 1e-9) continue;
                 expected.Add(weapon); heat += weapon.Spec.Heat;
             }
             consistent &= sim.SelectHeatVolley(f, e, null).Select(shot => shot.Weapon).SequenceEqual(expected);
         }
-        check(consistent, "random loadouts check weapons best-first and stop once heat so far passes the limit");
+        check(consistent, "random loadouts check weapons by damage per heat and hold heat-generating ones once heat so far passes the limit");
         sim = HeatFixture([HeatGun("impossible", 3, 1)], gunnery: 20); f = Friendly(sim); e = Enemy(sim);
         check(sim.SelectHeatVolley(f, e, null).Count == 0 && sim.WeaponStatus(f, f.Weapons[0], e) == "Cannot hit",
             "zero-probability weapons explain their firing solution rather than reporting Too Hot!");
