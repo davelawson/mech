@@ -70,11 +70,20 @@ internal static partial class CombatChecks
             "stress lowers hit chances and shortens detection");
         unit.Stress = StressLevel.Panicked;
         check(unit.Gunnery == unit.Warrior.Gunnery + 2, "Panicked plays skills two ratings worse");
-        unit.NerveDamage = 600; sim.NerveRollOverride = () => 9;
+        unit.NerveDamage = 600; sim.NerveRollOverride = () => 9; sim.PanicEjectOverride = () => false;
+        var held = sim.NerveCheck(unit);
+        check(held is { Broke: false, HeldOn: true, After: StressLevel.Panicked } && !unit.Ejected
+            && sim.Events[^1] is { Public: true } holdLine && holdLine.Text.EndsWith("Panicked · holds on"),
+            "a Panicked pilot pushed further may hold on instead of ejecting, and the combat log says so");
+        unit.NerveDamage = 600; sim.PanicEjectOverride = () => true;
         var broke = sim.NerveCheck(unit);
         check(broke.Broke && unit.Ejected && unit.Status == CombatStatus.Disabled && !unit.WarriorKilled && unit.Injuries == 1
             && sim.Events.Any(item => item.UnitId == unit.Id && item.Text.Contains("panics and ejects")),
-            "a Panicked pilot who reaches 15 or more again ejects, injured, leaving the mech disabled");
+            "a Panicked pilot who reaches 15 or more again and loses the even chance ejects, injured, leaving the mech disabled");
+        sim.PanicEjectOverride = null;
+        var odds = Battle(1, "griffin"); var panicked = Friendly(odds); odds.NerveRollOverride = () => 12; var breaks = 0;
+        for (var i = 0; i < 400; i++) { panicked.Stress = StressLevel.Panicked; if (odds.NerveCheck(panicked).Broke) { breaks++; panicked.Ejected = false; panicked.Injuries = 0; } }
+        check(breaks is > 160 and < 240, $"a pushed Panicked pilot breaks about half the time ({breaks} of 400)");
         var cockpit = unit.Spec.Components.First(part => part.Kind == ComponentKind.Cockpit).Id;
         check(unit.ReportedEquipment().Single(item => item.Id == cockpit).Condition == ComponentCondition.Damaged,
             "an ejection leaves the cockpit needing repair");
@@ -95,8 +104,8 @@ internal static partial class CombatChecks
         var foe = Enemy(sim); foe.Stress = StressLevel.Steady; sim.NerveRollOverride = () => 2; sim.NerveCheck(foe);
         check(sim.Events.Any(item => item.UnitId == foe.Id && !item.Public), "an enemy's change of stress stays out of the combat log");
         unit.Stress = StressLevel.Steady; sim.NerveRollOverride = () => 9; var events = sim.Events.Count;
-        var held = sim.NerveCheck(unit);
-        check(held.After == StressLevel.Steady && sim.Events.Count == events + 1 && sim.Events[^1] is { Public: false } line
+        var holds = sim.NerveCheck(unit);
+        check(holds.After == StressLevel.Steady && sim.Events.Count == events + 1 && sim.Events[^1] is { Public: false } line
             && line.DebugText.Contains($"rolled 9 + Grit {unit.Warrior.Grit}") && line.DebugText.Contains("not under fire -1") && line.DebugText.EndsWith("= 12 · Steady"),
             "every nerve check reaches the debug log with its roll and modifiers, even when the level holds: " + sim.Events[^1].DebugText);
 

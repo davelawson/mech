@@ -6,12 +6,13 @@ namespace Mech;
 public enum StressLevel { Calm, Steady, Excited, Stressed, Panicked }
 
 /// <summary>One nerve check: 2d6 + Grit + modifiers. 11 or less calms the pilot a step, 15 or more stresses them a step, and a
-/// Panicked pilot who reaches 15 or more again breaks and ejects.</summary>
-public sealed record CombatNerveCheck(int Roll, int Grit, int Modifier, string Modifiers, StressLevel Before, StressLevel After, bool Broke)
+/// Panicked pilot who reaches 15 or more again has an even chance to break and eject; otherwise they hold on.</summary>
+public sealed record CombatNerveCheck(int Roll, int Grit, int Modifier, string Modifiers, StressLevel Before, StressLevel After, bool Broke,
+    bool HeldOn = false)
 {
     public int Result => Roll + Grit + Modifier;
     public string Text => $"Nerve check · rolled {Roll} + Grit {Grit}" + (Modifiers.Length > 0 ? $" ({Modifiers})" : "")
-        + $" = {Result} · " + (Broke ? "BREAKS AND EJECTS" : After == Before ? Before.ToString() : $"{Before} → {After}");
+        + $" = {Result} · " + (Broke ? "BREAKS AND EJECTS" : HeldOn ? "Panicked · holds on" : After == Before ? Before.ToString() : $"{Before} → {After}");
 }
 
 /// <summary>A battle event that is not a shot: stress changes, surrender, ejection and fleeing. Friendly-only entries are hidden
@@ -32,6 +33,8 @@ public static partial class CombatRules
     public const int NerveDamageStep = 200;
     /// <summary>The most a stress level worsens a skill rating.</summary>
     public const int MaxStressPenalty = 2;
+    /// <summary>The chance a Panicked pilot whose check would stress them further breaks and ejects.</summary>
+    public const double PanicEjectChance = .5;
     public static int StressPenalty(StressLevel level) => level switch { StressLevel.Stressed => 1, StressLevel.Panicked => 2, _ => 0 };
     /// <summary>An enemy considers surrender or ejection once its center torso keeps half its stock structure or less.</summary>
     public static bool CenterTorsoCrippled(CombatUnit unit) =>
@@ -94,6 +97,8 @@ public sealed partial class CombatSimulation
     private readonly Random _stressRandom;
     /// <summary>Replaces the 2d6 nerve roll, for checks that need a particular result.</summary>
     internal Func<int>? NerveRollOverride { get; set; }
+    /// <summary>Replaces the even chance a Panicked pilot breaks, for checks that need a particular outcome.</summary>
+    internal Func<bool>? PanicEjectOverride { get; set; }
     /// <summary>Whether nerve checks are made at all; checks that need steady pilots turn them off.</summary>
     internal bool NerveChecksEnabled { get; set; } = true;
     /// <summary>Whether an enemy's surrender waits for the leader's answer, pausing the battle. Without prompts (headless runs),
@@ -162,15 +167,16 @@ public sealed partial class CombatSimulation
         var roll = NerveRollOverride?.Invoke() ?? _stressRandom.Next(1, 7) + _stressRandom.Next(1, 7);
         var result = roll + unit.Warrior.Grit + modifier;
         var before = unit.Stress;
-        var broke = before == StressLevel.Panicked && result >= CombatRules.StressingResult;
+        var pushed = before == StressLevel.Panicked && result >= CombatRules.StressingResult;
+        var broke = pushed && (PanicEjectOverride?.Invoke() ?? _stressRandom.NextDouble() < CombatRules.PanicEjectChance);
         if (result <= CombatRules.CalmingResult && before > StressLevel.Calm) unit.Stress = before - 1;
         else if (result >= CombatRules.StressingResult && before < StressLevel.Panicked) unit.Stress = before + 1;
         unit.NerveDamage = 0; unit.ShotAtSinceCheck = unit.KnockedDownSinceCheck = unit.HeadDamagedSinceCheck = false;
         unit.InjuriesAtLastCheck = unit.Injuries; unit.AlliesDefeatedAtLastCheck = AlliesDefeated(unit);
-        var check = new CombatNerveCheck(roll, unit.Warrior.Grit, modifier, text, before, unit.Stress, broke);
+        var check = new CombatNerveCheck(roll, unit.Warrior.Grit, modifier, text, before, unit.Stress, broke, pushed && !broke);
         // Every check goes to the debug log with its roll and modifiers; the combat log shows only a friendly's change of level,
         // since enemy stress is never shown to the player.
-        Note(unit, check.Text, unit.Side == CombatSide.Friendly && (unit.Stress != before || broke));
+        Note(unit, check.Text, unit.Side == CombatSide.Friendly && (unit.Stress != before || pushed));
         if (broke) Eject(unit, "panics and ejects");
         else if (unit.Side == CombatSide.Enemy && EnemyAiEnabled) ConsiderSurrender(unit);
         return check;

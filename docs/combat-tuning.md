@@ -287,7 +287,7 @@ The rules are in [combat design](combat-design.md#stress-surrender-and-ejection-
 | Check interval | 5 s per MechWarrior, first check at a random 0–5 s; none while its patrol group is passive |
 | Roll | 2d6 + Grit + modifiers |
 | Calmer / unchanged / more stressed | 11 or less / 12–14 / 15 or more |
-| Break (Panicked) | 15 or more again: eject |
+| Break (Panicked) | 15 or more again: 50% chance to eject, otherwise hold on |
 | Heat | +1 per full 10 |
 | Destroyed location | +1 each |
 | Injury | +1 each, +1 more on the first check after it |

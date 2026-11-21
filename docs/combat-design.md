@@ -404,7 +404,7 @@ Fewer mechs should end a battle destroyed and fewer MechWarriors dead. MechWarri
 - +1 if any mech of their own side has been defeated (disabled, destroyed, surrendered, ejected or fled; extracted mechs do not count), however many, and +1 more for each one lost since the last check (changed November 21, 2026 from +1 per mech lost on every check, which panicked whole sides once a few mechs fell)
 - +1 if their side's fighting mechs are outnumbered by the enemy mechs their side can see
 
-**Breaking.** A MechWarrior already Panicked whose check comes to 15 or more ejects. Managing stress is the player's task: pull stressed and panicky pilots back from the front line.
+**Breaking.** A MechWarrior already Panicked whose check comes to 15 or more has an even chance to eject (since November 21, 2026; before, they always did). Otherwise they hold on, still Panicked, and the combat log says so ("… = 16 · Panicked · holds on"). Managing stress is the player's task: pull stressed and panicky pilots back from the front line.
 
 **Ejection.** The MechWarrior leaves the cockpit and survives, Injured (one injury, 10–20 days). The mech is left disabled where it stands, with its cockpit needing repair; an enemy's can be claimed whole as salvage, and the pilot escapes, counting as spared. A MechWarrior ejects:
 
