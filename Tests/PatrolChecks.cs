@@ -225,6 +225,8 @@ internal static class PatrolChecks
         sim.Advance(CombatRules.WindDownSeconds + .1);
         check(sim.Outcome == CombatOutcome.Victory && sim.MissionReport().Outcome == MissionOutcome.Success,
             "the patrol succeeds once every point is visited and every remaining mech has extracted");
+        check(sim.EnemyHoldsField && sim.MissionReport().EnemyHoldsField && Salvage.Pool(sim.MissionReport()).Count == 0,
+            "a patrol that extracts past enemies still fighting has nothing to salvage");
 
         var early = Patrol(3, company: 1, terrainSeed: 12); early.EnemyAiEnabled = false; early.Paused = false;
         early.Units.First(unit => unit.Side == CombatSide.Friendly).Position = early.Patrol!.Layout.Extraction;

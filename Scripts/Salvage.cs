@@ -25,10 +25,12 @@ public static class Salvage
 {
     /// <summary>Every enemy mech left on the field gives its working weapons, ammunition bins, heat sinks and jump jets in locations
     /// with structure left, one pick each; one not destroyed (disabled, ejected, headless or unarmed) can also be claimed whole,
-    /// priced by weight class. Surrendered mechs stay with their pilots' side, and fled mechs are gone.</summary>
+    /// priced by weight class. Surrendered mechs stay with their pilots' side, and fled mechs are gone. A field the opposition
+    /// still holds, as when a patrol extracts past mechs still fighting, gives nothing.</summary>
     public static IReadOnlyList<SalvageOption> Pool(MissionReport report)
     {
         var pool = new List<SalvageOption>();
+        if (report.EnemyHoldsField) return pool;
         foreach (var enemy in report.Enemies.Where(item => item.Status is not (CombatStatus.Surrendered or CombatStatus.Fled or CombatStatus.Extracted)))
         {
             var spec = DraftCatalog.Mech(enemy.MechId);

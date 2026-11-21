@@ -24,10 +24,12 @@ public sealed record EnemyWreckReport(string UnitId, string MechId, CombatStatus
 /// <summary>A salvage pick: one item from an enemy mech, or the whole mech when ItemId is null.</summary>
 public sealed record SalvageClaim(string UnitId, string? ItemId);
 /// <summary>What a mission battle reports to the campaign. Enemy MechWarriors spared are those whose head survived. Enemies are the
-/// opposition as it ended; Salvage is what the player chose from them.</summary>
+/// opposition as it ended; Salvage is what the player chose from them. EnemyHoldsField is set when the opposition still had a mech
+/// fighting as the battle ended, as when a patrol extracts past it: there is then nothing to salvage.</summary>
 public sealed record MissionReport(MissionOutcome Outcome, DeployedMechReport[] Mechs, int EnemyWarriorsSpared)
 {
     public EnemyWreckReport[] Enemies { get; init; } = [];
+    public bool EnemyHoldsField { get; init; }
     public SalvageClaim[] Salvage { get; init; } = [];
 }
 
@@ -570,9 +572,12 @@ public sealed partial class CombatSimulation
         {
             Enemies = Units.Where(unit => unit.Side == CombatSide.Enemy).Select(unit => new EnemyWreckReport(unit.Id, unit.Spec.Id, unit.Status,
                 unit.Locations.Values.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)).ToArray(),
-                unit.ReportedEquipment())).ToArray()
+                unit.ReportedEquipment())).ToArray(),
+            EnemyHoldsField = EnemyHoldsField
         };
     }
+    /// <summary>The opposition still has a mech fighting: not defeated and still armed.</summary>
+    public bool EnemyHoldsField => Units.Any(unit => unit.Side == CombatSide.Enemy && unit.Fighting);
 
     private static (OwnedMech Mech, WarriorSpec Pilot)[] DraftOpposition(IReadOnlyList<OwnedMech> force, Random random)
     {

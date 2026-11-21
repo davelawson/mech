@@ -749,6 +749,8 @@ public partial class CombatScreen : Control
         StopWaitingButton.Hide();
         BeginModal(CombatModal.Results, title);
         RosterUi.Text(_modalContent, $"Combat time {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}{(_mission is null ? " · Campaign preserved" : "")}", 15, Ui.Gold);
+        if (_mission is not null && Simulation.Outcome == CombatOutcome.Victory && Simulation.EnemyHoldsField)
+            RosterUi.Text(_modalContent, "No salvage: the opposition still holds the field.", 14, Ui.Muted);
         if (_settlement is not null) RosterUi.Text(_modalContent, _settlement, 14);
         else if (choosing) RosterUi.Text(_modalContent, $"Choose salvage from the field: the contract allows {Picks(_mission!.SalvagePicks)}. "
             + $"Up to {Picks(SalvageTuning.ExtraPicks)} more can be taken, at a cost to your reputation.", 14);

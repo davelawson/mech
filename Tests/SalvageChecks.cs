@@ -76,6 +76,7 @@ internal static class SalvageChecks
         var destroyed = pool.Where(option => option.UnitId == "enemy-2").ToArray();
         check(destroyed.Length > 0 && destroyed.All(option => !option.WholeMech), "a destroyed enemy leaves items but cannot be claimed whole");
         check(Salvage.Pool(report with { Enemies = [] }).Count == 0, "a report without enemies has nothing to salvage");
+        check(Salvage.Pool(report with { EnemyHoldsField = true }).Count == 0, "a field the opposition still holds has nothing to salvage");
     }
 
     private static void CheckClaims(Action<bool, string> check)
