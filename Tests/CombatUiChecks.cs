@@ -383,6 +383,10 @@ public partial class SmokeTests
         Check(tactical.SalvagePool.Any(option => option.WholeMech && option.UnitId == enemies[0].Id) && tactical.SalvageChoices.Count == tactical.SalvagePool.Count
             && state.Missions.Current == offer && TacticalText().Any(text => text.Contains("SALVAGE")), "a won mission offers salvage before settling");
         Check(tactical.ClaimSalvageButton.Disabled && tactical.SalvageCount.Text.StartsWith($"Picks 0 of {offer.SalvagePicks}"), "nothing is claimed until picks are chosen");
+        var salvagedGun = tactical.SalvagePool.FirstOrDefault(option => DefinitionText.WeaponDetails(option.StorageId) is not null);
+        Check(salvagedGun is null || tactical.SalvageChoices[salvagedGun.Claim].TooltipText.Contains(DefinitionText.WeaponDetails(salvagedGun.StorageId)!)
+            && tactical.SalvageChoices[salvagedGun.Claim].TooltipText.EndsWith("Goes into hangar storage", StringComparison.Ordinal),
+            "a salvaged weapon's tooltip gives its mass, damage, heat, range and ammunition");
         await PressKey(Key.Escape);
         Check(tactical.Visible && tactical.Modal == CombatModal.Results && state.Missions.Current == offer, "Escape cannot skip choosing salvage");
         var whole = tactical.SalvagePool.Single(option => option.WholeMech);

@@ -422,6 +422,7 @@ public partial class SmokeTests
         var (panel, block) = FindBlock(hangar, item => item.ItemId == weapon.Id);
         var stored = StorageCount(hangar, weapon.Name);
         Check(panel._GetTooltip(panel.BlockRect(block).GetCenter()).Contains("Right-click to remove"), "removable items say how to remove them");
+        Check(panel._GetTooltip(panel.BlockRect(block).GetCenter()).Contains(DefinitionText.WeaponStats(weapon)), "an installed weapon's tooltip gives its damage, heat, range and ammunition");
         await RightClick(BlockCentre(panel, block));
         Check(hangar.Visible && hangar.SelectedHasPendingChanges && panel.Blocks.All(item => item.ItemId != weapon.Id)
             && panel.Blocks.Sum(item => item.Length) == EquipmentRules.Capacity(panel.Location), "right-clicking a weapon removes it and frees its slots");
@@ -603,6 +604,14 @@ public partial class SmokeTests
         Check(Lines().Length == 2 && Line(bin) is { Count: 2 } binLine && binLine.Price == price && Line(sink)!.Count == 3
             && binLine.TooltipText.Contains("Drag onto a location to buy and install\nRight-click to buy into Inventory", StringComparison.Ordinal),
             "the market lists what it holds, how many and the price");
+        var gun = StorageCatalog.WeaponId(WeaponKind.AC10);
+        state.PlaceMarket(new MarketSnapshot(home, state.Date, [.. new[] { new StorageEntry(bin, 2), new StorageEntry(sink, 3), new StorageEntry(gun, 1) }.OrderBy(item => item.Id, StringComparer.Ordinal)]));
+        hangar.Refresh(); await Frames();
+        Check(Line(gun)?.TooltipText.StartsWith($"{StorageCatalog.Describe(gun)!.Name}\n{DefinitionText.WeaponDetails(gun)}\nDrag onto a location to buy", StringComparison.Ordinal) == true
+            && Line(gun)!.TooltipText.Contains($"Ammo: {StorageCatalog.Bin(AmmoKind.AC10)!.Name}") && !Line(sink)!.TooltipText.Contains("Range "),
+            "a market weapon's tooltip gives its mass, damage, heat, range and ammunition");
+        state.PlaceMarket(new MarketSnapshot(home, state.Date, [.. new[] { new StorageEntry(bin, 2), new StorageEntry(sink, 3) }.OrderBy(item => item.Id, StringComparer.Ordinal)]));
+        hangar.Refresh(); await Frames();
         var name = StorageCatalog.Describe(bin)!.Name;
         hangar.Remove(stock.Id); await Frames();
         var stored = StorageCount(hangar, name); var cash = state.Cash; var target = hangar.LocationPanels[stock.Location];

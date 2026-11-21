@@ -33,9 +33,10 @@ public partial class HangarStorageLine : PanelContainer
             Ui.Label(row, HangarScreen.Money(cost), 13, Ui.Muted).MouseFilter = MouseFilterEnum.Ignore;
         }
         else RosterUi.Text(this, $"{item.Name} ×{count}", 13, Draggable ? Ui.Text : Ui.Muted).MouseFilter = MouseFilterEnum.Ignore;
-        TooltipText = price is not null ? count > 0 ? $"{item.Name}\nDrag onto a location to buy and install\nRight-click to buy into Inventory · Shift buys {HangarScreen.BulkPurchase}"
-                : $"{item.Name}\nNone left in the market"
-            : count > 0 ? $"{item.Name}\nDrag onto a location to install" : $"{item.Name}\nNone left in storage";
+        var title = DefinitionText.WeaponDetails(item.Id) is { } details ? $"{item.Name}\n{details}" : item.Name;
+        TooltipText = price is not null ? count > 0 ? $"{title}\nDrag onto a location to buy and install\nRight-click to buy into Inventory · Shift buys {HangarScreen.BulkPurchase}"
+                : $"{title}\nNone left in the market"
+            : count > 0 ? $"{title}\nDrag onto a location to install" : $"{title}\nNone left in storage";
     }
 
     private StyleBoxFlat Slot(float alpha)

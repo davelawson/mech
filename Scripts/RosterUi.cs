@@ -143,7 +143,7 @@ public partial class MechDetails : VBoxContainer
         {
             var status = unit is null ? "Operational" : unit.WeaponUsable(weapon) ? unit.ConditionText(weapon.Id) : "Unavailable";
             RosterUi.Text(weapons, $"{weapon.Name} · {DraftCatalog.Abbreviation(weapon.Location)}{(weapon.Rear ? " · rear" : "")}  /  {status}", 14, Ui.Gold);
-            RosterUi.Text(weapons, $"Heat {weapon.Heat} · Damage {DefinitionText.Damage(weapon.DamageProfile)}\nRange {weapon.Short * CombatRules.WeaponRangeScale} / {weapon.Medium * CombatRules.WeaponRangeScale} / {weapon.Long * CombatRules.WeaponRangeScale} m{(weapon.Minimum > 0 ? $" · minimum {weapon.Minimum * CombatRules.WeaponRangeScale} m" : "")}", 12);
+            RosterUi.Text(weapons, DefinitionText.WeaponStats(weapon), 12);
         }
         RosterUi.Text(weapons, "AMMUNITION", 13, Ui.Gold);
         if (spec.Ammo.Length == 0) RosterUi.Text(weapons, "Energy weapons · no ammunition required", 12, Ui.Muted);

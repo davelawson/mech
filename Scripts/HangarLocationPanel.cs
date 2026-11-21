@@ -144,13 +144,14 @@ public partial class HangarLocationPanel : Control
             ? free == sinks ? $"Free (within the first {EquipmentRules.FreeHeatSinks} heat sinks) · " : $"{sinks - free} t ({free} of {sinks} free) · "
             : Loadout.Tons(_mech.Spec, id) is { } tons ? $"{tons:0.#} t · " : "";
         var engine = block.Kind == SlotKind.Engine ? $"\n{EquipmentRules.EngineSinksText(_mech.Spec)}" : "";
+        var stats = _mech.Spec.Weapons.FirstOrDefault(item => item.Id == id) is { } weapon ? $"\n{DefinitionText.WeaponStats(weapon)}" : "";
         var condition = Condition(block);
         var warning = !Suspect.Contains(id) ? "" : block.Kind == SlotKind.Ammo ? "\n⚠ No weapon uses this ammunition" : "\n⚠ No compatible ammunition installed";
         var purchase = Purchased.Contains(id) ? $"\nPending purchase · {HangarScreen.Money(EquipmentMarket.Price(_mech.Installed.First(item => item.Id == id).StorageId))}" : "";
         var remove = !Loadout.Removable(block.Kind) ? "" : condition == ComponentCondition.Destroyed ? "\nRight-click to scrap" : "\nRight-click to remove";
         var covering = !Mounts.Covered.TryGetValue(id, out var covers) ? ""
             : string.Concat(covers.GroupBy(type => type).Select(group => $"\nCovering {MountCount(group.Key, group.Count())}"));
-        return $"{block.Name}\n{mass}{block.ItemSlots} {(block.ItemSlots == 1 ? "slot" : "slots")}{split}{engine}\n{_mech.ConditionText(id, levels: true)}{purchase}{covering}{warning}{remove}";
+        return $"{block.Name}\n{mass}{block.ItemSlots} {(block.ItemSlots == 1 ? "slot" : "slots")}{split}{engine}{stats}\n{_mech.ConditionText(id, levels: true)}{purchase}{covering}{warning}{remove}";
     }
 
     /// <summary>For a slotted heat sink item, how many of its sinks are free and how many it holds; null for anything else.</summary>

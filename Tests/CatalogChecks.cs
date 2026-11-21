@@ -28,6 +28,16 @@ internal static class CatalogChecks
         CheckValidation(check);
         CheckSave(check);
         CheckWeaponDefinitions(check);
+        CheckWeaponDetails(check);
+    }
+    private static void CheckWeaponDetails(Action<bool, string> check)
+    {
+        check(Enum.GetValues<WeaponKind>().All(kind => DefinitionText.WeaponDetails(StorageCatalog.WeaponId(kind)) is { } text
+                && text.Contains("Range ") && text.Contains("Heat generated ") && text.Contains(" t · ")
+                && (WeaponDefinitions.Of(kind).Ammo is { } ammo ? text.Contains($"Ammo: {StorageCatalog.Bin(ammo)!.Name}") : text.Contains("Ammo: none"))),
+            "every stored weapon describes its mass, damage, heat, range and ammunition");
+        check(DefinitionText.WeaponDetails(StorageCatalog.HeatSinkId(HeatSinkKind.Single)) is null && DefinitionText.WeaponDetails(null) is null,
+            "items other than weapons have no weapon details");
     }
     private static void CheckWeaponDefinitions(Action<bool, string> check)
     {

@@ -805,16 +805,19 @@ public partial class CombatScreen : Control
                 {
                     var item = RosterUi.Text(row, option.WholeMech ? $"Whole mech · {Picks(option.Picks)}" : $"{option.Name} · {Picks(option.Picks)}", 13);
                     item.MouseFilter = MouseFilterEnum.Pass;
-                    item.TooltipText = option.WholeMech ? "Joins the hangar's reserves as it stands, with no pilot" : "Goes into hangar storage";
+                    item.TooltipText = option.WholeMech ? "Joins the hangar's reserves as it stands, with no pilot" : StoredTooltip(option);
                     continue;
                 }
                 var choice = new CheckBox { Text = option.WholeMech ? $"Claim whole · {Picks(option.Picks)}" : $"{option.Name} · {Picks(option.Picks)}",
-                    FocusMode = FocusModeEnum.All, TooltipText = option.WholeMech ? "Joins your hangar's reserves as it stands, with no pilot" : "Goes into hangar storage" };
+                    FocusMode = FocusModeEnum.All, TooltipText = option.WholeMech ? "Joins your hangar's reserves as it stands, with no pilot" : StoredTooltip(option) };
                 row.AddChild(choice); SalvageChoices[option.Claim] = choice;
                 choice.Toggled += _ => RefreshSalvage();
             }
         }
     }
+    /// <summary>A salvaged item's tooltip: a weapon's figures, then where it goes.</summary>
+    private static string StoredTooltip(SalvageOption option) =>
+        DefinitionText.WeaponDetails(option.StorageId) is { } details ? $"{option.Name}\n{details}\nGoes into hangar storage" : "Goes into hangar storage";
     private SalvageClaim[] ChosenSalvage() => SalvagePool.Select(option => option.Claim)
         .Where(claim => SalvageChoices.TryGetValue(claim, out var choice) && choice.ButtonPressed && !choice.Disabled).ToArray();
     /// <summary>A mech claimed whole cannot also be stripped; the count shows what extra picks will cost.</summary>
