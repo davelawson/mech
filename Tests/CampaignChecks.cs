@@ -504,17 +504,17 @@ internal static class CampaignChecks
         campaign.Execute(new AcceptMissionCommand(offer.Id), Campaign.LeaderSlot);
         check(campaign.Missions.Current?.Id == offer.Id && campaign.Date == date, "the leader accepts a mission");
 
-        Throws(() => campaign.Execute(new SetLanceCommand(leaderMech.Id, null), 1), check, "a player cannot move another player's mech to the lance pool");
+        Throws(() => campaign.Execute(new SetLanceCommand(leaderMech.Id, null), 1), check, "a player cannot move another player's mech to the reserves");
         Throws(() => campaign.Execute(new OrderRefitCommand(leaderMech.Id, LoadoutPlan.Removing([leaderMech.Spec.Weapons[0].Id]), []), 1), check, "a player cannot refit another player's mech");
         Throws(() => campaign.Execute(new AssignWarriorCommand(playerMech.Id, leaderMech.WarriorId, true), 1), check,
             "a player cannot take a MechWarrior from another player's mech");
         campaign.Execute(new SetLanceCommand(playerMech.Id, null), 1);
-        check(playerMech.Lance is null && roster.Pool.Single() == playerMech, "a player moves their own mech to the lance pool, MechWarrior and all");
+        check(playerMech.Lance is null && roster.Reserves.Single() == playerMech, "a player moves their own mech to the reserves, MechWarrior and all");
         Throws(() => campaign.Execute(new SetLanceCommand(playerMech.Id, Campaign.LeaderSlot), 1), check, "a player only adds mechs to their own lance");
         campaign.Execute(new AssignWarriorCommand(playerMech.Id, null), Campaign.LeaderSlot);
-        check(playerMech.WarriorId is null, "any player acts on lance pool mechs");
+        check(playerMech.WarriorId is null, "any player acts on reserve mechs");
         campaign.Execute(new SetLanceCommand(playerMech.Id, Campaign.LeaderSlot), Campaign.LeaderSlot);
-        check(playerMech.Lance == 0 && roster.LanceMechs(0).Count() == 3, "the leader takes a lance pool mech into their lance");
+        check(playerMech.Lance == 0 && roster.LanceMechs(0).Count() == 3, "the leader takes a reserve mech into their lance");
         var restored = Campaign.Restore(campaign.Snapshot());
         check(restored.Players == 2 && restored.Roster!.Mechs.Select(mech => mech.Lance).SequenceEqual(roster.Mechs.Select(mech => mech.Lance)),
             "lances survive a save round trip");

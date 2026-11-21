@@ -809,7 +809,7 @@ public partial class CommandApp : Control
         lines.Add(result.InsuranceClaim == 0 ? "Insurance: no battle damage to claim"
             : $"Insurance paid: {Money(result.Insurance)} (claim {Money(result.InsuranceClaim)}, limit {Money(result.Mission.InsuranceLimit)})");
         if (result.SalvagedItems.Length > 0) lines.Add($"Salvage to storage: {Repairs.PartsText(result.SalvagedItems)}");
-        lines.AddRange(result.SalvagedMechs.Select(id => $"Salvaged whole: {State.Roster!.Mechs.Single(item => item.Id == id).Spec.DisplayName}, now in the lance pool"));
+        lines.AddRange(result.SalvagedMechs.Select(id => $"Salvaged whole: {State.Roster!.Mechs.Single(item => item.Id == id).Spec.DisplayName}, now in reserve"));
         if (result.Hostages.Length > 0) lines.Add($"Ransom for {result.Hostages.Length} {(result.Hostages.Length == 1 ? "hostage" : "hostages")} "
             + $"({string.Join(", ", result.Hostages.Select(rank => rank.ToString()))}): {Money(result.Ransom)}");
         if (result.ExtraPicks > 0) lines.Add($"{result.ExtraPicks} salvage {(result.ExtraPicks == 1 ? "pick" : "picks")} over the allotment");

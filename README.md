@@ -80,7 +80,7 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | Drag a storage line onto a location panel | Install the spare there (pending until applied); Escape or right-click cancels the drag |
 | Drag a market line onto a location panel | Buy and install it (a pending purchase until applied) |
 | **Apply** / **Reset** | Commit / discard the selected mech's pending loadout changes |
-| **Move to lance pool** / **Add to Lance N** | Take the selected mech out of your lance / put a lance pool mech into it |
+| **Move to reserves** / **Add to Lance N** | Take the selected mech out of your lance / put a reserve mech into it |
 | **Simulate Deployment** | Choose Randomized enemy or Mirror match, then 1–4 mechs and a terrain seed |
 | **Quick Launch** (leader in co-op) | Fight the accepted mission: choose 1–4 mechs, then **Launch mission** |
 | **Ready** / **Not Ready** (co-op force selection) | Mark your chosen mechs ready for the leader to launch / unlock them |

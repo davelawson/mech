@@ -4,7 +4,7 @@ namespace Mech;
 
 /// <summary>A change a player slot asks of the campaign. Every screen changes the campaign through commands, so the same rules hold
 /// whichever player sends one. Leader-only commands cover travel, contracts, time and company finances; the rest are open to every
-/// player but act only on mechs the slot controls: its own lance and the lance pool.</summary>
+/// player but act only on mechs the slot controls: its own lance and the reserves.</summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$command")]
 [JsonDerivedType(typeof(AcceptMissionCommand), "accept-mission")]
 [JsonDerivedType(typeof(AbandonMissionCommand), "abandon-mission")]
@@ -119,7 +119,7 @@ public sealed record AssignWarriorCommand(string MechId, string? WarriorId, bool
     }
 }
 
-/// <summary>Moves a mech between the slot's own lance and the lance pool (null).</summary>
+/// <summary>Moves a mech between the slot's own lance and the reserves (null).</summary>
 public sealed record SetLanceCommand(string MechId, int? Lance) : CampaignCommand
 {
     internal override object? Run(Campaign campaign, int slot)

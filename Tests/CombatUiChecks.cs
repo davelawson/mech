@@ -405,7 +405,7 @@ public partial class SmokeTests
         await Click(tactical.ClaimSalvageButton);
         Check(state.Missions.Current is null && tactical.SalvagePool.Count == 0 && state.Roster.Mechs.Count == mechs + 1
             && state.Roster.Mechs[^1].Definition.Id == enemies[0].Spec.Id && state.Roster.Mechs[^1].Lance is null,
-            "claiming settles the mission and the whole mech joins the lance pool");
+            "claiming settles the mission and the whole mech joins the reserves");
         Check(!keepItem || state.Roster.Stored(item!.StorageId!) == stored + 1, "a claimed item joins storage");
         Check(TacticalText().Any(text => text.Contains("Payment received") && text.Contains("Insurance") && text.Contains("Salvaged whole")),
             "the results list the payment, insurance and salvage");

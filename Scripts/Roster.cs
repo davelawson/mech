@@ -298,7 +298,7 @@ public sealed record EquipmentCondition(string Id, ComponentCondition Condition,
 public sealed record AmmoCondition(string Id, int Shots);
 /// <summary>Removed lists the stock items taken out in the hangar, Installed the storage items put in, in installation order, and
 /// Armor the locations whose installed armor differs from stock; each is null when empty.</summary>
-/// <summary>Lance is the zero-based lance the mech belongs to, or null in the lance pool. Repair is its repair order, if any.</summary>
+/// <summary>Lance is the zero-based lance the mech belongs to, or null in the reserves. Repair is its repair order, if any.</summary>
 public sealed record MechSnapshot(string Id, string DefinitionId, string? WarriorId, LocationCondition[] Locations,
     EquipmentCondition[] Equipment, AmmoCondition[] Ammo, string[]? Removed = null, InstalledItem[]? Installed = null, ArmorFit[]? Armor = null,
     int? Lance = null, RepairOrder? Repair = null);
@@ -322,7 +322,7 @@ public sealed class OwnedMech
     public ImmutableArray<ArmorFit> Armor { get; private set; }
     public LoadoutPlan Plan => new(Removed, Installed) { Armor = Armor };
     public string? WarriorId { get; internal set; }
-    /// <summary>The zero-based lance the mech belongs to, or null in the lance pool.</summary>
+    /// <summary>The zero-based lance the mech belongs to, or null in the reserves.</summary>
     public int? Lance { get; internal set; }
     public IReadOnlyList<LocationCondition> Locations { get; private set; }
     public IReadOnlyList<EquipmentCondition> Equipment { get; private set; }
@@ -500,7 +500,7 @@ public sealed class ForceRoster
         _storage = (storage ?? StorageCatalog.Stock(Mechs.Select(item => item.Definition))).ToList();
         LanceCount = lances;
     }
-    /// <summary>A new company: its mechs fill the lances in order, four to a lance, and any beyond them start in the lance pool;
+    /// <summary>A new company: its mechs fill the lances in order, four to a lance, and any beyond them start in the reserves;
     /// <paramref name="lanceOf"/>, when given, names each mech's lance instead.</summary>
     internal static ForceRoster Create(string name, IEnumerable<MechSpec> mechs, IEnumerable<WarriorSpec> warriors, int lances = 1, int?[]? lanceOf = null)
     {
@@ -518,11 +518,11 @@ public sealed class ForceRoster
     }
     public static string LanceName(int lance) => $"Lance {lance + 1}";
     public IEnumerable<OwnedMech> LanceMechs(int lance) => Mechs.Where(item => item.Lance == lance);
-    public IEnumerable<OwnedMech> Pool => Mechs.Where(item => item.Lance is null);
-    /// <summary>Whether a player slot may act on a mech: one in the slot's own lance or in the lance pool, never another player's lance.
+    public IEnumerable<OwnedMech> Reserves => Mechs.Where(item => item.Lance is null);
+    /// <summary>Whether a player slot may act on a mech: one in the slot's own lance or in the reserves, never another player's lance.
     /// Its MechWarrior goes with it.</summary>
     public bool Controls(int slot, OwnedMech mech) => mech.Lance is null || mech.Lance == slot;
-    /// <summary>Moves a mech into a lance with room, or into the lance pool (null). Its pilot assignment is kept.</summary>
+    /// <summary>Moves a mech into a lance with room, or into the reserves (null). Its pilot assignment is kept.</summary>
     public void SetLance(string mechId, int? lance)
     {
         var mech = Mechs.SingleOrDefault(item => item.Id == mechId) ?? throw new ArgumentException("Unknown owned BattleMech.");
@@ -594,7 +594,7 @@ public sealed class ForceRoster
         _storage.RemoveAll(item => item.Count == 0);
         _storage.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
     }
-    /// <summary>A stock mech taken as salvage joins the lance pool with no pilot, in the condition it was taken, its bins full.
+    /// <summary>A stock mech taken as salvage joins the reserves with no pilot, in the condition it was taken, its bins full.
     /// It takes the next free mech id.</summary>
     internal OwnedMech AddSalvagedMech(MechSpec stock, LocationCondition[] locations, EquipmentCondition[] equipment)
     {
@@ -642,7 +642,7 @@ public sealed class ForceRoster
         if (!InitialDraft.ValidName(save.ForceName) || save.ForceName != save.ForceName.Trim() || save.Mechs is null || save.Warriors is null
             || save.Mechs.Length == 0 || save.Lances is < 1 or > MaxLances)
             throw new ArgumentException("Invalid roster.");
-        // Saves from before lances form one lance from the first four mechs; the rest join the lance pool.
+        // Saves from before lances form one lance from the first four mechs; the rest join the reserves.
         var lances = save.Lances ?? 1;
         if (save.Lances is null) save = save with { Mechs = save.Mechs.Select((mech, i) => mech is null ? null! : mech with { Lance = i < LanceSize ? 0 : null }).ToArray() };
         if (save.Mechs.Any(mech => mech?.Lance is { } lance && (lance < 0 || lance >= lances))

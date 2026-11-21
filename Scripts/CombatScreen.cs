@@ -414,7 +414,7 @@ public partial class CombatScreen : Control
         // The leader's terrain seed recreates the battlefield on every player's machine.
         seedRow.Visible = Leading;
         var body = RosterUi.Scroll(_modalContent); ForceChoices.Clear(); _forceIds.Clear();
-        // The player's own lance deploys; lance pool mechs are listed so their absence is explained.
+        // The player's own lance deploys; reserve mechs are listed so their absence is explained.
         var offered = _roster.Mechs.Where(item => item.Lance == Slot || item.Lance is null).ToArray();
         var first = offered.FirstOrDefault(item => item.Id == selectedMechId && CombatSimulation.UnavailableReason(_roster, item) is null)
             ?? offered.FirstOrDefault(item => CombatSimulation.UnavailableReason(_roster, item) is null);
@@ -805,11 +805,11 @@ public partial class CombatScreen : Control
                 {
                     var item = RosterUi.Text(row, option.WholeMech ? $"Whole mech · {Picks(option.Picks)}" : $"{option.Name} · {Picks(option.Picks)}", 13);
                     item.MouseFilter = MouseFilterEnum.Pass;
-                    item.TooltipText = option.WholeMech ? "Joins the hangar's lance pool as it stands, with no pilot" : "Goes into hangar storage";
+                    item.TooltipText = option.WholeMech ? "Joins the hangar's reserves as it stands, with no pilot" : "Goes into hangar storage";
                     continue;
                 }
                 var choice = new CheckBox { Text = option.WholeMech ? $"Claim whole · {Picks(option.Picks)}" : $"{option.Name} · {Picks(option.Picks)}",
-                    FocusMode = FocusModeEnum.All, TooltipText = option.WholeMech ? "Joins your hangar's lance pool as it stands, with no pilot" : "Goes into hangar storage" };
+                    FocusMode = FocusModeEnum.All, TooltipText = option.WholeMech ? "Joins your hangar's reserves as it stands, with no pilot" : "Goes into hangar storage" };
                 row.AddChild(choice); SalvageChoices[option.Claim] = choice;
                 choice.Toggled += _ => RefreshSalvage();
             }

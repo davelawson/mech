@@ -14,7 +14,7 @@ public partial class HangarScreen : Control
     public event Action? DeploymentRequested;
     public event Action? QuickLaunchRequested;
     public event Action? ApplyRequested;
-    /// <summary>Moves a mech into a lance, or into the lance pool (null).</summary>
+    /// <summary>Moves a mech into a lance, or into the reserves (null).</summary>
     public event Action<string, int?>? LanceRequested;
     /// <summary>Orders a repair of a mech.</summary>
     public event Action<string, RepairScope>? RepairRequested;
@@ -35,14 +35,14 @@ public partial class HangarScreen : Control
     public Label RepairText { get; private set; } = null!;
     /// <summary>A mech with a repair order cannot change its loadout.</summary>
     public bool SelectedLocked => SelectedMech.Repair is not null;
-    /// <summary>The local player's slot: its own lance is the one mechs join from the lance pool.</summary>
+    /// <summary>The local player's slot: its own lance is the one mechs join from the reserves.</summary>
     public int Slot { get; set; } = Campaign.LeaderSlot;
-    /// <summary>Adds the selected mech to the player's lance, or returns it to the lance pool.</summary>
+    /// <summary>Adds the selected mech to the player's lance, or returns it to the reserves.</summary>
     public Button LanceButton { get; private set; } = null!;
     public Label LanceText { get; private set; } = null!;
     /// <summary>The players' names by slot in a co-op campaign, naming whose lance each is; null in single-player.</summary>
     public IReadOnlyList<string>? LanceOwners { get; set; }
-    /// <summary>Whether the local player may change the selected mech: one in their own lance or the lance pool.</summary>
+    /// <summary>Whether the local player may change the selected mech: one in their own lance or the reserves.</summary>
     public bool SelectedControlled => _roster.Controls(Slot, SelectedMech);
     public Button BackButton { get; private set; } = null!;
     public Button WarriorsButton { get; private set; } = null!;
@@ -58,6 +58,10 @@ public partial class HangarScreen : Control
     public Button AssignButton { get; private set; } = null!;
     public Button UnassignButton { get; private set; } = null!;
     public List<Button> RosterButtons { get; } = [];
+    /// <summary>The bottom-left drop list choosing whose mechs the roster strip shows: one item per lance, then the reserves.</summary>
+    public OptionButton LancePicker { get; private set; } = null!;
+    /// <summary>The lance the roster strip shows, or null for the reserves; it always holds the selected mech.</summary>
+    public int? ShownLance { get; private set; }
     public OwnedMech SelectedMech => _roster.Mechs[_selected];
     /// <summary>The selected mech as shown: its pending loadout, when it has one.</summary>
     public OwnedMech DisplayedMech => Displayed(SelectedMech);
@@ -207,6 +211,8 @@ public partial class HangarScreen : Control
         QuickLaunchButton.Pressed += () => { if (CanQuickLaunch) QuickLaunchRequested?.Invoke(); };
         ResetButton = Ui.Button(this, "Reset"); ResetButton.Pressed += ResetSelected;
         ApplyButton = Ui.Sound(Ui.Button(this, "Apply"), Cue.UiConfirm); ApplyButton.Pressed += () => { if (SelectedCanApply) ApplyRequested?.Invoke(); };
+        LancePicker = new OptionButton { ClipText = true, FitToLongestItem = false }; AddChild(LancePicker);
+        LancePicker.ItemSelected += item => ShowLance(item < _roster.LanceCount ? (int)item : null);
         _rosterScroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Auto, VerticalScrollMode = ScrollContainer.ScrollMode.Disabled };
         AddChild(_rosterScroll); _rosterButtons = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; _rosterButtons.AddThemeConstantOverride("separation", 8); _rosterScroll.AddChild(_rosterButtons);
         Resized += Layout; Layout(); Hide();
@@ -293,6 +299,11 @@ public partial class HangarScreen : Control
     {
         if (!ReferenceEquals(_roster, roster)) { _selected = 0; AbandonPending(); }
         _roster = roster; MarketSystemId = marketSystemId; Cash = cash; _selected = Math.Clamp(_selected, 0, roster.Mechs.Count - 1); Board.Visible = true; Show();
+        // Opening shows the player's own lance, or the first group with mechs when it has none.
+        var shown = Enumerable.Range(0, roster.LanceCount).Select(lance => (int?)lance).Append(null)
+            .Prepend(Slot).First(lance => roster.Mechs.Any(mech => mech.Lance == lance));
+        if (roster.Mechs[_selected].Lance != shown) _selected = roster.Mechs.ToList().FindIndex(mech => mech.Lance == shown);
+        ShownLance = shown;
         BuildRosterButtons();
         ShowStorage(); ShowMarket();
         Select(_selected); Layout(); BackButton.CallDeferred(Control.MethodName.GrabFocus);
@@ -325,6 +336,8 @@ public partial class HangarScreen : Control
             var index = i; var mech = roster.Mechs[i];
             var button = Ui.Button(_rosterButtons, "");
             button.SizeFlagsHorizontal = SizeFlags.ExpandFill; button.CustomMinimumSize = new Vector2(150, 54);
+            // Kept at 54 pixels from the strip's top, level with the action buttons; the scroll bar takes the space beneath.
+            button.SizeFlagsVertical = SizeFlags.ShrinkBegin;
             // Small enough for a third line, the damage notice, inside the 54-pixel button.
             button.AddThemeFontSizeOverride("font_size", RosterFontSize); button.AddThemeConstantOverride("line_spacing", -3);
             button.Pressed += () => Select(index); RosterButtons.Add(button);
@@ -510,8 +523,35 @@ public partial class HangarScreen : Control
             _debugMount.Visible = true;
         }
     }
+    /// <summary>Shows a lance's mechs, or the reserves (null), on the roster strip, selecting its first mech unless the
+    /// selected mech is already in it. Returns false for a group with no mechs.</summary>
+    public bool ShowLance(int? lance)
+    {
+        var first = _roster.Mechs.ToList().FindIndex(mech => mech.Lance == lance);
+        if (first < 0) { RebuildLancePicker(); return false; }
+        ShownLance = lance;
+        if (SelectedMech.Lance != lance) _selected = first;
+        Refresh();
+        return true;
+    }
+    private void RebuildLancePicker()
+    {
+        LancePicker.Clear();
+        for (var lance = 0; lance <= _roster.LanceCount; lance++)
+        {
+            int? group = lance < _roster.LanceCount ? lance : null;
+            var count = _roster.Mechs.Count(mech => mech.Lance == group);
+            LancePicker.AddItem(group is { } shown
+                ? $"{ForceRoster.LanceName(shown)}{(LanceOwners is { } owners && shown < owners.Count ? $" · {owners[shown]}" : "")} · {count}/{ForceRoster.LanceSize}"
+                : $"Reserves · {count}");
+            LancePicker.SetItemDisabled(lance, count == 0);
+            if (group == ShownLance) LancePicker.Select(lance);
+        }
+    }
     public void Select(int index)
     {
+        // The strip follows the selected mech: selecting one in another group, or moving it to one, shows that group.
+        ShownLance = _roster.Mechs[index].Lance;
         if (index != _selected) { _debugHardpoint = 0; if (_debugMount is not null) _debugMount.Visible = false; }
         _selected = index; var mech = DisplayedMech; var spec = mech.Spec; var warrior = _roster.Pilot(mech);
         Preview.Display(mech);
@@ -547,11 +587,11 @@ public partial class HangarScreen : Control
         PilotPicker.Disabled = _pilotIds.Count == 0 || !SelectedControlled; UpdateAssignmentAction();
         if (!SelectedControlled) UnassignButton.Disabled = true;
         var lanceFull = _roster.LanceMechs(Slot).Count() >= ForceRoster.LanceSize;
-        LanceText.Text = SelectedMech.Lance is { } lance ? $"{ForceRoster.LanceName(lance)}{(LanceOwners is { } owners && lance < owners.Count ? $" · {owners[lance]}" : "")} · {_roster.LanceMechs(lance).Count()}/{ForceRoster.LanceSize}" : "Lance pool";
-        LanceButton.Text = SelectedMech.Lance is null ? $"Add to {ForceRoster.LanceName(Slot)}" : "Move to lance pool";
+        LanceText.Text = SelectedMech.Lance is { } lance ? $"{ForceRoster.LanceName(lance)}{(LanceOwners is { } owners && lance < owners.Count ? $" · {owners[lance]}" : "")} · {_roster.LanceMechs(lance).Count()}/{ForceRoster.LanceSize}" : "Reserves";
+        LanceButton.Text = SelectedMech.Lance is null ? $"Add to {ForceRoster.LanceName(Slot)}" : "Move to reserves";
         LanceButton.Disabled = !_roster.Controls(Slot, SelectedMech) || SelectedMech.Lance is null && lanceFull;
         LanceButton.TooltipText = !_roster.Controls(Slot, SelectedMech) ? "Another player's lance" : SelectedMech.Lance is null && lanceFull
-            ? $"A lance holds at most {ForceRoster.LanceSize} BattleMechs" : SelectedMech.Lance is null ? "Only lance mechs deploy" : "Lance pool mechs do not deploy";
+            ? $"A lance holds at most {ForceRoster.LanceSize} BattleMechs" : SelectedMech.Lance is null ? "Only lance mechs deploy" : "Reserve mechs do not deploy";
         var pending = SelectedHasPendingChanges; var applicable = SelectedCanApply;
         ResetButton.Disabled = !pending; ApplyButton.Disabled = !applicable; UpdateQuickLaunch(); UpdateRepair();
         ResetButton.FocusMode = pending ? FocusModeEnum.All : FocusModeEnum.None;
@@ -564,10 +604,12 @@ public partial class HangarScreen : Control
                 .Where(line => line.Length > 0));
         if (applicable) ApplyButton.AddThemeStyleboxOverride("normal", Ui.Box(new Color("344431"), Ui.Gold));
         else ApplyButton.RemoveThemeStyleboxOverride("normal");
+        RebuildLancePicker();
         for (var i = 0; i < RosterButtons.Count; i++)
         {
             var owned = _roster.Mechs[i]; var design = owned.Definition; var damage = RosterNotice(owned);
-            RosterButtons[i].Text = $"{design.Chassis}\n{design.Variant} · {design.Tonnage}t{(_pending.ContainsKey(owned.Id) ? " •" : "")}{(owned.Lance is null ? " · Pool" : "")}"
+            RosterButtons[i].Visible = owned.Lance == ShownLance;
+            RosterButtons[i].Text = $"{design.Chassis}\n{design.Variant} · {design.Tonnage}t{(_pending.ContainsKey(owned.Id) ? " •" : "")}"
                 + (damage is null ? "" : $"\n{damage}");
             var fill = i == index ? new Color("344431") : Ui.Panel;
             var (border, width) = DamageBorder(owned) is { } colour ? (colour, DamageBorderWidth) : (i == index ? Ui.Gold : Ui.Line, 1);
@@ -658,7 +700,10 @@ public partial class HangarScreen : Control
         var leftWidth = compact ? 190 : 280; var rightWidth = compact ? 230 : 310;
         var top = 24f; var bottom = Size.Y - 78; var gap = compact ? 10 : 16;
         Ui.Place(OverTonnageText, 24 + leftWidth + gap, 0, Size.X - 48 - leftWidth - rightWidth - gap * 2, top);
-        Ui.Place(StoragePanel, 24, top, leftWidth, bottom - top - 8);
+        // Compact windows lack room beside the roster strip, so the lance drop list takes the foot of the left column instead.
+        const float pickerHeight = 34;
+        Ui.Place(StoragePanel, 24, top, leftWidth, bottom - top - 8 - (compact ? pickerHeight + 6 : 0));
+        if (compact) Ui.Place(LancePicker, 24, bottom - 8 - pickerHeight, leftWidth, pickerHeight);
         Ui.Place(SummaryPanel, Size.X - rightWidth - 24, top, rightWidth, bottom - top - 8);
         var centreX = 24 + leftWidth + gap; var centreWidth = Size.X - 48 - leftWidth - rightWidth - gap * 2;
         Ui.Place(Preview, centreX, top - 8, centreWidth, bottom - top + 8);
@@ -669,7 +714,9 @@ public partial class HangarScreen : Control
         Button[] actions = [DeploymentButton, QuickLaunchButton, BackButton, ApplyButton, ResetButton];
         float[] widths = compact ? [185, 125, 125, 80, 80] : [210, 140, 150, 110, 110];
         for (var i = 0; i < actions.Length; i++) { actionX -= widths[i]; Ui.Place(actions[i], actionX, Size.Y - 66, widths[i], 54); actionX -= 8; }
-        Ui.Place(_rosterScroll, 24, Size.Y - 70, actionX - 24 - 8, 62);
+        var stripX = 24f;
+        if (!compact) { Ui.Place(LancePicker, 24, Size.Y - 66, 150, 54); stripX += 150 + 8; }
+        Ui.Place(_rosterScroll, stripX, Size.Y - 66, actionX - stripX - 8, 62);
     }
 
     /// <summary>Places each body-part panel roughly over its part of a front-facing mech: its right side on the viewer's left.</summary>

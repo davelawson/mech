@@ -78,7 +78,7 @@ public partial class SmokeTests
 
             await Click(_app.Office.HangarButton);
             Hangar(samMech);
-            Check(_app.Hangar.LanceText.Text == "Lance pool" && _app.Hangar.LanceButton.Text == "Add to Lance 1", "the leader may take a lance pool mech");
+            Check(_app.Hangar.LanceText.Text == "Reserves" && _app.Hangar.LanceButton.Text == "Add to Lance 1", "the leader may take a reserve mech");
             Hangar(roster.LanceMechs(1).First()); await Frames();
             Check(_app.Hangar.LanceText.Text.StartsWith("Lance 2 · Sam") && _app.Hangar.LanceButton.Disabled && _app.Hangar.ApplyButton.Disabled && _app.Hangar.PilotPicker.Disabled,
                 "the leader cannot change another player's lance");
@@ -384,7 +384,7 @@ public partial class SmokeTests
         _app.Hangar.Select(_app.State.Roster!.Mechs.ToList().FindIndex(mech => mech.Id == mine.Id)); await Frames();
         Check(!_app.Hangar.LanceButton.Disabled && _app.Hangar.LanceText.Text.StartsWith("Lance 2 · Sam"), "the joined player manages their own lance");
         await Click(_app.Hangar.LanceButton);
-        await Exchange(() => mine.Lance is null && _app.Hangar.LanceText.Text == "Lance pool", "the joined player's change goes through the leader and back", host);
+        await Exchange(() => mine.Lance is null && _app.Hangar.LanceText.Text == "Reserves", "the joined player's change goes through the leader and back", host);
         _app.Hangar.Select(0); await Frames();
         Check(_app.Hangar.LanceButton.Disabled && _app.Hangar.InstallProblem("weapon:medium-laser", MechLocation.LeftArm) == "Another player's lance",
             "the joined player cannot change the leader's lance");

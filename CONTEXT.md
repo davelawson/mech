@@ -10,8 +10,9 @@ The persistent player-controlled organization, which continues through personnel
 **Lance**:
 A formation of up to four BattleMechs, commanded by one player. A company has one lance per player slot, and only lance mechs deploy. A MechWarrior belongs to the lance of the BattleMech they are assigned to.
 
-**Lance pool**:
+**Reserves**:
 The company's BattleMechs in no lance, together with their assigned MechWarriors. Any player may act on them; none deploy.
+_Avoid_: Lance pool, pool
 
 **Player slot**:
 One player's seat in a campaign, numbered from 0 and matching the lance that player commands. The number of slots is fixed when the campaign begins.

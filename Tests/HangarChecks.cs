@@ -431,8 +431,8 @@ public partial class SmokeTests
             && mech.Spec == stock, "pending changes enable Apply and Reset, mark the mech button and leave the owned mech alone");
 
         // Pending changes stay with their mech while another is selected.
-        var other = (index + 1) % roster.Mechs.Count;
-        await Click(hangar.RosterButtons[other]);
+        var other = roster.Mechs.ToList().FindIndex(item => item.Lance == mech.Lance && item != mech);
+        if (other >= 0) await Click(hangar.RosterButtons[other]); else { hangar.Select((index + 1) % roster.Mechs.Count); await Frames(); }
         Check(hangar.ApplyButton.Disabled && hangar.ResetButton.Disabled && hangar.HasPendingChanges, "another mech's buttons follow its own pending state");
         await Click(hangar.RosterButtons[index]);
         Check(hangar.SelectedHasPendingChanges && hangar.DisplayedMech.Spec.Weapons.All(item => item.Id != weapon.Id), "returning to a mech keeps its pending changes");

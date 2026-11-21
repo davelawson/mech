@@ -999,6 +999,25 @@ public partial class SmokeTests : Node
         await Click(DialogButton("Close"));
     }
 
+    /// <summary>The bottom-left drop list shows one lance's mechs, or the reserves, on the roster strip.</summary>
+    private async Task TestHangarLanceFilter()
+    {
+        var hangar = _app.Hangar; var roster = _app.State.Roster!; var picker = hangar.LancePicker;
+        bool Shows(int? lance) => roster.Mechs.Select((mech, i) => hangar.RosterButtons[i].Visible == (mech.Lance == lance)).All(shown => shown);
+        Check(hangar.ShownLance == 0 && Shows(0) && picker.ItemCount == roster.LanceCount + 1 && picker.Selected == 0
+            && picker.GetItemText(0) == $"Lance 1 · {roster.LanceMechs(0).Count()}/4" && picker.GetItemText(roster.LanceCount).StartsWith("Reserves"),
+            "the hangar shows the player's lance, with one drop list item per lance and the reserves");
+        var pool = roster.LanceCount;
+        if (roster.Mechs.Any(mech => mech.Lance is null))
+        {
+            picker.Select(pool); picker.EmitSignal(OptionButton.SignalName.ItemSelected, (long)pool); await Frames();
+            Check(hangar.ShownLance is null && Shows(null) && hangar.SelectedMech.Lance is null, "choosing the reserves shows only its mechs and selects one");
+        }
+        else Check(picker.IsItemDisabled(pool) && !hangar.ShowLance(null) && hangar.ShownLance == 0, "empty reserves cannot be chosen");
+        await Click(hangar.BackButton); await Click(_app.Office.HangarButton);
+        Check(hangar.ShownLance == 0 && Shows(0) && hangar.SelectedMech.Lance == 0 && picker.Selected == 0, "reopening the hangar returns to the player's lance");
+    }
+
     private async Task TestHangarAssignmentsUi()
     {
         // Start with every warrior unassigned so the hangar must make each assignment.
@@ -1018,16 +1037,25 @@ public partial class SmokeTests : Node
         await Click(DialogButton("Cancel")); Check(roster.Mechs[1].WarriorId == before, "cancel swap leaves both assignments intact");
         await Click(_app.Hangar.AssignButton); await Click(DialogButton("Swap"));
         Check(roster.Mechs[1].WarriorId == roster.Warriors[0].Id && roster.Mechs[0].WarriorId == before, "confirmed swap updates both assignments");
-        Check(_app.Hangar.LanceText.Text == "Lance 1 · 4/4" && _app.Hangar.LanceButton.Text == "Move to lance pool", "hangar shows the selected mech's lance");
+        Check(_app.Hangar.LanceText.Text == "Lance 1 · 4/4" && _app.Hangar.LanceButton.Text == "Move to reserves", "hangar shows the selected mech's lance");
         await Click(_app.Hangar.LanceButton);
-        Check(roster.Mechs[1].Lance is null && roster.Mechs[1].WarriorId == roster.Warriors[0].Id && _app.Hangar.LanceText.Text == "Lance pool"
-            && _app.Hangar.RosterButtons[1].Text.EndsWith(" · Pool"), "hangar moves a mech to the lance pool with its MechWarrior");
+        Check(roster.Mechs[1].Lance is null && roster.Mechs[1].WarriorId == roster.Warriors[0].Id && _app.Hangar.LanceText.Text == "Reserves"
+            && _app.Hangar.ShownLance is null && _app.Hangar.SelectedMech == roster.Mechs[1] && _app.Hangar.RosterButtons[1].Visible
+            && !_app.Hangar.RosterButtons[0].Visible, "hangar moves a mech to the reserves with its MechWarrior, and the roster strip follows it");
         await Click(_app.Hangar.LanceButton);
-        Check(roster.Mechs[1].Lance == 0 && _app.Hangar.LanceButton.Text == "Move to lance pool", "hangar adds a lance pool mech back to the player's lance");
+        Check(roster.Mechs[1].Lance == 0 && _app.Hangar.LanceButton.Text == "Move to reserves" && _app.Hangar.ShownLance == 0
+            && _app.Hangar.SelectedMech == roster.Mechs[1], "hangar adds a reserve mech back to the player's lance, and the strip follows it");
+        await TestHangarLanceFilter();
         foreach (var size in new[] { new Vector2I(1440, 900), new Vector2I(900, 500) })
         {
             GetWindow().Size = size; await Frames(); await Capture($"hangar-{size.X}x{size.Y}");
-            Check(_app.Hangar.GetGlobalRect().Encloses(_app.Hangar.BackButton.GetGlobalRect()) && _app.Hangar.GetGlobalRect().Encloses(_app.Hangar.RosterButtons[0].GetGlobalRect()), "hangar navigation survives resizing");
+            Check(_app.Hangar.GetGlobalRect().Encloses(_app.Hangar.BackButton.GetGlobalRect()) && _app.Hangar.GetGlobalRect().Encloses(_app.Hangar.RosterButtons[0].GetGlobalRect())
+                && _app.Hangar.GetGlobalRect().Encloses(_app.Hangar.LancePicker.GetGlobalRect())
+                && !_app.Hangar.LancePicker.GetGlobalRect().Intersects(_app.Hangar.RosterButtons[0].GetGlobalRect())
+                && !_app.Hangar.LancePicker.GetGlobalRect().Intersects(_app.Hangar.StoragePanel.GetGlobalRect()), "hangar navigation survives resizing");
+            var mechButton = _app.Hangar.RosterButtons[0].GetGlobalRect(); var backButton = _app.Hangar.BackButton.GetGlobalRect();
+            Check(Mathf.IsEqualApprox(mechButton.Position.Y, backButton.Position.Y) && Mathf.IsEqualApprox(mechButton.Size.Y, backButton.Size.Y),
+                $"mech buttons sit level with, and as tall as, the other bottom buttons at {size}: {mechButton} vs {backButton}");
         }
         GetWindow().Size = new Vector2I(1440, 900); await Frames();
     }

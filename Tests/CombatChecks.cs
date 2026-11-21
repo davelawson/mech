@@ -28,8 +28,8 @@ internal static partial class CombatChecks
     private static void CheckLances(Action<bool, string> check, Action<Action, string> reject)
     {
         var pooled = Roster(4); pooled.SetLance("mech-4", null);
-        check(CombatSimulation.UnavailableReason(pooled, pooled.Mechs[3]) == "In the lance pool", "lance pool mechs cannot deploy");
-        reject(() => Deploy(pooled, ["mech-1", "mech-4"]), "a deployment with a lance pool mech is rejected");
+        check(CombatSimulation.UnavailableReason(pooled, pooled.Mechs[3]) == "In reserve", "reserve mechs cannot deploy");
+        reject(() => Deploy(pooled, ["mech-1", "mech-4"]), "a deployment with a reserve mech is rejected");
 
         var roster = ForceRoster.Create("Two lances", Enumerable.Repeat(DraftCatalog.Mech("awesome"), 5), DraftCatalog.Warriors.Take(5), lances: 2);
         for (var i = 0; i < 5; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);

@@ -9,7 +9,7 @@ Deterministic lockstep was rejected. Combat runs on float math, and the timing o
 ## Roles and ownership
 
 - **Leader-only actions:** travelling on the star chart, accepting and abandoning contracts, advancing time, paying or deferring quarterly bills, settling missions, and saving and loading. Company dialogs are shown to everyone; other players see *Waiting for leader* in place of the buttons.
-- **Ownership:** a player may act on mechs in their own lance and in the lance pool: assign MechWarriors, refit, repair, sell, unassign, and move mechs between their lance and the pool. They may never act on another player's lance. Spare equipment and company cash are shared and open to everyone.
+- **Ownership:** a player may act on mechs in their own lance and in the reserves: assign MechWarriors, refit, repair, sell, unassign, and move mechs between their lance and the reserves. They may never act on another player's lance. Spare equipment and company cash are shared and open to everyone.
 - **Lances:** each lance holds up to four mechs. A MechWarrior belongs to the lance of their assigned mech.
 - **Initial draft:** each player drafts their own lance at the same time. No MechWarrior candidate appears in two players' drafts, so each draft needs nine regular and three veteran MechWarriors of its own. Three-player campaigns wait until the catalog has 27 and 9.
 - **Scaling:** enemy forces and contract pay scale with the number of lances.

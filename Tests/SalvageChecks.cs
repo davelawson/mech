@@ -112,7 +112,7 @@ internal static class SalvageChecks
         var claimed = roster.Mechs.Single(item => item.Id == result.SalvagedMechs.Single());
         var wreck = Wrecks(offer)[0];
         check(roster.Mechs.Count == mechs + 1 && claimed.Definition.Id == wreck.MechId && claimed.Lance is null && claimed.WarriorId is null
-            && roster.Mechs.Select(item => item.Id).Distinct().Count() == roster.Mechs.Count, "a mech claimed whole joins the lance pool with no pilot and its own id");
+            && roster.Mechs.Select(item => item.Id).Distinct().Count() == roster.Mechs.Count, "a mech claimed whole joins the reserves with no pilot and its own id");
         check(!claimed.LocationIntact(MechLocation.LeftLeg) && !claimed.Operational
             && claimed.Ammo.All(bin => bin.Shots == claimed.Spec.Ammo.Single(stock => stock.Id == bin.Id).Shots),
             "a salvaged mech keeps its battle damage, with its bins refilled");
