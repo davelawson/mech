@@ -45,15 +45,18 @@ internal static class CampaignChecks
         buyer = WithMarket(buyer, new StorageEntry(StorageCatalog.AmmoId(buyerBin.AmmoKind), 1)); buyerMech = buyer.Roster!.Mechs.Single(item => item.Id == buyerMech.Id);
         var swap = buyerMech.Plan with { Removed = buyerMech.Removed.Add(buyerBin.Id), Installed = [new(Loadout.NextId([]), StorageCatalog.AmmoId(buyerBin.AmmoKind), buyerBin.Location)] };
         var broke = Campaign.Restore(buyer.Snapshot() with { Cash = 0 }); var brokeStorage = broke.Roster!.Storage.ToArray();
-        Throws(() => broke.ApplyLoadout(buyerMech.Id, swap, [StorageCatalog.AmmoId(buyerBin.AmmoKind)]), check, "reject an unaffordable purchase");
-        check(broke.Roster.Storage.SequenceEqual(brokeStorage) && broke.Roster.Mechs.First(item => item.Id == buyerMech.Id).Installed.IsEmpty,
+        Throws(() => broke.OrderRefit(buyerMech.Id, swap, [StorageCatalog.AmmoId(buyerBin.AmmoKind)]), check, "reject an unaffordable purchase");
+        check(broke.Roster.Storage.SequenceEqual(brokeStorage) && broke.Roster.Mechs.First(item => item.Id == buyerMech.Id) is { Installed.IsEmpty: true, Repair: null },
             "a refused purchase changes nothing");
         var binStored = buyer.Roster.Storage.Single(item => item.Id == StorageCatalog.AmmoId(buyerBin.AmmoKind)).Count;
-        buyer.ApplyLoadout(buyerMech.Id, swap, [StorageCatalog.AmmoId(buyerBin.AmmoKind)]);
-        check(buyer.Cash == Campaign.StartingCash - EquipmentMarket.Price(StorageCatalog.AmmoId(buyerBin.AmmoKind)) && buyerMech.Installed.Length == 1
-            && buyer.Roster.Storage.Single(item => item.Id == StorageCatalog.AmmoId(buyerBin.AmmoKind)).Count == binStored + 1,
-            "applying a loadout pays for its purchases, which install without drawing on storage");
+        buyer.OrderRefit(buyerMech.Id, swap, [StorageCatalog.AmmoId(buyerBin.AmmoKind)]);
+        check(buyer.Cash == Campaign.StartingCash - EquipmentMarket.Price(StorageCatalog.AmmoId(buyerBin.AmmoKind)) && buyerMech.Installed.IsEmpty
+            && buyer.Roster.Stored(StorageCatalog.AmmoId(buyerBin.AmmoKind)) == binStored && buyerMech.Repair!.Parts!.SequenceEqual([StorageCatalog.AmmoId(buyerBin.AmmoKind)]),
+            "ordering a refit pays for its purchases at once and reserves them for installation");
         check(buyer.OrbitMarket!.Stock(StorageCatalog.AmmoId(buyerBin.AmmoKind)) == 0, "an applied purchase leaves the market");
+        AdvanceTo(buyer, buyerMech.Repair!.Completes!.Value);
+        check(buyerMech.Repair is null && buyerMech.Installed.Length == 1 && buyer.Roster.Stored(StorageCatalog.AmmoId(buyerBin.AmmoKind)) == binStored + 1,
+            "a finished refit installs the purchase without drawing on storage, and the removed bin joins it");
         var insolvent = Campaign.Restore(NewCompany().Snapshot() with { Cash = 99_999 });
         AdvanceTo(insolvent, new DateOnly(3025, 4, 1));
         check(!insolvent.CanPay && insolvent.CanDefer && !insolvent.Bankrupt, "first shortfall permits grace");
@@ -91,6 +94,7 @@ internal static class CampaignChecks
         TestStorage(check); TestSaveLibrary(check);
         TestLances(check);
         TestRepairs(check);
+        TestRefits(check);
         TestMarkets(check);
         TestRecruitment(check);
     }
@@ -292,6 +296,68 @@ internal static class CampaignChecks
         mech.ApplyBattle(locations, equipment);
     }
 
+    private static void TestRefits(Action<bool, string> check)
+    {
+        // Six mechs, so four repairs fill every bay.
+        var company = NewCompany().Snapshot();
+        var spares = company.Roster!.Mechs.Take(2).Select((item, i) => item with { Id = $"mech-spare-{i}", WarriorId = null, Lance = null });
+        var campaign = Campaign.Restore(company with { Roster = company.Roster with { Mechs = [.. company.Roster.Mechs, .. spares] } });
+        var roster = campaign.Roster!; var mech = roster.Mechs[0];
+        var weapon = mech.Spec.Weapons[0]; var part = StorageCatalog.WeaponId(weapon.Kind); var slots = EquipmentRules.Slots(weapon.Kind);
+        int Days(double days) => Math.Max(1, (int)Math.Ceiling(days - 1e-9));
+        check(Repairs.RefitEstimate(mech, mech.Plan) is null, "a plan that changes nothing is no refit");
+        Throws(() => campaign.OrderRefit(mech.Id, mech.Plan, []), check, "a refit must change something");
+
+        // Removing: ¾ day a slot, and the loadout changes only when the refit completes.
+        var removing = LoadoutPlan.Removing([weapon.Id]);
+        check(Repairs.RefitEstimate(mech, removing) is { Cost: 0 } estimate && estimate.Days == Days(slots * .75),
+            $"removing an item takes ¾ day a slot it takes ({slots} slots)");
+        var stored = roster.Stored(part); var cash = campaign.Cash;
+        campaign.OrderRefit(mech.Id, removing, []);
+        check(mech.UnderRepair && mech.Repair!.Refit && mech.Repair.Started == campaign.Date && mech.Removed.IsEmpty && campaign.Cash == cash
+            && campaign.ActiveRepairs == 1, "a refit starts at once in a free bay, costs nothing, and keeps the old loadout meanwhile");
+        check(CombatSimulation.UnavailableReason(roster, mech)!.Contains("Being refitted"), "a mech being refitted cannot deploy");
+        Damage(mech);
+        Throws(() => campaign.OrderRepair(mech.Id, RepairScope.Armor), check, "a mech being refitted cannot be ordered a repair");
+        var saved = Campaign.Restore(campaign.Snapshot());
+        check(System.Text.Json.JsonSerializer.Serialize(saved.Snapshot().Roster) == System.Text.Json.JsonSerializer.Serialize(campaign.Snapshot().Roster)
+            && saved.Roster!.Mechs[0].Repair!.Plan!.SameAs(removing), "refit orders survive a save");
+        RosterSnapshot WithOrder(RepairOrder order) => campaign.Snapshot().Roster! with
+        { Mechs = [.. campaign.Snapshot().Roster!.Mechs.Select(item => item.Id == mech.Id ? item with { Repair = order } : item)] };
+        Throws(() => Campaign.Restore(campaign.Snapshot() with { Roster = WithOrder(mech.Repair! with { Plan = null }) }), check, "a saved refit needs its plan");
+        Throws(() => Campaign.Restore(campaign.Snapshot() with { Roster = WithOrder(mech.Repair! with { Scope = RepairScope.Armor }) }), check,
+            "a saved repair carries no plan");
+        Throws(() => Campaign.Restore(campaign.Snapshot() with { Roster = WithOrder(mech.Repair! with { Plan = LoadoutPlan.Removing(["no-such-item"]) }) }), check,
+            "a saved refit's plan must be a valid loadout");
+        var done = mech.Repair!.Completes!.Value; CampaignEvent[] events = [];
+        while (campaign.Date < done) events = [.. campaign.AdvanceOneDay().Events];
+        check(mech.Repair is null && mech.Removed.Contains(weapon.Id) && roster.Stored(part) == stored + 1
+            && events.Any(item => item.Kind == CampaignEventKind.RepairCompletion && item.Title == $"Refit complete · {mech.Spec.DisplayName}"),
+            "a finished refit changes the loadout, stores what came out and reports on its day");
+
+        // Installing: 1½ days a slot; the spare is reserved, and cancelling returns it.
+        var install = mech.Plan with { Installed = [new(Loadout.NextId(mech.Installed), part, weapon.Location)] };
+        check(Repairs.RefitEstimate(mech, install)!.Days == Days(slots * 1.5), "installing an item takes 1½ days a slot it takes");
+        campaign.OrderRefit(mech.Id, install, []);
+        check(roster.Stored(part) == stored && mech.Repair!.Parts!.SequenceEqual([part]) && mech.Installed.IsEmpty, "a refit reserves the spares it installs");
+        cash = campaign.Cash; campaign.CancelRepair(mech.Id);
+        check(mech.Repair is null && roster.Stored(part) == stored + 1 && mech.Installed.IsEmpty && campaign.Cash == cash,
+            "cancelling a refit returns its spares, keeps the loadout and costs nothing");
+
+        // Armor: ¾ day a ton, put on or taken off.
+        var plated = mech.Spec.Locations.MaxBy(item => item.Armor)!; var plateTons = plated.Armor / 160d;
+        var plates = mech.Plan with { Armor = [new(plated.Location, 0, plated.RearArmor)] };
+        check(Repairs.RefitEstimate(mech, plates) is { } armor && armor.Days == Days(plateTons * .75)
+            && armor.Lines.Contains($"Armor {plateTons.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)} t"),
+            $"changing armor takes ¾ day a ton ({plateTons} t)");
+
+        // Bays: refits and repairs share them, first ordered first served.
+        foreach (var other in roster.Mechs.Skip(1).Take(4)) { Damage(other); campaign.OrderRepair(other.Id, RepairScope.Armor); }
+        campaign.OrderRefit(mech.Id, plates, []);
+        check(campaign.ActiveRepairs == RepairTuning.Bays && mech.Repair is { Started: null } && campaign.RepairsAhead(mech) == 0
+            && CombatSimulation.UnavailableReason(roster, mech)!.Contains("Refit queued"), "a refit waits for a repair bay like a repair");
+    }
+
     private static void TestRepairs(Action<bool, string> check)
     {
         // Six mechs, so a fifth order finds every bay busy.
@@ -352,7 +418,7 @@ internal static class CampaignChecks
             "a repair starts at once in a free bay and is paid for then");
         Throws(() => campaign.OrderRepair(mech.Id, RepairScope.All), check, "a mech holds one repair order");
         check(CombatSimulation.UnavailableReason(roster, mech)!.Contains("Under repair"), "a mech under repair cannot deploy");
-        Throws(() => campaign.ApplyLoadout(mech.Id, mech.Plan with { Armor = [] }, []), check, "a mech under repair cannot change its loadout");
+        Throws(() => campaign.OrderRefit(mech.Id, LoadoutPlan.Removing([mech.Spec.Weapons[0].Id]), []), check, "a mech under repair cannot change its loadout");
         check(campaign.NextEventDate == mech.Repair!.Completes, "the calendar stops when a repair completes");
         foreach (var other in roster.Mechs.Skip(1).Take(4).Where(item => item != systems && item != cut)) Damage(other);
         var spareCount = roster.Stored(lostPart);
@@ -439,7 +505,7 @@ internal static class CampaignChecks
         check(campaign.Missions.Current?.Id == offer.Id && campaign.Date == date, "the leader accepts a mission");
 
         Throws(() => campaign.Execute(new SetLanceCommand(leaderMech.Id, null), 1), check, "a player cannot move another player's mech to the lance pool");
-        Throws(() => campaign.Execute(new ApplyLoadoutCommand(leaderMech.Id, leaderMech.Plan, []), 1), check, "a player cannot refit another player's mech");
+        Throws(() => campaign.Execute(new OrderRefitCommand(leaderMech.Id, LoadoutPlan.Removing([leaderMech.Spec.Weapons[0].Id]), []), 1), check, "a player cannot refit another player's mech");
         Throws(() => campaign.Execute(new AssignWarriorCommand(playerMech.Id, leaderMech.WarriorId, true), 1), check,
             "a player cannot take a MechWarrior from another player's mech");
         campaign.Execute(new SetLanceCommand(playerMech.Id, null), 1);

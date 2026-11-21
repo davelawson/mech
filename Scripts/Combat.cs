@@ -467,7 +467,8 @@ public sealed partial class CombatSimulation
     {
         var reasons = new List<string>(); var warrior = roster.Pilot(mech);
         if (mech.Lance is null) reasons.Add("In the lance pool");
-        if (mech.Repair is { } repair) reasons.Add(repair.Started is null ? "Repair queued" : "Under repair");
+        if (mech.Repair is { } repair) reasons.Add(repair.Refit ? repair.Started is null ? "Refit queued" : "Being refitted"
+            : repair.Started is null ? "Repair queued" : "Under repair");
         if (!mech.Operational) reasons.Add("BattleMech not operational");
         if (warrior is null) reasons.Add("No assigned MechWarrior");
         else if (!warrior.Ready) reasons.Add(warrior.Status);

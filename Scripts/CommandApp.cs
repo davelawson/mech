@@ -856,14 +856,14 @@ public partial class CommandApp : Control
             new DialogAction("Abandon changes and leave", () => { Hangar.AbandonPending(); CloseDialog(); ShowOffice(); }));
     }
 
-    /// <summary>Applies the selected mech's pending loadout to the company, paying for its pending purchases, confirming first when it has items marked ⚠.</summary>
+    /// <summary>Orders a refit of the selected mech to its pending loadout, paying for its pending purchases, confirming first when it has items marked ⚠.</summary>
     private void ApplyLoadout()
     {
         if (Navigation.CurrentScreen != CommandScreen.Hangar || !Hangar.SelectedCanApply) return;
         void Commit()
         {
-            Execute(new ApplyLoadoutCommand(Hangar.SelectedMech.Id, Hangar.SelectedPlan, [.. Hangar.SelectedPurchases]));
-            Hangar.Cash = State.Cash; Hangar.CommitSelected();
+            Execute(new OrderRefitCommand(Hangar.SelectedMech.Id, Hangar.SelectedPlan, [.. Hangar.SelectedPurchases]));
+            Hangar.Cash = State.Cash; Hangar.CommitSelected(); RefreshCampaign(); UpdateQuickLaunch();
             if (Navigation.CurrentScreen == CommandScreen.Dialog) CloseDialog();
             Navigation.RestoreFocus(Hangar.BackButton);
         }
@@ -879,12 +879,13 @@ public partial class CommandApp : Control
         Execute(new OrderRepairCommand(mechId, scope, Hangar.StorageCounts())); AfterRepairChange();
     }
 
-    /// <summary>Cancelling work already started forfeits its payment, so it asks first; a queued order cancels at once.</summary>
+    /// <summary>Cancelling a repair already started forfeits its payment, so it asks first; a queued order or a refit, which costs
+    /// nothing, cancels at once.</summary>
     private void CancelRepair(string mechId)
     {
         if (Navigation.CurrentScreen != CommandScreen.Hangar || State.Roster!.Mechs.Single(item => item.Id == mechId).Repair is not { } order) return;
         void Cancel() { Execute(new CancelRepairCommand(mechId)); if (Navigation.CurrentScreen == CommandScreen.Dialog) CloseDialog(); AfterRepairChange(); }
-        if (order.Started is null) { Cancel(); return; }
+        if (order.Started is null || order.Refit) { Cancel(); return; }
         void Keep() { CloseDialog(); Navigation.RestoreFocus(Hangar.CancelRepairButton); }
         OpenDialog("Cancel repair?", $"Work has started. Cancelling forfeits the {HangarScreen.Money(order.Cost)} paid, and the damage stays.", Keep,
             new DialogAction("Keep repairing", Keep), new DialogAction("Cancel repair", Cancel));

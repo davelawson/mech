@@ -171,8 +171,11 @@ The selection of four starting BattleMechs and four starting MechWarriors from e
 **Repair order**:
 Authorized work to repair a particular BattleMech, either its armor alone or everything, with its days and cost fixed when ordered. It is queued until a repair bay takes it, and paid for then.
 
+**Refit order**:
+Authorized work to change a particular BattleMech to a new loadout, placed by applying its loadout changes. Its days are fixed when ordered and it costs nothing beyond its purchases; it shares the repair bays and queue with repair orders, and the new loadout takes effect when it completes.
+
 **Repair bay**:
-One of the four mech hangars where a repair order is worked on; a fifth order waits for a free bay.
+One of the four mech hangars where a repair or refit order is worked on; a fifth order waits for a free bay.
 
 **Mission result**:
 The battlefield facts reported after a deployment, from which the mercenary force determines contractual and financial consequences.

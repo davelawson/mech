@@ -97,7 +97,7 @@ internal static class NetworkChecks
         var commands = new CampaignCommand[]
         {
             new AcceptMissionCommand("m-1"), new AbandonMissionCommand(), new PlotJourneyCommand("terra"), new EmbarkCommand(), new CancelJourneyCommand(),
-            new AdvanceDayCommand(), new PayNowCommand(), new DeferPaymentCommand(), new ApplyLoadoutCommand("mech-1", plan, ["weapon:medium-laser"]),
+            new AdvanceDayCommand(), new PayNowCommand(), new DeferPaymentCommand(), new OrderRefitCommand("mech-1", plan, ["weapon:medium-laser"]),
             new AssignWarriorCommand("mech-1", null, true), new SetLanceCommand("mech-2", 1),
             new SettleMissionCommand(new(MissionOutcome.Success, [new("mech-1", [new(MechLocation.Head, 1, 0, 2)], [new("x", ComponentCondition.Damaged)], false, 3)], 2))
         };
@@ -107,7 +107,7 @@ internal static class NetworkChecks
             check(decoded?.Command.GetType() == command.GetType() && System.Text.Json.JsonSerializer.Serialize<object>(decoded.Command) == System.Text.Json.JsonSerializer.Serialize<object>(command),
                 $"{command.GetType().Name} survives encoding");
         }
-        var loadout = (ApplyLoadoutCommand)((CommandMessage)NetProtocol.Decode(NetProtocol.Encode(new CommandMessage(commands[8])))!).Command;
+        var loadout = (OrderRefitCommand)((CommandMessage)NetProtocol.Decode(NetProtocol.Encode(new CommandMessage(commands[8])))!).Command;
         check(loadout.Plan.SameAs(plan) && loadout.Plan.Armor.SequenceEqual(plan.Armor), "a loadout plan survives encoding");
         var snapshot = CampaignChecks.NewCompany(5).Snapshot();
         var state = NetProtocol.Decode(NetProtocol.Encode(new CampaignMessage(snapshot))) as CampaignMessage;

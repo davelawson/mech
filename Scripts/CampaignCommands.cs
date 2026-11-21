@@ -15,7 +15,7 @@ namespace Mech;
 [JsonDerivedType(typeof(PayNowCommand), "pay-now")]
 [JsonDerivedType(typeof(DeferPaymentCommand), "defer-payment")]
 [JsonDerivedType(typeof(SettleMissionCommand), "settle-mission")]
-[JsonDerivedType(typeof(ApplyLoadoutCommand), "apply-loadout")]
+[JsonDerivedType(typeof(OrderRefitCommand), "order-refit")]
 [JsonDerivedType(typeof(AssignWarriorCommand), "assign-warrior")]
 [JsonDerivedType(typeof(SetLanceCommand), "set-lance")]
 [JsonDerivedType(typeof(OrderRepairCommand), "order-repair")]
@@ -94,13 +94,13 @@ public sealed record SettleMissionCommand(MissionReport Report) : CampaignComman
     internal override MissionSettlement Apply(Campaign campaign, int slot) => campaign.SettleMission(Report);
 }
 
-/// <summary>Applies a mech's loadout, paying for the items it buys from the company's cash.</summary>
-public sealed record ApplyLoadoutCommand(string MechId, LoadoutPlan Plan, string[] Bought) : CampaignCommand
+/// <summary>Orders a refit of a mech to a loadout, paying for the items it buys from the company's cash.</summary>
+public sealed record OrderRefitCommand(string MechId, LoadoutPlan Plan, string[] Bought) : CampaignCommand
 {
     internal override object? Run(Campaign campaign, int slot)
     {
         Campaign.RequireControl(campaign.RequireRoster(), slot, MechId);
-        campaign.ApplyLoadout(MechId, Plan, Bought);
+        campaign.OrderRefit(MechId, Plan, Bought);
         return null;
     }
 }

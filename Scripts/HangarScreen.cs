@@ -242,8 +242,10 @@ public partial class HangarScreen : Control
         if (order is not null)
         {
             RepairText.Text = RepairStatus(mech);
+            CancelRepairButton.Text = order.Refit ? "Cancel Refit" : "Cancel Repair";
             CancelRepairButton.Disabled = !SelectedControlled;
             CancelRepairButton.TooltipText = !SelectedControlled ? "Another player's lance"
+                : order.Refit ? "Keeps the current loadout; reserved spares return to storage"
                 : order.Started is null ? "Nothing has been paid yet" : $"Work has started: the {Money(order.Cost)} paid is forfeited";
             return;
         }
@@ -256,16 +258,23 @@ public partial class HangarScreen : Control
                 + (Campaign is { } campaign && campaign.ActiveRepairs >= RepairTuning.Bays ? "\nWaits for a free repair bay" : "\nPaid when work starts");
         }
     }
-    /// <summary>"Under repair · completes 12 JAN 3025", or where a queued order stands.</summary>
+    /// <summary>"Under repair · completes 12 JAN 3025" or "Refitting · completes …", or where a queued order stands.</summary>
     public string RepairStatus(OwnedMech mech)
     {
         if (mech.Repair is not { } order) return "";
-        if (order.Completes is { } done) return $"Under repair · completes {done.ToString("dd MMM yyyy", CultureInfo.InvariantCulture).ToUpperInvariant()}";
-        if (Campaign is not { } campaign) return "Repair queued";
+        var queued = order.Refit ? "Refit queued" : "Repair queued";
+        if (order.Completes is { } done)
+            return $"{(order.Refit ? "Refitting" : "Under repair")} · completes {done.ToString("dd MMM yyyy", CultureInfo.InvariantCulture).ToUpperInvariant()}";
+        if (Campaign is not { } campaign) return queued;
         var ahead = campaign.RepairsAhead(mech);
-        return ahead > 0 ? $"Repair queued · {ahead} ahead" : campaign.ActiveRepairs >= RepairTuning.Bays ? "Repair queued · next for a bay"
-            : $"Repair queued · needs {Money(order.Cost)}";
+        return ahead > 0 ? $"{queued} · {ahead} ahead" : campaign.ActiveRepairs >= RepairTuning.Bays || order.Cost == 0 ? $"{queued} · next for a bay"
+            : $"{queued} · needs {Money(order.Cost)}";
     }
+    /// <summary>The refit the selected mech's pending changes would order, or null when they change nothing.</summary>
+    public RepairEstimate? SelectedRefit => SelectedHasPendingChanges && !SelectedOverTonnage ? Repairs.RefitEstimate(SelectedMech, SelectedPlan) : null;
+    /// <summary>The refit's work line by line, then its days and when it starts.</summary>
+    public string RefitDetails(RepairEstimate estimate) => string.Join("\n", estimate.Lines.Append($"Refit · {Repairs.DaysText(estimate.Days)}")
+        .Append(Campaign is { } campaign && campaign.ActiveRepairs >= RepairTuning.Bays ? "Waits for a free repair bay" : "Starts today in a repair bay"));
     public const int MarketTab = 1;
     /// <summary>Buys items from the market into storage: Shift buys <see cref="BulkPurchase"/>, as many as the market holds and the
     /// company can afford. Returns whether anything was bought.</summary>
@@ -550,7 +559,9 @@ public partial class HangarScreen : Control
         var bought = SelectedPurchases.Count; var cost = SelectedPurchaseCost;
         ApplyButton.TooltipText = mech.OverTonnage ? $"Over tonnage by {(mech.Tons - mech.Definition.Tonnage).ToString("0.##", CultureInfo.InvariantCulture)} t"
             : SelectedShortage is { } shortage ? shortage
-            : bought == 0 ? "" : $"{(SelectedAffordable ? "Buys" : "Not enough C-bills to buy")} {bought} {(bought == 1 ? "item" : "items")} · {Money(cost)}";
+            : string.Join("\n", new[] { SelectedRefit is { } refit ? RefitDetails(refit) : "",
+                bought == 0 ? "" : $"{(SelectedAffordable ? "Buys" : "Not enough C-bills to buy")} {bought} {(bought == 1 ? "item" : "items")} · {Money(cost)}" }
+                .Where(line => line.Length > 0));
         if (applicable) ApplyButton.AddThemeStyleboxOverride("normal", Ui.Box(new Color("344431"), Ui.Gold));
         else ApplyButton.RemoveThemeStyleboxOverride("normal");
         for (var i = 0; i < RosterButtons.Count; i++)
@@ -572,7 +583,8 @@ public partial class HangarScreen : Control
     }
     /// <summary>The roster button's third line: the repair order, or else the damage.</summary>
     public static string? RosterNotice(OwnedMech mech) => mech.Repair is { } order
-        ? order.Started is null ? "Repair Queued" : "Under Repair" : DamageNotice(mech);
+        ? order.Refit ? order.Started is null ? "Refit Queued" : "Refitting"
+        : order.Started is null ? "Repair Queued" : "Under Repair" : DamageNotice(mech);
     /// <summary>The roster button's damage line, the worst damage first: internals, then systems, then armor.</summary>
     public static string? DamageNotice(OwnedMech mech) => mech.InternalsDamaged ? "Internals Damaged"
         : mech.SystemsDamaged ? "Systems Damaged" : mech.ArmorDamaged ? "Armour Damaged" : null;

@@ -695,6 +695,7 @@ public sealed class ForceRoster
             foreach (var bin in mech.Ammo)
                 if (bin.Shots < 0 || bin.Shots > spec.Ammo.Single(item => item.Id == bin.Id).Shots) throw new ArgumentException("Invalid ammunition quantity.");
             if (mech.Repair is { } order && (!Enum.IsDefined(order.Scope) || order.Days < 1 || order.Cost < 0 || order.Sequence < 0
+                || (order.Refit ? order.Plan is null || order.Cost != 0 || order.Missing is not null || !ValidRefit(mech, order.Plan) : order.Plan is not null)
                 || order.Started is { } started && (started > date || order.Completes <= date)
                 || order.Parts?.Any(id => id is null || StorageCatalog.Describe(id) is null) == true
                 || order.Missing?.Any(id => id is null || !equipmentIds.Contains(id)) == true))
@@ -707,6 +708,12 @@ public sealed class ForceRoster
             || storage.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != storage.Length))
             throw new ArgumentException("Invalid equipment storage.");
         return new(save.ForceName, mechs.Select(item => new OwnedMech(item)), save.Warriors.Select(item => new RosterWarrior(item)), save.Storage, lances);
+    }
+    /// <summary>A saved refit's plan must be a loadout the mech can change to.</summary>
+    private static bool ValidRefit(MechSnapshot mech, LoadoutPlan plan)
+    {
+        try { return !new OwnedMech(mech).WithLoadout(plan).OverTonnage; }
+        catch (ArgumentException) { return false; }
     }
     /// <summary>Saves from before heat sinks and jump jets were individual items record one condition per group; each item inherits it.</summary>
     private static MechSnapshot Migrate(MechSnapshot mech, MechSpec stock)

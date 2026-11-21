@@ -378,6 +378,13 @@ public partial class SmokeTests
         hangar.LocationPanels.Values.SelectMany(panel => panel.Blocks.Select(block => (panel, block))).First(item => match(item.block));
     private static IEnumerable<string> StorageTexts(HangarScreen hangar) =>
         hangar.StorageList.FindChildren("*", "Label", true, false).OfType<Label>().Select(label => label.Text);
+    /// <summary>Lets the days pass until the mech's refit completes.</summary>
+    private async Task FinishRefit(OwnedMech mech)
+    {
+        while (mech.Repair is not null)
+            if (!_app.State.AdvanceOneDay().Advanced) throw new InvalidOperationException("Unexpected time blocker in test.");
+        _app.Hangar.Cash = _app.State.Cash; _app.Hangar.Refresh(); await Frames();
+    }
     private static int StorageCount(HangarScreen hangar, string name) => StorageTexts(hangar).Where(text => text.StartsWith(name + " ×", StringComparison.Ordinal))
         .Select(text => int.Parse(text[(name.Length + 2)..])).SingleOrDefault();
 
@@ -441,11 +448,18 @@ public partial class SmokeTests
         await Click(_app.Tactical.BackButton);
         Check(_app.Navigation.CurrentScreen == CommandScreen.Hangar && hangar.SelectedHasPendingChanges, "pending changes survive a simulated deployment");
 
-        // Apply commits to the company.
+        // Apply orders a refit; the loadout changes when it completes.
+        Check(hangar.ApplyButton.TooltipText.Contains($"Remove {weapon.Name}") && hangar.ApplyButton.TooltipText.Contains("Refit · ")
+            && hangar.ApplyButton.TooltipText.Contains("Starts today in a repair bay"), "Apply's tooltip lists the refit's work and days");
         await Click(hangar.ApplyButton);
-        Check(mech.Removed.Contains(weapon.Id) && !hangar.HasPendingChanges && hangar.ApplyButton.Disabled
-            && roster.Storage.Single(item => item.Id == StorageCatalog.WeaponId(weapon.Kind)).Count == stored + 1 && _app.HasUnsavedChanges,
-            "Apply commits the loadout and storage to the company");
+        Check(mech.Repair is { Refit: true } && !mech.Removed.Contains(weapon.Id) && !hangar.HasPendingChanges && hangar.ApplyButton.Disabled
+            && hangar.SelectedLocked && hangar.RepairText.Text.StartsWith("Refitting · completes", StringComparison.Ordinal)
+            && hangar.CancelRepairButton.Text == "Cancel Refit" && HangarScreen.RosterNotice(mech) == "Refitting" && _app.HasUnsavedChanges,
+            "Apply orders a refit, keeping the old loadout and locking the mech until it completes");
+        await FinishRefit(mech);
+        Check(mech.Removed.Contains(weapon.Id) && mech.Repair is null && !hangar.SelectedLocked
+            && roster.Storage.Single(item => item.Id == StorageCatalog.WeaponId(weapon.Kind)).Count == stored + 1,
+            "a finished refit commits the loadout and storage to the company");
 
         // Removing every bin a weapon uses marks it ⚠ and Apply asks first.
         var gun = stock.Weapons.First(item => item.AmmoKind is not null);
@@ -460,7 +474,9 @@ public partial class SmokeTests
         await Click(DialogButton("Cancel"));
         Check(!_app.Dialog.Visible && hangar.SelectedHasPendingChanges, "cancelling keeps the changes pending");
         await Click(hangar.ApplyButton); await Click(DialogButton("Apply anyway"));
-        Check(!hangar.HasPendingChanges && mech.Spec.Ammo.All(item => item.AmmoKind != gun.AmmoKind), "Apply anyway commits the loadout");
+        Check(!hangar.HasPendingChanges && mech.Repair is { Refit: true }, "Apply anyway orders the refit");
+        await FinishRefit(mech);
+        Check(mech.Spec.Ammo.All(item => item.AmmoKind != gun.AmmoKind), "the refit commits the loadout");
 
         // Leaving with pending changes warns; staying keeps them, abandoning discards them.
         hangar.Remove(gun.Id); await Frames();
@@ -595,7 +611,7 @@ public partial class SmokeTests
         MouseButton(target.GetGlobalRect().GetCenter(), Godot.MouseButton.Left, false); await Frames();
         var bought = hangar.SelectedPlan.Installed.SingleOrDefault();
         Check(bought is not null && hangar.SelectedPurchases.SequenceEqual([bin]) && StorageCount(hangar, name) == stored && state.Cash == cash
-            && hangar.MarketText.Text.Contains($"Pending purchases {HangarScreen.Money(price)}") && hangar.ApplyButton.TooltipText == $"Buys 1 item · {HangarScreen.Money(price)}"
+            && hangar.MarketText.Text.Contains($"Pending purchases {HangarScreen.Money(price)}") && hangar.ApplyButton.TooltipText.EndsWith($"\nBuys 1 item · {HangarScreen.Money(price)}", StringComparison.Ordinal)
             && Line(bin)!.Count == 1, "dropping a market line installs it as a pending purchase, held back from the market");
         var (panel, block) = FindBlock(hangar, item => item.ItemId == bought!.Id);
         Check(panel._GetTooltip(panel.BlockRect(block).GetCenter()).Contains($"Pending purchase · {HangarScreen.Money(price)}"), "a pending purchase says so");
@@ -605,7 +621,7 @@ public partial class SmokeTests
 
         Check(hangar.Install(bin, stock.Location, purchase: true), "a market item installs by code too");
         hangar.Cash = 0; hangar.Refresh(); await Frames();
-        Check(hangar.ApplyButton.Disabled && hangar.ApplyButton.TooltipText.StartsWith("Not enough C-bills", StringComparison.Ordinal), "unaffordable purchases cannot be applied");
+        Check(hangar.ApplyButton.Disabled && hangar.ApplyButton.TooltipText.Contains("\nNot enough C-bills", StringComparison.Ordinal), "unaffordable purchases cannot be applied");
         hangar.Cash = state.Cash; hangar.Refresh(); await Frames();
         state.OrbitMarket!.Sell([bin, bin]); hangar.Refresh(); await Frames();
         Check(hangar.ApplyButton.Disabled && hangar.ApplyButton.TooltipText == $"Only 0 {name} left in the market", "purchases beyond the market's stock cannot be applied");
@@ -613,9 +629,15 @@ public partial class SmokeTests
         hangar.Refresh(); await Frames();
         var before = roster.Storage.SingleOrDefault(item => item.Id == bin)?.Count ?? 0;
         await Click(hangar.ApplyButton);
-        Check(!hangar.HasPendingChanges && state.Cash == cash - price && hangar.Cash == cash - price && mech.Installed.Length == 1
-            && roster.Storage.Single(item => item.Id == bin).Count == before + 1 && hangar.MarketText.Text.Contains("Pending purchases 0 C-bills")
-            && state.OrbitMarket!.Stock(bin) == 1, "Apply pays for the purchase and takes it from the market; the removed item joins storage");
+        Check(!hangar.HasPendingChanges && state.Cash == cash - price && hangar.Cash == cash - price && mech.Repair is { Refit: true }
+            && (roster.Storage.SingleOrDefault(item => item.Id == bin)?.Count ?? 0) == before && hangar.MarketText.Text.Contains("Pending purchases 0 C-bills")
+            && state.OrbitMarket!.Stock(bin) == 1, "Apply pays for the purchase at once and takes it from the market, reserved for the refit");
+        await FinishRefit(mech);
+        // Days passing may restock the market; put back the stock the checks below expect.
+        state.PlaceMarket(new MarketSnapshot(home, state.Date, [.. new[] { new StorageEntry(bin, 1), new StorageEntry(sink, 3) }.OrderBy(item => item.Id, StringComparer.Ordinal)]));
+        hangar.Refresh(); await Frames();
+        Check(mech.Installed.Length == 1 && roster.Storage.Single(item => item.Id == bin).Count == before + 1,
+            "the finished refit installs the purchase; the removed item joins storage");
 
         hangar.Remove(mech.Installed[0].Id); hangar.Install(bin, stock.Location, purchase: true); await Frames();
         Check(!hangar.Install(bin, stock.Location, purchase: true) && hangar.InstallProblem(bin, stock.Location, purchase: true) == "None left in the market",

@@ -220,20 +220,31 @@ public sealed class Campaign
         return TakeDueEvents();
     }
 
-    /// <summary>Applies a mech's loadout, paying for the items it buys from the market. Nothing changes unless the purchase is
-    /// affordable and the roster accepts the loadout.</summary>
-    public void ApplyLoadout(string mechId, LoadoutPlan plan, IReadOnlyCollection<string> bought)
+    /// <summary>Orders a refit of a mech to a loadout, paying now for the items it buys from the market, which join storage.
+    /// The spares it installs are reserved from storage. The mech keeps its loadout until a repair bay finishes the refit.
+    /// Nothing changes unless the purchase is affordable and the loadout is valid.</summary>
+    public void OrderRefit(string mechId, LoadoutPlan plan, IReadOnlyCollection<string> bought)
     {
-        if (Roster is null) throw new InvalidOperationException("No company has been established.");
+        var roster = RequireRoster();
+        var mech = roster.Mechs.SingleOrDefault(item => item.Id == mechId) ?? throw new ArgumentException("Unknown owned BattleMech.");
+        if (bought.Any(id => StorageCatalog.Describe(id) is null)) throw new ArgumentException("Unknown equipment.");
         var cost = bought.Sum(EquipmentMarket.Price);
         if (cost > Cash) throw new InvalidOperationException("The purchase must be affordable.");
         if (bought.Count > 0 && OrbitMarket is null) throw new InvalidOperationException("There is no market here.");
-        if (Roster.Mechs.SingleOrDefault(item => item.Id == mechId)?.Repair is not null)
-            throw new InvalidOperationException("A BattleMech with a repair order cannot change its loadout.");
+        if (mech.Repair is not null) throw new InvalidOperationException("A BattleMech with a repair or refit order cannot change its loadout.");
         if (bought.Count > 0 && OrbitMarket!.Shortage(bought) is { } shortage) throw new InvalidOperationException(shortage + ".");
-        Roster.ApplyLoadout(mechId, plan, bought);
+        var estimate = Repairs.RefitEstimate(mech, plan) ?? throw new InvalidOperationException("That loadout changes nothing.");
+        if (mech.WithLoadout(plan).OverTonnage) throw new ArgumentException("The loadout is over tonnage.");
+        var reserved = mech.StorageChange(plan).Where(change => change.Count < 0).Select(change => change.Id).ToArray();
+        if (reserved.GroupBy(id => id, StringComparer.Ordinal).Any(group => roster.Stored(group.Key) + bought.Count(id => id == group.Key) < group.Count()))
+            throw new ArgumentException("Storage lacks the spares this loadout installs.");
+        foreach (var id in bought) roster.Store(id, 1);
         OrbitMarket?.Sell(bought);
         Cash -= cost;
+        foreach (var id in reserved) roster.Store(id, -1);
+        var sequence = roster.Mechs.Select(item => item.Repair?.Sequence ?? -1).Max() + 1;
+        mech.Repair = new(RepairScope.Refit, estimate.Days, 0, sequence, null, reserved.Length == 0 ? null : reserved, null, plan);
+        StartRepairs();
     }
 
     /// <summary>The market of a system, as last viewed; null when it has never been viewed or the world has none.</summary>
@@ -355,8 +366,8 @@ public sealed class Campaign
         StartRepairs();
     }
 
-    /// <summary>Cancels a mech's repair order. A queued order costs nothing; work already started forfeits its payment and leaves
-    /// the damage.</summary>
+    /// <summary>Cancels a mech's repair or refit order. A queued order costs nothing; a repair already started forfeits its payment
+    /// and leaves the damage, and a refit leaves the old loadout.</summary>
     public void CancelRepair(string mechId)
     {
         var mech = RequireRoster().Mechs.SingleOrDefault(item => item.Id == mechId) ?? throw new ArgumentException("Unknown owned BattleMech.");
@@ -368,27 +379,36 @@ public sealed class Campaign
     }
 
     /// <summary>Free bays take queued orders, oldest first, paying for each; an order the company cannot afford waits, holding up
-    /// those behind it.</summary>
+    /// those behind it. A refit costs nothing, so it never waits on cash.</summary>
     private void StartRepairs()
     {
         if (Roster is null) return;
         while (ActiveRepairs < RepairTuning.Bays
             && Roster.Mechs.Where(item => item.Repair is { Started: null }).MinBy(item => item.Repair!.Sequence) is { } next
-            && next.Repair!.Cost <= Cash)
+            && (next.Repair!.Cost == 0 || next.Repair.Cost <= Cash))
         {
             Cash -= next.Repair.Cost;
             next.Repair = next.Repair with { Started = Date };
         }
     }
 
-    /// <summary>Finished repairs restore their mechs and report; their bays take the next orders the same day.</summary>
+    /// <summary>Finished repairs restore their mechs, and finished refits change their loadouts, fitting the reserved spares;
+    /// each reports, and their bays take the next orders the same day.</summary>
     private void CompleteRepairs()
     {
         if (Roster is null) return;
-        foreach (var mech in Roster.Mechs.Where(item => item.Repair?.Completes <= Date))
+        foreach (var mech in Roster.Mechs.Where(item => item.Repair?.Completes <= Date).ToArray())
         {
-            mech.Repaired(mech.Repair!.Scope, mech.Repair.Missing); mech.Repair = null;
-            _events.Add(new($"repair-{mech.Id}-{Date.DayNumber}", Date, CampaignEventKind.RepairCompletion, $"Repair complete · {mech.Spec.DisplayName}"));
+            var order = mech.Repair!;
+            if (order.Refit)
+            {
+                foreach (var part in order.Parts ?? []) Roster.Store(part, 1);
+                Roster.ApplyLoadout(mech.Id, order.Plan!);
+            }
+            else mech.Repaired(order.Scope, order.Missing);
+            mech.Repair = null;
+            _events.Add(new($"repair-{mech.Id}-{Date.DayNumber}", Date, CampaignEventKind.RepairCompletion,
+                $"{(order.Refit ? "Refit" : "Repair")} complete · {mech.Spec.DisplayName}"));
         }
         StartRepairs();
     }

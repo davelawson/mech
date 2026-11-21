@@ -3,15 +3,29 @@ using System.Text.Json.Serialization;
 namespace Mech;
 
 /// <summary>What a repair order restores: armor alone, or everything (armor, internal structure and every damaged or destroyed
-/// component, weapon and ammunition bin).</summary>
-public enum RepairScope { Armor = 1, All }
+/// component, weapon and ammunition bin). A refit instead changes the mech to the order's loadout plan.</summary>
+public enum RepairScope { Armor = 1, All, Refit }
 
 /// <summary>A mech's repair order. <see cref="Days"/> and <see cref="Cost"/> are fixed when it is ordered; orders start in
-/// <see cref="Sequence"/> order as repair bays free up, and <see cref="Started"/> is the day a bay took it and it was paid for.</summary>
+/// <see cref="Sequence"/> order as repair bays free up, and <see cref="Started"/> is the day a bay took it and it was paid for.
+/// A refit order carries the loadout <see cref="Plan"/> the mech changes to on completion, costs nothing, and its
+/// <see cref="Parts"/> are the spares reserved for installation.</summary>
 public sealed record RepairOrder(RepairScope Scope, int Days, long Cost, long Sequence, DateOnly? Started = null,
-    string[]? Parts = null, string[]? Missing = null)
+    string[]? Parts = null, string[]? Missing = null, LoadoutPlan? Plan = null)
 {
     [JsonIgnore] public DateOnly? Completes => Started?.AddDays(Days);
+    [JsonIgnore] public bool Refit => Scope == RepairScope.Refit;
+}
+
+/// <summary>Refit times: a loadout change takes bay time like a repair. Placeholders for tuning.</summary>
+public static class RefitTuning
+{
+    /// <summary>Installing a weapon, bin, heat sink or jump jet, per slot it takes: the same as fitting a spare in a repair.</summary>
+    public const double InstallDaysPerSlot = RepairTuning.DaysPerSlot;
+    /// <summary>Taking one out, per slot it takes.</summary>
+    public const double RemoveDaysPerSlot = .75;
+    /// <summary>Armor put on or taken off: the same as an armor repair.</summary>
+    public const double ArmorDaysPerTon = RepairTuning.ArmorDaysPerTon;
 }
 
 public static class RepairTuning
@@ -147,6 +161,42 @@ public static class Repairs
         var doable = armorPoints > 0 || structurePoints > 0 || damaged.Length > missing.Count;
         return new(doable ? Math.Max(1, (int)Math.Ceiling(days - 1e-9)) : 0, doable ? (long)Math.Ceiling(cost - 1e-6) : 0, lines, parts, missing, missingParts);
     }
+
+    /// <summary>The work and days to change a mech to a loadout plan, or null when the plan changes nothing. Items are sized by
+    /// their slots; armor counts every point put on or taken off, front and rear.</summary>
+    public static RepairEstimate? RefitEstimate(OwnedMech mech, LoadoutPlan plan)
+    {
+        if (plan.SameAs(mech.Plan)) return null;
+        var next = mech.WithLoadout(plan).Spec; var spec = mech.Spec;
+        var lines = new List<string>(); var days = 0d;
+        var kept = plan.Installed.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+        var installed = mech.Installed.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+        var removed = plan.Removed.Except(mech.Removed).Order(StringComparer.Ordinal)
+            .Concat(mech.Installed.Where(item => !kept.Contains(item.Id)).Select(item => item.Id));
+        foreach (var id in removed)
+        {
+            var slots = Levels(spec, id); days += slots * RefitTuning.RemoveDaysPerSlot;
+            lines.Add($"Remove {Name(spec, id)} · {SlotsText(slots)}");
+        }
+        foreach (var item in plan.Installed.Where(item => !installed.Contains(item.Id)))
+        {
+            var slots = Levels(next, item.Id); days += slots * RefitTuning.InstallDaysPerSlot;
+            lines.Add($"Install {Name(next, item.Id)} · {SlotsText(slots)}");
+        }
+        var armorPoints = next.Locations.Sum(after => spec.Locations.Single(item => item.Location == after.Location) is var before
+            ? Math.Abs(after.Armor - before.Armor) + Math.Abs(after.RearArmor - before.RearArmor) : 0);
+        if (armorPoints > 0)
+        {
+            var tons = armorPoints / (double)(EquipmentRules.ArmorPointsPerTon * CombatRules.DamageScale);
+            days += tons * RefitTuning.ArmorDaysPerTon; lines.Add($"Armor {Tons(tons)} t");
+        }
+        return new(Math.Max(1, (int)Math.Ceiling(days - 1e-9)), 0, lines, [], [], []);
+    }
+
+    private static string SlotsText(int slots) => $"{slots} {(slots == 1 ? "slot" : "slots")}";
+
+    /// <summary>"N days".</summary>
+    public static string DaysText(int days) => $"{days} {(days == 1 ? "day" : "days")}";
 
     private static string Tons(double tons) => tons.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
 
