@@ -14,13 +14,16 @@ public sealed record CombatUnitState(string Id, Vector2 Position, Vector2 Destin
     double? LandedAt, float TorsoTwist, bool TorsoTurning, CombatLocationState[] Locations, bool[] WeaponsEnabled, double[] WeaponsRemaining,
     int[] Ammo, int Kills = 0, bool Extracted = false, EquipmentCondition[]? Equipment = null, int Injuries = 0, bool LifeSupportInjury = false,
     bool Prone = false, double StandUpRemaining = 0, double? FellAt = null, double? StoodAt = null, bool KnockdownPending = false,
-    bool MaintainRange = true, int AmmoEconomy = 0);
+    bool MaintainRange = true, int AmmoEconomy = 0, StressLevel Stress = StressLevel.Calm, bool Ejected = false, bool Surrendered = false,
+    bool SurrenderOffered = false, bool Fleeing = false, bool Fled = false);
 
 public sealed record CombatContactState(CombatSide Side, string UnitId, ContactLevel Level, Vector2 LastKnownPosition, double LastSeenAt);
 
-/// <summary>A battle as the leader's machine last stepped it, with the log entries from <see cref="HistoryStart"/> on.</summary>
+/// <summary>A battle as the leader's machine last stepped it, with the log entries from <see cref="HistoryStart"/> on and the
+/// battle events from <see cref="EventsStart"/> on.</summary>
 public sealed record CombatState(double Elapsed, CombatOutcome Outcome, double? WindDownEnds, int[] PauseHolds, CombatUnitState[] Units,
-    CombatContactState[] Contacts, int HistoryStart, CombatLogEntry[] History, PatrolProgress? Patrol = null, double TimeScale = 1);
+    CombatContactState[] Contacts, int HistoryStart, CombatLogEntry[] History, PatrolProgress? Patrol = null, double TimeScale = 1,
+    string[]? SurrenderOffers = null, CombatEvent[]? Events = null, int EventsStart = 0);
 
 public sealed partial class CombatUnit
 {
@@ -30,7 +33,8 @@ public sealed partial class CombatUnit
         JumpApexHeight, Altitude, JumpRecharge, LandedAt, TorsoTwist, TorsoTurning,
         Locations.Values.Select(item => new CombatLocationState(item.Location, item.Armor, item.RearArmor, item.Structure)).ToArray(),
         Weapons.Select(item => item.Enabled).ToArray(), Weapons.Select(item => item.Remaining).ToArray(), _ammo.Select(item => item.Shots).ToArray(), Kills, Extracted,
-        EquipmentState(), Injuries, LifeSupportInjury, Prone, StandUpRemaining, FellAt, StoodAt, KnockdownPending, MaintainRange, AmmoEconomy);
+        EquipmentState(), Injuries, LifeSupportInjury, Prone, StandUpRemaining, FellAt, StoodAt, KnockdownPending, MaintainRange, AmmoEconomy,
+        Stress, Ejected, Surrendered, SurrenderOffered, Fleeing, Fled);
 
     /// <summary>Takes on the leader's state, except the pose, which <see cref="CombatSimulation"/> blends toward it.</summary>
     internal void Apply(CombatUnitState state)
@@ -55,6 +59,8 @@ public sealed partial class CombatUnit
         for (var i = 0; i < _ammo.Length; i++) _ammo[i] = _ammo[i] with { Shots = state.Ammo[i] };
         if (state.Equipment is { } equipment) ApplyEquipment(equipment);
         Injuries = state.Injuries; LifeSupportInjury = state.LifeSupportInjury;
+        Stress = state.Stress; Ejected = state.Ejected; Surrendered = state.Surrendered; SurrenderOffered = state.SurrenderOffered;
+        Fleeing = state.Fleeing; Fled = state.Fled;
         Prone = state.Prone; StandUpRemaining = state.StandUpRemaining; FellAt = state.FellAt; StoodAt = state.StoodAt; KnockdownPending = state.KnockdownPending;
     }
 }
@@ -85,14 +91,15 @@ public sealed partial class CombatSimulation
 
     internal void BecomeReplica() { Replica = true; EnemyAiEnabled = false; }
 
-    /// <summary>The battle now, with the log entries from <paramref name="historyStart"/> on.</summary>
-    public CombatState State(int historyStart = 0)
+    /// <summary>The battle now, with the log entries from <paramref name="historyStart"/> on and the events from
+    /// <paramref name="eventsStart"/> on.</summary>
+    public CombatState State(int historyStart = 0, int eventsStart = 0)
     {
-        historyStart = Math.Clamp(historyStart, 0, _history.Count);
+        historyStart = Math.Clamp(historyStart, 0, _history.Count); eventsStart = Math.Clamp(eventsStart, 0, _events.Count);
         return new(Elapsed, Outcome, WindDownEnds, [.. _pauseHolds.Order()], Units.Select(unit => unit.State()).ToArray(),
             _contacts.SelectMany(side => side.Value.Values.Select(contact => new CombatContactState(side.Key, contact.UnitId, contact.Level,
                 contact.LastKnownPosition, contact.LastSeenAt))).ToArray(),
-            historyStart, _history.Skip(historyStart).ToArray(), Patrol?.Progress(), TimeScale);
+            historyStart, _history.Skip(historyStart).ToArray(), Patrol?.Progress(), TimeScale, [.. _surrenderOffers], [.. _events.Skip(eventsStart)], eventsStart);
     }
 
     /// <summary>A replica takes on the leader's battle: log entries it lacks are added and their shots fired, in order.</summary>
@@ -101,7 +108,7 @@ public sealed partial class CombatSimulation
         ArgumentNullException.ThrowIfNull(state);
         if (!Replica) throw new InvalidOperationException("Only a replica takes on another battle's state.");
         if (state.Units.Length != Units.Count || state.Units.Any(item => !Units.Any(unit => unit.Id == item.Id))
-            || state.HistoryStart > _history.Count || state.Contacts.Any(item => !Units.Any(unit => unit.Id == item.UnitId))
+            || state.HistoryStart > _history.Count || state.EventsStart > _events.Count || state.Contacts.Any(item => !Units.Any(unit => unit.Id == item.UnitId))
             || (state.Patrol is null) != (Patrol is null))
             throw new ArgumentException("The battle state does not match this battle.", nameof(state));
         if (state.Patrol is { } progress) Patrol!.Apply(progress);
@@ -110,6 +117,7 @@ public sealed partial class CombatSimulation
         TimeScale = state.TimeScale;
         _accumulator = Math.Clamp(clock - Elapsed, 0, ReplicaLead * TimeScale);
         _pauseHolds.Clear(); _pauseHolds.UnionWith(state.PauseHolds);
+        _surrenderOffers.Clear(); _surrenderOffers.AddRange(state.SurrenderOffers ?? []);
         foreach (var item in state.Units)
         {
             var unit = Unit(item.Id); unit.Apply(item);
@@ -121,6 +129,7 @@ public sealed partial class CombatSimulation
         foreach (var side in _contacts.Values) side.Clear();
         foreach (var item in state.Contacts)
             _contacts[item.Side][item.UnitId] = new CombatContact(item.UnitId) { Level = item.Level, LastKnownPosition = item.LastKnownPosition, LastSeenAt = item.LastSeenAt };
+        _events.AddRange((state.Events ?? []).Skip(_events.Count - state.EventsStart));
         foreach (var entry in state.History.Skip(_history.Count - state.HistoryStart))
         { _history.Add(entry); ShotFired?.Invoke(entry.Shot); }
     }

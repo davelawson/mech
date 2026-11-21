@@ -76,7 +76,7 @@ public sealed partial class CombatUnit
     internal void FallProne(double now)
     {
         KnockdownPending = false; Prone = true; FellAt = now; StoodAt = null;
-        StandUpRemaining = Warrior.Piloting;
+        StandUpRemaining = Piloting; KnockedDownSinceCheck = true;
         Moving = TorsoTurning = false; CurrentSpeed = AngularVelocity = 0;
         CurrentTarget = CurrentRearTarget = null; Route = Array.Empty<Vector2>();
     }
@@ -104,7 +104,7 @@ public sealed partial class CombatSimulation
         if (target.AccrueKnockdownDamage(Elapsed, damage) is not { } total) return null;
         var penalty = CombatRules.KnockdownPenalty(target.Spec.Tonnage, total);
         var (modifier, text) = target.PilotingModifiers;
-        var number = target.Warrior.Piloting + penalty + modifier;
+        var number = target.Piloting + penalty + modifier;
         var roll = PilotingRollOverride?.Invoke() ?? _pilotingRandom.Next(1, 7) + _pilotingRandom.Next(1, 7);
         var fell = roll < number;
         if (fell) { if (target.Airborne) target.KnockdownPending = true; else target.FallProne(Elapsed); }

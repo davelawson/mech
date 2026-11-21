@@ -9,7 +9,7 @@ public enum Cue
     FireSmallLaser, FireLargeLaser, FirePpc, FireFlamer, FireMachineGun, FireAutocannon, FireMissiles,
     LaserHit, BulletHit, ImpactGround, ShellExplosion, MissileExplosion, PpcBurst,
     LocationDestroyed, MechDestroyed, AmmoExplosion, CriticalHit,
-    Footstep, JumpJets, Landing, Knockdown, StandUp
+    Footstep, JumpJets, Landing, Knockdown, StandUp, Ejection, Surrender
 }
 
 public enum SoundBus { Ui, Sfx, Music }
@@ -56,6 +56,8 @@ internal static class SoundBank
         [Cue.Landing] = new(Files(Sfx, "slam_02.ogg", "slam_07.ogg"), SoundBus.Sfx, -4, .05f, 4),
         [Cue.Knockdown] = new(Files(Sfx, "metal_12.ogg", "metal_04.ogg"), SoundBus.Sfx, -2, .05f, 4),
         [Cue.StandUp] = new(Files(Sfx, "machine_01.ogg", "machine_02.ogg", "machine_03.ogg"), SoundBus.Sfx, -6, .05f, 4),
+        [Cue.Ejection] = new(Files(SciFi, "thrusterFire_000.ogg"), SoundBus.Sfx, -1, .04f, 3),
+        [Cue.Surrender] = new(Files(Sfx, "machine_03.ogg"), SoundBus.Sfx, -4, 0, 2),
     };
 
     public static readonly IReadOnlyDictionary<MusicContext, string> Music = new Dictionary<MusicContext, string>

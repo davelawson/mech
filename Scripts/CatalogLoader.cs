@@ -142,7 +142,7 @@ internal static class CatalogLoader
             Text(w.Id, path + ".Id"); Text(w.Name, path + ".Name"); Text(w.Callsign, path + ".Callsign");
             Require(ids.Add(w.Id), path + ".Id", "duplicate identity");
             Defined(w.Rank, path + ".Rank"); Defined(w.Specialty, path + ".Specialty");
-            Require(new[] { w.Gunnery, w.Piloting, w.Sensors }.All(v => v is >= WarriorSkills.Expert and <= WarriorSkills.Novice),
+            Require(new[] { w.Gunnery, w.Piloting, w.Sensors, w.Grit }.All(v => v is >= WarriorSkills.Expert and <= WarriorSkills.Novice),
                 path + ".Skills", "ratings must be between 2 and 6");
             Require(w.SkillPoints == w.SkillBudget, path + ".Skills", $"must spend exactly {w.SkillBudget} points");
         }

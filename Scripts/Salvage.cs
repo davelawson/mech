@@ -3,6 +3,9 @@ namespace Mech;
 /// <summary>Numbers for salvage, recorded in docs/design.md.</summary>
 public static class SalvageTuning
 {
+    /// <summary>C-bills paid for each hostage when a won mission settles, by EnemyPilotRank order: Green, Regular, Veteran, Elite.</summary>
+    public static readonly long[] Ransom = [20_000, 40_000, 80_000, 150_000];
+    public static long RansomFor(EnemyPilotRank rank) => Ransom[(int)rank];
     /// <summary>Picks a player may take beyond the contract's allotment, each at a reputation cost.</summary>
     public const int ExtraPicks = 3;
     /// <summary>Picks to claim a whole mech, by MechWeightClass order.</summary>
@@ -20,15 +23,16 @@ public sealed record SalvageOption(string UnitId, string? ItemId, string Name, s
 /// <summary>What a won battle leaves to salvage, and checking a player's choice from it.</summary>
 public static class Salvage
 {
-    /// <summary>Every enemy mech's working weapons, ammunition bins, heat sinks and jump jets in locations with structure left, one pick
-    /// each, and every disabled (not destroyed) enemy mech whole, priced by weight class.</summary>
+    /// <summary>Every enemy mech left on the field gives its working weapons, ammunition bins, heat sinks and jump jets in locations
+    /// with structure left, one pick each; one not destroyed (disabled, ejected, headless or unarmed) can also be claimed whole,
+    /// priced by weight class. Surrendered mechs stay with their pilots' side, and fled mechs are gone.</summary>
     public static IReadOnlyList<SalvageOption> Pool(MissionReport report)
     {
         var pool = new List<SalvageOption>();
-        foreach (var enemy in report.Enemies)
+        foreach (var enemy in report.Enemies.Where(item => item.Status is not (CombatStatus.Surrendered or CombatStatus.Fled or CombatStatus.Extracted)))
         {
             var spec = DraftCatalog.Mech(enemy.MechId);
-            if (enemy.Status == CombatStatus.Disabled)
+            if (enemy.Status != CombatStatus.Destroyed)
                 pool.Add(new(enemy.UnitId, null, spec.DisplayName, null, SalvageTuning.Picks(spec.WeightClass)));
             foreach (var item in enemy.Equipment.Where(item => item.Condition == ComponentCondition.Operational && Repairs.Storable(spec, item.Id)))
                 pool.Add(new(enemy.UnitId, item.Id, ItemName(spec, item.Id), Loadout.StorageId(spec, item.Id), 1));

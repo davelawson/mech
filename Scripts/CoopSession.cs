@@ -43,7 +43,7 @@ public sealed class CoopHost : IDisposable
     /// <summary>The battle being fought: the only one that is stepped. Other players see replicas of it.</summary>
     public CombatSimulation? Battle { get; private set; }
     private BattleStartMessage? _battleStart;
-    private int _sentHistory;
+    private int _sentHistory, _sentEvents;
     private double _sinceState;
     private byte[]? _lastState;
     /// <summary>A player changed their force or readiness.</summary>
@@ -147,7 +147,7 @@ public sealed class CoopHost : IDisposable
         var combatSeed = seed ?? System.Random.Shared.Next();
         var battle = CombatSimulation.DeployMission(Campaign!.Roster!, force, Campaign.Missions.Current!, combatSeed, terrainSeed);
         Flush();
-        _deployment = null; Battle = battle; _battleStart = new(force, combatSeed, terrainSeed); _sentHistory = 0; _lastState = null;
+        _deployment = null; Battle = battle; _battleStart = new(force, combatSeed, terrainSeed); _sentHistory = 0; _sentEvents = 0; _lastState = null;
         Broadcast(_battleStart); SendBattle();
         return battle;
     }
@@ -299,10 +299,11 @@ public sealed class CoopHost : IDisposable
     {
         _sinceState = 0;
         if (Battle is null) return;
-        var state = Battle.State(_sentHistory);
+        var state = Battle.State(_sentHistory, _sentEvents);
         var data = NetProtocol.Encode(new BattleStateMessage(state));
-        if (state.History.Length == 0 && _lastState is not null && data.AsSpan().SequenceEqual(_lastState)) return;
-        _sentHistory += state.History.Length; _lastState = state.History.Length == 0 ? data : null;
+        var fresh = state.History.Length > 0 || state.Events!.Length > 0;
+        if (!fresh && _lastState is not null && data.AsSpan().SequenceEqual(_lastState)) return;
+        _sentHistory += state.History.Length; _sentEvents += state.Events!.Length; _lastState = fresh ? null : data;
         foreach (var (peer, slot) in _peers) if (slot is not null) _transport.Send(peer, data);
     }
     private void Send(int peer, NetMessage message) => _transport.Send(peer, NetProtocol.Encode(message));

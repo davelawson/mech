@@ -98,6 +98,8 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | G / F | Hold fire / Fire at will |
 | Drag / click the sidebar heat bar | Set the selection's heat limit (0–30): weapons and jumps wait while heat is above it |
 | **Clear priority target** | Remove the selection's priority target |
+| **Eject**, pressed twice | The selection's MechWarriors eject: they survive, injured, and their mechs are left disabled |
+| **Accept** / **Refuse** (surrender notice; co-op leader) | Take a surrendering enemy's pilot hostage / refuse, so an unarmed enemy flees |
 | **Maintain Range** checkbox / slider | Keep (or stop keeping) the preferred distance from the priority target / set that distance |
 | Space | Pause or resume (in co-op, your own pause toggle) |
 | , / . | Resume at 1x / fast-forward at 4x (in co-op, the leader only) |

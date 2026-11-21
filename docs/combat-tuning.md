@@ -278,6 +278,33 @@ The rules are in [combat design](combat-design.md#knockdowns-confirmed-november-
 
 A Griffin (55 t) checks above 110 damage: an AC/20 hit (200) makes the check at +1, so a Piloting 4 MechWarrior needs 5+ and falls 1 time in 6.
 
+## Stress and nerve checks
+
+The rules are in [combat design](combat-design.md#stress-surrender-and-ejection-confirmed-november-20-2026); the values live in `CombatRules` (`Scripts/Stress.cs`). Nerve rolls and clock offsets draw from their own random stream, seeded from the battle's seed.
+
+| Value | Default |
+| --- | --- |
+| Check interval | 5 s per MechWarrior, first check at a random 0–5 s; none while its patrol group is passive |
+| Roll | 2d6 + Grit + modifiers |
+| Calmer / unchanged / more stressed | 11 or less / 12–14 / 15 or more |
+| Break (Panicked) | 15 or more again: eject |
+| Heat | +1 per full 10 |
+| Destroyed location | +1 each |
+| Injury | +1 each, +1 more on the first check after it |
+| Damage since last check | +1 per full 200 (tenths of a stock point) |
+| Knocked down / head damaged since last check | +1 each |
+| Shot at since last check | +1; not shot at −1 |
+| Own side defeated (not extracted) | +1 if any, +1 more for each that fell since the last check |
+| Outnumbered by seen enemies | +1 |
+| Stressed / Panicked skill penalty | +1 / +2 to Gunnery, Piloting and Sensors ratings (detection radius extends its formula past 6) |
+| Enemy surrender or ejection | center torso at or below half its stock structure, judged on each nerve check |
+| Side strength | Σ tonnage × structure left ÷ stock structure, over fighting mechs (own) and detected fighting enemies |
+| Fleeing | clear of each known enemy's longest weapon range + 60 m, then to the arena edge; fled within 30 m of it |
+| Ejection injury | 1 injury (10–20 days) |
+| Ransom (`SalvageTuning.Ransom`) | Green 20,000 · Regular 40,000 · Veteran 80,000 · Elite 150,000 C-bills |
+
+A Regular-Grit (5) pilot with nothing happening rolls 2d6 + 4 and calms on 10 or less; under fire at heat 12 (+2) they hold on 8–10 and grow stressed on 11 or more, about one check in twelve.
+
 ## Calculation reuse
 
 Navigation stores immutable per-edge movement costs alongside the terrain's connectivity graph. A* rents its cost and predecessor buffers per query and returns independent waypoint lists; concurrent queries share no writable search state. Firing-position searches limit candidates to the weapon-range bounding box and reuse a pooled sorting buffer. Equal scores still favor the original row-major node order.

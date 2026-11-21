@@ -6,7 +6,7 @@ namespace Mech;
 public static class WarriorSkills
 {
     public const int Expert = 2, Novice = 6;
-    public const int RegularBudget = 6, VeteranBudget = 8;
+    public const int RegularBudget = 8, VeteranBudget = 10;
     public static int Cost(int rating) => rating is >= Expert and <= Novice ? Novice - rating
         : throw new ArgumentOutOfRangeException(nameof(rating), "Pilot skills must be between 2 and 6.");
     /// <summary>The word shown for a skill rating: 6 Green through 2 Legendary. Ratings outside 2–6 (test-only units) take the nearest word.</summary>
@@ -29,30 +29,30 @@ public static class DraftCatalog
     }.Select(id => AllMechs.Single(mech => mech.Id == id)).ToImmutableArray();
     public static readonly ImmutableArray<WarriorSpec> Warriors = CatalogLoader.ValidateWarriors(new WarriorSpec[]
     {
-        new("mara-vale", "Mara Vale", "Kestrel", 4, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("ivo-chen", "Ivo Chen", "Needle", 3, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("sana-idris", "Sana Idris", "Drift", 5, 3, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("tomas-reed", "Tomas Reed", "Rook", 5, 5, 2, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("elena-voss", "Elena Voss", "Flint", 2, 4, 6, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("amir-solano", "Amir Solano", "Switch", 4, 2, 6, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("niko-ward", "Niko Ward", "Anchor", 4, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("hana-sato", "Hana Sato", "Glint", 3, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("leila-darzi", "Leila Darzi", "Kite", 5, 3, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("renata-kovac", "Renata Kovac", "Iron", 3, 3, 4, WarriorExperience.Veteran, WarriorSpecialty.None),
-        new("gideon-price", "Gideon Price", "Crosshair", 2, 4, 4, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
-        new("oskar-lind", "Oskar Lind", "Skid", 4, 2, 4, WarriorExperience.Veteran, WarriorSpecialty.Piloting),
-        new("ada-moreno", "Ada Moreno", "Sparrow", 5, 4, 3, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("malik-stone", "Malik Stone", "Hawk", 2, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("yara-ortiz", "Yara Ortiz", "Vector", 5, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("lucas-chen", "Lucas Chen", "Scope", 6, 4, 2, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("imani-brooks", "Imani Brooks", "Viper", 3, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("erik-holm", "Erik Holm", "Dash", 4, 3, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("mei-tanaka", "Mei Tanaka", "Beacon", 4, 6, 2, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("rafiq-nasir", "Rafiq Nasir", "Bolt", 2, 6, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("fiona-kerr", "Fiona Kerr", "Slip", 6, 2, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("vera-holt", "Vera Holt", "Bulwark", 4, 4, 2, WarriorExperience.Veteran, WarriorSpecialty.Sensors),
-        new("anton-mercer", "Anton Mercer", "Longshot", 2, 3, 5, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
-        new("zara-okoro", "Zara Okoro", "Dancer", 3, 2, 5, WarriorExperience.Veteran, WarriorSpecialty.Piloting)
+        new("mara-vale", "Mara Vale", "Kestrel", 4, 4, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
+        new("ivo-chen", "Ivo Chen", "Needle", 2, 5, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("sana-idris", "Sana Idris", "Drift", 5, 3, 4, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("tomas-reed", "Tomas Reed", "Rook", 4, 4, 2, 6, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("elena-voss", "Elena Voss", "Flint", 2, 4, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("amir-solano", "Amir Solano", "Switch", 4, 2, 6, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("niko-ward", "Niko Ward", "Anchor", 4, 4, 5, 3, WarriorExperience.Regular, WarriorSpecialty.None),
+        new("hana-sato", "Hana Sato", "Glint", 2, 5, 3, 6, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("leila-darzi", "Leila Darzi", "Kite", 5, 2, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("renata-kovac", "Renata Kovac", "Iron", 3, 3, 5, 3, WarriorExperience.Veteran, WarriorSpecialty.None),
+        new("gideon-price", "Gideon Price", "Crosshair", 2, 3, 4, 5, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
+        new("oskar-lind", "Oskar Lind", "Skid", 3, 2, 3, 6, WarriorExperience.Veteran, WarriorSpecialty.Piloting),
+        new("ada-moreno", "Ada Moreno", "Sparrow", 5, 4, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("malik-stone", "Malik Stone", "Hawk", 2, 5, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("yara-ortiz", "Yara Ortiz", "Vector", 4, 2, 4, 6, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("lucas-chen", "Lucas Chen", "Scope", 6, 4, 2, 4, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("imani-brooks", "Imani Brooks", "Viper", 2, 4, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("erik-holm", "Erik Holm", "Dash", 4, 2, 4, 6, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("mei-tanaka", "Mei Tanaka", "Beacon", 4, 6, 2, 4, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("rafiq-nasir", "Rafiq Nasir", "Bolt", 2, 5, 3, 6, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("fiona-kerr", "Fiona Kerr", "Slip", 5, 2, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("vera-holt", "Vera Holt", "Bulwark", 4, 5, 2, 3, WarriorExperience.Veteran, WarriorSpecialty.Sensors),
+        new("anton-mercer", "Anton Mercer", "Longshot", 2, 3, 4, 5, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
+        new("zara-okoro", "Zara Okoro", "Dancer", 3, 2, 5, 4, WarriorExperience.Veteran, WarriorSpecialty.Piloting)
     });
     public static readonly ImmutableArray<string> PoolNames = ["Light", "Medium", "Heavy", "Assault",
         "MechWarriors · I", "MechWarriors · II", "MechWarriors · III", "MechWarriors · Veterans"];

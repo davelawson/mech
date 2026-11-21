@@ -69,6 +69,15 @@ public partial class CombatControlsPanel : PanelContainer
             ("Space", coop ? "Pause or resume (your own pause; the battle waits while any player holds one)" : "Pause or resume"),
             (", / .", "Run at 1x / fast-forward at 4x" + (coop ? " (the leader only)" : "")),
             ("", "Orders can be given while paused."));
+        Section("STRESS AND EJECTION",
+            ("Stress", "Each MechWarrior is Calm, Steady, Excited, Stressed or Panicked, shown on the unit card and above the paperdoll. "
+                + "A nerve check every 5 s (2d6 + Grit + heat, damage, injuries, being shot at, losses, being outnumbered) moves it a step. "
+                + "Stressed plays every skill but Grit 1 worse, Panicked 2. A Panicked pilot who fails again ejects."),
+            ("", "Pull stressed pilots out of the fight: not being shot at calms them."),
+            ("Eject", "Sidebar button, pressed twice to confirm: the pilot ejects, injured but alive, and the mech is left disabled. "
+                + "A destroyed center torso always ejects the pilot."),
+            ("Surrender", "An enemy that loses every weapon, or is crippled and losing, may offer to surrender. The battle pauses: "
+                + (coop ? "the leader " : "") + "Accept takes the pilot hostage (no salvage of that mech); Refuse makes an unarmed mech flee."));
         Section("CAMERA",
             ("WASD / arrows / middle-drag", "Pan (hold Shift for 5× speed)"),
             ("Wheel", "Zoom (scrolls a panel under the cursor)"),

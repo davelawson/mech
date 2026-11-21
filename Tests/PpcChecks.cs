@@ -92,7 +92,7 @@ internal static partial class CombatChecks
 
         sim = PpcFixture(); enemy = Enemy(sim);
         Steps(sim, 1);
-        enemy.ApplyDamage(MechLocation.Head, 100000);
+        enemy.ApplyDamage(MechLocation.CenterTorso, 100000);
         Steps(sim, 8);
         check(sim.History[^1].Shot is { Impact: true, Wreck: true, Splash: 0 } && enemy.InterferenceRemaining == 0,
             "a bolt landing on a wreck causes no interference");

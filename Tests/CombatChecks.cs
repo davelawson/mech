@@ -171,6 +171,7 @@ internal static partial class CombatChecks
         CheckJumping(check);
         CheckCriticalHits(check);
         CheckKnockdowns(check);
+        CheckStress(check);
         RunEngagements(check);
     }
     /// <summary>Fast-forward steps the same fixed steps four times as fast, and the battle state carries the speed.</summary>
@@ -524,16 +525,19 @@ internal static partial class CombatChecks
         sim = Battle(definition: "griffin"); unit = Friendly(sim);
         foreach (var location in unit.Weapons.Select(item => item.Spec.Location).Distinct())
             unit.ApplyDamage(location, unit.Locations[location].Armor + unit.Locations[location].Structure);
-        check(unit.Status == CombatStatus.Disabled, "loss of all physical weapons disables mech");
+        check(unit.Unarmed && unit.Status == CombatStatus.Active && !unit.Defeated && !unit.Fighting,
+            "loss of all physical weapons leaves the mech unarmed but not disabled");
         sim = Battle(); unit = Friendly(sim); unit.ApplyDamage(MechLocation.Head, 1000);
-        check(unit.Status == CombatStatus.Destroyed, "head destruction destroys mech");
+        check(unit.Status == CombatStatus.Disabled && unit.WarriorKilled && unit.Intact(MechLocation.CenterTorso),
+            "head destruction disables the mech and kills its MechWarrior");
         sim = Battle(); unit = Friendly(sim);
         unit.ApplyDamage(MechLocation.LeftTorso, unit.Locations[MechLocation.LeftTorso].Armor + unit.Locations[MechLocation.LeftTorso].Structure);
         unit.ApplyDamage(MechLocation.LeftArm, 3);
         check(unit.Locations[MechLocation.CenterTorso].Armor == unit.Locations[MechLocation.CenterTorso].InitialArmor - 3, "transfer continues through destroyed side torso");
         unit.ApplyDamage(MechLocation.CenterTorso, 10000);
         check(unit.Status == CombatStatus.Destroyed, "center torso loss destroys mech");
-        check(unit.WarriorKilled, "overkill carried from the center torso through the head kills the MechWarrior");
+        check(!unit.WarriorKilled && unit.Ejected && unit.Injuries == 1 && !unit.Intact(MechLocation.Head),
+            "a destroyed center torso ejects the MechWarrior, injured, before overkill reaches the head");
 
         sim = Battle(); unit = Friendly(sim); center = unit.Locations[MechLocation.CenterTorso];
         var head = unit.Locations[MechLocation.Head];

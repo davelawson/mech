@@ -202,7 +202,7 @@ public partial class SmokeTests
 
             burning = Fresh(shot => shot.Hit);
             var beams = field.Beams().Count();
-            sim.Unit(burning!.AttackerId).ApplyDamage(MechLocation.Head, 100000); field._Process(0);
+            sim.Unit(burning!.AttackerId).ApplyDamage(MechLocation.CenterTorso, 100000); field._Process(0);
             Check(!field.ShotPaths().Any(path => path.Shot.Sequence == burning.Sequence) && field.Beams().Count() < beams,
                 "a destroyed shooter's beam vanishes immediately");
 
@@ -352,7 +352,7 @@ public partial class SmokeTests
             burst = Burst(hit: true);
             sim.Advance(.3); field._Process(0);
             var fired = Rounds(burst!).Count(round => round.Launched);
-            sim.Unit(burst!.AttackerId).ApplyDamage(MechLocation.Head, 100000); field._Process(0);
+            sim.Unit(burst!.AttackerId).ApplyDamage(MechLocation.CenterTorso, 100000); field._Process(0);
             // An unbroken burst would have fired another round by now; the effect lingers only for the rounds already in the air.
             sim.Advance(.08); field._Process(0);
             Check(Rounds(burst).Count(round => round.Launched) == fired && fired > 1, "a destroyed gunner stops firing its burst at once");

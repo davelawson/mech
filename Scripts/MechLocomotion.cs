@@ -129,6 +129,12 @@ public partial class MechModel
         for (var i = 0; i < _shoulders.Count; i++)
             _shoulders[i].Rotation = new(wave * (i == 0 ? -gait.LeftArmSwing : gait.RightArmSwing) * _motionBlend, 0, 0);
     }
+    /// <summary>A surrendered mech's pose: arms hanging straight down and the body leaning slightly forward, powered down.</summary>
+    public void PoseSurrender()
+    {
+        if (_body is not null) _body.Rotation = new(-.12f, -_torsoTwist, 0);
+        for (var i = 0; i < _shoulders.Count; i++) _shoulders[i].Rotation = new(-_armRest[i], 0, 0);
+    }
     /// <summary>Jump pose for flight progress 0–1: spring from a crouch, tuck the legs through the apex, then reach for the ground.</summary>
     public void AnimateJump(float phase)
     {

@@ -52,6 +52,9 @@ public partial class CombatScreen : Control
     public List<Button> UnitButtons { get; } = [];
     /// <summary>The compact paperdoll on each unit card, in card order.</summary>
     public List<CombatPaperdoll> UnitDolls { get; } = [];
+    /// <summary>Each friendly card's stress face, tinted with the level's colour; hidden once the mech is defeated.</summary>
+    public List<TextureRect> UnitFaces { get; } = [];
+    private const float StressFaceSize = 18;
     private float _unitBarHeight;
     public IReadOnlyList<string> Selected => _selected;
     /// <summary>The local player's slot: force selection offers its lance, and its orders go to that lance's mechs.</summary>
@@ -80,6 +83,11 @@ public partial class CombatScreen : Control
     public event Action? AudioRequested;
     /// <summary>Who the co-op game is waiting for, over the battlefield and force selection.</summary>
     public PanelContainer WaitingBanner { get; private set; } = null!;
+    public PanelContainer SurrenderBanner { get; private set; } = null!;
+    public Label SurrenderText { get; private set; } = null!;
+    public Button AcceptSurrenderButton { get; private set; } = null!;
+    public Button RefuseSurrenderButton { get; private set; } = null!;
+    public Button EjectButton { get; private set; } = null!;
     public Label WaitingText { get; private set; } = null!;
     public Button StopWaitingButton { get; private set; } = null!;
     private bool _othersReady;
@@ -205,6 +213,10 @@ public partial class CombatScreen : Control
             if (changed) Send(new DistanceCommand([.. _selected], (float)DistanceSlider.Value)); else RefreshDetails();
         };
         Fit(Ui.Button(_settings, "Clear priority target")).Pressed += () => Send(new PriorityCommand([.. _selected], null));
+        // Ejecting cannot be undone, so the first press only arms the button and a second press within a few seconds ejects.
+        EjectButton = Fit(Ui.Button(_settings, "Eject"));
+        EjectButton.TooltipText = "The MechWarrior ejects: they survive, injured, and the mech is left disabled. Press twice to confirm.";
+        EjectButton.Pressed += PressEject;
         _weaponsTitle = RosterUi.Text(body, "WEAPONS · PRIMARY SELECTION", 12, Ui.Gold);
         _weapons = new VBoxContainer(); body.AddChild(_weapons);
         _unitBar = new HBoxContainer { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; _unitBar.AddThemeConstantOverride("separation", 6); AddChild(_unitBar);
@@ -225,6 +237,16 @@ public partial class CombatScreen : Control
             { CloseMissionDetails(); AcceptEvent(); }
         }
         _shade.GuiInput += BackOnRightClick; _modalPanel.GuiInput += BackOnRightClick;
+        SurrenderBanner = new PanelContainer { Visible = false }; SurrenderBanner.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Gold, 2));
+        var surrender = new HBoxContainer(); surrender.AddThemeConstantOverride("separation", 14); SurrenderBanner.AddChild(surrender);
+        SurrenderText = Ui.Label(surrender, "", 15, Ui.Gold); SurrenderText.VerticalAlignment = VerticalAlignment.Center;
+        AcceptSurrenderButton = Ui.Sound(Ui.Button(surrender, "Accept"), Cue.UiConfirm);
+        AcceptSurrenderButton.TooltipText = "Take the pilot hostage, to be ransomed if the mission succeeds. The mech cannot be salvaged.";
+        AcceptSurrenderButton.Pressed += () => AnswerSurrender(true);
+        RefuseSurrenderButton = Ui.Button(surrender, "Refuse");
+        RefuseSurrenderButton.TooltipText = "Refuse: an armed mech fights on, an unarmed one tries to flee the battlefield.";
+        RefuseSurrenderButton.Pressed += () => AnswerSurrender(false);
+        AddChild(SurrenderBanner);
         // The banner stays above force selection and the combat menu.
         AddChild(WaitingBanner);
         Resized += Layout; Layout(); Hide();
@@ -238,6 +260,37 @@ public partial class CombatScreen : Control
         StopWaitingButton.Visible = canStop;
         PlaceBanner();
     }
+    /// <summary>The oldest waiting surrender: the leader answers it, the others wait. The battle stays paused until it is answered.</summary>
+    private void RefreshSurrender()
+    {
+        var offer = Simulation is { Outcome: CombatOutcome.Ongoing } battle && battle.SurrenderOffers.Count > 0 ? battle.Unit(battle.SurrenderOffers[0]) : null;
+        SurrenderBanner.Visible = offer is not null && Modal == CombatModal.None;
+        if (offer is null) return;
+        var name = Simulation!.DetailsVisible(CombatSide.Friendly, offer.Id) ? offer.Spec.DisplayName : offer.Spec.Chassis;
+        var reason = offer.Unarmed ? "has lost every weapon" : "is badly damaged";
+        SurrenderText.Text = $"{Simulation.SlotLabel(offer)} {name} {reason} and offers to surrender."
+            + (Leading ? "" : " Waiting for the leader to answer…");
+        AcceptSurrenderButton.Visible = RefuseSurrenderButton.Visible = Leading;
+        SurrenderBanner.Size = Vector2.Zero;
+        var size = SurrenderBanner.GetCombinedMinimumSize();
+        Ui.Place(SurrenderBanner, (Size.X - size.X) / 2, Math.Max(72, _timePanel.Position.Y + _timePanel.Size.Y + 6) + (WaitingBanner.Visible ? WaitingBanner.Size.Y + 6 : 0),
+            size.X, size.Y);
+    }
+    private void AnswerSurrender(bool accept)
+    {
+        if (Simulation is null || Simulation.SurrenderOffers.Count == 0 || !Leading) return;
+        Send(new SurrenderAnswerCommand(Simulation.SurrenderOffers[0], accept));
+    }
+    /// <summary>Arms the Eject button on the first press, and ejects every selected mech still in the fight on a second press
+    /// within <see cref="EjectConfirmSeconds"/>.</summary>
+    private void PressEject()
+    {
+        if (Simulation is null) return;
+        if (_ejectArmed > 0) { _ejectArmed = 0; Send(new EjectCommand([.. _selected])); return; }
+        _ejectArmed = EjectConfirmSeconds; RefreshDetails();
+    }
+    private const double EjectConfirmSeconds = 4;
+    private double _ejectArmed;
     private void PlaceBanner()
     {
         WaitingBanner.Size = Vector2.Zero;
@@ -432,10 +485,13 @@ public partial class CombatScreen : Control
     public void Begin(CombatSimulation simulation)
     {
         Simulation = simulation;
+        // A battle on screen waits for the leader to answer a surrender; a replica only shows the leader's.
+        if (!simulation.Replica) simulation.PromptSurrender = true;
+        _ejectArmed = 0;
         Battlefield.Display(Simulation); _shade.Hide(); Modal = CombatModal.None; Battlefield.CommandsEnabled = true;
         BattleLog.Hide(); BattleLog.Display(Simulation); Layout();
         Battlefield.MouseFilter = MouseFilterEnum.Stop;
-        RosterUi.Clear(_unitBar); UnitButtons.Clear(); UnitDolls.Clear();
+        RosterUi.Clear(_unitBar); UnitButtons.Clear(); UnitDolls.Clear(); UnitFaces.Clear();
         var number = 0;
         foreach (var unit in OwnUnits)
         {
@@ -443,6 +499,13 @@ public partial class CombatScreen : Control
             var button = Ui.Button(_unitBar, $"{number} · {unit.Warrior.Callsign}\n{unit.Spec.DisplayName}");
             button.SizeFlagsHorizontal = SizeFlags.ExpandFill;
             button.ClipText = true; button.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+            // The stress face sits in the top right corner, clear of the names; clicks pass through it.
+            var face = new TextureRect { ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+                MouseFilter = MouseFilterEnum.Ignore };
+            button.AddChild(face);
+            face.SetAnchorsAndOffsetsPreset(LayoutPreset.TopRight);
+            face.OffsetLeft = -6 - StressFaceSize; face.OffsetRight = -6; face.OffsetTop = 6; face.OffsetBottom = 6 + StressFaceSize;
+            UnitFaces.Add(face);
             // The doll sits below the names; clicks pass through it to the card.
             var doll = new CombatPaperdoll { Compact = true };
             button.AddChild(doll);
@@ -510,7 +573,7 @@ public partial class CombatScreen : Control
     private StyleBox CardBox(StyleBox style)
     {
         var box = (StyleBox)style.Duplicate();
-        box.ContentMarginTop = 6; box.ContentMarginBottom = UnitDollHeight + 4;
+        box.ContentMarginTop = 6; box.ContentMarginBottom = UnitDollHeight + 4; box.ContentMarginRight = StressFaceSize + 10;
         return box;
     }
     /// <summary>Why no selected unit can jump now, or null when at least one can.</summary>
@@ -698,7 +761,9 @@ public partial class CombatScreen : Control
             RosterUi.Text(body, side == CombatSide.Enemy ? "OPPOSITION" : Coop ? "THE COMPANY" : "YOUR FORCE", 16, Ui.Gold);
             foreach (var unit in Simulation.Units.Where(item => item.Side == side))
             {
-                RosterUi.Text(body, $"{unit.Spec.DisplayName} · {unit.Warrior.Callsign} · {unit.Status}{(unit.WarriorKilled ? " · MechWarrior killed" : "")}", 14);
+                RosterUi.Text(body, $"{unit.Spec.DisplayName} · {unit.Warrior.Callsign} · {unit.Status}{(unit.WarriorKilled ? " · MechWarrior killed" : "")}"
+                    + (unit.Ejected ? " · MechWarrior ejected" : "") + (unit.Surrendered ? " · Pilot taken hostage" : "")
+                    + (unit.Side == CombatSide.Enemy && unit.Unarmed && !unit.Defeated ? " · Unarmed" : ""), 14);
                 RosterUi.Text(body, $"Armor lost (front + rear): {unit.ArmorLost} · Structure lost: {unit.StructureLost}\nShots: {unit.ShotsFired} · Hits: {unit.Hits} · Damage delivered: {unit.DamageDealt}\n"
                     + string.Join("  ", unit.Locations.Values.Select(loc => $"{DraftCatalog.Abbreviation(loc.Location)} {loc.Armor}/{loc.Structure}")), 12, Ui.Muted);
             }
@@ -842,6 +907,7 @@ public partial class CombatScreen : Control
         if (Simulation.Outcome != CombatOutcome.Ongoing) { ShowResults(); return; }
         SoundHeatAlarm(delta);
         _uiElapsed += delta;
+        if (_ejectArmed > 0 && (_ejectArmed -= delta) <= 0) { _ejectArmed = 0; RefreshDetails(); }
         if (_uiElapsed >= .1) { _uiElapsed = 0; RefreshDetails(); }
     }
     /// <summary>While a friendly mech runs hot enough for heat penalties, an alarm sounds every couple of seconds.</summary>
@@ -858,6 +924,7 @@ public partial class CombatScreen : Control
     private void RefreshDetails()
     {
         if (Simulation is null) return;
+        RefreshSurrender();
         _status.Text = $"{(Simulation.Paused ? $"PAUSED{PauseHolders} · orders available" : "LIVE")}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}"
             + (Simulation.PatrolObjectiveText() is { } objective ? $"  |  {objective}" : "");
         // The time panel shows the local player's own toggle; the battle stays paused while any player holds one.
@@ -869,9 +936,12 @@ public partial class CombatScreen : Control
         for (var i = 0; i < UnitButtons.Count; i++)
         {
             var friend = friends[i]; var button = UnitButtons[i];
-            button.Text = $"{i + 1} · {friend.Warrior.Callsign} · {friend.Status}{(friend.Prone ? " · Prone" : "")}\n{friend.Spec.DisplayName}";
-            button.TooltipText = $"{friend.Spec.DisplayName} · {friend.Status}{friend.StanceText()}\n{HeatReadout(friend)}";
+            button.Text = $"{i + 1} · {friend.Warrior.Callsign} · {friend.Status}{(friend.Prone ? " · Prone" : "")}{friend.ConductText()}\n{friend.Spec.DisplayName}";
+            button.TooltipText = $"{friend.Spec.DisplayName} · {friend.Status}{friend.StanceText()}{StressReadout(friend)}\n{HeatReadout(friend)}";
             button.AddThemeStyleboxOverride("normal", CardBox(Ui.Box(_selected.Contains(friend.Id) ? new Color("344431") : Ui.Panel, _selected.Contains(friend.Id) ? Ui.Gold : Ui.Line)));
+            // A friendly card shows its MechWarrior's stress as a tinted face beside the callsign.
+            UnitFaces[i].Visible = !friend.Defeated; UnitFaces[i].Texture = CombatPaperdoll.StressIcon(friend.Stress);
+            UnitFaces[i].SelfModulate = CombatPaperdoll.StressColor(friend.Stress);
             UnitDolls[i].Display(friend);
         }
         var primary = _selected.FirstOrDefault(); var unit = primary is null ? null : Simulation.Unit(primary);
@@ -906,7 +976,7 @@ public partial class CombatScreen : Control
             var enemy = Simulation.Unit(inspected);
             var detailed = Simulation.DetailsVisible(CombatSide.Friendly, inspected);
             _selectionTitle.Text = detailed ? enemy.Spec.DisplayName : enemy.Spec.Chassis;
-            _unitInfo.Text = detailed ? $"OPPOSITION · {enemy.Spec.Tonnage}t · {enemy.Status}{enemy.StanceText()}"
+            _unitInfo.Text = detailed ? $"OPPOSITION · {enemy.Spec.Tonnage}t · {enemy.Status}{enemy.StanceText()}{enemy.ConductText()}"
                 : "OPPOSITION · Model identified\nClose to half detection range for its condition.";
             Paperdoll.Display(detailed ? enemy : null);
             _targetInfo.Text = "";
@@ -921,7 +991,10 @@ public partial class CombatScreen : Control
         }
         _selectionTitle.Text = _selected.Count > 1 ? $"{_selected.Count} selected · {unit.Warrior.Callsign}" : $"{unit.Warrior.Callsign} · {unit.Spec.Chassis}";
         // Heat, cooling, jump and order state are left to the dolls, cards, controls and battlefield.
-        _unitInfo.Text = $"{unit.Spec.DisplayName} · {unit.Status}{unit.StanceText()}";
+        _unitInfo.Text = $"{unit.Spec.DisplayName} · {unit.Status}{unit.StanceText()}{StressReadout(unit)}";
+        EjectButton.Text = _ejectArmed > 0 ? "Confirm Eject" : "Eject";
+        EjectButton.Modulate = _ejectArmed > 0 ? new Color("ff9a7a") : Colors.White;
+        EjectButton.Disabled = active.All(item => item.Ejected);
         if (active.Length > 0)
         {
             _groupInfo.Visible = active.Length > 1;
@@ -977,6 +1050,9 @@ public partial class CombatScreen : Control
         button.AutowrapMode = TextServer.AutowrapMode.WordSmart; button.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         return button;
     }
+    /// <summary>" · Stress: Excited (skills −1)" for a friendly MechWarrior still in the fight. Enemy stress is never shown.</summary>
+    internal static string StressReadout(CombatUnit unit) => unit.Side != CombatSide.Friendly || unit.Defeated ? ""
+        : $" · Stress: {unit.Stress}" + (unit.StressPenalty > 0 ? $" (skills −{unit.StressPenalty})" : "");
     internal static string PilotText(WarriorSpec warrior) => $"“{warrior.Callsign}”\n{warrior.Name}\n{RosterUi.SkillLines(warrior)}";
     /// <summary>In co-op, who is holding the battle paused.</summary>
     private string PauseHolders => !Coop || Simulation is null ? "" : $" by {string.Join(", ", Simulation.PauseHolds.Select(PlayerName))}";

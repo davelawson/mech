@@ -80,11 +80,11 @@ public partial class SmokeTests
             Check(!friends[0].Weapons[0].Enabled, "weapon configuration remains editable during shutdown");
             tactical.Size = new Vector2(900, 500); await Frames();
             Check(tactical.UnitButtons.All(button => tactical.GetGlobalRect().Encloses(button.GetGlobalRect())),
-                "four long-name heat cards stay within the minimum window");
+                "four long-name heat cards stay within the minimum window: " + string.Join("; ", tactical.UnitButtons.Select(button => $"{button.GetGlobalRect()} min {button.GetCombinedMinimumSize()}")));
             tactical.Size = new Vector2(1440, 900);
             await Frames();
             await Capture("combat-heat-shutdown");
-            friends[0].ApplyDamage(MechLocation.Head, 1000);
+            friends[0].ApplyDamage(MechLocation.CenterTorso, 1000);
             tactical.SelectUnits([friends[0].Id], false);
             await Frames();
             Check(!tactical.Paperdoll.EditsHeatLimit, "physically defeated units do not retain the heat-limit handle");

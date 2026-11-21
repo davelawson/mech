@@ -85,7 +85,7 @@ internal static class CatalogChecks
                 $"{m.Id} preserves explicit sink contributions");
         }
         var warriors = JsonSerializer.SerializeToNode(DraftCatalog.Warriors.Select(w => new
-            { w.Id, w.Name, w.Callsign, w.Gunnery, w.Piloting, w.Sensors, w.Experience }));
+            { w.Id, w.Name, w.Callsign, w.Gunnery, w.Piloting, w.Sensors, w.Grit, w.Experience }));
         check(JsonNode.DeepEquals(warriors, baseline["Warriors"]), "all authored warriors preserve identity, skills, labels and order");
         var meta = DraftCatalog.Metadata;
         check(meta.SchemaVersion == 1 && meta.Source == baseline["Source"]!.GetValue<string>()
@@ -232,7 +232,7 @@ internal static class CatalogChecks
             File.WriteAllText(path, fixture); var store = new CampaignStore(path); var campaign = store.Load();
             var mech = campaign.Roster!.Mechs[0]; var warrior = campaign.Roster.Warriors[0];
             check(ReferenceEquals(mech.Spec, DraftCatalog.Mech("firestarter")) && mech.WarriorId == "mara-vale"
-                && warrior.Spec.SkillBudget == 6 && warrior.Health == WarriorHealth.Injured
+                && warrior.Spec.SkillBudget == 8 && warrior.Health == WarriorHealth.Injured
                 && warrior.RecoveryDate == new DateOnly(3025, 1, 3) && mech.Condition("weapon-0") == ComponentCondition.Damaged
                 && mech.Ammo.All(a => a.Shots == mech.Spec.Ammo.Single(s => s.Id == a.Id).Shots / 2),
                 "pre-refactor campaign save resolves typed definitions and retains damage, ammo, assignment and injury");

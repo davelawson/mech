@@ -10,7 +10,7 @@ public partial class CombatLogPanel : PanelContainer
     public RichTextLabel Combat { get; private set; } = null!;
     public RichTextLabel Debug { get; private set; } = null!;
     private CombatSimulation? _simulation;
-    private int _read, _readEvents;
+    private int _read, _readEvents, _readBattleEvents;
     private LogPage[] _pages = [];
 
     public override void _Ready()
@@ -40,7 +40,7 @@ public partial class CombatLogPanel : PanelContainer
 
     public void Display(CombatSimulation simulation)
     {
-        _simulation = simulation; _read = 0; _readEvents = 0; Tabs.CurrentTab = 0;
+        _simulation = simulation; _read = 0; _readEvents = 0; _readBattleEvents = 0; Tabs.CurrentTab = 0;
         foreach (var page in _pages) page.Clear();
     }
 
@@ -54,6 +54,15 @@ public partial class CombatLogPanel : PanelContainer
             var entry = history[_read++];
             if (entry.CombatText is { } combat) _pages[0].Append(combat);
             _pages[1].Append(entry.DebugText);
+        }
+        // Stress, surrender, ejection and flight join the log as they happen; enemy stress stays in the debug view.
+        var battleEvents = _simulation.Events;
+        if (_readBattleEvents > battleEvents.Count) _readBattleEvents = 0;
+        while (_readBattleEvents < battleEvents.Count)
+        {
+            var item = battleEvents[_readBattleEvents++];
+            if (item.Public) _pages[0].Append(item.Line(false));
+            _pages[1].Append(item.Line(true));
         }
         // Patrol progress joins both views as it happens.
         var events = _simulation.Patrol?.Events ?? [];

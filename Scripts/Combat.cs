@@ -12,7 +12,7 @@ public enum MovementMode { Walk, Run }
 public enum Gait { Stopped, Walking, Running, Reverse }
 public enum FiringMode { FireAtWill, HoldFire }
 public enum CombatOutcome { Ongoing, Victory, Defeat, Draw, Ended }
-public enum CombatStatus { Active, Shutdown, Disabled, Destroyed, Extracted }
+public enum CombatStatus { Active, Shutdown, Disabled, Destroyed, Extracted, Surrendered, Fled }
 public enum ContactLevel { Lost, Identified, Detailed }
 
 /// <summary>A deployed mech's condition after a mission battle, keyed by its owned id. Armor lost is front plus rear. InjuryDays is the
@@ -51,11 +51,11 @@ public static partial class CombatRules
         Math.Clamp(MathF.Round(distance / PreferredDistanceStep, MidpointRounding.AwayFromZero) * PreferredDistanceStep, LowestPreferredStep, HighestPreferredStep);
     public const float NoviceDetectionRadius = 1500;
     public static float DetectionRadius(int sensors, int targetTonnage) => NoviceDetectionRadius
-        * (1 + (WarriorSkills.Novice - Math.Clamp(sensors, WarriorSkills.Expert, WarriorSkills.Novice))
+        * (1 + (WarriorSkills.Novice - Math.Clamp(sensors, WarriorSkills.Expert, WarriorSkills.Novice + MaxStressPenalty))
             / (float)(WarriorSkills.Novice - WarriorSkills.Expert))
         * (.5f + (Math.Clamp(targetTonnage, 20, 100) - 20) / 160f);
     public static float DetectionRadius(CombatUnit observer, CombatUnit target) =>
-        DetectionRadius(observer.Warrior.Sensors, target.Spec.Tonnage) * observer.SensorRangeMultiplier;
+        DetectionRadius(observer.Sensors, target.Spec.Tonnage) * observer.SensorRangeMultiplier;
     public const float UnitRadius = 9.75f;
     public const float FollowDistance = 90;
     /// <summary>Metres per second per stock movement point: exactly 10 km/h.</summary>
@@ -285,18 +285,24 @@ public sealed partial class CombatUnit
     // Running out of ammunition withholds fire but, like a weapon toggle, is not physical weapon loss.
     /// <summary>Left the battlefield through a patrol's extraction zone: out of the fight, but neither disabled nor destroyed.</summary>
     public bool Extracted { get; internal set; }
-    public CombatStatus Status => Extracted ? CombatStatus.Extracted : !Intact(MechLocation.Head) || !Intact(MechLocation.CenterTorso)
-        ? CombatStatus.Destroyed : (!Intact(MechLocation.LeftLeg) && !Intact(MechLocation.RightLeg))
-            || !Weapons.Any(WeaponIntact) || CockpitHit ? CombatStatus.Disabled : Shutdown ? CombatStatus.Shutdown : CombatStatus.Active;
+    /// <summary>Only a lost center torso destroys a mech. A lost head, both legs lost, a struck cockpit or an ejected pilot disable
+    /// it; losing every weapon does not.</summary>
+    public CombatStatus Status => Extracted ? CombatStatus.Extracted : Fled ? CombatStatus.Fled : Surrendered ? CombatStatus.Surrendered
+        : !Intact(MechLocation.CenterTorso) ? CombatStatus.Destroyed
+        : !Intact(MechLocation.Head) || (!Intact(MechLocation.LeftLeg) && !Intact(MechLocation.RightLeg)) || CockpitHit || Ejected
+            ? CombatStatus.Disabled : Shutdown ? CombatStatus.Shutdown : CombatStatus.Active;
     public bool Active => Status == CombatStatus.Active;
-    /// <summary>The MechWarrior dies when the head is destroyed, including by overkill carried up from the center torso, or when a
-    /// critical hit strikes the cockpit.</summary>
-    public bool WarriorKilled => !Intact(MechLocation.Head) || CockpitHit;
+    /// <summary>The MechWarrior dies when the head is destroyed or a critical hit strikes the cockpit, unless they ejected first.
+    /// A destroyed center torso always ejects the pilot before any overkill reaches the head.</summary>
+    public bool WarriorKilled => !Ejected && (!Intact(MechLocation.Head) || CockpitHit);
     public bool Defeated => IsDefeated(Status);
     /// <summary>Out of the fight. An extracted mech counts too: nothing can target, follow or order it any longer.</summary>
-    internal static bool IsDefeated(CombatStatus status) => status is CombatStatus.Disabled or CombatStatus.Destroyed or CombatStatus.Extracted;
-    /// <summary>Occupies ground: wrecks and extracted mechs do not.</summary>
-    public bool Solid => Status is not (CombatStatus.Destroyed or CombatStatus.Extracted);
+    internal static bool IsDefeated(CombatStatus status) => status is CombatStatus.Disabled or CombatStatus.Destroyed or CombatStatus.Extracted
+        or CombatStatus.Surrendered or CombatStatus.Fled;
+    /// <summary>Occupies ground: wrecks and mechs that left the battle do not.</summary>
+    public bool Solid => Status is not (CombatStatus.Destroyed or CombatStatus.Extracted or CombatStatus.Fled);
+    /// <summary>Gone from the battlefield: extracted or fled.</summary>
+    public bool OffField => Extracted || Fled;
     private float Mobility => Defeated ? 0 : (!Intact(MechLocation.LeftLeg) || !Intact(MechLocation.RightLeg)) ? .5f : 1;
     public float UnheatedWalkingSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Walk) * Mobility * CriticalSpeedMultiplier;
     public float UnheatedRunningSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Run) * Mobility * CriticalSpeedMultiplier;
@@ -331,6 +337,7 @@ public sealed partial class CombatUnit
                 var structure = Math.Min(damage, part.Structure); part.Structure -= structure; damage -= structure;
                 if (part.Structure == 0)
                 {
+                    if (location == MechLocation.CenterTorso) AutoEject();
                     if (location == MechLocation.LeftTorso) DestroyAttachedArm(MechLocation.LeftArm);
                     if (location == MechLocation.RightTorso) DestroyAttachedArm(MechLocation.RightArm);
                 }
@@ -348,6 +355,8 @@ public sealed partial class CombatUnit
             location = next.Value;
         }
     }
+    /// <summary>A destroyed center torso throws the pilot clear before any overkill reaches the head.</summary>
+    internal void AutoEject() { if (!Ejected && Intact(MechLocation.Head) && !CockpitHit) { Ejected = true; Injuries++; } }
     private void DestroyAttachedArm(MechLocation location)
     { Locations[location].Armor = 0; Locations[location].Structure = 0; }
 }
@@ -418,7 +427,7 @@ public sealed partial class CombatSimulation
     /// releases every player's pause at once, as single-player pausing does.</summary>
     public bool Paused
     {
-        get => _pauseHolds.Count > 0;
+        get => _pauseHolds.Count > 0 || _surrenderOffers.Count > 0;
         set { _pauseHolds.Clear(); if (value) _pauseHolds.UnionWith(Players); }
     }
     /// <summary>Simulation seconds per real second: 1 or 4. The leader sets it in co-op, and replicas take it from the leader's state.</summary>
@@ -591,7 +600,8 @@ public sealed partial class CombatSimulation
         History = _history.AsReadOnly(); _random = new Random(seed); _seed = seed;
         // Critical hits draw from their own stream, so hit and location rolls stay as they were before criticals existed.
         _criticalRandom = new Random(unchecked(seed ^ CriticalSeedSalt));
-        _pilotingRandom = new Random(unchecked(seed ^ PilotingSeedSalt)); RefreshDetection();
+        _pilotingRandom = new Random(unchecked(seed ^ PilotingSeedSalt));
+        _stressRandom = new Random(unchecked(seed ^ StressSeedSalt)); StartNerveClocks(); RefreshDetection();
         var players = Units.Where(item => item.Side == CombatSide.Friendly).Select(item => item.Lance!.Value).Distinct().Order().ToArray();
         Players = players.Length > 0 ? players : [Campaign.LeaderSlot];
         Paused = true;
@@ -610,7 +620,7 @@ public sealed partial class CombatSimulation
             foreach (var target in Units.Where(item => item.Side != side))
             {
                 var level = ContactLevel.Lost;
-                foreach (var observer in target.Extracted ? [] : observers)
+                foreach (var observer in target.OffField ? [] : observers)
                 {
                     var radius = CombatRules.DetectionRadius(observer, target);
                     var distance = observer.Position.DistanceSquaredTo(target.Position);
@@ -692,7 +702,7 @@ public sealed partial class CombatSimulation
         Elapsed += CombatRules.StepSeconds;
         RefreshDetection();
         if (Patrol is not null) UpdatePatrolAwareness();
-        if (EnemyAiEnabled) { UpdateAi(); if (Patrol is not null) UpdatePatrolAi(); }
+        if (EnemyAiEnabled) { UpdateFleeing(); UpdateAi(); if (Patrol is not null) UpdatePatrolAi(); }
         StopInvalidFollows();
         foreach (var unit in Units) { unit.Moving = unit.TorsoTurning = false; unit.AngularVelocity = 0; }
         foreach (var unit in Units.Where(item => item.Airborne)) AdvanceJump(unit, delta);
@@ -779,7 +789,7 @@ public sealed partial class CombatSimulation
                     Missiles = missiles, MissileDamage = salvo ? weapon.Spec.DamageProfile.PerProjectile : 0,
                     Indirect = spotter is not null, SpotterId = spotter?.Id, Splashes = ppc && hit ? RollSplash(location, CombatRules.PpcSplash(weapon.Damage)) : []
                 };
-                shots.Add(shot);
+                shots.Add(shot); target.ShotAtSinceCheck = true;
                 if (Patrol is not null) HeardFire(unit, target, shot);
                 if (laser) _burns.Add((shot, Elapsed + CombatRules.LaserSecondHalfDelay));
                 if (shot.InFlight && hit) _projectiles.Add((shot, Elapsed + shot.FlightSeconds));
@@ -795,7 +805,7 @@ public sealed partial class CombatSimulation
             var target = Unit(shot.TargetId);
             var before = target.Locations.Values.ToDictionary(part => part.Location,
                 part => (part.Armor, part.RearArmor, part.Structure));
-            var status = target.Status;
+            var status = target.Status; var ejected = target.Ejected;
             var criticals = new List<CombatCritical>();
             // Each missile that reaches structure rolls for critical hits on its own; any other shot rolls once per location.
             if (shot.Missiles.Count == 0) Strike(target, () => target.ApplyDamage(shot.Location, shot.Damage, shot.From), criticals);
@@ -814,6 +824,9 @@ public sealed partial class CombatSimulation
                 before[part.Location].Structure - part.Structure, before[part.Location].Structure > 0 && part.Structure == 0))
                 .Where(part => part.Armor + part.RearArmor + part.Structure > 0).ToArray();
             var destroyed = damage.Where(part => part.Destroyed).Select(part => part.Location).ToHashSet();
+            target.NerveDamage += damage.Sum(part => part.Armor + part.RearArmor + part.Structure);
+            if (damage.Any(part => part.Location == MechLocation.Head)) target.HeadDamagedSinceCheck = true;
+            if (!ejected && target.Ejected) NoteAutoEjections([target]);
             var systems = target.Spec.Weapons.Select(item => (item.Id, item.Name, item.Location))
                 .Concat(target.Spec.Components.Select(item => (item.Id, item.Name, item.Location)))
                 .Concat(target.Spec.Ammo.Select(item => (item.Id, item.Name, item.Location)))
@@ -838,6 +851,8 @@ public sealed partial class CombatSimulation
                 shot.SpotterId is { } spotter ? LogUnit(Unit(spotter)) : null));
             ShotFired?.Invoke(shot);
         }
+        if (EnemyAiEnabled) OfferUnarmedSurrenders();
+        AdvanceNerve();
         StopInvalidFollows();
         foreach (var unit in Units.Where(item => !item.Active))
         { unit.Moving = false; unit.CurrentSpeed = unit.AngularVelocity = 0; unit.CurrentTarget = unit.CurrentRearTarget = null; }
@@ -845,8 +860,9 @@ public sealed partial class CombatSimulation
         _burns.RemoveAll(burn => Unit(burn.Discharge.AttackerId).Status == CombatStatus.Destroyed);
         RefreshDetection();
         if (Patrol is not null) { UpdatePatrolObjectives(); return; }
-        var friendly = Units.Any(item => item.Side == CombatSide.Friendly && !item.Defeated);
-        var enemy = Units.Any(item => item.Side == CombatSide.Enemy && !item.Defeated);
+        // A side with only unarmed mechs left is beaten: they can walk off, but no longer fight.
+        var friendly = Units.Any(item => item.Side == CombatSide.Friendly && item.Fighting);
+        var enemy = Units.Any(item => item.Side == CombatSide.Enemy && item.Fighting);
         // The first defeat starts an irrevocable wind-down; effects already in flight may still turn it into a draw.
         if (WindDownEnds is null && (!friendly || !enemy)) WindDownEnds = Elapsed + CombatRules.WindDownSeconds;
         if (WindDownEnds is { } ends && Elapsed + 1e-6 >= ends)
@@ -864,7 +880,7 @@ public sealed partial class CombatSimulation
     }
     private void UpdateAi()
     {
-        foreach (var unit in Units.Where(item => item.Side == CombatSide.Enemy && item.Active && item.Group is null))
+        foreach (var unit in Units.Where(item => item.Side == CombatSide.Enemy && item.Active && item.Group is null && !item.Fleeing && !item.Unarmed))
         {
             var nearest = Units.Where(item => item.Side != unit.Side && !item.Defeated && Detected(unit.Side, item.Id))
                 .OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
@@ -1069,7 +1085,7 @@ public sealed partial class CombatSimulation
     {
         var distance = attacker.Position.DistanceTo(target.Position);
         if (distance > weapon.LongRange || !attacker.WeaponUsable(weapon) || !CombatRules.InFiringArc(attacker, target, weapon)) return 0;
-        var threshold = attacker.Warrior.Gunnery + CombatRules.AimModifier + PenaltyModifier(attacker, target, weapon, terrainModifier);
+        var threshold = attacker.Gunnery + CombatRules.AimModifier + PenaltyModifier(attacker, target, weapon, terrainModifier);
         var successes = 0;
         for (var a = 1; a <= 6; a++) for (var b = 1; b <= 6; b++) if (a + b >= threshold) successes++;
         return successes / 36.0;

@@ -296,7 +296,7 @@ internal static partial class CombatChecks
         foreach (var unit in sim.Units) { unit.AddHeat(40); unit.Firing = FiringMode.HoldFire; }
         f = Friendly(sim); f.AddHeat(15); sim.Paused = false; sim.Advance(1);
         check(sim.Outcome == CombatOutcome.Ongoing && f.Heat > 53.9 && sim.Units.All(unit => unit.Shutdown), "both sides can shut down without a draw and excess heat extends cooling");
-        f.ApplyDamage(MechLocation.Head, 1000); sim.Advance(.05 + CombatRules.WindDownSeconds);
+        f.ApplyDamage(MechLocation.CenterTorso, 1000); sim.Advance(.05 + CombatRules.WindDownSeconds);
         check(sim.Outcome == CombatOutcome.Defeat && f.Status == CombatStatus.Destroyed, "physical defeat still ends combat during a thermal shutdown");
 
         sim = Battle(2); sim.EnemyAiEnabled = false;

@@ -77,6 +77,30 @@ A BattleMech falling over after a failed Piloting check. It is then prone.
 **Prone**:
 Lying on the ground after a knockdown: unable to fire, move or jump until the BattleMech stands, after as many seconds as its MechWarrior's Piloting.
 
+**Grit**:
+A MechWarrior skill, rated like the others, for determination under stress. It is added to every nerve check, so a lower rating calms more easily.
+
+**Stress level**:
+How shaken a MechWarrior is in battle: Calm, Steady, Excited, Stressed or Panicked. Stressed and Panicked worsen every skill but Grit.
+
+**Nerve check**:
+A 2d6 + Grit roll every 5 seconds, plus modifiers for heat, damage, injuries, fire and losses, that moves a MechWarrior's stress level a step.
+
+**Ejection**:
+A MechWarrior leaving the cockpit: they survive injured, and the BattleMech is left disabled.
+
+**Surrender**:
+An enemy MechWarrior giving up their BattleMech, which the leader accepts or refuses. Only enemies surrender.
+
+**Hostage**:
+An enemy MechWarrior whose surrender was accepted, ransomed after a victory. Their BattleMech cannot be salvaged.
+
+**Fled**:
+An enemy BattleMech that ran from the battle over the arena edge after a refused surrender. It counts as defeated.
+
+**Unarmed**:
+A BattleMech that has lost every weapon. It is not disabled: it can still move, extract, flee or surrender.
+
 **Loadout**:
 The equipment installed in a particular owned BattleMech: its stock design less any weapons, ammunition, heat sinks and jump jets removed in the hangar, plus any spares installed there from storage.
 

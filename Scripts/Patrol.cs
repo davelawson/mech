@@ -215,7 +215,7 @@ public sealed partial class CombatSimulation
         Patrol!.Groups[group].Pending.Add((Elapsed + shot.FlightSeconds + CombatRules.PatrolReactionSeconds, attacker.Position));
     }
 
-    private IEnumerable<CombatUnit> Members(int group) => Units.Where(unit => unit.Group == group && unit.Active);
+    private IEnumerable<CombatUnit> Members(int group) => Units.Where(unit => unit.Group == group && unit.Active && !unit.Fleeing && !unit.Unarmed);
     private IEnumerable<CombatUnit> CompanyOnField => Units.Where(unit => unit.Side == CombatSide.Friendly && !unit.Defeated);
 
     /// <summary>Fire that has resolved alerts its group; a passive group also wakes when one of its own mechs detects the company.

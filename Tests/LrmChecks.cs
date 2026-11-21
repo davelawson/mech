@@ -85,7 +85,7 @@ internal static partial class CombatChecks
         check(sim.History.Count == 2 && sim.History[^1].Shot is { Wreck: true, Damage: 0 } && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == lost
                 && Friendly(sim).DamageDealt == 0, "missiles reaching a destroyed target burst on the wreck without damage");
         sim = LrmFixture(); Steps(sim, 1); hits = sim.History[0].Shot.Damage;
-        Friendly(sim).ApplyDamage(MechLocation.Head, 100000); Steps(sim, 29);
+        Friendly(sim).ApplyDamage(MechLocation.CenterTorso, 100000); Steps(sim, 29);
         check(sim.History.Count(entry => entry.Shot.Impact) == 1 && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == hits,
             "missiles land even after their shooter is destroyed");
 
@@ -122,7 +122,7 @@ internal static partial class CombatChecks
         shooter.Firing = FiringMode.HoldFire; sim.Attack([shooter.Id], target.Id);
         check(sim.IndirectSpotter(shooter, target, shooter.Weapons[0]) is not null && sim.CanFire(shooter, target, shooter.Weapons[0]),
             "an explicit Attack order permits indirect fire, even under Hold fire");
-        sim.Units[1].ApplyDamage(MechLocation.Head, 100000); sim.RefreshDetection();
+        sim.Units[1].ApplyDamage(MechLocation.CenterTorso, 100000); sim.RefreshDetection();
         check(sim.IndirectSpotter(shooter, target, shooter.Weapons[0]) is null && !sim.CanFire(shooter, target, shooter.Weapons[0]),
             "indirect fire needs an active spotter with its own clear sight");
 
@@ -147,7 +147,7 @@ internal static partial class CombatChecks
         sim = LrmFixture(terrain: screened, spotters: [new Vector2(750, 240), new Vector2(750, -480)]); shooter = Friendly(sim); target = Enemy(sim);
         sim.RefreshDetection(); sim.SetPriority([shooter.Id], target.Id); rack = shooter.Weapons[0];
         check(sim.IndirectSpotter(shooter, target, rack) == sim.Units[2], "the spotter with the least vegetation is chosen before the nearest");
-        sim.Units[2].ApplyDamage(MechLocation.Head, 100000);
+        sim.Units[2].ApplyDamage(MechLocation.CenterTorso, 100000);
         check(sim.IndirectSpotter(shooter, target, rack) == sim.Units[1]
                 && Math.Abs(sim.TerrainHitChance(shooter, target, rack) - CombatSimulation.HitChance(shooter, target, rack, 1 + CombatRules.IndirectFireModifier)) < 1e-9,
             "indirect fire uses the spotter's vegetation modifier");

@@ -198,7 +198,7 @@ public partial class SmokeTests
         var enemyModel = combatModels.Single(item => item.Position.X == enemy.Position.X);
         Check(!enemyModel.Locations[MechLocation.RightTorso].Visible && !enemyModel.Locations[MechLocation.RightArm].Visible,
             "side-torso destruction removes its entire visual region and attached arm");
-        enemy.ApplyDamage(MechLocation.Head, 1000); await Frames();
+        enemy.ApplyDamage(MechLocation.CenterTorso, 1000); await Frames();
         Check(!enemyModel.Locations[MechLocation.Head].Visible && !enemyModel.Locations[MechLocation.Head].IsVisibleInTree(),
             "head loss removes visor and laser along with cockpit geometry");
         GetWindow().Size = new(1440, 900);

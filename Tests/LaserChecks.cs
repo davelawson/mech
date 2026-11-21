@@ -79,7 +79,7 @@ internal static partial class CombatChecks
         check(sim.History.Count == 1, "a destroyed target loses the second half");
 
         sim = LaserFixture(); Steps(sim, 1);
-        Friendly(sim).ApplyDamage(MechLocation.Head, 100000); Steps(sim, 10);
+        Friendly(sim).ApplyDamage(MechLocation.CenterTorso, 100000); Steps(sim, 10);
         check(sim.History.Count == 1, "destroying the shooter cuts off its burn");
 
         // The enemy's lethal return shot lands in the same step the burn comes due: both resolve.
@@ -88,12 +88,12 @@ internal static partial class CombatChecks
         check(Friendly(sim).Status == CombatStatus.Destroyed && sim.History.Any(entry => entry.Shot.Burn),
             "a burn due in the step its shooter is destroyed still lands");
 
-        // A disabled shooter's burn continues.
+        // An unarmed shooter's burn continues.
         sim = LaserFixture(); friendly = Friendly(sim); Steps(sim, 1);
         var arm = friendly.Locations[MechLocation.RightArm];
         friendly.ApplyDamage(MechLocation.RightArm, arm.Armor + arm.Structure); Steps(sim, 10);
-        check(friendly.Status == CombatStatus.Disabled && sim.History.Count(entry => entry.Shot.Burn) == 1,
-            "a disabled shooter's burn still lands");
+        check(friendly.Unarmed && sim.History.Count(entry => entry.Shot.Burn) == 1,
+            "an unarmed shooter's burn still lands");
 
         CheckWindDown(check);
     }

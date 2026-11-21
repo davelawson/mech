@@ -111,10 +111,11 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 - A location is destroyed when its internal structure reaches zero; its mounted weapons cease functioning.
 - Destroying a side torso also destroys its attached arm.
 - One destroyed leg halves movement speed; both destroyed legs immobilize the mech.
-- Head or center-torso destruction destroys the mech.
-- **MechWarrior death** (confirmed November 5, 2026). A MechWarrior dies when the head is destroyed, whether by a head hit or by overkill carried up from a destroyed center torso, or when a [critical hit](#critical-hits-confirmed-november-14-2026) strikes the cockpit. A center torso destroyed with no damage left over leaves its MechWarrior alive, as does any other disablement. The rule is the same for both sides; the results list "MechWarrior killed" beside the mech's status. Enemy MechWarriors who survive count toward [reputation](design.md#reputation-confirmed-november-5-2026).
-- Loss of both legs or all usable weapons, or a critical hit on the cockpit, disables the mech. Player weapon enable/disable settings do not themselves constitute physical weapon loss.
-- Destroyed and disabled mechs both count as defeated and no longer participate in combat. Thermal shutdown is not defeat.
+- Only center-torso destruction destroys the mech. Head destruction disables it and kills its MechWarrior, so it can still be salvaged whole or rebuilt (changed November 20, 2026; it used to destroy the mech).
+- **MechWarrior death** (confirmed November 5, 2026; ejection added November 20, 2026). A MechWarrior dies when the head is destroyed or when a [critical hit](#critical-hits-confirmed-november-14-2026) strikes the cockpit. A destroyed center torso always ejects its MechWarrior first, injured, so overkill carried up to the head no longer kills them; an ejected pilot is safe from anything that happens to the mech afterwards. The rule is the same for both sides; the results list "MechWarrior killed" beside the mech's status. Enemy MechWarriors who survive count toward [reputation](design.md#reputation-confirmed-november-5-2026).
+- Loss of both legs, loss of the head, a critical hit on the cockpit, or an ejected MechWarrior disables the mech. Losing every weapon no longer disables it (changed November 20, 2026): an **unarmed** mech can still move, extract, flee or surrender. Player weapon enable/disable settings do not themselves constitute physical weapon loss.
+- Destroyed, disabled, surrendered, fled and extracted mechs count as defeated and no longer participate in combat. Thermal shutdown is not defeat.
+- **The end of a battle.** A side is beaten when none of its mechs is still fighting: every one is defeated or unarmed. An unarmed enemy left on the field can be salvaged whole and its pilot counts as spared; your unarmed mechs come home as usual.
 - **Kills** (confirmed November 11, 2026). The hit that leaves an enemy mech defeated, disabled or destroyed, credits its shooter with one kill; the mission report carries each friendly mech's kills to its MechWarrior's record.
 - When every mech on one side is defeated, a three-second wind-down begins and cannot be undone. The simulation continues without new discharges so pending effects can conclude and the player can see the final shots. The outcome is decided when the wind-down ends, so a pending burn that defeats the other side produces a draw. Pause, camera and inspection remain available, and ending the simulation manually remains immediate.
 - Component damage and MechWarrior injury follow [critical hits](#critical-hits-confirmed-november-14-2026).
@@ -141,7 +142,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 
 - Stop combat when all mechs on a side are defeated and show an outcome and damage summary. Defeating only the enemy force is victory; losing only the friendly force is defeat; eliminating both at the same simulation instant is a draw.
 - Return to the same hangar selection after the summary.
-- The combat menu offers **End Simulation** at any time; there is no tactical retreat mechanic in this slice.
+- The combat menu offers **End Simulation** at any time. Enemies can flee (see [stress, surrender and ejection](#stress-surrender-and-ejection-confirmed-november-20-2026)); the company has no retreat beyond a patrol's extraction.
 - Simulation causes no campaign time advancement or permanent consequences. It does not save in-progress battles.
 - Resolve shots due at the same simulation instant before deciding the outcome, so processing order does not determine victory.
 
@@ -261,7 +262,7 @@ Lava and deep water are flat like water, but no mech may stand in them: they blo
 
 ## Sensors and pilot budgets (confirmed October 27, 2026)
 
-Each pilot has Gunnery, Piloting and Sensors in the range 2 (expert) to 6 (novice). All start at 6; each step of improvement costs one point, so a skill costs `6 - rating`. Regular pilots spend exactly six points, veterans eight. Existing named pilots retain identities and quality classifications but have rebalanced fixed ratings, including Sensors specialists. These allocations resolve through existing catalog IDs in saves.
+Each pilot has Gunnery, Piloting and Sensors in the range 2 (expert) to 6 (novice). All start at 6; each step of improvement costs one point, so a skill costs `6 - rating`. Regular pilots spend exactly six points, veterans eight. (Since November 20, 2026 a fourth skill, Grit, shares the budget, now eight and ten points; see [stress](#stress-surrender-and-ejection-confirmed-november-20-2026).) Existing named pilots retain identities and quality classifications but have rebalanced fixed ratings, including Sensors specialists. These allocations resolve through existing catalog IDs in saves.
 
 `identification radius = 1500 metres × (1 + (6 − Sensors) / 4) × (0.5 + (target tonnage − 20) / 160)`
 
@@ -382,6 +383,51 @@ Each mech has an ammo economy setting: a whole step from 0 to 10 that decides ho
 - **Tooltip.** "No restriction · 140/150 shots", "Economy 4 · fires at +6 or better · 140/150 shots" or "Optimal shots only · 140/150 shots"; an enemy's gives only the shots. The group readout adds "Ammo economy: N" (or Mixed).
 
 A mech travelling in reverse takes the running penalty on its own shots, whatever its selected mode. As a target it still counts as walking, unless it is set to Run. Reversing heat is unchanged.
+
+## Stress, surrender and ejection (confirmed November 20, 2026)
+
+Fewer mechs should end a battle destroyed and fewer MechWarriors dead. MechWarriors grow stressed, may eject, and enemies may surrender or flee. The same rules apply to both sides except where stated; the numbers are in [combat tuning](combat-tuning.md#stress-and-nerve-checks).
+
+**Grit.** A fourth skill, rated 2–6 like the others (lower is better) and shown as a word everywhere skills are. It is the MechWarrior's determination under stress. Named pilots have hand-picked Grit within their budgets; enemy pilots take their rank's rating for every skill, Grit included.
+
+**Stress.** Each MechWarrior is Calm, Steady, Excited, Stressed or Panicked, starting every battle Calm. Calm, Steady and Excited change nothing. Stressed plays every skill but Grit one rating worse, Panicked two: Gunnery for hit chances, Piloting for knockdown checks and stand-up time, Sensors for detection. A Green pilot can play worse than Green.
+
+**Nerve checks.** Every 5 seconds of battle time, each MechWarrior still in the fight makes a nerve check: 2d6 + Grit + modifiers. A result of 11 or less moves them one step toward Calm, 12–14 leaves them as they are, and 15 or more moves them one step toward Panicked. (Lowered from 14 / 15–17 / 18 on November 21, 2026: an ordinary firefight averaged about 13, so almost nobody ever grew stressed.) Each mech's clock starts at a random point in the first 5 seconds, so the field does not roll together, and the clock stops while the battle is paused. A [passive](#patrols-confirmed-november-13-2026) patrol group, unaware of the battle, makes no nerve checks until it wakes. Every modifier makes calming harder, apart from the last:
+
+- +1 per 10 heat at the moment of the check
+- +1 per destroyed location
+- +1 per injury to the MechWarrior, and +1 more on the first check after each new injury
+- +1 per 200 damage taken since the last check (tenths of a stock point, as the log counts it)
+- +1 if knocked down since the last check
+- +1 if the head took damage since the last check
+- +1 if shot at since the last check, hit or miss; otherwise −1, so a pilot pulled out of the fight calms down
+- +1 if any mech of their own side has been defeated (disabled, destroyed, surrendered, ejected or fled; extracted mechs do not count), however many, and +1 more for each one lost since the last check (changed November 21, 2026 from +1 per mech lost on every check, which panicked whole sides once a few mechs fell)
+- +1 if their side's fighting mechs are outnumbered by the enemy mechs their side can see
+
+**Breaking.** A MechWarrior already Panicked whose check comes to 15 or more ejects. Managing stress is the player's task: pull stressed and panicky pilots back from the front line.
+
+**Ejection.** The MechWarrior leaves the cockpit and survives, Injured (one injury, 10–20 days). The mech is left disabled where it stands, with its cockpit needing repair; an enemy's can be claimed whole as salvage, and the pilot escapes, counting as spared. A MechWarrior ejects:
+
+- when the player presses **Eject** in the sidebar twice (the first press arms it for 4 seconds), for every selected mech still in the fight;
+- automatically, always, when the center torso is destroyed, before any overkill reaches the head. Losing the head directly, or a cockpit critical hit, still kills;
+- when breaking from panic;
+- for an enemy, when its center torso is crippled and it expects its side to win (below).
+
+No kill is credited for an ejection that no hit caused; a destroyed center torso still credits its shooter.
+
+**Enemy surrender.** Only enemies surrender, independently of nerve checks:
+
+- An enemy that loses its last weapon offers to surrender at once.
+- On each nerve check, an enemy whose center torso keeps half its stock structure or less judges the fight: its side's fighting mechs against the enemy mechs its side can see, each counted as tonnage × the share of its stock structure left. If the other side is stronger, it offers to surrender; otherwise it ejects.
+- An enemy offers once per battle.
+
+The offer pauses the battle for every player until it is answered. A notice over the battlefield names the mech and why it gives up. The leader sees **Accept** and **Refuse**; other players see *Waiting for the leader to answer…*. Answering lifts that pause, leaving every player's own pause toggle as it was; several offers are answered one at a time. A battle without a screen (tests, headless runs) refuses every offer at once.
+
+- **Accepted:** the mech powers down where it stands, lowers its arms, and shows a white flag (⚑) on its ground label. It is defeated, can no longer be targeted, is not salvageable, and earns nobody a kill. Its MechWarrior is a hostage, ransomed after a victory (see [Quick Launch](design.md#quick-launch-confirmed-november-9-2026)).
+- **Refused, still armed:** it fights on, and may still eject later.
+- **Refused, unarmed:** it **flees**. It runs to the nearest point outside the longest weapon range (plus 60 m) of every enemy its side knows of, then on directly away from them to the arena edge, where it disappears as *Fled*. A fled mech is defeated, cannot be salvaged, counts toward the "enemy mech allowed to flee" reputation, and its pilot counts as spared. It can still be shot down on the way, and its pilot may still eject. If it is the last enemy, the battle is already won: the wind-down ends before it gets far, and it stays on the field to be salvaged.
+
+**Display.** A friendly MechWarrior's stress shows as a face: in the top right corner of its unit card, and above the sidebar paperdoll (hover for its effect and the pilot's Grit). Calm smokes a cigarette, Steady looks normal, Excited has wide eyes and a slightly open mouth, Stressed bares clenched teeth and Panicked screams. The faces are tinted Calm pale green, Steady green, Excited yellow, Stressed orange and Panicked red; a defeated mech shows none. Stress also appears in the sidebar readout with its penalty. **Enemy stress is never shown.** The combat log records friendly stress changes with the roll and its modifiers ("Nerve check · rolled 9 + Grit 4 (heat +1, under fire +1) = 15 · Steady → Excited"), and every surrender, refusal, ejection, flight and departure. The debug log records every nerve check for every mech, including those that leave the level unchanged ("… = 12 · Steady"), so enemy stress appears only there. An ejecting mech fires a seat from its head on a smoke trail, with a sound; a surrender plays a power-down sound. Ground labels add *· Fleeing*, and *· Ejected* on a mech its pilot left intact; a wreck whose centre torso was destroyed reads as any other wreck, even though its pilot ejected. The results list *MechWarrior ejected*, *Pilot taken hostage* and *Unarmed*. Co-op states carry stress, ejection, surrender, flight, the waiting offers and the events added since the last state sent, as the shot log is.
 
 ## Jumping (confirmed November 2, 2026)
 

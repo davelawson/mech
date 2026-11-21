@@ -82,7 +82,7 @@ internal static partial class CombatChecks
         sim.Move([jenner.Id], new Vector2(-600, 0)); sim.Advance(CombatRules.JumpRechargeSeconds);
         sim.Jump([jenner.Id], new Vector2(0, 0));
         check(jenner.Order == CombatOrder.Hold, "a jump completes a Move order");
-        sim.Advance(1); jenner.ApplyDamage(MechLocation.Head, 10000); Fly(sim, jenner);
+        sim.Advance(1); jenner.ApplyDamage(MechLocation.CenterTorso, 10000); Fly(sim, jenner);
         check(jenner.Status == CombatStatus.Destroyed && !jenner.Airborne && jenner.Position == jenner.JumpTo,
             "a mech destroyed in flight still lands");
 

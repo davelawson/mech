@@ -107,7 +107,7 @@ internal static partial class CombatChecks
             "arrival brakes to a stable stop within destination tolerance");
 
         sim = MovementBattle(count: 2); f = Friendly(sim); var wreck = Enemy(sim);
-        wreck.Position = new(0, -120); wreck.ApplyDamage(MechLocation.Head, 10000);
+        wreck.Position = new(0, -120); wreck.ApplyDamage(MechLocation.CenterTorso, 10000);
         sim.Move([f.Id], new(0, -240)); var crossed = false; var aligned = true;
         for (var i = 0; i < 1200; i++)
         {

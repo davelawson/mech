@@ -128,7 +128,12 @@ internal static class PatrolChecks
         var sim = Patrol(3, terrainSeed: 77); sim.Paused = false;
         var enemies = sim.Units.Where(unit => unit.Side == CombatSide.Enemy).ToArray();
         var start = enemies.Select(unit => (unit.Position, unit.Facing)).ToArray();
+        // Every check would stress its pilot, yet passive groups make none.
+        sim.NerveRollOverride = () => 12;
         sim.Advance(10);
+        check(enemies.All(unit => unit.Stress == StressLevel.Calm) && sim.Units.Where(unit => unit.Side == CombatSide.Friendly).All(unit => unit.Stress > StressLevel.Calm),
+            "passive groups make no nerve checks until they wake, while the company's pilots do");
+        sim.NerveRollOverride = null;
         check(enemies.Select(unit => (unit.Position, unit.Facing)).SequenceEqual(start) && enemies.All(sim.Passive)
             && enemies.All(unit => unit.TorsoTwist == 0 && unit.ShotsFired == 0),
             "passive groups stand still, without turning, twisting or firing, while the company is out of contact");

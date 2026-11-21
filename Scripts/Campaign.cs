@@ -18,6 +18,9 @@ public sealed record MissionSettlement(MissionOffer Mission, MissionOutcome Outc
     public string[] SalvagedMechs { get; init; } = [];
     public int SalvagePicks { get; init; }
     public int ExtraPicks => Math.Max(0, SalvagePicks - Mission.SalvagePicks);
+    /// <summary>Hostages taken from surrendered enemies, ransomed after a victory, and what their ransom paid.</summary>
+    public EnemyPilotRank[] Hostages { get; init; } = [];
+    public long Ransom { get; init; }
 }
 public sealed record CampaignSnapshot(int Version, DateOnly Date, long Cash, long PaymentDue,
     long DeferredDebt, DateOnly NextQuarter, bool Bankrupt, CampaignEvent[] Events, RosterSnapshot? Roster = null, MissionSnapshot? Missions = null,
@@ -357,7 +360,11 @@ public sealed class Campaign
         }
         var payment = report.Outcome == MissionOutcome.Success ? offer.Payment : 0;
         var insurance = Math.Min(claim, offer.InsuranceLimit);
-        Cash += payment + insurance;
+        // Hostages are ransomed only after a victory; a lost battle leaves them behind.
+        var hostages = report.Outcome != MissionOutcome.Success ? [] : report.Enemies.Where(item => item.Status == CombatStatus.Surrendered)
+            .Select(item => Hostage(offer, item.UnitId)).ToArray();
+        var ransom = hostages.Sum(SalvageTuning.RansomFor);
+        Cash += payment + insurance + ransom;
         var deployedIds = report.Mechs.Select(item => Roster.Mechs.Single(mech => mech.Id == item.MechId).Definition.Id).ToArray();
         var items = new List<string>(); var mechs = new List<string>();
         foreach (var option in report.Salvage.Select(claimed => pool.Single(option => option.Claim == claimed)))
@@ -366,14 +373,21 @@ public sealed class Campaign
             var wreck = report.Enemies.Single(enemy => enemy.UnitId == option.UnitId);
             mechs.Add(Roster.AddSalvagedMech(DraftCatalog.Mech(wreck.MechId), wreck.Locations, wreck.Equipment).Id);
         }
-        var conduct = new MissionConduct(report.Outcome, deployedIds, report.Mechs.Sum(item => item.ArmorLost), report.EnemyWarriorsSpared, 0, picks, 0);
+        var conduct = new MissionConduct(report.Outcome, deployedIds, report.Mechs.Sum(item => item.ArmorLost), report.EnemyWarriorsSpared,
+            report.Enemies.Count(item => item.Status == CombatStatus.Fled), picks, 0);
         var reputation = Reputation.ApplyMissionOutcome(offer, conduct, StarChart.Instance);
         Missions.Complete();
         return new(offer, report.Outcome, payment, reputation, killed.ToArray(), AdvanceOneDay())
         {
-            Insurance = insurance, InsuranceClaim = claim, SalvagedItems = [.. items], SalvagedMechs = [.. mechs], SalvagePicks = picks
+            Insurance = insurance, InsuranceClaim = claim, SalvagedItems = [.. items], SalvagedMechs = [.. mechs], SalvagePicks = picks,
+            Hostages = hostages, Ransom = ransom
         };
     }
+    /// <summary>The rank of the pilot of enemy "enemy-N", the Nth mech of the opposition.</summary>
+    private static EnemyPilotRank Hostage(MissionOffer offer, string unitId) =>
+        int.TryParse(unitId.AsSpan("enemy-".Length), out var number) && unitId.StartsWith("enemy-", StringComparison.Ordinal)
+            && number >= 1 && number <= offer.Opposition.Length ? offer.Opposition[number - 1].Rank
+            : throw new ArgumentException("The report names an enemy that is not in the opposition.");
 
     public IReadOnlyList<CampaignEvent> DeferPayment()
     {

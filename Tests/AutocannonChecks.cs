@@ -71,7 +71,7 @@ internal static partial class CombatChecks
         { var part = unit.Locations[location]; unit.ApplyDamage(location, part.Armor + part.Structure); }
         sim = AutocannonFixture(); friendly = Friendly(sim);
         Destroy(friendly, MechLocation.LeftTorso); Destroy(friendly, MechLocation.LeftLeg);
-        check(friendly.AmmoRemaining(AmmoKind.AC20) == 0 && friendly.Status == CombatStatus.Disabled,
+        check(friendly.AmmoRemaining(AmmoKind.AC20) == 0 && friendly.Unarmed && !friendly.Defeated,
             "bins in destroyed locations leave the pool, and losing them all is physical weapon loss");
         sim = AutocannonFixture(); friendly = Friendly(sim);
         Destroy(friendly, MechLocation.LeftTorso);
@@ -85,7 +85,7 @@ internal static partial class CombatChecks
             "a shell reaching a destroyed target explodes on the wreck without damage");
 
         sim = AutocannonFixture(); Steps(sim, 1);
-        Friendly(sim).ApplyDamage(MechLocation.Head, 100000); Steps(sim, 10);
+        Friendly(sim).ApplyDamage(MechLocation.CenterTorso, 100000); Steps(sim, 10);
         check(sim.History.Count(entry => entry.Shot.Impact) == 1 && Enemy(sim).ArmorLost + Enemy(sim).StructureLost == 200,
             "a shell lands even after its shooter is destroyed");
         check(sim.WindingDown && sim.Outcome == CombatOutcome.Ongoing, "shells in flight land during the wind-down");

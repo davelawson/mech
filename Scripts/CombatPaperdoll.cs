@@ -295,6 +295,7 @@ public partial class CombatPaperdoll : Control
         if (DisplayedHeatLimit is { } limit && HeatGrabArea.HasPoint(atPosition)) { _tooltipLocation = null; return $"Heat limit {limit}"; }
         if (ShowsSpeed && SpeedStrip.HasPoint(atPosition)) { _tooltipLocation = null; return SpeedTooltip(Unit!, DisplayedDesiredSpeed); }
         if (ShowsAmmo && AmmoStrip.HasPoint(atPosition)) { _tooltipLocation = null; return AmmoTooltip(Unit!, DisplayedAmmoEconomy); }
+        if (ShowsStress && StressRect.Grow(4).HasPoint(atPosition)) { _tooltipLocation = null; return StressTooltip(Unit!); }
         _tooltipLocation = Compact ? null : LocationAt(atPosition);
         return _tooltipLocation is { } location ? LocationTooltip(location) : "";
     }
@@ -327,6 +328,10 @@ public partial class CombatPaperdoll : Control
         DrawRect(track, new Color("62706b"), false, 1);
         DrawTextureRect(icon, new Rect2(slot.Position.X + (slot.Size.X - iconSize) / 2, slot.End.Y - iconSize, iconSize, iconSize), false, color);
     }
+    /// <summary>"Stress: Stressed · skills play 1 worse · Grit Veteran".</summary>
+    public static string StressTooltip(CombatUnit unit) => $"Stress: {unit.Stress}"
+        + (unit.StressPenalty > 0 ? $" · skills play {unit.StressPenalty} worse" : " · no effect on skills")
+        + $" · Grit {WarriorSkills.Descriptor(unit.Warrior.Grit)}\nA nerve check every {CombatRules.NerveCheckSeconds:0} s: pull a stressed pilot out of the fight to calm them.";
     public override void _Draw()
     {
         if (Unit is null) return;
@@ -361,7 +366,22 @@ public partial class CombatPaperdoll : Control
         if (DisplayedHeatLimit is { } limit) HeatLimitHandle(limit);
         if (ShowsSpeed) SpeedGauge(Unit);
         if (ShowsAmmo) AmmoGauge(Unit);
+        if (ShowsStress) StressFace(Unit);
     }
+    /// <summary>A friendly MechWarrior's stress level, centered above the schematic. Enemy stress is never shown.</summary>
+    public bool ShowsStress => !Compact && Unit is { Side: CombatSide.Friendly, Defeated: false };
+    public static Color StressColor(StressLevel level) => level switch
+    {
+        StressLevel.Calm => new Color("b8e6c0"), StressLevel.Steady => new Color("4fbf5a"), StressLevel.Excited => new Color("f1d34c"),
+        StressLevel.Stressed => new Color("f0973c"), _ => new Color("ec5a4a")
+    };
+    private static readonly Dictionary<StressLevel, Texture2D> _stressIcons = [];
+    /// <summary>The face for a stress level: a white glyph in <c>Assets/Icons/</c>, tinted with <see cref="StressColor"/> when drawn.</summary>
+    public static Texture2D StressIcon(StressLevel level) => _stressIcons.TryGetValue(level, out var icon) ? icon
+        : _stressIcons[level] = GD.Load<Texture2D>($"res://Assets/Icons/stress-{level.ToString().ToLowerInvariant()}.svg");
+    private const float StressIconSize = 20;
+    public Rect2 StressRect => new((Size.X - StressIconSize) / 2, 1, StressIconSize, StressIconSize);
+    private void StressFace(CombatUnit unit) => DrawTextureRect(StressIcon(unit.Stress), StressRect, false, StressColor(unit.Stress));
     /// <summary>A yellow track filling from the left with the ammunition left, ticks at each economy step, the shells icon to its
     /// left and, for a friendly mech, the economy pointer beneath it.</summary>
     private void AmmoGauge(CombatUnit unit)

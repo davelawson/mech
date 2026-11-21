@@ -20,6 +20,8 @@ namespace Mech;
 [JsonDerivedType(typeof(MaintainRangeCommand), "maintain-range")]
 [JsonDerivedType(typeof(WeaponCommand), "weapon")]
 [JsonDerivedType(typeof(PauseCommand), "pause")]
+[JsonDerivedType(typeof(EjectCommand), "eject")]
+[JsonDerivedType(typeof(SurrenderAnswerCommand), "surrender-answer")]
 public abstract record CombatCommand
 {
     internal abstract void Apply(CombatSimulation simulation, int slot);
@@ -121,6 +123,22 @@ public sealed record WeaponCommand(string Unit, int Weapon, bool Enabled) : Unit
 public sealed record PauseCommand(bool Paused) : CombatCommand
 {
     internal override void Apply(CombatSimulation simulation, int slot) => simulation.HoldPause(slot, Paused);
+}
+
+/// <summary>Orders the MechWarriors of the given mechs to eject: the pilot survives, injured, and the mech is left disabled.</summary>
+public sealed record EjectCommand(string[] Units) : UnitCommand(Units)
+{
+    private protected override void Apply(CombatSimulation simulation, CombatUnit[] units)
+    { foreach (var unit in units) simulation.EjectOrdered(unit); }
+}
+
+/// <summary>The leader's answer to the oldest waiting surrender. Other players' answers are ignored.</summary>
+public sealed record SurrenderAnswerCommand(string Unit, bool Accept) : CombatCommand
+{
+    internal override void Apply(CombatSimulation simulation, int slot)
+    {
+        if (slot == Campaign.LeaderSlot && simulation.SurrenderOffers.Contains(Unit)) simulation.AnswerSurrender(Unit, Accept);
+    }
 }
 
 public sealed partial class CombatSimulation

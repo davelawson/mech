@@ -48,7 +48,7 @@ public partial class SmokeTests : Node
         new("combat-ui", Setup.Drafted, async () =>
         {
             await TestCombatLayouts(); await TestBattlefieldPicking(); await TestDetectionOverlay(); await TestShotEffects();
-            await TestCombatUi(); await TestQuickLaunchUi(); await TestSalvageUi(); await TestCombatJumping(); await TestPatrolUi();
+            await TestCombatUi(); await TestQuickLaunchUi(); await TestSalvageUi(); await TestCombatJumping(); await TestPatrolUi(); await TestStressUi();
         }),
         new("mech-visuals", Setup.None, async () =>
         {
@@ -823,12 +823,13 @@ public partial class SmokeTests : Node
                 var panel = (Control)button.GetParent();
                 Check(panel.GetChildren().OfType<Button>().Where(other => other.Text == "…").All(inspect => panel.GetGlobalRect().Encloses(inspect.GetGlobalRect())),
                     $"draft inspect buttons stay inside their pool at {size}");
-                var stats = button.GetChildren().OfType<Label>().Single(label => label.Text.Split('\n').Length == 3);
-                Check(pool < 4 ? stats.Text.Contains(" tons\n") : stats.Text.StartsWith("Gunnery: ") && stats.Text.Contains("\nPiloting: ") && stats.Text.Contains("\nSensors: "),
+                var stats = button.GetChildren().OfType<Label>().Single(label => label.Text.Split('\n').Length == (pool < 4 ? 3 : 4));
+                Check(pool < 4 ? stats.Text.Contains(" tons\n") : stats.Text.StartsWith("Gunnery: ") && stats.Text.Contains("\nPiloting: ")
+                    && stats.Text.Contains("\nSensors: ") && stats.Text.Contains("\nGrit: "),
                     "draft cards list one stat per line");
                 var font = stats.GetThemeFont("font"); var fontSize = stats.GetThemeFontSize("font_size");
                 Check(stats.Text.Split('\n').All(line => font.GetStringSize(line, fontSize: fontSize).X <= stats.Size.X)
-                    && stats.GetLineCount() == 3 && stats.GetVisibleLineCount() == 3, $"every draft card stat line fits at {size}");
+                    && stats.GetLineCount() == (pool < 4 ? 3 : 4) && stats.GetVisibleLineCount() == stats.GetLineCount(), $"every draft card stat line fits at {size}");
             }
             await Capture($"draft-{size.X}x{size.Y}");
         }

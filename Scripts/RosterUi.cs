@@ -50,7 +50,7 @@ internal static class RosterUi
     /// <summary>The three skills as words, one per line.</summary>
     public static string SkillLines(WarriorSpec warrior) => string.Join("\n", SkillParts(warrior));
     private static string[] SkillParts(WarriorSpec warrior) =>
-        [$"Gunnery: {WarriorSkills.Descriptor(warrior.Gunnery)}", $"Piloting: {WarriorSkills.Descriptor(warrior.Piloting)}", $"Sensors: {WarriorSkills.Descriptor(warrior.Sensors)}"];
+        [$"Gunnery: {WarriorSkills.Descriptor(warrior.Gunnery)}", $"Piloting: {WarriorSkills.Descriptor(warrior.Piloting)}", $"Sensors: {WarriorSkills.Descriptor(warrior.Sensors)}", $"Grit: {WarriorSkills.Descriptor(warrior.Grit)}"];
     public static string SkillBudgetText(WarriorSpec warrior) => $"Skill points: {warrior.SkillPoints}/{warrior.SkillBudget} spent";
 }
 

@@ -98,7 +98,7 @@ public static class MissionTuning
     public static WarriorSpec EnemyPilot(EnemyPilotRank rank, int number)
     {
         var skill = EnemySkill[(int)rank];
-        return new($"enemy-pilot-{number}", $"{rank} pilot", $"{rank} {number}", skill, skill, skill, WarriorExperience.Regular, WarriorSpecialty.None);
+        return new($"enemy-pilot-{number}", $"{rank} pilot", $"{rank} {number}", skill, skill, skill, skill, WarriorExperience.Regular, WarriorSpecialty.None);
     }
 }
 

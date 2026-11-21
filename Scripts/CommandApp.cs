@@ -773,6 +773,8 @@ public partial class CommandApp : Control
             : $"Insurance paid: {Money(result.Insurance)} (claim {Money(result.InsuranceClaim)}, limit {Money(result.Mission.InsuranceLimit)})");
         if (result.SalvagedItems.Length > 0) lines.Add($"Salvage to storage: {Repairs.PartsText(result.SalvagedItems)}");
         lines.AddRange(result.SalvagedMechs.Select(id => $"Salvaged whole: {State.Roster!.Mechs.Single(item => item.Id == id).Spec.DisplayName}, now in the lance pool"));
+        if (result.Hostages.Length > 0) lines.Add($"Ransom for {result.Hostages.Length} {(result.Hostages.Length == 1 ? "hostage" : "hostages")} "
+            + $"({string.Join(", ", result.Hostages.Select(rank => rank.ToString()))}): {Money(result.Ransom)}");
         if (result.ExtraPicks > 0) lines.Add($"{result.ExtraPicks} salvage {(result.ExtraPicks == 1 ? "pick" : "picks")} over the allotment");
         lines.AddRange(result.Reputation.OrderBy(pair => pair.Key).Select(pair =>
             $"{Factions.Name(pair.Key)} reputation {(pair.Value > 0 ? "+" : "−")}{(Math.Abs(pair.Value) / (double)ReputationTuning.Scale).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}"));

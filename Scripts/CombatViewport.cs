@@ -321,6 +321,8 @@ public partial class CombatViewport : Control
         _burnMarks.Clear();
         foreach (var dust in _dust) dust.Mesh.QueueFree();
         _dust.Clear(); _airborne.Clear(); _fallen.Clear(); _audio.Clear();
+        foreach (var seat in _seats) { seat.Seat.QueueFree(); foreach (var puff in seat.Puffs) puff.Mesh.QueueFree(); }
+        _seats.Clear(); _ejected.Clear(); _surrendered.Clear();
         _models.Clear(); _pickBounds.Clear();
         Simulation = simulation; Simulation.ShotFired += OnShot; InspectedEnemy = null; Selection = Array.Empty<string>();
         if (_terrainView is not null) { _world.RemoveChild(_terrainView); _terrainView.QueueFree(); }
@@ -850,7 +852,7 @@ public partial class CombatViewport : Control
         foreach (var unit in Simulation.Units)
         {
             var model = _models[unit.Id];
-            model.Visible = !unit.Extracted && (unit.Side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, unit.Id));
+            model.Visible = !unit.OffField && (unit.Side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, unit.Id));
             var ground = World(unit.Position, Simulation.Terrain.HeightAt(unit.Position) + unit.Altitude);
             var yaw = Mathf.Atan2(-unit.Facing.X, -unit.Facing.Y);
             model.SetCondition(unit.Intact);
@@ -875,7 +877,12 @@ public partial class CombatViewport : Control
                     unit.WalkingSpeed, unit.RunningSpeed, unit.Active ? unit.AngularVelocity : 0);
                 _audio.Steps(unit.Id, model, unit.Spec.Tonnage);
                 if (unit.LandedAt is { } landed) model.AnimateLanding((float)(Simulation.Clock - landed));
+                if (unit.Surrendered) model.PoseSurrender();
             }
+            // A pilot ejecting fires a seat out of the head on a smoke trail; a surrender powers the mech down.
+            if (unit.Ejected && _ejected.Add(unit.Id) && model.Visible && unit.Intact(MechLocation.Head))
+            { AddEjection(model.GlobalPosition + Vector3.Up * model.Height); _audio.Play(Cue.Ejection, model.GlobalPosition); }
+            if (unit.Surrendered && _surrendered.Add(unit.Id) && model.Visible) _audio.Play(Cue.Surrender, model.GlobalPosition);
             model.SetJetting(unit.JumpPhase is { } flight ? MechModel.JetStrength(flight) : 0, Simulation.Clock, unit.WorkingJumpJets);
             _audio.Jets(unit.Id, model, unit.JumpPhase is not null);
             // Dust kicks up where a jump leaves the ground and where it lands.
@@ -927,6 +934,51 @@ public partial class CombatViewport : Control
         };
         _world.AddChild(mesh); _dust.Add((mesh, Simulation.Clock, size));
         UpdateDust();
+    }
+    private readonly HashSet<string> _ejected = [], _surrendered = [];
+    private sealed record EjectionSeat(MeshInstance3D Seat, Vector3 From, double Start, List<(MeshInstance3D Mesh, double Start)> Puffs);
+    private readonly List<EjectionSeat> _seats = [];
+    private const float SeatSeconds = 2.6f, SeatRise = 70, PuffSeconds = 1.8f, PuffInterval = .05f;
+    private void AddEjection(Vector3 from)
+    {
+        if (Simulation is null) return;
+        var seat = new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = new Vector3(1.6f, 2, 1.6f) }, Position = from,
+            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color("3d4644"), EmissionEnabled = true, Emission = new Color("ffb347"), EmissionEnergyMultiplier = .6f }
+        };
+        _world.AddChild(seat); _seats.Add(new(seat, from, Simulation.Clock, []));
+        UpdateEjections();
+    }
+    /// <summary>The seat climbs, slowing, and leaves a trail of grey puffs that swell and fade; all of it follows simulation time.</summary>
+    private void UpdateEjections()
+    {
+        for (var i = _seats.Count - 1; i >= 0; i--)
+        {
+            var seat = _seats[i]; var age = (float)((Simulation?.Clock ?? seat.Start) - seat.Start);
+            for (var p = seat.Puffs.Count - 1; p >= 0; p--)
+            {
+                var (mesh, start) = seat.Puffs[p]; var t = (float)((Simulation?.Clock ?? start) - start) / PuffSeconds;
+                if (t >= 1 || Simulation is null) { mesh.QueueFree(); seat.Puffs.RemoveAt(p); continue; }
+                mesh.Scale = Vector3.One * (1 + 3 * Mathf.Sqrt(Math.Max(0, t)));
+                ((StandardMaterial3D)mesh.MaterialOverride).AlbedoColor = new Color("9a9a96", .55f * (1 - t));
+            }
+            if (Simulation is null || age >= SeatSeconds + PuffSeconds) { seat.Seat.QueueFree(); foreach (var puff in seat.Puffs) puff.Mesh.QueueFree(); _seats.RemoveAt(i); continue; }
+            var flight = Math.Min(age, SeatSeconds) / SeatSeconds;
+            seat.Seat.Visible = age < SeatSeconds;
+            seat.Seat.Position = seat.From + new Vector3(flight * 6, SeatRise * (1 - (1 - flight) * (1 - flight)), flight * 4);
+            // A new puff each interval while the seat climbs.
+            if (age < SeatSeconds * .7f && (seat.Puffs.Count == 0 || Simulation.Clock - seat.Puffs[^1].Start >= PuffInterval))
+            {
+                var puff = new MeshInstance3D
+                {
+                    Mesh = new SphereMesh { Radius = 1, Height = 2, RadialSegments = 10, Rings = 5 }, CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+                    Position = seat.Seat.Position, MaterialOverride = new StandardMaterial3D
+                    { ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded, Transparency = BaseMaterial3D.TransparencyEnum.Alpha, AlbedoColor = new Color("9a9a96", .55f) }
+                };
+                _world.AddChild(puff); seat.Puffs.Add((puff, Simulation.Clock));
+            }
+        }
     }
     /// <summary>Dust rings swell and fade with simulation time, so they freeze on pause.</summary>
     private void UpdateDust()
@@ -1084,7 +1136,7 @@ public partial class CombatViewport : Control
                 || _effects[i].Laser is not null && Simulation.Unit(_effects[i].Shot.AttackerId).Status == CombatStatus.Destroyed)
                 RemoveEffect(i);
         foreach (var effect in _effects) { UpdateBeam(effect); UpdateShell(effect); UpdatePpc(effect); UpdateSalvo(effect); UpdateBurst(effect); }
-        UpdateBurnMarks(); UpdateDust();
+        UpdateBurnMarks(); UpdateDust(); UpdateEjections();
         for (var i = _destructions.Count - 1; i >= 0; i--)
             if (Age(_destructions[i]) >= DestructionSeconds) RemoveDestruction(i);
         foreach (var destruction in _destructions) UpdateDestruction(destruction);
@@ -1448,6 +1500,11 @@ public partial class CombatViewport : Control
             // Friendlies show only their callsign over a heat bar; enemies show their chassis.
             var text = friendly ? unit.Warrior.Callsign
                 : InspectedEnemy == unit.Id && Simulation.DetailsVisible(CombatSide.Friendly, unit.Id) ? unit.Spec.DisplayName : unit.Spec.Chassis;
+            // A white flag marks a surrendered mech; a fleeing one says so.
+            if (unit.Surrendered) { text = $"⚑ {text}"; color = Colors.White; }
+            else if (unit.Fleeing) text += " · Fleeing";
+            // A wreck reads as destroyed even though its pilot ejected; only an intact empty mech says so.
+            else if (unit.Ejected && unit.Status != CombatStatus.Destroyed) text += " · Ejected";
             var labelOffset = new Vector2(-font.GetStringSize(text, fontSize: 12).X / 2, -4);
             DrawStringOutline(font, label + labelOffset, text, HorizontalAlignment.Left, -1, 12, 4, new Color("101820"));
             DrawString(font, label + labelOffset, text, HorizontalAlignment.Left, -1, 12, color);

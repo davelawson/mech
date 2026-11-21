@@ -14,8 +14,10 @@ internal static class RosterChecks
         check(DraftCatalog.Mech("atlas").Weapons.Count(weapon => weapon.Rear && weapon.Location == MechLocation.CenterTorso) == 2, "Atlas retains both stock rear-facing lasers");
         check(DraftCatalog.Warriors.Length == 24 && DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Regular) == 18
             && DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Veteran) == 6, "expanded pilot catalog preserves regular and veteran balance");
-        check(DraftCatalog.Warriors.All(w => new[] { w.Gunnery, w.Piloting, w.Sensors }.All(value => value is >= 2 and <= 6)
-            && w.SkillPoints == (w.Rank == WarriorExperience.Veteran ? 8 : 6)), "every authored pilot spends its quality budget across three bounded skills");
+        check(DraftCatalog.Warriors.All(w => new[] { w.Gunnery, w.Piloting, w.Sensors, w.Grit }.All(value => value is >= 2 and <= 6)
+            && w.SkillPoints == (w.Rank == WarriorExperience.Veteran ? 10 : 8)), "every authored pilot spends its quality budget across four bounded skills");
+        check(DraftCatalog.Warriors.Select(w => w.Grit).Distinct().Count() >= 3 && DraftCatalog.Warriors.Any(w => w.Grit == 6),
+            "Grit varies across the catalog, from Green upward");
         check(WarriorSkills.Cost(6) == 0 && WarriorSkills.Cost(4) == 2 && WarriorSkills.Cost(2) == 4,
             "skill improvements each cost one point from the novice baseline");
         Reject(() => WarriorSkills.Cost(1), "ratings better than expert rejected by skill costs");

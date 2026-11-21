@@ -159,6 +159,7 @@ public sealed partial class CombatUnit
         var structure = Math.Min(damage, part.Structure); part.Structure -= structure; damage -= structure;
         if (part.Structure == 0)
         {
+            if (location == MechLocation.CenterTorso) AutoEject();
             if (location == MechLocation.LeftTorso) DestroyAttachedArm(MechLocation.LeftArm);
             if (location == MechLocation.RightTorso) DestroyAttachedArm(MechLocation.RightArm);
         }
@@ -175,6 +176,9 @@ public sealed partial class CombatUnit
     /// items keep their hits.</summary>
     internal EquipmentCondition[] ReportedEquipment() => _equipment.Select(item =>
         !Intact(Location(item.Key)) || item.Value == ComponentCondition.Destroyed ? new EquipmentCondition(item.Key, ComponentCondition.Destroyed)
+        // An ejection blows the cockpit open: it needs Repair All before the mech deploys again.
+        : Ejected && item.Value == ComponentCondition.Operational && Spec.Components.Any(part => part.Id == item.Key && part.Kind == ComponentKind.Cockpit)
+            ? new EquipmentCondition(item.Key, ComponentCondition.Damaged, 1)
         : item.Value == ComponentCondition.Damaged ? new EquipmentCondition(item.Key, ComponentCondition.Damaged, _hits[item.Key])
         : new EquipmentCondition(item.Key, ComponentCondition.Operational)).ToArray();
 

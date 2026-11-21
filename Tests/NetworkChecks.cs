@@ -239,13 +239,13 @@ internal static class NetworkChecks
         battle.Paused = false;
         battle.Execute(new MovementCommand(force, MovementMode.Run)); battle.Execute(new HeatLimitCommand(force, 30));
         battle.Execute(new MoveCommand(force, Vector2.Zero));
-        var sent = 0; var largest = 0; var differences = new List<string>();
+        var sent = 0; var sentEvents = 0; var largest = 0; var differences = new List<string>();
         for (var tick = 0; tick < 9000 && battle.Outcome == CombatOutcome.Ongoing; tick++)
         {
             if (tick == 300) battle.Execute(new JumpCommand(force, new Vector2(0, CombatRules.DeploymentDepth - 400)));
             battle.Advance(CombatSimulation.StateInterval);
-            var data = NetProtocol.Encode(new BattleStateMessage(battle.State(sent))); largest = Math.Max(largest, data.Length);
-            var state = ((BattleStateMessage)NetProtocol.Decode(data)!).State; sent += state.History.Length;
+            var data = NetProtocol.Encode(new BattleStateMessage(battle.State(sent, sentEvents))); largest = Math.Max(largest, data.Length);
+            var state = ((BattleStateMessage)NetProtocol.Decode(data)!).State; sent += state.History.Length; sentEvents += state.Events!.Length;
             replica.Apply(state); replica.Advance(CombatSimulation.StateInterval);
             if (tick % 150 == 0 || battle.Outcome != CombatOutcome.Ongoing) differences.AddRange(Differences(battle, replica).Select(item => $"{battle.Elapsed:0.0}s {item}"));
         }
@@ -254,13 +254,15 @@ internal static class NetworkChecks
             + $"{battle.Units.Count(unit => unit.LandedAt is not null)} landed, jump jets {string.Join("/", battle.Units.Select(unit => unit.Spec.Jump))}, {battle.Elapsed:0}s)");
         check(differences.Count == 0, "a replica matches the leader's battle: " + string.Join("; ", differences.Take(6)));
         check(shots == battle.History.Count && Json(replica.History) == Json(battle.History), "a replica fires every shot and logs every entry once, in order");
+        check(battle.Events.Count > 0 && Json(replica.Events) == Json(battle.Events), $"a replica receives every battle event once, in order ({battle.Events.Count} events)");
         check(largest < 16_384, $"a battle state is sent in under 16 KB ({largest} bytes)");
         var other = CombatSimulation.Deploy(roster, force.Take(2), seed: 9, terrainSeed: 12); other.BecomeReplica();
         Reject(() => other.Apply(battle.State()), check, "a replica refuses another battle's state");
         Reject(() => replica.Execute(new HoldCommand(force)), check, "a replica's orders go to the leader");
     }
 
-    private static readonly HashSet<string> LeaderOnlyState = ["Route", "RouteIndex", "BlockedSeconds", "RouteGoal", "FiringPosition", "NextFiringSearch", "Spec", "Warrior", "Climate"];
+    private static readonly HashSet<string> LeaderOnlyState = ["Route", "RouteIndex", "BlockedSeconds", "RouteGoal", "FiringPosition", "NextFiringSearch", "Spec", "Warrior", "Climate",
+        "NerveRemaining", "NerveDamage", "ShotAtSinceCheck", "KnockedDownSinceCheck", "HeadDamagedSinceCheck", "InjuriesAtLastCheck", "AlliesDefeatedAtLastCheck"];
     private static IEnumerable<string> Differences(CombatSimulation a, CombatSimulation b)
     {
         foreach (var name in new[] { nameof(CombatSimulation.Elapsed), nameof(CombatSimulation.Outcome), nameof(CombatSimulation.WindDownEnds), nameof(CombatSimulation.Paused) })

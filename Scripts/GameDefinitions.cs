@@ -37,13 +37,13 @@ public sealed record MechSpec(string Id, string Chassis, string Variant, int Ton
     public int CoolingPerSink => HeatSinkType switch
     { HeatSinkKind.Single => 1, HeatSinkKind.Double => 2, _ => throw new ArgumentOutOfRangeException(nameof(HeatSinkType)) };
 }
-public sealed record WarriorSpec(string Id, string Name, string Callsign, int Gunnery, int Piloting, int Sensors,
+public sealed record WarriorSpec(string Id, string Name, string Callsign, int Gunnery, int Piloting, int Sensors, int Grit,
     WarriorExperience Rank, WarriorSpecialty Specialty)
 {
     public string DisplayName => $"{Name}  “{Callsign}”";
     public string Artwork => $"res://Assets/Roster/{Id}.png";
     public string Experience => DefinitionText.Experience(this);
-    public int SkillPoints => WarriorSkills.Cost(Gunnery) + WarriorSkills.Cost(Piloting) + WarriorSkills.Cost(Sensors);
+    public int SkillPoints => WarriorSkills.Cost(Gunnery) + WarriorSkills.Cost(Piloting) + WarriorSkills.Cost(Sensors) + WarriorSkills.Cost(Grit);
     public int SkillBudget => Rank switch
     { WarriorExperience.Regular => WarriorSkills.RegularBudget, WarriorExperience.Veteran => WarriorSkills.VeteranBudget,
         _ => throw new ArgumentOutOfRangeException(nameof(Rank)) };
