@@ -18,20 +18,20 @@ public static class RepairTuning
 {
     /// <summary>Repair orders worked on at once, one per mech hangar.</summary>
     public const int Bays = 4;
-    public const double ArmorTonsPerDay = 4, StructureTonsPerDay = 1;
+    public const double ArmorDaysPerTon = .75, StructureDaysPerTon = 3;
     public const long ArmorPricePerTon = 10_000, StructurePricePerTon = 40_000;
     /// <summary>Standard internal structure weighs a tenth of the mech's rated tonnage.</summary>
     public const double StructureMassFraction = .1;
     /// <summary>Weapons, bins, heat sinks and jump jets: a hit slot takes this long to repair, and so does each slot of a destroyed
     /// item to replace from a spare.</summary>
-    public const double DaysPerSlot = .5;
+    public const double DaysPerSlot = 1.5;
     /// <summary>Fitting a spare in place of a destroyed item, per slot it takes.</summary>
     public const long InstallPricePerSlot = 10_000;
     /// <summary>A 400-rated engine costs this per damage level; the price falls linearly to nothing at rating 0.</summary>
     public const long EnginePricePerLevelAt400 = 100_000;
     /// <summary>A 100-ton mech's gyro costs this per damage level; the price scales linearly with tonnage.</summary>
     public const long GyroPricePerLevelAt100Tons = 50_000;
-    public const double EngineDaysPerLevel = 1, GyroDaysPerLevel = 1, SystemDaysPerLevel = .5;
+    public const double EngineDaysPerLevel = 3, GyroDaysPerLevel = 3, SystemDaysPerLevel = 1.5;
 
     /// <summary>Damage levels that destroy a critical system.</summary>
     public static int Levels(ComponentKind kind) => kind switch
@@ -112,7 +112,7 @@ public static class Repairs
         var armorTons = armorPoints / (double)(EquipmentRules.ArmorPointsPerTon * CombatRules.DamageScale);
         var structureTons = spec.StructureTotal == 0 ? 0
             : structurePoints / (double)spec.StructureTotal * mech.Definition.Tonnage * RepairTuning.StructureMassFraction;
-        var days = armorTons / RepairTuning.ArmorTonsPerDay + structureTons / RepairTuning.StructureTonsPerDay;
+        var days = armorTons * RepairTuning.ArmorDaysPerTon + structureTons * RepairTuning.StructureDaysPerTon;
         var cost = armorTons * RepairTuning.ArmorPricePerTon + structureTons * RepairTuning.StructurePricePerTon;
         if (armorPoints > 0) lines.Add($"Armor {Tons(armorTons)} t");
         if (structurePoints > 0) lines.Add($"Structure {Tons(structureTons)} t");

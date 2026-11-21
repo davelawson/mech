@@ -176,22 +176,22 @@ Two buttons in the hangar summary, beneath the condition bars, order a repair of
 
 **Parts.** Destroyed weapons, bins, heat sinks and jump jets each take one matching spare from Inventory; spares claimed by any mech's pending loadout changes are not available. The parts leave storage when the order is placed and return to it if the order is cancelled, whether queued or started. A destroyed item with no spare is left destroyed and out of the days and cost; the tooltip lists it under *Missing parts*. When missing parts are all that is left to repair, Repair All is disabled with that list.
 
-**Time and price.** The order's days and cost are fixed when it is placed. The numbers live in `RepairTuning` and are placeholders for tuning.
+**Time and price.** The order's days and cost are fixed when it is placed. The numbers live in `RepairTuning` and are placeholders for tuning; repair times were tripled on November 21, 2026.
 
 | Work | Time | Price |
 | --- | --- | --- |
-| Armor (16 stock points a ton) | 1 day per 4 t | 10,000 C-bills a ton |
-| Internal structure (a tenth of rated tonnage when whole) | 1 day per 1 t | 40,000 C-bills a ton |
-| Damaged weapon, bin, heat sink or jump jet | ½ day per hit slot | hit slots ÷ its slots × its [base price](#equipment-markets-confirmed-november-13-2026) |
-| Destroyed weapon, bin, heat sink or jump jet (with a spare) | ½ day per slot it takes | 10,000 C-bills per slot it takes |
-| Engine (3 levels at most) | 1 day per level | rating ÷ 400 × 100,000 C-bills per level |
-| Gyro (2 levels at most) | 1 day per level | tonnage ÷ 100 × 50,000 C-bills per level |
-| Cockpit (1 level) | ½ day per level | 30,000 C-bills per level |
-| Sensors (2 levels) | ½ day per level | 20,000 C-bills per level |
-| Life Support (1 level) | ½ day per level | 15,000 C-bills per level |
-| Hip (1 level) | ½ day per level | 20,000 C-bills per level |
-| Shoulder (1 level) | ½ day per level | 15,000 C-bills per level |
-| Other actuators (1 level) | ½ day per level | 10,000 C-bills per level |
+| Armor (16 stock points a ton) | ¾ day per ton | 10,000 C-bills a ton |
+| Internal structure (a tenth of rated tonnage when whole) | 3 days per ton | 40,000 C-bills a ton |
+| Damaged weapon, bin, heat sink or jump jet | 1½ days per hit slot | hit slots ÷ its slots × its [base price](#equipment-markets-confirmed-november-13-2026) |
+| Destroyed weapon, bin, heat sink or jump jet (with a spare) | 1½ days per slot it takes | 10,000 C-bills per slot it takes |
+| Engine (3 levels at most) | 3 days per level | rating ÷ 400 × 100,000 C-bills per level |
+| Gyro (2 levels at most) | 3 days per level | tonnage ÷ 100 × 50,000 C-bills per level |
+| Cockpit (1 level) | 1½ days per level | 30,000 C-bills per level |
+| Sensors (2 levels) | 1½ days per level | 20,000 C-bills per level |
+| Life Support (1 level) | 1½ days per level | 15,000 C-bills per level |
+| Hip (1 level) | 1½ days per level | 20,000 C-bills per level |
+| Shoulder (1 level) | 1½ days per level | 15,000 C-bills per level |
+| Other actuators (1 level) | 1½ days per level | 10,000 C-bills per level |
 
 The engine rating is read from the engine's name. The total time rounds up to whole days, at least one. The Repair All tooltip lists the work line by line (*Armor 3.4 t*, *Structure 1.2 t*, *Fusion Engine · 3 levels*, *PPC · 2 of 3 slots*, *AC/10 · replaced*, *Parts used: AC/10 ×1*, *Missing parts: AC/20 ×1*) above the days and C-bills.
 

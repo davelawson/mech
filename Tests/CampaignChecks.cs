@@ -302,12 +302,12 @@ internal static class CampaignChecks
         check(Repairs.Estimate(mech, RepairScope.Armor) is null && Repairs.Estimate(mech, RepairScope.All) is null, "an intact mech has nothing to repair");
         Throws(() => campaign.OrderRepair(mech.Id, RepairScope.All), check, "an intact mech cannot be ordered a repair");
 
-        // Armor: 4 t a day at 10,000 C-bills a ton; structure: 1 t a day at 40,000.
+        // Armor: ¾ day a ton at 10,000 C-bills a ton; structure: 3 days a ton at 40,000.
         var front = mech.Spec.Locations.Sum(item => item.Armor); var armorTons = front / 160d;
         Damage(mech);
         var armor = Repairs.Estimate(mech, RepairScope.Armor)!;
-        check(armor.Days == Math.Max(1, (int)Math.Ceiling(armorTons / 4 - 1e-9)) && armor.Cost == (long)Math.Ceiling(armorTons * 10_000 - 1e-6),
-            $"armor repairs take a day per 4 t and cost 10,000 C-bills a ton ({armor.Days} days, {armor.Cost})");
+        check(armor.Days == Math.Max(1, (int)Math.Ceiling(armorTons * .75 - 1e-9)) && armor.Cost == (long)Math.Ceiling(armorTons * 10_000 - 1e-6),
+            $"armor repairs take ¾ day a ton and cost 10,000 C-bills a ton ({armor.Days} days, {armor.Cost})");
         check(Repairs.Estimate(mech, RepairScope.All) is { } same && same.Days == armor.Days && same.Cost == armor.Cost,
             "with only armor lost, both repairs cost the same");
 
@@ -323,7 +323,7 @@ internal static class CampaignChecks
             : item.Id == worn?.Id ? item with { Condition = ComponentCondition.Damaged, Hits = 1 } : item));
         var rating = RepairTuning.EngineRating(spec);
         var structureTons = 10d / spec.StructureTotal * systems.Definition.Tonnage * .1; var systemsArmorTons = spec.Locations.Sum(item => item.Armor) / 160d;
-        var expectedDays = systemsArmorTons / 4 + structureTons + 2 * 1 + 2 * 1 + lostSlots * .5 + (worn is null ? 0 : .5);
+        var expectedDays = systemsArmorTons * .75 + structureTons * 3 + 2 * 3 + 2 * 3 + lostSlots * 1.5 + (worn is null ? 0 : 1.5);
         var expectedCost = systemsArmorTons * 10_000 + structureTons * 40_000 + 2 * rating / 400d * 100_000 + 2 * systems.Definition.Tonnage / 100d * 50_000
             + lostSlots * 10_000 + (worn is null ? 0 : EquipmentMarket.Price(StorageCatalog.WeaponId(worn.Kind)) / (double)EquipmentRules.Slots(worn.Kind));
         var all = Repairs.Estimate(systems, RepairScope.All, roster.Stored)!;
@@ -333,7 +333,7 @@ internal static class CampaignChecks
         check(all.Lines.Contains($"{engine.Name} · 2 levels") && all.Lines.Contains($"Parts used: {StorageCatalog.Describe(lostPart)!.Name} ×1"),
             "a full repair lists its work");
         var short_ = Repairs.Estimate(systems, RepairScope.All, _ => 0)!;
-        check(short_.Doable && short_.Missing.SequenceEqual([lost.Id]) && short_.Days == (int)Math.Ceiling(expectedDays - lostSlots * .5 - 1e-9)
+        check(short_.Doable && short_.Missing.SequenceEqual([lost.Id]) && short_.Days == (int)Math.Ceiling(expectedDays - lostSlots * 1.5 - 1e-9)
             && short_.Lines.Contains($"Missing parts: {StorageCatalog.Describe(lostPart)!.Name} ×1"), "a destroyed weapon with no spare is left out of the repair");
         var cut = roster.Mechs[2];
         Damage(cut, structure: 1000);
