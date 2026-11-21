@@ -74,12 +74,19 @@ public sealed record SessionEndedMessage(string Reason) : NetMessage;
 /// <summary>Encodes messages as compressed JSON. Both ends must run the same build.</summary>
 public static class NetProtocol
 {
-    public const int Version = 1;
+    public const int Version = 2;
     public const int DefaultPort = 24525;
     /// <summary>Largest decoded message accepted; a campaign snapshot is well under a megabyte.</summary>
     public const int MaxMessageBytes = 4 * 1024 * 1024;
-    /// <summary>Identifies the exact build: clients on any other build are refused.</summary>
-    public static readonly string Build = typeof(NetProtocol).Assembly.ManifestModule.ModuleVersionId.ToString("N");
+    /// <summary>Identifies the build: clients on any other build are refused. An export's stamped version (set by
+    /// <see cref="UseVersion"/> at startup), so exports of the same content match across platforms, whose compiled assemblies differ.
+    /// An unexported build uses its assembly's id and so matches only itself.</summary>
+    public static string Build { get; private set; } = DevelopmentBuild;
+    private static string DevelopmentBuild => "dev-" + typeof(NetProtocol).Assembly.ManifestModule.ModuleVersionId.ToString("N");
+    /// <summary>Uses the export version (empty when never exported) as <see cref="Build"/>.</summary>
+    public static void UseVersion(string version) => Build = version.Length > 0 ? version : DevelopmentBuild;
+    /// <summary>A build as a refusal names it.</summary>
+    public static string Describe(string build) => build.StartsWith("dev-") ? "a development build" : $"version {build}";
     private static readonly JsonSerializerOptions Options = new()
     {
         Converters = { new JsonStringEnumConverter(), new Vector2Converter() },

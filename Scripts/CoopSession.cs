@@ -213,7 +213,9 @@ public sealed class CoopHost : IDisposable
         switch (message)
         {
             case HelloMessage hello when !_peers.ContainsKey(peer):
-                var reason = hello.Protocol != NetProtocol.Version || hello.Build != NetProtocol.Build ? "The leader is running a different build of the game."
+                var reason = hello.Protocol != NetProtocol.Version ? "The leader is running a different build of the game."
+                    : hello.Build != NetProtocol.Build
+                        ? $"The leader is running {NetProtocol.Describe(NetProtocol.Build)}; you are running {NetProtocol.Describe(hello.Build)}."
                     : !Campaign.ValidPlayerName(hello.Name) ? "Enter a player name of 1–24 characters."
                     : _seats.All(seat => seat.Present) ? "Every seat in this campaign is taken." : null;
                 if (reason is not null) { Send(peer, new RefusedMessage(reason)); _refused.Add(peer); return; }

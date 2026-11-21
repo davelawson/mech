@@ -121,12 +121,19 @@ internal static class NetworkChecks
         var network = new MemoryNetwork();
         using var host = new CoopHost(network.Leader, "Dave", 2);
         var stranger = network.Connect();
-        stranger.Send(CoopClient.LeaderPeer, NetProtocol.Encode(new HelloMessage(NetProtocol.Version, "another-build", "Old build")));
+        stranger.Send(CoopClient.LeaderPeer, NetProtocol.Encode(new HelloMessage(NetProtocol.Version, "0.00.99", "Old build")));
+        var oldProtocol = network.Connect();
+        oldProtocol.Send(CoopClient.LeaderPeer, NetProtocol.Encode(new HelloMessage(NetProtocol.Version - 1, NetProtocol.Build, "Old protocol")));
         var sam = new CoopClient(network.Connect(), "Sam");
         void Pump() { for (var i = 0; i < 4; i++) { host.Update(CoopHost.SyncInterval); sam.Update(); } }
         Pump();
-        check(stranger.Poll().Select(item => item.Data is null ? null : NetProtocol.Decode(item.Data)).OfType<RefusedMessage>().SingleOrDefault()?.Reason
-            == "The leader is running a different build of the game.", "a player on another build is refused");
+        string? Refusal(MemoryNetwork.Endpoint peer) =>
+            peer.Poll().Select(item => item.Data is null ? null : NetProtocol.Decode(item.Data)).OfType<RefusedMessage>().SingleOrDefault()?.Reason;
+        check(Refusal(stranger) == $"The leader is running {NetProtocol.Describe(NetProtocol.Build)}; you are running version 0.00.99.",
+            "a player on another build is refused, naming both builds");
+        check(Refusal(oldProtocol) == "The leader is running a different build of the game.", "a player on another protocol is refused");
+        check(NetProtocol.Describe("0.01.01") == "version 0.01.01" && NetProtocol.Describe("dev-abc") == "a development build",
+            "builds are named by version, or as a development build");
         check(sam.Connected && sam.Slot is null && sam.Seats.Count == 2 && sam.Seats[0] is { Name: "Dave", Present: true } && !sam.Seats[1].Present,
             "a joining player sees the lobby before taking a seat");
         check(!host.CanStart, "the leader cannot start with an empty seat");

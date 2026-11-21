@@ -92,6 +92,7 @@ public partial class CommandApp : Control
     public override void _Ready()
     {
         Theme = Ui.CreateTheme();
+        NetProtocol.UseVersion(MainMenuScreen.Version);
         Sound = new SoundPlayer { Name = "Sound" }; AddChild(Sound);
         AudioLevels = AudioSettings.Load(ProjectSettings.GlobalizePath(SettingsPath)); AudioLevels.Apply();
         GetWindow().MinSize = new Vector2I(900, 500);
