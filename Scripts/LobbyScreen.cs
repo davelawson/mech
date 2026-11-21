@@ -5,7 +5,7 @@ namespace Mech;
 /// <summary>Sets up a co-op session: hosting a new or saved campaign, or joining one; then the seats until the leader starts.</summary>
 public partial class LobbyScreen : Control
 {
-    public event Action<string, int, int, bool>? HostRequested;
+    public event Action<string, int, int, bool, StartingScenario>? HostRequested;
     public event Action<string, string, int>? JoinRequested;
     public event Action<int>? ClaimRequested;
     public event Action? StartRequested;
@@ -14,6 +14,9 @@ public partial class LobbyScreen : Control
     public LineEdit AddressInput { get; private set; } = null!;
     public SpinBox PortInput { get; private set; } = null!;
     public OptionButton PlayersPicker { get; private set; } = null!;
+    /// <summary>Hosting a new company: how it begins, for every player's draft.</summary>
+    public OptionButton ScenarioPicker { get; private set; } = null!;
+    public StartingScenario Scenario => Scenarios.All[Math.Max(0, ScenarioPicker.Selected)];
     /// <summary>Hosting: a new company, or the saved co-op campaign.</summary>
     public OptionButton CampaignPicker { get; private set; } = null!;
     public Button ConfirmButton { get; private set; } = null!;
@@ -38,7 +41,7 @@ public partial class LobbyScreen : Control
     private VBoxContainer _form = null!;
     private VBoxContainer _seats = null!;
     private VBoxContainer _box = null!;
-    private HBoxContainer _addressRow = null!, _playersRow = null!, _campaignRow = null!;
+    private HBoxContainer _addressRow = null!, _playersRow = null!, _campaignRow = null!, _scenarioRow = null!;
     private bool _hasSaves;
 
     public override void _Ready()
@@ -54,6 +57,10 @@ public partial class LobbyScreen : Control
         CampaignPicker = Field(_form, "Campaign", new OptionButton(), out _campaignRow);
         CampaignPicker.AddItem("New company"); CampaignPicker.AddItem("Resume saved campaign");
         CampaignPicker.ItemSelected += _ => RefreshForm();
+        ScenarioPicker = Field(_form, "Scenario", new OptionButton(), out _scenarioRow);
+        foreach (var scenario in Scenarios.All) { ScenarioPicker.AddItem(Scenarios.Name(scenario)); ScenarioPicker.SetItemTooltip(ScenarioPicker.ItemCount - 1, Scenarios.Description(scenario)); }
+        ScenarioPicker.Select(Array.IndexOf(Scenarios.All, StartingScenario.Established));
+        ScenarioPicker.ItemSelected += _ => { RefreshPlayers(); RefreshForm(); };
         PlayersPicker = Field(_form, "Players", new OptionButton(), out _playersRow);
         for (var players = 2; players <= ForceRoster.MaxLances; players++) PlayersPicker.AddItem($"{players} players");
         NameInput.TextChanged += _ => RefreshForm();
@@ -85,23 +92,30 @@ public partial class LobbyScreen : Control
     public void ShowHost(bool hasSaves)
     {
         Hosting = true; SeatsShown = false; _hasSaves = hasSaves; _title.Text = "HOST CO-OP CAMPAIGN";
-        _addressRow.Hide(); _campaignRow.Show(); _playersRow.Show(); RefreshAddress();
+        _addressRow.Hide(); _campaignRow.Show(); _playersRow.Show(); _scenarioRow.Show(); RefreshAddress();
         CampaignPicker.SetItemDisabled(1, !hasSaves); CampaignPicker.Select(0);
         CampaignPicker.SetItemTooltip(1, hasSaves ? "Choose a co-op save. Its players decide the seats." : "There are no co-op saves.");
-        for (var i = 0; i < PlayersPicker.ItemCount; i++)
-        {
-            var problem = InitialDraft.CompanyProblem(i + 2);
-            PlayersPicker.SetItemDisabled(i, problem is not null); PlayersPicker.SetItemTooltip(i, problem ?? "");
-        }
-        PlayersPicker.Select(0);
+        ScenarioPicker.Select(Array.IndexOf(Scenarios.All, StartingScenario.Established));
+        RefreshPlayers(); PlayersPicker.Select(0);
         Status.Text = "Other players join at one of the addresses above.";
         ShowForm();
+    }
+
+    /// <summary>Player counts the chosen scenario's draft cannot offer distinct MechWarriors to are disabled.</summary>
+    private void RefreshPlayers()
+    {
+        for (var i = 0; i < PlayersPicker.ItemCount; i++)
+        {
+            var problem = InitialDraft.CompanyProblem(i + 2, Scenario);
+            PlayersPicker.SetItemDisabled(i, problem is not null); PlayersPicker.SetItemTooltip(i, problem ?? "");
+        }
+        if (PlayersPicker.IsItemDisabled(PlayersPicker.Selected)) PlayersPicker.Select(0);
     }
 
     public void ShowJoin()
     {
         Hosting = false; SeatsShown = false; _title.Text = "JOIN CO-OP CAMPAIGN";
-        _addressRow.Show(); _campaignRow.Hide(); _playersRow.Hide(); ConfirmButton.Text = "Connect";
+        _addressRow.Show(); _campaignRow.Hide(); _playersRow.Hide(); _scenarioRow.Hide(); ConfirmButton.Text = "Connect";
         RefreshAddress();
         Status.Text = "Enter the leader's address and port.";
         ShowForm();
@@ -116,7 +130,7 @@ public partial class LobbyScreen : Control
     private void RefreshForm()
     {
         var resume = Hosting && CampaignPicker.Selected == 1 && _hasSaves;
-        PlayersPicker.Disabled = resume;
+        PlayersPicker.Disabled = ScenarioPicker.Disabled = resume;
         ConfirmButton.Text = !Hosting ? "Connect" : resume ? "Choose Save" : "Open Lobby";
         ConfirmButton.Disabled = !Campaign.ValidPlayerName(NameInput.Text.Trim()) || Hosting && PlayersPicker.IsItemDisabled(PlayersPicker.Selected) && !resume;
     }
@@ -125,7 +139,7 @@ public partial class LobbyScreen : Control
     {
         if (ConfirmButton.Disabled) return;
         var name = NameInput.Text.Trim(); var port = (int)PortInput.Value;
-        if (Hosting) HostRequested?.Invoke(name, port, PlayersPicker.Selected + 2, CampaignPicker.Selected == 1);
+        if (Hosting) HostRequested?.Invoke(name, port, PlayersPicker.Selected + 2, CampaignPicker.Selected == 1, Scenario);
         else JoinRequested?.Invoke(name, AddressInput.Text.Trim(), port);
     }
 

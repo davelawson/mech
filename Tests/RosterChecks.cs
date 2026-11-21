@@ -12,16 +12,24 @@ internal static class RosterChecks
         }
         check(DraftCatalog.AllMechs.Length == 49 && DraftCatalog.Mech("atlas") is { Variant: "AS7-D", Tonnage: 100 }, "all 49 chassis are catalogued");
         check(DraftCatalog.Mech("atlas").Weapons.Count(weapon => weapon.Rear && weapon.Location == MechLocation.CenterTorso) == 2, "Atlas retains both stock rear-facing lasers");
-        check(DraftCatalog.Warriors.Length == 24 && DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Regular) == 18
-            && DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Veteran) == 6, "expanded pilot catalog preserves regular and veteran balance");
-        check(DraftCatalog.Warriors.All(w => new[] { w.Gunnery, w.Piloting, w.Sensors, w.Grit }.All(value => value is >= 2 and <= 6)
-            && w.SkillPoints == (w.Rank == WarriorExperience.Veteran ? 10 : 8)), "every authored pilot spends its quality budget across four bounded skills");
+        check(DraftCatalog.Warriors.Length == 48 && DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Regular) == 30
+            && DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Veteran) == 6 && DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Green) == 12,
+            "pilot catalog holds 12 Green, 30 Regular and 6 Veteran MechWarriors");
+        check(DraftCatalog.Warriors.All(w => new[] { w.Gunnery, w.Piloting, w.Sensors, w.Grit }.All(value => value is >= 2 and <= 7)
+            && w.SkillPoints == w.Rank switch { WarriorExperience.Veteran => 10, WarriorExperience.Green => 4, _ => 8 }), "every authored pilot spends its quality budget across four bounded skills");
+        var untrained = DraftCatalog.Warriors.Where(w => new[] { w.Gunnery, w.Piloting, w.Sensors, w.Grit }.Contains(WarriorSkills.Untrained)).ToArray();
+        check(untrained.Length == 6 && untrained.All(w => w.Rank == WarriorExperience.Green && new[] { w.Gunnery, w.Piloting, w.Sensors, w.Grit }.Count(v => v == 7) == 1),
+            "six Green MechWarriors each have one Untrained skill");
+        check(WarriorSkills.Cost(7) == -1 && WarriorSkills.Descriptor(7) == "Untrained" && WarriorSkills.Descriptor(9) == "Untrained" && WarriorSkills.Descriptor(6) == "Green",
+            "an Untrained skill reads as Untrained and gives back one point");
+        check(DraftCatalog.Warrior("pell-avery").Salary == 20_000 && DraftCatalog.Warrior("mara-vale").Salary == 40_000 && DraftCatalog.Warrior("renata-kovac").Salary == 50_000
+            && DraftCatalog.Warrior("bram-kettle").Salary == 20_000, "salaries are 5,000 C-bills a quarter per net skill point");
         check(DraftCatalog.Warriors.Select(w => w.Grit).Distinct().Count() >= 3 && DraftCatalog.Warriors.Any(w => w.Grit == 6),
             "Grit varies across the catalog, from Green upward");
         check(WarriorSkills.Cost(6) == 0 && WarriorSkills.Cost(4) == 2 && WarriorSkills.Cost(2) == 4,
             "skill improvements each cost one point from the novice baseline");
         Reject(() => WarriorSkills.Cost(1), "ratings better than expert rejected by skill costs");
-        Reject(() => WarriorSkills.Cost(7), "ratings worse than novice rejected by skill costs");
+        Reject(() => WarriorSkills.Cost(8), "ratings worse than untrained rejected by skill costs");
         check(DraftCatalog.Warriors.Any(w => w.Sensors < w.Gunnery && w.Sensors < w.Piloting)
             && DraftCatalog.Warriors.Any(w => w.Sensors == 2) && DraftCatalog.Warriors.Any(w => w.Sensors == 6),
             "catalog includes sensor specialists and both expert and novice sensor ratings");
@@ -58,7 +66,9 @@ internal static class RosterChecks
         }
         check(generatedNames.Count > 1 && generatedChoices.All(choices => choices.SetEquals([0, 1, 2])),
             "seeded samples vary company names and reach every candidate in every pool");
-        check(seenMechs.SetEquals(DraftCatalog.AllMechs.Select(m => m.Id)) && seenWarriors.SetEquals(DraftCatalog.Warriors.Select(w => w.Id)), "all catalogued mechs and pilots can appear in the draft");
+        check(seenMechs.SetEquals(DraftCatalog.AllMechs.Select(m => m.Id)) && seenWarriors.SetEquals(DraftCatalog.Warriors.Where(w => w.Rank != WarriorExperience.Green).Select(w => w.Id)),
+            "all catalogued mechs and every Regular and Veteran pilot can appear in the established draft");
+        CheckStartingOut(check);
         CheckLances(check, Reject);
         var fresh = new Campaign();
         check(fresh.RequiresDraft && !fresh.CanAdvance && !fresh.AdvanceOneDay().Advanced, "undrafted campaign cannot advance");
@@ -132,6 +142,42 @@ internal static class RosterChecks
             check(loaded.Roster!.ForceName == roster.ForceName && loaded.Roster.Warriors[0].Health == WarriorHealth.Dead, "disk round trip retains roster and memorials");
         }
         finally { if (System.IO.File.Exists(storePath)) System.IO.File.Delete(storePath); }
+    }
+
+    /// <summary>The Just Starting Out draft: two light mechs over a Regular and a Green MechWarrior, on 500,000 C-bills.</summary>
+    private static void CheckStartingOut(Action<bool, string> check)
+    {
+        for (var seed = 0; seed < 64; seed++)
+        {
+            var draft = InitialDraft.CreateRandom(new Random(seed), StartingScenario.StartingOut);
+            var mechs = Enumerable.Range(0, 2).SelectMany(p => Enumerable.Range(0, 3).Select(c => draft.MechCandidate(p, c))).ToArray();
+            check(draft.Complete && draft.Columns == 2 && draft.SelectedCount == 4 && draft.ActivePools.SequenceEqual([0, 1, 4, 5])
+                && mechs.All(m => m.WeightClass == MechWeightClass.Light) && mechs.Select(m => m.Id).Distinct().Count() == 6
+                && Enumerable.Range(0, 3).All(c => draft.WarriorCandidate(4, c).Rank == WarriorExperience.Regular && draft.WarriorCandidate(5, c).Rank == WarriorExperience.Green),
+                "a starting-out draft offers six different light mechs, three Regulars and three Greens");
+            var roster = draft.Establish();
+            check(roster.Mechs.Count == 2 && roster.Warriors.Count == 2 && roster.Mechs.All(m => m.Lance == 0)
+                && roster.Mechs.Zip(roster.Warriors).All(pair => pair.First.WarriorId == pair.Second.Id)
+                && roster.Warriors[1].Spec.Rank == WarriorExperience.Green, "a starting-out company has two piloted light mechs in one lance");
+            var offered = InitialDraft.FromOffer(draft.Offer());
+            check(offered.Scenario == StartingScenario.StartingOut && offered.ActivePools.All(pool => offered.Choice(pool) == draft.Choice(pool))
+                && offered.MechCandidate(1, 2).Id == draft.MechCandidate(1, 2).Id, "a starting-out draft survives being sent to another player");
+        }
+        var fixedDraft = new InitialDraft(StartingScenario.StartingOut) { ForceName = "Fresh Start" };
+        var rejected = false;
+        try { fixedDraft.Select(2, 0); } catch (ArgumentOutOfRangeException) { rejected = true; }
+        check(rejected, "a starting-out draft has no Heavy pool");
+        foreach (var pool in fixedDraft.ActivePools) fixedDraft.Select(pool, 0);
+        var campaign = new Campaign(); campaign.EstablishCompany(fixedDraft);
+        check(campaign.Cash == 500_000 && campaign.Roster!.Mechs.Count == 2, "starting out begins with 500,000 C-bills");
+        var bad = fixedDraft.Offer() with { Mechs = [.. fixedDraft.Offer().Mechs.Take(5), "atlas"] };
+        rejected = false;
+        try { InitialDraft.FromOffer(bad); } catch (ArgumentException) { rejected = true; }
+        check(rejected, "a starting-out offer with an assault mech is refused");
+        var company = InitialDraft.CreateCompany(3, new Random(5), StartingScenario.StartingOut);
+        var formed = InitialDraft.EstablishCompany(company);
+        check(formed.LanceCount == 3 && formed.Mechs.Select(m => m.Lance).SequenceEqual(new int?[] { 0, 0, 1, 1, 2, 2 })
+            && formed.Warriors.Select(w => w.Id).Distinct().Count() == 6, "a three-player starting-out company has two mechs in each player's lance");
     }
 
     private static void CheckLances(Action<bool, string> check, Action<Action, string> reject)

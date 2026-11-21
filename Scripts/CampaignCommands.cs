@@ -22,6 +22,9 @@ namespace Mech;
 [JsonDerivedType(typeof(CancelRepairCommand), "cancel-repair")]
 [JsonDerivedType(typeof(ViewMarketCommand), "view-market")]
 [JsonDerivedType(typeof(BuyToStorageCommand), "buy-to-storage")]
+[JsonDerivedType(typeof(ViewRecruitsCommand), "view-recruits")]
+[JsonDerivedType(typeof(RecruitWarriorCommand), "recruit-warrior")]
+[JsonDerivedType(typeof(DismissWarriorCommand), "dismiss-warrior")]
 public abstract record CampaignCommand
 {
     [JsonIgnore] public virtual bool LeaderOnly => false;
@@ -161,4 +164,28 @@ public sealed record ViewMarketCommand : CampaignCommand
 public sealed record BuyToStorageCommand(string StorageId, int Count) : CampaignCommand
 {
     internal override object? Run(Campaign campaign, int slot) { campaign.BuyToStorage(StorageId, Count); return null; }
+}
+
+/// <summary>A player opening the personnel files: the hiring list where the DropShip orbits is brought up to today.</summary>
+public sealed record ViewRecruitsCommand : CampaignCommand
+{
+    internal override object? Run(Campaign campaign, int slot) { campaign.ViewRecruits(); return null; }
+}
+
+/// <summary>Hires a MechWarrior listed where the DropShip orbits, paid at once from the company's cash.</summary>
+public sealed record RecruitWarriorCommand(string WarriorId) : CampaignCommand
+{
+    internal override object? Run(Campaign campaign, int slot) { campaign.Recruit(WarriorId); return null; }
+}
+
+/// <summary>Dismisses a MechWarrior for good. One piloting a mech in another player's lance is that player's to dismiss.</summary>
+public sealed record DismissWarriorCommand(string WarriorId) : CampaignCommand
+{
+    internal override object? Run(Campaign campaign, int slot)
+    {
+        var roster = campaign.RequireRoster();
+        if (roster.Assignment(WarriorId) is { } mech) Campaign.RequireControl(roster, slot, mech.Id);
+        campaign.Dismiss(WarriorId);
+        return null;
+    }
 }

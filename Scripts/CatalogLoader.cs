@@ -142,8 +142,10 @@ internal static class CatalogLoader
             Text(w.Id, path + ".Id"); Text(w.Name, path + ".Name"); Text(w.Callsign, path + ".Callsign");
             Require(ids.Add(w.Id), path + ".Id", "duplicate identity");
             Defined(w.Rank, path + ".Rank"); Defined(w.Specialty, path + ".Specialty");
-            Require(new[] { w.Gunnery, w.Piloting, w.Sensors, w.Grit }.All(v => v is >= WarriorSkills.Expert and <= WarriorSkills.Novice),
-                path + ".Skills", "ratings must be between 2 and 6");
+            Require(new[] { w.Gunnery, w.Piloting, w.Sensors, w.Grit }.All(v => v is >= WarriorSkills.Expert and <= WarriorSkills.Untrained),
+                path + ".Skills", "ratings must be between 2 and 7");
+            Require(w.Rank == WarriorExperience.Green || new[] { w.Gunnery, w.Piloting, w.Sensors, w.Grit }.All(v => v <= WarriorSkills.Novice),
+                path + ".Skills", "only Green MechWarriors may be Untrained");
             Require(w.SkillPoints == w.SkillBudget, path + ".Skills", $"must spend exactly {w.SkillBudget} points");
         }
         return warriors;

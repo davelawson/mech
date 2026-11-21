@@ -87,22 +87,23 @@ internal static class TravelChecks
             Date = new DateOnly(3025, 3, 31), AccruedTransitDays = 5,
             Travel = new(origin, null, [origin, neighbor.Id], 0, 1)
         });
+        var salaries = campaign.Roster!.Salaries;
         var boundary = campaign.AdvanceOneDay();
         check(boundary.QuarterReached && boundary.Events.Count == 0 && campaign.Travel.InOrbit,
             "billing-date arrival updates orbit while notification waits for payment");
-        check(campaign.PaymentDue == 112_000 && campaign.BilledTransitDays == 6 && campaign.AccruedTransitDays == 0,
+        check(campaign.PaymentDue == 112_000 + salaries && campaign.BilledTransitDays == 6 && campaign.AccruedTransitDays == 0,
             "billing includes completed boundary transit day and freezes itemized charge");
         check(!campaign.AdvanceOneDay().Advanced, "payment blocks further transit and charges");
         var billed = Campaign.Restore(campaign.Snapshot());
-        check(billed.PayNow().Single().Kind == CampaignEventKind.Arrival && billed.Cash == 2_388_000,
+        check(billed.PayNow().Single().Kind == CampaignEventKind.Arrival && billed.Cash == 2_388_000 - salaries,
             "payment collects variable bill and releases same-day arrival exactly once");
         check(billed.BilledTransitDays == 0 && billed.AccruedTransitDays == 0 && billed.Snapshot().Events.Length == 0, "paid transit days cannot be billed twice");
         campaign.DeferPayment();
-        check(campaign.DeferredDebt == 112_000 && campaign.Cash == Campaign.StartingCash, "deferral carries transit charges without collecting cash");
+        check(campaign.DeferredDebt == 112_000 + salaries && campaign.Cash == Campaign.StartingCash, "deferral carries transit charges without collecting cash");
         campaign = Campaign.Restore(campaign.Snapshot());
         while (campaign.Date < new DateOnly(3025, 7, 1)) campaign.AdvanceOneDay();
-        check(campaign.PaymentDue == 212_000 && !campaign.CanDefer, "next quarter combines carried transit bill with new company charge");
-        var broke = Campaign.Restore(campaign.Snapshot() with { Cash = 211_999, Bankrupt = true });
+        check(campaign.PaymentDue == 212_000 + 2 * salaries && !campaign.CanDefer, "next quarter combines carried transit bill with new company charge");
+        var broke = Campaign.Restore(campaign.Snapshot() with { Cash = 211_999 + 2 * salaries, Bankrupt = true });
         check(broke.Bankrupt && !broke.CanAdvance, "variable carried bill participates in bankruptcy");
 
         var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"mech-travel-{Guid.NewGuid():N}.json");
@@ -110,7 +111,7 @@ internal static class TravelChecks
         {
             var store = new CampaignStore(path); store.Save(campaign);
             var loaded = store.Load();
-            check(loaded.PaymentDue == 212_000 && loaded.DeferredDebt == 112_000 && loaded.Travel.OrbitSystemId == neighbor.Id,
+            check(loaded.PaymentDue == 212_000 + 2 * salaries && loaded.DeferredDebt == 112_000 + salaries && loaded.Travel.OrbitSystemId == neighbor.Id,
                 "disk save round trip preserves location and variable obligations");
         }
         finally { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); }

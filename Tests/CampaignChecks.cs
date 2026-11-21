@@ -6,6 +6,8 @@ internal static class CampaignChecks
     {
         var campaign = NewCompany();
         check(campaign.Date == new DateOnly(3025, 1, 1) && campaign.Cash == 2_500_000, "new company defaults");
+        var salaries = campaign.Roster!.Salaries; var bill = Campaign.QuarterlyCharge + salaries;
+        check(salaries == 170_000 && campaign.ProjectedBill == bill, "the next bill includes a quarter's salaries for three Regulars and a Veteran");
         check(campaign.DaysUntilQuarter == 90 && campaign.NextEventDate == new DateOnly(3025, 4, 1), "quarter guarantees the next event");
         campaign.Schedule(new("arrival", new DateOnly(3025, 1, 3), CampaignEventKind.Arrival, "Arrival"));
         check(campaign.NextEventDate == new DateOnly(3025, 1, 3), "earlier scheduled event takes precedence");
@@ -16,25 +18,25 @@ internal static class CampaignChecks
         campaign.Schedule(new("mission", new DateOnly(3025, 4, 1), CampaignEventKind.MissionResult, "Mission result"));
         AdvanceTo(campaign, new DateOnly(3025, 3, 31));
         var quarter = campaign.AdvanceOneDay();
-        check(quarter.QuarterReached && quarter.Events.Count == 0 && campaign.PaymentDue == 100_000, "quarter blocks same-day settlement");
+        check(quarter.QuarterReached && quarter.Events.Count == 0 && campaign.PaymentDue == bill && campaign.BilledSalaries == salaries, "quarter blocks same-day settlement, billing salaries in advance");
         check(!campaign.AdvanceOneDay().Advanced && campaign.Date == new DateOnly(3025, 4, 1), "payment blocks every time control");
         check(campaign.Cash == 2_500_000 && campaign.CanPay && campaign.CanDefer, "bill does not collect automatically");
         var pending = Campaign.Restore(campaign.Snapshot());
         check(pending.PaymentPending && pending.PayNow().Single().Id == "mission", "save restores blocked same-day events");
-        check(pending.Cash == 2_400_000 && !pending.PaymentPending && pending.DeferredDebt == 0, "full payment clears obligation");
+        check(pending.Cash == 2_500_000 - bill && pending.BilledSalaries == 0 && !pending.PaymentPending && pending.DeferredDebt == 0, "full payment clears obligation");
         check(pending.AdvanceOneDay().Events.Count == 0, "settlement delivered only once");
         check(campaign.DeferPayment().Single().Id == "mission", "deferral releases same-day commitments");
-        check(campaign.Cash == 2_500_000 && campaign.DeferredDebt == 100_000 && campaign.CanAdvance, "deferral preserves cash and unlocks time");
+        check(campaign.Cash == 2_500_000 && campaign.DeferredDebt == bill && campaign.CanAdvance, "deferral preserves cash and unlocks time");
         check(campaign.DaysUntilQuarter == 91, "countdown rolls to following quarter");
         AdvanceTo(campaign, new DateOnly(3025, 7, 1));
-        check(campaign.PaymentDue == 200_000 && !campaign.CanDefer && !campaign.Bankrupt, "next quarter requires both full bills");
+        check(campaign.PaymentDue == 2 * bill && !campaign.CanDefer && !campaign.Bankrupt, "next quarter requires both full bills");
         Throws(() => campaign.DeferPayment(), check, "cannot defer a second quarter");
         campaign.PayNow();
-        check(campaign.Cash == 2_300_000 && campaign.DeferredDebt == 0, "payment clears old debt and new bill");
+        check(campaign.Cash == 2_500_000 - 2 * bill && campaign.DeferredDebt == 0, "payment clears old debt and new bill");
         foreach (var due in new[] { new DateOnly(3025, 10, 1), new DateOnly(3026, 1, 1) })
         {
             AdvanceTo(campaign, due);
-            check(campaign.PaymentDue == 100_000 && campaign.PaymentPending, $"recurring boundary {due}");
+            check(campaign.PaymentDue == bill && campaign.PaymentPending, $"recurring boundary {due}");
             campaign.PayNow();
         }
 
@@ -62,7 +64,7 @@ internal static class CampaignChecks
         check(insolvent.Bankrupt && !insolvent.CanAdvance && !insolvent.CanPay, "insufficient cash at grace deadline causes bankruptcy");
         check(Campaign.Restore(insolvent.Snapshot()).Bankrupt, "bankruptcy survives restoration");
 
-        var exact = Campaign.Restore(NewCompany().Snapshot() with { Cash = 200_000 });
+        var exact = Campaign.Restore(NewCompany().Snapshot() with { Cash = 2 * bill });
         AdvanceTo(exact, new DateOnly(3025, 4, 1));
         exact.DeferPayment();
         AdvanceTo(exact, new DateOnly(3025, 7, 1));
@@ -90,6 +92,127 @@ internal static class CampaignChecks
         TestLances(check);
         TestRepairs(check);
         TestMarkets(check);
+        TestRecruitment(check);
+    }
+
+    /// <summary>A populous system where the DropShip orbits, so its hiring list has three slots.</summary>
+    private static Campaign InOrbitAt(Campaign campaign, string systemId) => Campaign.Restore(campaign.Snapshot() with
+        { Travel = new(systemId, null, null, 0, 0) });
+
+    private static void TestRecruitment(Action<bool, string> check)
+    {
+        check(PilotTuning.Slots(0) == 0 && PilotTuning.Slots(99_999_999) == 1 && PilotTuning.Slots(100_000_000) == 2
+            && PilotTuning.Slots(999_999_999) == 2 && PilotTuning.Slots(1_000_000_000) == 3, "hiring list slots follow population");
+        var populous = StarChart.Instance.Systems.Where(item => PilotTuning.Slots(item) == 3).OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
+        var empty = StarChart.Instance.Systems.First(item => PilotTuning.Slots(item) == 0);
+        var campaign = InOrbitAt(NewCompany(7), populous[0].Id);
+        campaign.ViewRecruits();
+        var listed = campaign.OrbitRecruits;
+        check(campaign.Recruits.Visited(populous[0].Id) && listed.Count <= 3 && listed.All(item => campaign.Roster!.Warriors.All(owned => owned.Id != item.Id)),
+            "the first visit lists up to three MechWarriors not already in the company");
+        var deserted = InOrbitAt(NewCompany(7), empty.Id); deserted.ViewRecruits();
+        check(!deserted.Recruits.Visited(empty.Id) && deserted.OrbitRecruits.Count == 0, "an uninhabited world lists no one");
+
+        // Over many days in orbit, lists fill and turn over; a MechWarrior is never on two lists, and never relisted within a week.
+        var seen = new Dictionary<string, (string System, DateOnly Until)>();
+        var lists = new HashSet<string>(); var filled = 0; var turnover = 0;
+        var rover = InOrbitAt(NewCompany(11), populous[1].Id);
+        for (var leg = 0; leg < 6; leg++)
+        {
+            var system = populous[1 + leg % 3].Id;
+            rover = Campaign.Restore(rover.Snapshot() with { Travel = new(system, null, null, 0, 0) });
+            for (var day = 0; day < 12; day++)
+            {
+                rover.ViewRecruits();
+                var now = rover.OrbitRecruits.Select(item => item.Id).ToArray();
+                if (now.Length == 3) filled++;
+                foreach (var id in now)
+                {
+                    if (seen.TryGetValue(id, out var last) && last.System != system) check(rover.Date >= last.Until, $"{id} is not relisted elsewhere within {PilotTuning.RelistDays} days");
+                    seen[id] = (system, rover.Date.AddDays(PilotTuning.RelistDays + 1));
+                }
+                var all = StarChart.Instance.Systems.SelectMany(item => rover.Recruits.Listed(item.Id)).Select(item => item.Id).ToArray();
+                check(all.Distinct().Count() == all.Length, "no MechWarrior is on two hiring lists");
+                lists.UnionWith(now);
+                var before = now.ToHashSet();
+                rover.AdvanceOneDay(); if (rover.PaymentPending) rover.PayNow();
+                if (!rover.OrbitRecruits.Select(item => item.Id).ToHashSet().IsSupersetOf(before)) turnover++;
+            }
+        }
+        check(filled > 0 && turnover > 0 && lists.Count > 6, $"hiring lists fill and turn over (full {filled} days, {turnover} departures, {lists.Count} MechWarriors seen)");
+
+        // Away from a system, departures continue but empty slots only refill on arrival.
+        var away = InOrbitAt(NewCompany(13), populous[0].Id); away.ViewRecruits();
+        var home = populous[0].Id;
+        var travelled = Campaign.Restore(away.Snapshot() with { Travel = new(populous[1].Id, null, null, 0, 0), Date = away.Date.AddDays(200), NextQuarter = new DateOnly(3025, 10, 1) });
+        travelled.ViewRecruits();
+        check(away.Recruits.Listed(home).Count > 0 && travelled.Recruits.Listed(home).Count == 0, "listed MechWarriors drift away while the DropShip is elsewhere");
+        check(travelled.Snapshot().Recruitment!.Lists.Single(item => item.SystemId == home).Rolled == away.Date, "a system's empty slots do not roll while the DropShip is away");
+
+        // Hiring: the rest of the quarter, prorated, plus a quarter's signing bonus.
+        var hiring = InOrbitAt(NewCompany(7), populous[0].Id);
+        WarriorSpec? recruit = null;
+        for (var day = 0; day < 30 && recruit is null; day++) { hiring.ViewRecruits(); recruit = hiring.OrbitRecruits.FirstOrDefault(); if (recruit is null) hiring.AdvanceOneDay(); }
+        check(recruit is not null, "someone is for hire on a populous world within a month");
+        var cost = hiring.HireCost(recruit!);
+        var expected = (long)Math.Ceiling(recruit!.Salary * (double)hiring.DaysUntilQuarter / 90 / 1000) * 1000;
+        check(cost.Salary == recruit.Salary && cost.SigningBonus == recruit.Salary && cost.DaysLeft == hiring.DaysUntilQuarter && cost.QuarterDays == 90
+            && cost.Prorated == expected && cost.Total == expected + recruit.Salary, $"hiring costs the prorated quarter and a signing bonus ({cost.Prorated} + {cost.SigningBonus})");
+        var broke = Campaign.Restore(hiring.Snapshot() with { Cash = cost.Total - 1 });
+        check(broke.HireProblem(recruit) is { } poor && poor.Contains("afford"), "an unaffordable hire is refused");
+        Throws(() => broke.Recruit(recruit.Id), check, "recruiting without the cash fails");
+        var cash = hiring.Cash; var payroll = hiring.Roster!.Salaries;
+        hiring.Recruit(recruit.Id);
+        var hired = hiring.Roster.Warriors.Single(item => item.Id == recruit.Id);
+        check(hiring.Cash == cash - cost.Total && hired.Ready && hiring.Roster.Assignment(recruit.Id) is null && hiring.OrbitRecruits.All(item => item.Id != recruit.Id),
+            "a recruit is paid for at once and joins healthy and unassigned");
+        check(hiring.Roster.Salaries == payroll + recruit.Salary && hiring.ProjectedBill == Campaign.QuarterlyCharge + payroll + recruit.Salary,
+            "the recruit's salary joins the next quarterly bill");
+        hiring.Roster.Assign(hiring.Roster.Mechs[0].Id, recruit.Id, confirmSwap: true);
+        check(hiring.Roster.Mechs[0].WarriorId == recruit.Id, "a recruit can pilot a mech straight away");
+        Throws(() => hiring.Recruit(recruit.Id), check, "a MechWarrior cannot be hired twice");
+        var moving = NewCompany(); var start = moving.Travel.OrbitSystemId;
+        moving.ViewRecruits();
+        moving.PlotJourney(StarChart.Instance.Systems.First(item => item.Id != start && StarChart.Instance.Distance(start, item.Id) is > 12 and <= 30).Id); moving.Embark(); moving.AdvanceOneDay();
+        check(!moving.Travel.InOrbit && moving.OrbitRecruits.Count == 0 && moving.HireProblem(DraftCatalog.Warrior("pell-avery")) is not null, "no one can be hired in transit");
+
+        // Dismissal: gone for good, unassigned, no refund, never listed again.
+        var restored = Campaign.Restore(hiring.Snapshot());
+        check(restored.Roster!.Warriors.Any(item => item.Id == recruit.Id) && restored.Cash == hiring.Cash, "a recruit survives saving");
+        cash = hiring.Cash;
+        hiring.Dismiss(recruit.Id);
+        check(hiring.Roster.Warriors.All(item => item.Id != recruit.Id) && hiring.Roster.Mechs[0].WarriorId is null && hiring.Cash == cash
+            && hiring.Recruits.IsDismissed(recruit.Id) && hiring.Roster.Salaries == payroll,
+            "a dismissed MechWarrior leaves the company and their mech, without a refund");
+        var dismissedSave = Campaign.Restore(hiring.Snapshot());
+        check(dismissedSave.Recruits.IsDismissed(recruit.Id), "dismissals survive saving");
+        for (var day = 0; day < 120; day++)
+        {
+            dismissedSave.ViewRecruits();
+            check(StarChart.Instance.Systems.All(item => dismissedSave.Recruits.Listed(item.Id).All(listedWarrior => listedWarrior.Id != recruit.Id)), "a dismissed MechWarrior is never listed again");
+            dismissedSave.AdvanceOneDay(); if (dismissedSave.PaymentPending) dismissedSave.PayNow();
+        }
+        var dead = NewCompany(); dead.Roster!.SetHealth(dead.Roster.Warriors[0].Id, WarriorHealth.Dead, null, dead.Date);
+        Throws(() => dead.Dismiss(dead.Roster.Warriors[0].Id), check, "the deceased cannot be dismissed");
+        check(dead.Roster.Salaries == 130_000 && dead.Roster.SalariedWarriors == 3, "the deceased draw no salary");
+        var injured = NewCompany(); injured.Roster!.SetHealth(injured.Roster.Warriors[0].Id, WarriorHealth.Injured, injured.Date.AddDays(10), injured.Date);
+        check(injured.Roster.Salaries == 170_000, "injured MechWarriors are still paid");
+
+        // Co-op: a slot dismisses only MechWarriors it controls.
+        var coop = NewCompany();
+        var commands = Campaign.Restore(coop.Snapshot());
+        var pilot = commands.Roster!.Warriors[0].Id;
+        commands.Execute(new DismissWarriorCommand(pilot));
+        check(commands.Roster.Warriors.All(item => item.Id != pilot), "the dismiss command removes the MechWarrior");
+
+        // Saves: corrupt hiring lists are refused.
+        var snapshot = hiring.Snapshot();
+        Throws(() => Campaign.Restore(snapshot with { Recruitment = new([new(populous[0].Id, hiring.Date, hiring.Date, ["mara-vale", "mara-vale"])], [], []) }), check, "a list cannot name a MechWarrior twice");
+        Throws(() => Campaign.Restore(snapshot with { Recruitment = new([new(empty.Id, hiring.Date, hiring.Date, [])], [], []) }), check, "an uninhabited world has no hiring list");
+        Throws(() => Campaign.Restore(snapshot with { Recruitment = new([], [], [hiring.Roster.Warriors[0].Id]) }), check, "a company MechWarrior cannot be dismissed in the save");
+        Throws(() => Campaign.Restore(snapshot with { BilledSalaries = 500 }), check, "billed salaries need a matching bill");
+        var legacy = Campaign.Restore(snapshot with { Recruitment = null, BilledSalaries = 0 });
+        check(legacy.Recruits.Snapshot() is null && legacy.OrbitRecruits.Count == 0, "older saves have no hiring lists until viewed");
     }
 
     /// <summary>The campaign with the orbited system's market holding exactly these items, last refreshed today.</summary>
@@ -369,14 +492,14 @@ internal static class CampaignChecks
             loaded.DeferPayment();
             store.Save(loaded);
             var deferred = new CampaignStore(path).Load();
-            check(deferred.DeferredDebt == 100_000 && deferred.CanAdvance && deferred.NextEventDate == new DateOnly(3025, 5, 1), "disk round trip restores debt and future events");
+            check(deferred.DeferredDebt == 100_000 + deferred.Roster!.Salaries && deferred.CanAdvance && deferred.NextEventDate == new DateOnly(3025, 5, 1), "disk round trip restores debt and future events");
             check(System.IO.Directory.GetFiles(directory).Length == 1, "atomic saves leave a single campaign file");
             System.IO.File.WriteAllText(path, "{broken");
             var rejected = false;
             try { store.Load(); }
             catch (System.Text.Json.JsonException) { rejected = true; }
             check(rejected, "corrupt JSON is rejected");
-            check(deferred.DeferredDebt == 100_000, "failed load cannot mutate the live campaign");
+            check(deferred.DeferredDebt == 100_000 + deferred.Roster!.Salaries, "failed load cannot mutate the live campaign");
         }
         finally
         {

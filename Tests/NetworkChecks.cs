@@ -188,8 +188,10 @@ internal static class NetworkChecks
         var rejected = false;
         try { _ = new CoopHost(new MemoryNetwork().Leader, "Dave", 2, solo); } catch (ArgumentException) { rejected = true; }
         check(rejected, "a single-player campaign cannot be hosted as co-op");
-        check(InitialDraft.MaxPlayers == 2 && InitialDraft.CompanyProblem(3) is { } problem && problem.Contains("27 regular and 9 veteran"),
-            "three-player companies wait for enough MechWarriors in the catalog");
+        check(InitialDraft.MaxPlayers() == 2 && InitialDraft.CompanyProblem(3) is { } problem && problem.Contains("27 regular and 9 veteran"),
+            "three-player established companies wait for enough MechWarriors in the catalog");
+        check(InitialDraft.MaxPlayers(StartingScenario.StartingOut) == 3 && InitialDraft.CompanyProblem(3, StartingScenario.StartingOut) is null,
+            "three players can start out together");
 
         var network = new MemoryNetwork();
         var setup = new CoopHost(network.Leader, "Dave", 2); var sam = new CoopClient(network.Connect(), "Sam");

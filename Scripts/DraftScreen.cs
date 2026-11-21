@@ -76,9 +76,14 @@ public partial class DraftScreen : Control
     /// <summary>Waiting for the other players to confirm their drafts; the selections are locked.</summary>
     public bool Waiting { get; private set; }
     /// <summary>Begins a draft: a random single-player one, or a co-op player's own (whose draft only names the company if they lead).</summary>
-    public void Begin(InitialDraft? draft = null, bool coop = false)
+    public void Begin(InitialDraft? draft = null, bool coop = false, StartingScenario scenario = StartingScenario.Established)
     {
-        Draft = draft ?? InitialDraft.CreateRandom(DraftRandom); Waiting = false;
+        Draft = draft ?? InitialDraft.CreateRandom(DraftRandom, scenario); Waiting = false;
+        for (var pool = 0; pool < 8; pool++)
+        {
+            _pools[pool].Visible = Draft.Active(pool);
+            if (Draft.Active(pool)) _poolTitles[pool].Text = Draft.PoolName(pool);
+        }
         NameInput.Text = Draft.ForceName; NameInput.Visible = Draft.NamesCompany;
         _title.Text = Draft.NamesCompany ? "SELECT INITIAL MECHS AND PILOTS" : "DRAFT YOUR LANCE";
         EstablishButton.Text = coop ? "Confirm Lance" : "Establish Company";
@@ -94,7 +99,7 @@ public partial class DraftScreen : Control
     public void RefreshArtwork() => RefreshCandidates();
     private void RefreshCandidates()
     {
-        for (var pool = 0; pool < 8; pool++) for (var choice = 0; choice < 3; choice++)
+        foreach (var pool in Draft.ActivePools) for (var choice = 0; choice < 3; choice++)
         {
             if (pool < 4)
             {
@@ -108,7 +113,7 @@ public partial class DraftScreen : Control
             else
             {
                 var spec = Draft.WarriorCandidate(pool, choice);
-                _portraits[pool, choice].Texture = Ui.LoadTexture(spec.Artwork);
+                _portraits[pool, choice].Texture = RosterUi.Portrait(spec);
                 _candidateNames[pool, choice].Text = $"“{spec.Callsign}”";
                 _candidateStats[pool, choice].Text = RosterUi.SkillLines(spec);
                 Choices[pool, choice].TooltipText = $"{spec.DisplayName}\n{spec.Experience}\n{RosterUi.SkillLines(spec)}\n{RosterUi.SkillBudgetText(spec)}";
@@ -119,7 +124,7 @@ public partial class DraftScreen : Control
     {
         if (EstablishButton is null) return;
         NameInput.Editable = !Waiting;
-        for (var p = 0; p < 8; p++) for (var c = 0; c < 3; c++)
+        foreach (var p in Draft.ActivePools) for (var c = 0; c < 3; c++)
         {
             var chosen = Draft.Choice(p) == c; Choices[p, c].SetPressedNoSignal(chosen); Choices[p, c].Disabled = Waiting;
             Choices[p, c].AddThemeStyleboxOverride("normal", Ui.Box(chosen ? new Color("344431") : Ui.Background, chosen ? Ui.Gold : Ui.Line));
@@ -142,7 +147,7 @@ public partial class DraftScreen : Control
         else
         {
             var spec = Draft.WarriorCandidate(pool, choice);
-            var image = RosterUi.Picture(_previewBody, spec.Artwork, new Vector2(180, 180)); image.SizeFlagsVertical = SizeFlags.ExpandFill;
+            var image = RosterUi.Picture(_previewBody, "", new Vector2(180, 180)); image.Texture = RosterUi.Portrait(spec); image.SizeFlagsVertical = SizeFlags.ExpandFill;
             RosterUi.Text(_previewBody, spec.DisplayName, 22, Ui.Gold);
             RosterUi.Text(_previewBody, $"{spec.Experience}\n{RosterUi.SkillLines(spec)}\n{RosterUi.SkillBudgetText(spec)}\nHealthy · Ready for deployment", 16);
         }
@@ -164,9 +169,11 @@ public partial class DraftScreen : Control
         Ui.Place(_title, 24, 8, titleWidth, 40);
         Ui.Place(_progress, 24 + titleWidth + 10, 8, buttonLeft - 10 - (24 + titleWidth + 10), 40);
         const float top = 58, bottom = 12;
-        var width = (Size.X - 72) / 4; var height = (Size.Y - top - bottom - 8) / 2;
+        var columns = Draft.Columns;
+        var width = (Size.X - 48 - (columns - 1) * 8) / columns; var height = (Size.Y - top - bottom - 8) / 2;
         for (var pool = 0; pool < 8; pool++)
         {
+            if (!Draft.Active(pool)) continue;
             Ui.Place(_pools[pool], 24 + pool % 4 * (width + 8), top + pool / 4 * (height + 8), width, height);
             Ui.Place(_poolTitles[pool], 10, 1, width - 20, 22);
             var rowHeight = (height - 28) / 3;

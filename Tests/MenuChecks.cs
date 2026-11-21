@@ -189,8 +189,10 @@ public partial class SmokeTests
         _app.ShowOffice();
         await SaveMenuTestCompany();
         _app.ShowMainMenu(); await Frames(); await Click(_app.MainMenu.NewButton);
-        Check(_app.Drafting.Visible && !_app.UnsavedDialog.Visible && !_app.MainMenu.ResumeButton.IsVisibleInTree(),
-            "clean New Company skips confirmation and discards the old resume destination");
+        Check(_app.Dialog.Visible && _app.Dialog.Heading == "Starting scenario" && !_app.UnsavedDialog.Visible,
+            "clean New Company skips confirmation and asks for a starting scenario");
+        await ChooseScenario();
+        Check(_app.Drafting.Visible && !_app.MainMenu.ResumeButton.IsVisibleInTree(), "choosing a scenario discards the old resume destination");
         await FinishDraft(); await SaveMenuTestCompany();
     }
 }

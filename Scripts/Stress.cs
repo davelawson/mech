@@ -6,7 +6,8 @@ namespace Mech;
 public enum StressLevel { Calm, Steady, Excited, Stressed, Panicked }
 
 /// <summary>One nerve check: 2d6 + Grit + modifiers. 11 or less calms the pilot a step, 15 or more stresses them a step, and a
-/// Panicked pilot who reaches 15 or more again has an even chance to break and eject; otherwise they hold on.</summary>
+/// Panicked pilot who reaches 15 or more again has an even chance to break and eject; otherwise they hold on. A pilot whose mech is
+/// undamaged this battle grows no worse than Excited, and one whose mech has lost no internal structure never breaks.</summary>
 public sealed record CombatNerveCheck(int Roll, int Grit, int Modifier, string Modifiers, StressLevel Before, StressLevel After, bool Broke,
     bool HeldOn = false)
 {
@@ -57,6 +58,10 @@ public sealed partial class CombatUnit
     internal int InjuriesAtLastCheck { get; set; }
     internal int AlliesDefeatedAtLastCheck { get; set; }
     public int StressPenalty => CombatRules.StressPenalty(Stress);
+    /// <summary>Armor or structure lost this battle: a pilot cannot grow Stressed without it.</summary>
+    public bool DamagedThisBattle => ArmorLost > 0 || StructureLost > 0;
+    /// <summary>Internal structure lost this battle: a Panicked pilot cannot break and eject without it.</summary>
+    public bool InternallyDamagedThisBattle => StructureLost > 0;
     /// <summary>Skills as the pilot plays them now: worse while Stressed or Panicked. Grit itself is never affected.</summary>
     public int Gunnery => Warrior.Gunnery + StressPenalty;
     public int Piloting => Warrior.Piloting + StressPenalty;
@@ -168,9 +173,12 @@ public sealed partial class CombatSimulation
         var result = roll + unit.Warrior.Grit + modifier;
         var before = unit.Stress;
         var pushed = before == StressLevel.Panicked && result >= CombatRules.StressingResult;
-        var broke = pushed && (PanicEjectOverride?.Invoke() ?? _stressRandom.NextDouble() < CombatRules.PanicEjectChance);
+        // A Panicked pilot whose mech still has all its internal structure holds on without a chance to break.
+        var broke = pushed && unit.InternallyDamagedThisBattle
+            && (PanicEjectOverride?.Invoke() ?? _stressRandom.NextDouble() < CombatRules.PanicEjectChance);
         if (result <= CombatRules.CalmingResult && before > StressLevel.Calm) unit.Stress = before - 1;
-        else if (result >= CombatRules.StressingResult && before < StressLevel.Panicked) unit.Stress = before + 1;
+        else if (result >= CombatRules.StressingResult && before < StressLevel.Panicked
+            && (before != StressLevel.Excited || unit.DamagedThisBattle)) unit.Stress = before + 1;
         unit.NerveDamage = 0; unit.ShotAtSinceCheck = unit.KnockedDownSinceCheck = unit.HeadDamagedSinceCheck = false;
         unit.InjuriesAtLastCheck = unit.Injuries; unit.AlliesDefeatedAtLastCheck = AlliesDefeated(unit);
         var check = new CombatNerveCheck(roll, unit.Warrior.Grit, modifier, text, before, unit.Stress, broke, pushed && !broke);

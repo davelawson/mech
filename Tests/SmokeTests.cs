@@ -31,7 +31,7 @@ public partial class SmokeTests : Node
         }),
         new("draft", Setup.Menu, async () =>
         {
-            await Click(_app.MainMenu.NewButton); await TestDraftUi(); await TestLegacyDraftUi();
+            await Click(_app.MainMenu.NewButton); await TestScenarioUi(); await TestDraftUi(); await TestLegacyDraftUi();
         }),
         new("office", Setup.Drafted, async () => { await TestOfficeUi(); TestMissingArtwork(); }),
         new("map", Setup.Drafted, async () =>
@@ -713,7 +713,7 @@ public partial class SmokeTests : Node
         Check(_app.State.PaymentPending && _app.State.Cash == 2_500_000, "cancel warning preserves payment block");
         await Click(DialogButton("Pay Later"));
         await Click(DialogButton("Pay Later"));
-        Check(!_app.State.PaymentPending && _app.State.DeferredDebt == 100_000 && _app.State.Cash == 2_500_000, "confirmed deferral preserves cash");
+        Check(!_app.State.PaymentPending && _app.State.DeferredDebt == Campaign.QuarterlyCharge + _app.State.Roster!.Salaries && _app.State.Cash == 2_500_000, "confirmed deferral preserves cash");
         Check(_app.Office.QuarterText.Text == "bills due in 91 days" && _app.Office.QuarterText.GetThemeColor("font_color") == new Color("ff6c63"), "deferred countdown stays red");
         Check(_app.Office.SafeReadout.Modulate == Colors.White && _app.Office.SafeReadout.Text == "₡ 2,500,000", "safe stops blinking and preserves balance after deferral");
         await Capture("payment-deferred");
@@ -725,15 +725,19 @@ public partial class SmokeTests : Node
         await Click(DialogButton("Load Game"));
         Check(_app.State.PaymentPending && _app.State.DeferredDebt == 0 && _app.Office.QuarterText.Text == "Payment Due", "load restores unpaid quarter and calendar block");
         await Click(_app.Office.SafeButton);
+        var due = _app.State.PaymentDue;
+        Check(due == Campaign.QuarterlyCharge + _app.State.BilledSalaries && _app.State.BilledSalaries == _app.State.Roster!.Salaries
+            && _app.Dialog.Body.Contains($"Salaries · 4 pilots: {RosterUi.Money(_app.State.BilledSalaries)}"), "the bill includes the company's salaries");
         await Click(DialogButton("Pay Now"));
-        Check(_app.State.Cash == 2_400_000 && _app.State.CanAdvance && !_app.Dialog.Visible, "Pay Now collects full bill and unlocks time");
-        Check(_app.Office.SafeReadout.Text == "₡ 2,400,000" && _app.Office.SafeButton.TooltipText.Contains("₡ 2,400,000"), "payment refreshes safe balance and tooltip");
+        Check(_app.State.Cash == 2_500_000 - due && _app.State.CanAdvance && !_app.Dialog.Visible, "Pay Now collects full bill and unlocks time");
+        Check(_app.Office.SafeReadout.Text == $"₡ {(2_500_000 - due).ToString("N0", System.Globalization.CultureInfo.InvariantCulture)}"
+            && _app.Office.SafeButton.TooltipText.Contains(_app.Office.SafeReadout.Text), "payment refreshes safe balance and tooltip");
         Check(_app.Office.QuarterText.GetThemeColor("font_color") == Ui.Gold, "full payment restores normal countdown color");
         var slot = _app.SoloSaves.List().Single().Id;
         await Click(_app.Office.FilingButton); await Click(SlotButton(1));
         Check(_app.SaveDialog.Heading == "Overwrite save?" && _app.SaveDialog.NameInput!.Text == "Payment due", "overwriting keeps the slot's own name");
         await Click(DialogButton("Save"));
-        Check(_app.SoloSaves.List() is [{ Info.Name: "Payment due" } only] && only.Id == slot && _app.SoloSaves.Load(slot).Cash == 2_400_000,
+        Check(_app.SoloSaves.List() is [{ Info.Name: "Payment due" } only] && only.Id == slot && _app.SoloSaves.Load(slot).Cash == 2_500_000 - due,
             "confirmed overwrite replaces the slot with the changed finances");
         await Click(_app.Saves.CloseButton);
 
@@ -777,20 +781,60 @@ public partial class SmokeTests : Node
         await Click(_app.Saves.CloseButton);
     }
 
-    private async Task FinishDraft()
+    /// <summary>Picks a starting scenario in the dialog New Company opens.</summary>
+    private async Task ChooseScenario(string name = "Established")
     {
         await Frames();
+        if (_app.Dialog.Visible && _app.Dialog.Heading == "Starting scenario") await Click(DialogButton(name));
+    }
+
+    private async Task FinishDraft()
+    {
+        await ChooseScenario();
         _app.Drafting.NameInput.Text = "Test Company";
         _app.Drafting.NameInput.EmitSignal(LineEdit.SignalName.TextChanged, "Test Company");
         for (var pool = 0; pool < 8; pool++) await Click(_app.Drafting.Choices[pool, 0]);
         await Click(_app.Drafting.EstablishButton);
     }
 
+    /// <summary>New Company asks how the company begins; Just starting out drafts two light mechs and two junior MechWarriors.</summary>
+    private async Task TestScenarioUi()
+    {
+        await Frames();
+        Check(_app.Dialog.Visible && _app.Dialog.Heading == "Starting scenario" && !_app.Drafting.Visible
+            && DialogButton("Just starting out").Visible && DialogButton("Established").Visible, "New Company asks for a starting scenario");
+        await PressKey(Key.Escape);
+        Check(!_app.Dialog.Visible && _app.MainMenu.Visible && !_app.Drafting.Visible, "Escape from the scenario dialog stays at the main menu");
+        await Click(_app.MainMenu.NewButton); await ChooseScenario("Just starting out");
+        var draft = _app.Drafting.Draft;
+        Check(_app.Drafting.Visible && draft.Scenario == StartingScenario.StartingOut && draft.Columns == 2 && draft.Complete && draft.SelectedCount == 4,
+            "Just starting out opens a four-pool draft");
+        var shown = Enumerable.Range(0, 8).Where(pool => _app.Drafting.Choices[pool, 0].IsVisibleInTree()).ToArray();
+        Check(shown.SequenceEqual([0, 1, 4, 5]), $"only the two mech and two MechWarrior pools are shown ({string.Join(",", shown)})");
+        var mechs = Enumerable.Range(0, 2).SelectMany(p => Enumerable.Range(0, 3).Select(c => draft.MechCandidate(p, c))).ToArray();
+        Check(mechs.All(m => m.WeightClass == MechWeightClass.Light) && mechs.Select(m => m.Id).Distinct().Count() == 6
+            && Enumerable.Range(0, 3).All(c => draft.WarriorCandidate(4, c).Rank == WarriorExperience.Regular && draft.WarriorCandidate(5, c).Rank == WarriorExperience.Green),
+            "both mech pools offer different light mechs, over a Regular and a Green pool");
+        Check(_app.Drafting.Choices[1, 0].GetGlobalRect().Position.X > _app.Drafting.Choices[0, 0].GetGlobalRect().End.X
+            && _app.Drafting.Choices[1, 0].GetGlobalRect().End.X < GetViewport().GetVisibleRect().End.X, "the two columns share the screen width");
+        await Capture("draft-starting-out");
+        _app.Drafting.NameInput.Text = "Fresh Start"; _app.Drafting.NameInput.EmitSignal(LineEdit.SignalName.TextChanged, "Fresh Start");
+        await Click(_app.Drafting.EstablishButton);
+        var roster = _app.State.Roster;
+        Check(_app.Office.Visible && roster is { Mechs.Count: 2, Warriors.Count: 2 } && roster.Mechs.All(m => m.Lance == 0 && m.WarriorId is not null)
+            && _app.State.Cash == 500_000, "the company starts with two piloted light mechs in its lance and 500,000 C-bills");
+        _app.ShowMainMenu(); await Frames(); await Click(_app.MainMenu.NewButton);
+        if (_app.UnsavedDialog.Visible) await Click(DialogButton("New Company"));
+        await ChooseScenario();
+    }
+
     private async Task TestDraftUi()
     {
         Check(_app.Drafting.Visible && _app.State.RequiresDraft && !_app.State.CanAdvance, "new company must draft before operations");
         var initialDraft = _app.Drafting.Draft;
-        Check(DraftCatalog.Warriors.All(warrior => ResourceLoader.Exists(warrior.Artwork)), "all draft pilot portraits are imported");
+        Check(DraftCatalog.Warriors.Take(24).All(warrior => ResourceLoader.Exists(warrior.Artwork)), "all painted pilot portraits are imported");
+        Check(DraftCatalog.Warriors.Skip(24).All(warrior => !ResourceLoader.Exists(warrior.Artwork) && RosterUi.Portrait(warrior) == RosterUi.PlaceholderPortrait)
+            && RosterUi.Portrait(DraftCatalog.Warriors[0]) != RosterUi.PlaceholderPortrait, "unpainted pilots show the placeholder portrait");
         var initialChoices = Enumerable.Range(0, 8).Select(initialDraft.Choice).ToArray();
         for (var pool = 0; pool < 4; pool++) for (var choice = 0; choice < 3; choice++)
         {
@@ -903,6 +947,56 @@ public partial class SmokeTests : Node
             "memorial section retains a deceased warrior and clears assignment");
         Check(_app.Office.ReadyCount.Text == "3", "office count excludes memorial records");
         await Capture("rolodex-memorial"); await PressKey(Key.Escape);
+        await TestHiringUi();
+    }
+
+    /// <summary>The For hire section: recruiting pays at once and joins the company; Dismiss asks, then removes a MechWarrior for good.</summary>
+    private async Task TestHiringUi()
+    {
+        var state = _app.State; var roster = state.Roster!;
+        Check(PilotTuning.Slots(StarChart.Instance[state.Travel.OrbitSystemId]) >= 2, "the starting system lists MechWarriors for hire");
+        state.PlaceRecruits("pell-avery", "sofia-brandt");
+        await Click(_app.Office.RolodexButton);
+        _app.Rolodex.Section.Select(RolodexPanel.HireSection); _app.Rolodex.Section.EmitSignal(OptionButton.SignalName.ItemSelected, (long)RolodexPanel.HireSection); await Frames();
+        var recruit = DraftCatalog.Warrior(_app.Rolodex.SelectedId!); var cost = state.HireCost(recruit);
+        var record = _app.Rolodex.FindChildren("*", nameof(Label), true, false).OfType<Label>().Select(label => label.Text).First(text => text.StartsWith("FOR HIRE"));
+        Check(record.Contains($"Salary: {RosterUi.Money(recruit.Salary)} a quarter") && _app.Rolodex.ActionButton.Visible && !_app.Rolodex.ActionButton.Disabled
+            && _app.Rolodex.ActionButton.Text == $"Recruit · {RosterUi.Money(cost.Total)}" && _app.Rolodex.ActionButton.TooltipText.Contains("signing bonus")
+            && _app.Rolodex.ActionButton.TooltipText.Contains($"{cost.DaysLeft} days left this quarter"), "a card for hire shows the salary, the hiring cost and its breakdown");
+        Check(_app.Rolodex.CardName.Text.Contains(recruit.Name) && _app.Rolodex.NextButton.Disabled == false, "both MechWarriors for hire are listed");
+        await Capture("rolodex-for-hire");
+        var cash = state.Cash;
+        await Click(_app.Rolodex.ActionButton);
+        Check(state.Cash == cash - cost.Total && roster.Warriors.Any(item => item.Id == recruit.Id) && state.OrbitRecruits.All(item => item.Id != recruit.Id)
+            && !_app.Rolodex.CardName.Text.Contains(recruit.Name), "Recruit pays at once, hires the MechWarrior and takes them off the list");
+        var other = DraftCatalog.Warrior(_app.Rolodex.SelectedId!);
+        var poor = Campaign.Restore(state.Snapshot() with { Cash = 0 });
+        Check(poor.HireProblem(other) is not null, "a hire the company cannot afford is refused");
+        _app.Rolodex.Section.Select(RolodexPanel.ActiveSection); _app.Rolodex.Section.EmitSignal(OptionButton.SignalName.ItemSelected, (long)RolodexPanel.ActiveSection); await Frames();
+        while (_app.Rolodex.SelectedId != recruit.Id) await Click(_app.Rolodex.NextButton);
+        Check(_app.Rolodex.ActionButton.Text == "Dismiss" && !_app.Rolodex.ActionButton.Disabled, "an active card offers Dismiss");
+        await PressKey(Key.Escape);
+        Check(_app.Office.ReadyCount.Text == "4", "a recruit counts as ready for deployment");
+        await Click(_app.Office.HangarButton);
+        Check(_app.Hangar.PilotPicker.ItemCount > 0 && Enumerable.Range(0, _app.Hangar.PilotPicker.ItemCount).Any(i => _app.Hangar.PilotPicker.GetItemText(i).StartsWith(recruit.Callsign)),
+            "a recruit can be chosen as a pilot in the hangar straight away");
+        await Click(_app.Hangar.WarriorsButton);
+        while (_app.Rolodex.SelectedId != recruit.Id) await Click(_app.Rolodex.NextButton);
+        await Click(_app.Rolodex.ActionButton);
+        Check(_app.Dialog.Visible && _app.Dialog.Heading == "Dismiss MechWarrior?", "Dismiss asks first");
+        await Click(DialogButton("Cancel"));
+        Check(roster.Warriors.Any(item => item.Id == recruit.Id) && _app.Rolodex.Visible, "cancelling keeps the MechWarrior");
+        cash = state.Cash;
+        await Click(_app.Rolodex.ActionButton); await Click(DialogButton("Dismiss"));
+        Check(roster.Warriors.All(item => item.Id != recruit.Id) && state.Recruits.IsDismissed(recruit.Id) && state.Cash == cash && _app.Rolodex.Visible
+            && _app.Rolodex.SelectedId != recruit.Id, "a dismissed MechWarrior leaves the company without a refund");
+        _app.Rolodex.Section.Select(RolodexPanel.MemorialSection); _app.Rolodex.Section.EmitSignal(OptionButton.SignalName.ItemSelected, (long)RolodexPanel.MemorialSection); await Frames();
+        Check(!_app.Rolodex.ActionButton.Visible, "memorial cards have no Recruit or Dismiss button");
+        await PressKey(Key.Escape);
+        Check(_app.Hangar.Visible, "personnel opened from the hangar returns there");
+        _app.ShowOffice(); await Frames(); _app.ShowFinances(); await Frames();
+        Check(_app.Dialog.Body.Contains($"Salaries · {roster.SalariedWarriors} pilots: {RosterUi.Money(roster.Salaries)}"), "quarterly finances list the salaries");
+        await Click(DialogButton("Close"));
     }
 
     private async Task TestHangarAssignmentsUi()

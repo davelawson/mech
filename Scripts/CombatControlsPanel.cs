@@ -72,7 +72,8 @@ public partial class CombatControlsPanel : PanelContainer
         Section("STRESS AND EJECTION",
             ("Stress", "Each MechWarrior is Calm, Steady, Excited, Stressed or Panicked, shown on the unit card and above the paperdoll. "
                 + "A nerve check every 5 s (2d6 + Grit + heat, damage, injuries, being shot at, losses, being outnumbered) moves it a step. "
-                + "Stressed plays every skill but Grit 1 worse, Panicked 2. A Panicked pilot who fails again ejects."),
+                + "Stressed plays every skill but Grit 1 worse, Panicked 2. No pilot grows Stressed before their mech is damaged. "
+                + "A Panicked pilot who fails again may eject, but only once their mech has taken internal damage."),
             ("", "Pull stressed pilots out of the fight: not being shot at calms them."),
             ("Eject", "Sidebar button, pressed twice to confirm: the pilot ejects, injured but alive, and the mech is left disabled. "
                 + "A destroyed center torso always ejects the pilot."),

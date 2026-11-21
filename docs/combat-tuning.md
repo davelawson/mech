@@ -288,6 +288,7 @@ The rules are in [combat design](combat-design.md#stress-surrender-and-ejection-
 | Roll | 2d6 + Grit + modifiers |
 | Calmer / unchanged / more stressed | 11 or less / 12–14 / 15 or more |
 | Break (Panicked) | 15 or more again: 50% chance to eject, otherwise hold on |
+| Damage thresholds | Stressed needs armor or structure lost this battle; breaking needs structure lost this battle |
 | Heat | +1 per full 10 |
 | Destroyed location | +1 each |
 | Injury | +1 each, +1 more on the first check after it |
@@ -329,7 +330,7 @@ The terrain and heat checks cover stable route/firing choices, concurrent search
 - Escape suspends combat. Resume restores the preceding running/paused state. End Simulation shows an ended damage summary; results return to the original hangar selection and tab.
 - Enemy inspection at full range reveals only the chassis model. Within half range it also shows exact armor, rear armor, internals and effective equipment condition/availability. The side shares its best current observation; live details disappear when all close observers lose them. Physical damage remains visible.
 - Inspection retains the friendly command selection and draws separate unions of target-specific identification (blue) and detailed-status (gold) ranges for all selected active mechs. Otherwise show the union of 100-ton identification ranges and label the 20–100-ton detection span. Only exposed outlines are drawn: no fill or internal overlap arcs; separated regions and uncovered holes remain. Disabled/destroyed mechs contribute no ranges. Multiple active contributors use “Selected mechs” with minimum–maximum ranges for each displayed tier; one active contributor keeps the single-mech readout. Terrain can block contacts within these boundaries; detection remains shared by the entire side independently of selection.
-- Pilot skills are rated 2–6. Each improvement from 6 costs one point, with six points for regulars and eight for veterans. Fixed catalog allocations include Sensors specialists; no allocation screen or progression is added.
+- Pilot skills are rated 2–6, and a Green MechWarrior may have one Untrained (7) skill, which gives back a point. Each improvement from 6 costs one point, with four points for Greens, eight for regulars and ten for veterans across Gunnery, Piloting, Sensors and Grit. Every formula takes a 7 as one step worse than 6; detection radius extends past 6 up to Untrained plus the panic penalty. Fixed catalog allocations include Sensors specialists; no allocation screen or progression is added.
 - Procedural 3D mech stand-ins have faction colors, facing indicators, selection/priority rings, order lines and shot/hit effects. Team-colored ground lines show leg facing; longer gold lines with tip dots show torso facing. Weapon arcs and incoming torso armor use those simulation headings.
 
 ## Validation

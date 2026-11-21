@@ -84,7 +84,8 @@ internal static class CatalogChecks
             check(m.Components.All(c => c.HeatSinkCount == (c.Kind == ComponentKind.HeatSink ? c.Slots : 0)),
                 $"{m.Id} preserves explicit sink contributions");
         }
-        var warriors = JsonSerializer.SerializeToNode(DraftCatalog.Warriors.Select(w => new
+        // The baseline holds the original 24; the entry-level MechWarriors added after it are checked by the roster suite.
+        var warriors = JsonSerializer.SerializeToNode(DraftCatalog.Warriors.Take(24).Select(w => new
             { w.Id, w.Name, w.Callsign, w.Gunnery, w.Piloting, w.Sensors, w.Grit, w.Experience }));
         check(JsonNode.DeepEquals(warriors, baseline["Warriors"]), "all authored warriors preserve identity, skills, labels and order");
         var meta = DraftCatalog.Metadata;
@@ -223,6 +224,7 @@ internal static class CatalogChecks
         RejectWarrior("unknown specialty", regular with { Specialty = (WarriorSpecialty)99 });
         RejectWarrior("unbounded skills", regular with { Gunnery = -10 });
         RejectWarrior("incorrect budget", regular with { Rank = WarriorExperience.Veteran });
+        RejectWarrior("untrained regular", regular with { Gunnery = 7, Piloting = 3, Sensors = 3, Grit = 3 });
     }
     private static void CheckSave(Action<bool, string> check)
     {
@@ -277,6 +279,8 @@ internal static class CatalogChecks
             expected["Markets"] = null; expected["MarketSeed"] = resaved["MarketSeed"]!.DeepClone();
             // Saves from before repairs have no repair orders.
             foreach (var saved in expected["Roster"]!["Mechs"]!.AsArray()) saved!["Repair"] = null;
+            // Saves from before salaries and hiring have none billed and no hiring lists.
+            expected["BilledSalaries"] = 0; expected["Recruitment"] = null;
             check(JsonNode.DeepEquals(expected, resaved),
                 "a version-four save keeps its shape and values when resaved, with protection rescaled and storage stocked");
             campaign.AdvanceOneDay(); campaign.AdvanceOneDay();

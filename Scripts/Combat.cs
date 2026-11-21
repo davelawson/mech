@@ -51,7 +51,7 @@ public static partial class CombatRules
         Math.Clamp(MathF.Round(distance / PreferredDistanceStep, MidpointRounding.AwayFromZero) * PreferredDistanceStep, LowestPreferredStep, HighestPreferredStep);
     public const float NoviceDetectionRadius = 1500;
     public static float DetectionRadius(int sensors, int targetTonnage) => NoviceDetectionRadius
-        * (1 + (WarriorSkills.Novice - Math.Clamp(sensors, WarriorSkills.Expert, WarriorSkills.Novice + MaxStressPenalty))
+        * (1 + (WarriorSkills.Novice - Math.Clamp(sensors, WarriorSkills.Expert, WarriorSkills.Untrained + MaxStressPenalty))
             / (float)(WarriorSkills.Novice - WarriorSkills.Expert))
         * (.5f + (Math.Clamp(targetTonnage, 20, 100) - 20) / 160f);
     public static float DetectionRadius(CombatUnit observer, CombatUnit target) =>

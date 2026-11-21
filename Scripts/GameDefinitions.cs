@@ -7,7 +7,7 @@ public enum WarriorHealth { Healthy, Injured, Dead }
 public enum ComponentCondition { Operational, Damaged, Destroyed }
 public enum MechWeightClass { Light, Medium, Heavy, Assault }
 public enum HeatSinkKind { Single, Double }
-public enum WarriorExperience { Regular, Veteran }
+public enum WarriorExperience { Regular, Veteran, Green }
 public enum WarriorSpecialty { None, Gunnery, Piloting, Sensors }
 public enum DamageKind { Direct, Missile }
 public enum WeaponKind { MediumLaser, SmallLaser, LargeLaser, PPC, Flamer, MachineGun, AC2, ERLargeLaser,
@@ -42,9 +42,11 @@ public sealed record WarriorSpec(string Id, string Name, string Callsign, int Gu
 {
     public string DisplayName => $"{Name}  “{Callsign}”";
     public string Artwork => $"res://Assets/Roster/{Id}.png";
+    /// <summary>What the company pays this MechWarrior each quarter.</summary>
+    public long Salary => PilotTuning.Salary(this);
     public string Experience => DefinitionText.Experience(this);
     public int SkillPoints => WarriorSkills.Cost(Gunnery) + WarriorSkills.Cost(Piloting) + WarriorSkills.Cost(Sensors) + WarriorSkills.Cost(Grit);
     public int SkillBudget => Rank switch
     { WarriorExperience.Regular => WarriorSkills.RegularBudget, WarriorExperience.Veteran => WarriorSkills.VeteranBudget,
-        _ => throw new ArgumentOutOfRangeException(nameof(Rank)) };
+        WarriorExperience.Green => WarriorSkills.GreenBudget, _ => throw new ArgumentOutOfRangeException(nameof(Rank)) };
 }

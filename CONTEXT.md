@@ -44,6 +44,21 @@ An inhabited system's stock of mech systems for sale, finite and shared by every
 **Technological Level**:
 A star system's rating from Primitive to Star League, setting which mech systems its market can stock.
 
+**Hiring list**:
+The MechWarriors for hire at one populated system, up to three, hired from the rolodex while the DropShip is in orbit there.
+
+**Signing bonus**:
+One quarter's salary, paid on hiring a MechWarrior on top of the rest of the current quarter's salary.
+
+**Dismissal**:
+A MechWarrior leaving the company for good: not kept in memoriam and never for hire again.
+
+**Starting scenario**:
+How a new company begins: *Just starting out* (two light mechs, a Regular and a Green MechWarrior) or *Established* (the full draft).
+
+**Untrained**:
+A skill rating of 7, one step worse than Green, that only a Green MechWarrior may have.
+
 **Industrial Capacity**:
 A star system's rating from Backwater to Factory World, setting how many items its market holds.
 

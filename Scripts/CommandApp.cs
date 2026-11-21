@@ -124,7 +124,7 @@ public partial class CommandApp : Control
         AddChild(UnsavedDialog);
         CreateNavigator();
         SyncSlots();
-        MainMenu.NewRequested += () => ConfirmUnsaved("Start a new company?", "New Company", StartNewCompany);
+        MainMenu.NewRequested += () => ConfirmUnsaved("Start a new company?", "New Company", ChooseScenario);
         MainMenu.LoadRequested += () => OpenSaves(SoloSaves, saving: false, tabs: false, SavePurpose.MenuLoad, MainMenu.LoadButton);
         Saves.SlotChosen += ChooseSlot;
         Saves.Closed += CloseSaves;
@@ -135,9 +135,9 @@ public partial class CommandApp : Control
         MainMenu.ResumeRequested += ResumeCampaign;
         MainMenu.HostRequested += () => ConfirmUnsaved("Host a co-op campaign?", "Continue", ShowHostLobby);
         MainMenu.JoinRequested += () => ConfirmUnsaved("Join a co-op campaign?", "Continue", ShowJoinLobby);
-        Lobby.HostRequested += (name, port, players, resume) =>
+        Lobby.HostRequested += (name, port, players, resume, scenario) =>
         {
-            if (!resume) { HostSession(name, port, players, null, null); return; }
+            if (!resume) { HostSession(name, port, players, null, null, scenario); return; }
             _hosting = (name, port);
             OpenSaves(CoopSaves, saving: false, tabs: false, SavePurpose.HostResume, Lobby.ConfirmButton);
         };
@@ -149,6 +149,8 @@ public partial class CommandApp : Control
         Office.WarriorsRequested += ShowWarriors;
         Office.HangarRequested += ShowHangar;
         Rolodex.Closed += CloseWarriors;
+        Rolodex.RecruitRequested += id => { Execute(new RecruitWarriorCommand(id)); AfterPersonnelChange(); };
+        Rolodex.DismissRequested += ConfirmDismissal;
         Office.MissionsRequested += ShowMissions;
         Missions.Closed += ShowOffice;
         Missions.AcceptRequested += id => { Execute(new AcceptMissionCommand(id)); ShowOffice(); };
@@ -282,13 +284,21 @@ public partial class CommandApp : Control
         Navigation.Resume();
     }
 
-    public void StartNewCompany()
+    /// <summary>Asks how the new company begins, then opens its draft; cancelling stays at the main menu.</summary>
+    public void ChooseScenario()
+    {
+        var body = string.Join("\n\n", Scenarios.All.Select(scenario => $"{Scenarios.Name(scenario)}: {Scenarios.Description(scenario)}"));
+        OpenDialog("Starting scenario", body, CloseDialog, [.. Scenarios.All.Select(scenario =>
+            new DialogAction(Scenarios.Name(scenario), () => { CloseDialog(); StartNewCompany(scenario); }))]);
+    }
+
+    public void StartNewCompany(StartingScenario scenario = StartingScenario.Established)
     {
         EndSession(null, menu: false);
         State = new Campaign();
         _savedSnapshot = null; SlotId = null;
         Navigation.ClearResume();
-        ShowDraft(restart: true);
+        ShowDraft(restart: true, scenario);
         RefreshCampaign();
     }
 
@@ -387,11 +397,18 @@ public partial class CommandApp : Control
 
     private static string Money(long amount) => $"{amount.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)} C-bills";
 
+    /// <summary>"Salaries · 5 pilots: 210,000 C-bills": billed in advance, for the quarter the bill opens.</summary>
+    private string SalaryLine()
+    {
+        var count = State.Roster?.SalariedWarriors ?? 0;
+        return $"Salaries · {count} pilot{(count == 1 ? "" : "s")}: {Money(State.PaymentPending ? State.BilledSalaries : State.Roster?.Salaries ?? 0)}";
+    }
+
     public void ShowFinances()
     {
         if (State.RequiresDraft || Navigation.Contains(CommandScreen.Draft)) return;
         StopAdvancing();
-        var body = $"Company cash: {Money(State.Cash)}\n\nQuarterly company charge: {Money(Campaign.QuarterlyCharge)}\nTransit ({(State.PaymentPending ? State.BilledTransitDays : State.AccruedTransitDays)} days × {Money(Campaign.TransitDailyCharge)}): {Money(State.PaymentPending ? State.BilledTransitCost : State.AccruedTransitCost)}\nDeferred debt: {Money(State.DeferredDebt)}\nPayment due now: {Money(State.PaymentDue)}\nNext quarter: {State.NextQuarter:dd MMM yyyy}";
+        var body = $"Company cash: {Money(State.Cash)}\n\nQuarterly company charge: {Money(Campaign.QuarterlyCharge)}\nTransit ({(State.PaymentPending ? State.BilledTransitDays : State.AccruedTransitDays)} days × {Money(Campaign.TransitDailyCharge)}): {Money(State.PaymentPending ? State.BilledTransitCost : State.AccruedTransitCost)}\n{SalaryLine()}\nDeferred debt: {Money(State.DeferredDebt)}\nPayment due now: {Money(State.PaymentDue)}\nNext quarter: {State.NextQuarter:dd MMM yyyy}";
         if (!State.PaymentPending) body += $"\nNext bill: {Money(State.ProjectedBill)}";
         else if (!State.CanPay) body += "\n\nInsufficient cash to pay the bill in full.";
         else if (State.DeferredDebt > 0) body += "\n\nBoth quarters must be paid in full. No further deferral is available.";
@@ -651,11 +668,11 @@ public partial class CommandApp : Control
 
     private void CloseDialog() => Navigation.Close(CommandScreen.Dialog);
 
-    private void ShowDraft(bool restart = false)
+    private void ShowDraft(bool restart = false, StartingScenario scenario = StartingScenario.Established)
     {
         var begin = restart || !Navigation.Contains(CommandScreen.Draft);
         Navigation.Reset(CommandScreen.Draft);
-        if (begin) Drafting.Begin();
+        if (begin) Drafting.Begin(scenario: scenario);
     }
 
     public void ShowMissions()
@@ -670,14 +687,33 @@ public partial class CommandApp : Control
         if (State.RequiresDraft || Navigation.CurrentScreen is not (CommandScreen.Office or CommandScreen.Hangar)) return;
         var fromHangar = Navigation.CurrentScreen == CommandScreen.Hangar;
         if (!fromHangar) RefreshCampaign();
+        Execute(new ViewRecruitsCommand());
         Navigation.Push(CommandScreen.Rolodex, fromHangar ? Hangar.WarriorsButton : Office.RolodexButton);
-        Rolodex.Open(State.Roster!, fromHangar ? "Back to hangar" : "Back to office");
+        Rolodex.Open(State, LocalSlot, fromHangar ? "Back to hangar" : "Back to office");
     }
 
     private void CloseWarriors()
     {
         Navigation.Close(CommandScreen.Rolodex);
         if (Navigation.CurrentScreen == CommandScreen.Office) RefreshCampaign();
+        if (Navigation.CurrentScreen == CommandScreen.Hangar) { Hangar.Cash = State.Cash; Hangar.Refresh(); }
+    }
+
+    /// <summary>Dismissal is permanent, so it asks first.</summary>
+    private void ConfirmDismissal(string warriorId)
+    {
+        var warrior = State.Roster?.Warriors.SingleOrDefault(item => item.Id == warriorId);
+        if (warrior is null) return;
+        var mech = State.Roster!.Assignment(warriorId);
+        Confirm("Dismiss MechWarrior?", $"{warrior.Spec.DisplayName} will leave the company for good{(mech is null ? "" : $" and their {mech.Spec.DisplayName} will have no pilot")}."
+            + "\n\nThere is no refund of salary already paid, and they will never be available for hire again.",
+            () => { CloseDialog(); Execute(new DismissWarriorCommand(warriorId)); AfterPersonnelChange(); }, CloseDialog, "Dismiss");
+    }
+
+    private void AfterPersonnelChange()
+    {
+        Rolodex.Refresh(State); RefreshCampaign();
+        if (Navigation.Contains(CommandScreen.Hangar)) { Hangar.Cash = State.Cash; Hangar.Refresh(); }
     }
 
     public void ShowHangar()
@@ -906,12 +942,12 @@ public partial class CommandApp : Control
     }
 
     /// <summary>Opens the leader's lobby for a new campaign of this many players, or for the saved co-op campaign.</summary>
-    private void HostSession(string name, int port, int players, Campaign? resumed, string? slot)
+    private void HostSession(string name, int port, int players, Campaign? resumed, string? slot, StartingScenario scenario = StartingScenario.Established)
     {
         INetTransport transport;
         try { transport = HostTransport(port, (resumed?.Players ?? players) - 1); }
         catch (IOException error) { Lobby.ShowStatus(error.Message); return; }
-        try { Host = new CoopHost(transport, name, players, resumed); }
+        try { Host = new CoopHost(transport, name, players, resumed, scenario); }
         catch (ArgumentException error) { transport.Dispose(); Lobby.ShowStatus(error.Message); return; }
         _hosting = (name, port); SlotId = slot;
         Host.Changed += () => { RefreshLobby(); UpdateQuickLaunch(); RefreshWaiting(); if (Drafting.Waiting) Drafting.Wait(DraftWaitText()); };
@@ -1022,6 +1058,7 @@ public partial class CommandApp : Control
         if (State.Roster is { } roster) Hangar.Rebind(roster, State.Travel.InOrbit ? State.Travel.OrbitSystemId : null, State.Cash);
         UpdateQuickLaunch();
         if (Navigation.CurrentScreen == CommandScreen.Missions) Missions.Refresh();
+        Rolodex.Refresh(State);
         RefreshCompanyDialogs();
     }
 

@@ -60,6 +60,14 @@ internal static partial class CombatChecks
         check(sim.NerveCheck(unit) is { Result: 14, After: StressLevel.Steady }, "a result of 14 still leaves the pilot as they are");
         unit.NerveDamage = 600; sim.NerveRollOverride = () => 9;
         check(sim.NerveCheck(unit) is { Result: 15, After: StressLevel.Excited, Broke: false }, "a result of 15 stresses the pilot a step");
+        unit.NerveDamage = 600;
+        check(!unit.DamagedThisBattle && sim.NerveCheck(unit) is { Result: 15, After: StressLevel.Excited },
+            "an Excited pilot whose mech is undamaged this battle grows no worse");
+        unit.Locations[MechLocation.LeftArm].Armor--;
+        check(unit.DamagedThisBattle && !unit.InternallyDamagedThisBattle, "lost armor is damage, but not internal damage");
+        unit.NerveDamage = 600; unit.Stress = StressLevel.Excited;
+        check(sim.NerveCheck(unit) is { Result: 15, After: StressLevel.Stressed }, "once the mech is damaged, an Excited pilot can grow Stressed");
+        unit.Locations[MechLocation.LeftArm].Armor++;
         unit.Stress = StressLevel.Stressed; var gunnery = unit.Gunnery; var piloting = unit.Piloting;
         check(gunnery == unit.Warrior.Gunnery + 1 && piloting == unit.Warrior.Piloting + 1 && unit.Sensors == unit.Warrior.Sensors + 1,
             "Stressed plays Gunnery, Piloting and Sensors one rating worse");
@@ -70,7 +78,12 @@ internal static partial class CombatChecks
             "stress lowers hit chances and shortens detection");
         unit.Stress = StressLevel.Panicked;
         check(unit.Gunnery == unit.Warrior.Gunnery + 2, "Panicked plays skills two ratings worse");
-        unit.NerveDamage = 600; sim.NerveRollOverride = () => 9; sim.PanicEjectOverride = () => false;
+        unit.NerveDamage = 600; sim.NerveRollOverride = () => 9; sim.PanicEjectOverride = () => true;
+        check(sim.NerveCheck(unit) is { Broke: false, HeldOn: true } && !unit.Ejected,
+            "a Panicked pilot whose mech has lost no internal structure holds on, whatever the roll");
+        unit.Locations[MechLocation.LeftArm].Structure--;
+        check(unit.InternallyDamagedThisBattle && unit.DamagedThisBattle, "lost structure is internal damage");
+        unit.NerveDamage = 600; sim.PanicEjectOverride = () => false;
         var held = sim.NerveCheck(unit);
         check(held is { Broke: false, HeldOn: true, After: StressLevel.Panicked } && !unit.Ejected
             && sim.Events[^1] is { Public: true } holdLine && holdLine.Text.EndsWith("Panicked · holds on"),
@@ -82,6 +95,7 @@ internal static partial class CombatChecks
             "a Panicked pilot who reaches 15 or more again and loses the even chance ejects, injured, leaving the mech disabled");
         sim.PanicEjectOverride = null;
         var odds = Battle(1, "griffin"); var panicked = Friendly(odds); odds.NerveRollOverride = () => 12; var breaks = 0;
+        panicked.Locations[MechLocation.LeftArm].Structure--;
         for (var i = 0; i < 400; i++) { panicked.Stress = StressLevel.Panicked; if (odds.NerveCheck(panicked).Broke) { breaks++; panicked.Ejected = false; panicked.Injuries = 0; } }
         check(breaks is > 160 and < 240, $"a pushed Panicked pilot breaks about half the time ({breaks} of 400)");
         var cockpit = unit.Spec.Components.First(part => part.Kind == ComponentKind.Cockpit).Id;

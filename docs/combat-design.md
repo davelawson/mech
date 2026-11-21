@@ -406,6 +406,8 @@ Fewer mechs should end a battle destroyed and fewer MechWarriors dead. MechWarri
 
 **Breaking.** A MechWarrior already Panicked whose check comes to 15 or more has an even chance to eject (since November 21, 2026; before, they always did). Otherwise they hold on, still Panicked, and the combat log says so ("… = 16 · Panicked · holds on"). Managing stress is the player's task: pull stressed and panicky pilots back from the front line.
 
+**Damage thresholds (confirmed November 21, 2026).** Pilots ejected before it was reasonable, so two levels now wait on damage taken this battle; damage a mech brought into the battle does not count. A pilot whose mech has lost no armor or structure grows no worse than Excited: a check that would make them Stressed leaves them Excited. A Panicked pilot whose mech has lost no internal structure has no chance to break: a check of 15 or more leaves them holding on. Both sides follow these rules; an enemy's ejection on a crippled center torso (below) is unaffected.
+
 **Ejection.** The MechWarrior leaves the cockpit and survives, Injured (one injury, 10–20 days). The mech is left disabled where it stands, with its cockpit needing repair; an enemy's can be claimed whole as salvage, and the pilot escapes, counting as spared. A MechWarrior ejects:
 
 - when the player presses **Eject** in the sidebar twice (the first press arms it for 4 seconds), for every selected mech still in the fight;

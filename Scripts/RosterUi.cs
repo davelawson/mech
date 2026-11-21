@@ -52,6 +52,25 @@ internal static class RosterUi
     private static string[] SkillParts(WarriorSpec warrior) =>
         [$"Gunnery: {WarriorSkills.Descriptor(warrior.Gunnery)}", $"Piloting: {WarriorSkills.Descriptor(warrior.Piloting)}", $"Sensors: {WarriorSkills.Descriptor(warrior.Sensors)}", $"Grit: {WarriorSkills.Descriptor(warrior.Grit)}"];
     public static string SkillBudgetText(WarriorSpec warrior) => $"Skill points: {warrior.SkillPoints}/{warrior.SkillBudget} spent";
+    public static string Money(long amount) => $"{amount.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)} C-bills";
+    /// <summary>A MechWarrior's portrait, or a plain silhouette for one whose portrait has not been painted yet.</summary>
+    public static Texture2D Portrait(WarriorSpec warrior) => Ui.LoadTexture(warrior.Artwork) ?? PlaceholderPortrait;
+    private static Texture2D? _placeholder;
+    public static Texture2D PlaceholderPortrait => _placeholder ??= DrawPlaceholder();
+    private static ImageTexture DrawPlaceholder()
+    {
+        const int size = 256;
+        var image = Image.CreateEmpty(size, size, false, Image.Format.Rgb8);
+        var background = new Color("2b3326"); var figure = new Color("566048");
+        for (var y = 0; y < size; y++) for (var x = 0; x < size; x++)
+        {
+            // A head over rounded shoulders.
+            var head = new Vector2(x - 128, y - 100).Length() < 46;
+            var shoulders = y > 158 && new Vector2((x - 128) * .62f, y - 250).Length() < 92;
+            image.SetPixel(x, y, head || shoulders ? figure : background);
+        }
+        return ImageTexture.CreateFromImage(image);
+    }
 }
 
 /// <summary>A location map drawn from the selected unit's real armor/structure, rather than decorative image labels.</summary>

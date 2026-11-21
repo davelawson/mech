@@ -25,7 +25,8 @@ public sealed record MissionSettlement(MissionOffer Mission, MissionOutcome Outc
 public sealed record CampaignSnapshot(int Version, DateOnly Date, long Cash, long PaymentDue,
     long DeferredDebt, DateOnly NextQuarter, bool Bankrupt, CampaignEvent[] Events, RosterSnapshot? Roster = null, MissionSnapshot? Missions = null,
     TravelSnapshot? Travel = null, int AccruedTransitDays = 0, int BilledTransitDays = 0, ReputationSnapshot? Reputation = null,
-    string[]? PlayerNames = null, MarketSnapshot[]? Markets = null, ulong? MarketSeed = null);
+    string[]? PlayerNames = null, MarketSnapshot[]? Markets = null, ulong? MarketSeed = null, long BilledSalaries = 0,
+    RecruitmentSnapshot? Recruitment = null);
 
 /// <summary>Campaign time and obligations, independent of the scene tree and animation.</summary>
 public sealed class Campaign
@@ -39,7 +40,10 @@ public sealed class Campaign
     public int BilledTransitDays { get; private set; }
     public long AccruedTransitCost => AccruedTransitDays * TransitDailyCharge;
     public long BilledTransitCost => BilledTransitDays * TransitDailyCharge;
-    public long ProjectedBill => QuarterlyCharge + DeferredDebt + AccruedTransitCost;
+    /// <summary>Salaries on the bill now due; they pay for the quarter it opens.</summary>
+    public long BilledSalaries { get; private set; }
+    /// <summary>The next quarterly bill as things stand: salaries are billed in advance, for every MechWarrior alive on the due date.</summary>
+    public long ProjectedBill => QuarterlyCharge + DeferredDebt + AccruedTransitCost + (Roster?.Salaries ?? 0);
     private readonly List<CampaignEvent> _events = [];
 
     public DateOnly Date { get; private set; } = StartDate;
@@ -93,6 +97,7 @@ public sealed class Campaign
     {
         if (!RequiresDraft) throw new InvalidOperationException("The initial draft is already complete.");
         Roster = draft.Establish();
+        StartWith(draft.Scenario);
     }
     /// <summary>Forms a co-op company from each player's draft, one lance per player, under the players' names.</summary>
     public void EstablishCompany(IReadOnlyList<InitialDraft> drafts, IReadOnlyList<string> names)
@@ -100,10 +105,13 @@ public sealed class Campaign
         if (!RequiresDraft) throw new InvalidOperationException("The initial draft is already complete.");
         if (names.Count != drafts.Count || names.Any(name => !ValidPlayerName(name))) throw new ArgumentException("Every player needs a name.");
         Roster = InitialDraft.EstablishCompany(drafts);
+        StartWith(drafts[0].Scenario);
         PlayerNames = [.. names];
         // The offers so far were for one lance; the company's board is made for all of them.
         Missions = MissionBoard.Create(NewSeed(), Date, MissionOrigin, Reputation, lances: Players);
     }
+    /// <summary>A scenario starting with less than the standard cash takes the difference from the company's cash.</summary>
+    private void StartWith(StartingScenario scenario) => Cash = Math.Max(0, Cash + Scenarios.StartingCash(scenario) - StartingCash);
     /// <summary>The players' names by slot in a co-op campaign, as last played; null in single-player.</summary>
     public IReadOnlyList<string>? PlayerNames { get; private set; }
     public static bool ValidPlayerName(string? name) => !string.IsNullOrWhiteSpace(name) && name == name.Trim() && name.Length <= 24 && !name.Any(char.IsControl);
@@ -184,13 +192,15 @@ public sealed class Campaign
                 CampaignEventKind.Arrival, $"Arrived at {StarChart.Instance[arrived].Name}. In orbit for today."));
         }
         Missions.AdvanceDay(Date, MissionOrigin, Reputation);
+        ViewRecruits();
         var quarterReached = Date == NextQuarter;
         // Accounting is evaluated before any other event on the same date.
         if (quarterReached)
         {
             BilledTransitDays = AccruedTransitDays;
             AccruedTransitDays = 0;
-            PaymentDue = QuarterlyCharge + DeferredDebt + BilledTransitCost;
+            BilledSalaries = Roster?.Salaries ?? 0;
+            PaymentDue = QuarterlyCharge + DeferredDebt + BilledTransitCost + BilledSalaries;
             NextQuarter = NextQuarter.AddMonths(3);
             Bankrupt = DeferredDebt > 0 && Cash < PaymentDue;
         }
@@ -205,6 +215,7 @@ public sealed class Campaign
         Cash -= PaymentDue;
         PaymentDue = 0;
         BilledTransitDays = 0;
+        BilledSalaries = 0;
         DeferredDebt = 0;
         return TakeDueEvents();
     }
@@ -262,6 +273,60 @@ public sealed class Campaign
         market.Sell([.. Enumerable.Repeat(storageId, count)]);
         roster.Store(storageId, count);
         Cash -= cost;
+    }
+
+    /// <summary>Every system's hiring list.</summary>
+    public Recruitment Recruits { get; private set; } = new();
+    /// <summary>The MechWarriors for hire where the DropShip is in orbit; none in transit or before the list is first seen.</summary>
+    public IReadOnlyList<WarriorSpec> OrbitRecruits => Travel.InOrbit ? Recruits.Listed(Travel.OrbitSystemId) : [];
+
+    /// <summary>Brings the hiring lists up to today and rolls the orbited system's empty slots, making its list on a first visit.</summary>
+    public void ViewRecruits()
+    {
+        if (Roster is null || !Travel.InOrbit || !StarChart.Instance.Contains(Travel.OrbitSystemId)) return;
+        Recruits.Refresh(StarChart.Instance[Travel.OrbitSystemId], Date, Roster, RecruitRandom);
+    }
+    private Random RecruitRandom(string systemId, DateOnly day, int salt)
+    {
+        var hash = 14695981039346656037UL ^ MarketSeed ^ 0xA5A5_5A5A_C3C3_3C3CUL ^ ((ulong)day.DayNumber * 1099511628211UL) ^ ((ulong)salt << 56);
+        foreach (var c in systemId) hash = (hash ^ c) * 1099511628211UL;
+        return new Random((int)(hash ^ hash >> 32));
+    }
+
+    /// <summary>Lists exactly these MechWarriors for hire where the DropShip orbits, as a test fixture.</summary>
+    internal void PlaceRecruits(params string[] warriorIds) => Recruits.Place(Travel.OrbitSystemId, Date, warriorIds);
+
+    /// <summary>What hiring a MechWarrior costs today: the rest of the quarter's salary, prorated by days and rounded up to
+    /// <see cref="PilotTuning.HireRounding"/>, and a signing bonus of a full quarter's salary.</summary>
+    public HireCost HireCost(WarriorSpec warrior)
+    {
+        var quarterStart = NextQuarter.AddMonths(-3);
+        var days = NextQuarter.DayNumber - quarterStart.DayNumber; var left = NextQuarter.DayNumber - Date.DayNumber;
+        var salary = warrior.Salary;
+        var prorated = (salary * left + days * PilotTuning.HireRounding - 1) / (days * PilotTuning.HireRounding) * PilotTuning.HireRounding;
+        return new(salary, prorated, left, days);
+    }
+    /// <summary>Why a MechWarrior cannot be hired now, or null when they can.</summary>
+    public string? HireProblem(WarriorSpec warrior) =>
+        Roster is null ? "No company has been established."
+        : !Travel.InOrbit ? "MechWarriors can only be hired in orbit."
+        : OrbitRecruits.All(item => item.Id != warrior.Id) ? "That MechWarrior is not for hire here."
+        : HireCost(warrior).Total > Cash ? $"The company cannot afford {HireCost(warrior).Total.ToString("N0", CultureInfo.InvariantCulture)} C-bills." : null;
+    /// <summary>Hires a MechWarrior listed where the DropShip orbits, paying the prorated salary and signing bonus at once.</summary>
+    public void Recruit(string warriorId)
+    {
+        var warrior = DraftCatalog.Warrior(warriorId);
+        if (HireProblem(warrior) is { } problem) throw new InvalidOperationException(problem);
+        var cost = HireCost(warrior).Total;
+        Recruits.Hire(Travel.OrbitSystemId, warriorId);
+        RequireRoster().Hire(warrior);
+        Cash -= cost;
+    }
+    /// <summary>Dismisses a MechWarrior for good: no refund, and they are never listed for hire again.</summary>
+    public void Dismiss(string warriorId)
+    {
+        RequireRoster().Dismiss(warriorId);
+        Recruits.Dismiss(warriorId);
     }
 
     /// <summary>Repair orders working in a bay: at most <see cref="RepairTuning.Bays"/>.</summary>
@@ -395,6 +460,7 @@ public sealed class Campaign
         DeferredDebt = PaymentDue;
         PaymentDue = 0;
         BilledTransitDays = 0;
+        BilledSalaries = 0;
         return TakeDueEvents();
     }
 
@@ -407,7 +473,8 @@ public sealed class Campaign
     }
 
     public CampaignSnapshot Snapshot() => new(SaveVersion, Date, Cash, PaymentDue, DeferredDebt, NextQuarter, Bankrupt, _events.ToArray(), Roster?.Snapshot(), Missions.Snapshot(), Travel.Snapshot(), AccruedTransitDays, BilledTransitDays, Reputation.Snapshot(), PlayerNames?.ToArray(),
-        _markets.Count == 0 ? null : [.. _markets.Values.OrderBy(item => item.SystemId, StringComparer.Ordinal).Select(item => item.Snapshot())], MarketSeed);
+        _markets.Count == 0 ? null : [.. _markets.Values.OrderBy(item => item.SystemId, StringComparer.Ordinal).Select(item => item.Snapshot())], MarketSeed,
+        BilledSalaries, Recruits.Snapshot());
 
     public static Campaign Restore(CampaignSnapshot save)
     {
@@ -415,13 +482,14 @@ public sealed class Campaign
         var date = save.Date;
         var quarterStart = date == default ? StartDate : new DateOnly(date.Year, (date.Month - 1) / 3 * 3 + 1, 1);
         if (save.Version is < 1 or > SaveVersion || date < StartDate || date.Year >= 9999 || save.Cash < 0
-            || save.DeferredDebt < 0 || save.DeferredDebt > 284_000
-            || save.DeferredDebt != 0 && (save.DeferredDebt < QuarterlyCharge || save.DeferredDebt % TransitDailyCharge != 0)
+            || save.DeferredDebt < 0
+            || save.DeferredDebt != 0 && (save.DeferredDebt < QuarterlyCharge || save.DeferredDebt % PilotTuning.HireRounding != 0)
+            || save.BilledSalaries < 0 || save.BilledSalaries % PilotTuning.HireRounding != 0 || save.PaymentDue == 0 && save.BilledSalaries != 0
             || save.AccruedTransitDays < 0 || save.AccruedTransitDays > date.DayNumber - quarterStart.DayNumber
             || save.BilledTransitDays is < 0 or > 92
             || save.PaymentDue == 0 && save.BilledTransitDays != 0
             || save.PaymentDue > 0 && save.AccruedTransitDays != 0
-            || save.PaymentDue != 0 && save.PaymentDue != QuarterlyCharge + save.DeferredDebt + save.BilledTransitDays * TransitDailyCharge
+            || save.PaymentDue != 0 && save.PaymentDue != QuarterlyCharge + save.DeferredDebt + save.BilledTransitDays * TransitDailyCharge + save.BilledSalaries
             || save.NextQuarter != quarterStart.AddMonths(3)
             || save.PaymentDue > 0 && (date.Day != 1 || (date.Month - 1) % 3 != 0 || date == StartDate)
             || save.Bankrupt != (save.PaymentDue > 0 && save.DeferredDebt > 0 && save.Cash < save.PaymentDue)
@@ -434,7 +502,7 @@ public sealed class Campaign
         {
             Date = date, Cash = save.Cash, PaymentDue = save.PaymentDue,
             DeferredDebt = save.DeferredDebt, NextQuarter = save.NextQuarter, Bankrupt = save.Bankrupt,
-            AccruedTransitDays = save.AccruedTransitDays, BilledTransitDays = save.BilledTransitDays
+            AccruedTransitDays = save.AccruedTransitDays, BilledTransitDays = save.BilledTransitDays, BilledSalaries = save.BilledSalaries
         };
         if (save.Version >= 4) campaign.Travel = Mech.Travel.Restore(save.Travel!, StarChart.Instance);
         // Saves before version 5 counted whole stock points of armor and structure.
@@ -459,6 +527,7 @@ public sealed class Campaign
             var market = SystemMarket.Restore(saved, StarChart.Instance, date);
             if (!campaign._markets.TryAdd(market.SystemId, market)) throw new ArgumentException("The campaign save contains an invalid market.");
         }
+        campaign.Recruits = Recruitment.Restore(save.Recruitment, StarChart.Instance, date, campaign.Roster);
         foreach (var item in save.Events)
         {
             if (item is null || string.IsNullOrWhiteSpace(item.Id) || string.IsNullOrWhiteSpace(item.Title)
