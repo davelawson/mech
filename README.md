@@ -167,11 +167,16 @@ godot --path .
 ./scripts/mech export-windows
 # Or build all three:
 ./scripts/mech exports
+# Show the version, or start the next feature set:
+./scripts/mech version
+./scripts/mech version feature
 ```
 
-- **Windows 11 (Intel/AMD x64):** `Builds/Mech-windows-x64.zip`. Extract the entire archive to a folder, then launch `Mech.exe`. Keep `Mech.pck` and the `data_Mech_windows_x86_64` runtime directory beside the executable. The runtime is bundled, so players do not install .NET separately. This is an unsigned development build without an installer.
-- **Linux:** `Builds/Mech-linux-x64.tar.gz`. Extract the entire archive, then run `./Mech.x86_64`. Keep its `data_Mech_linuxbsd_x86_64` directory beside the executable; it contains the bundled .NET runtime and game assembly.
-- **macOS 14 or newer:** `Builds/macOS/Mech.zip`, containing a Universal 2 `.app` with both Apple Silicon and Intel runtime payloads. Extract and open `Mech.app`. The development preset uses ad-hoc signing, without Apple notarization. macOS may require explicit approval in System Settings → Privacy & Security for downloaded development builds.
+**Versions** read `0.<feature>.<build>`, such as `0.01.07`, and appear in each archive's name and on the main menu. `version.cfg` holds the feature and build numbers and a hash of the exported content; commit it with each export. Every export command first compares that hash with the current content: if anything an export is built from changed (anything but tests, docs, `scripts/` and Markdown), the build number rises by one; if not, the export keeps the last version, so Linux, Windows and macOS exports of the same content share a version. The feature number rises only through `./scripts/mech version feature`, which resets the build number; the next export is `0.<feature>.01`. The first number stays 0. Each export writes its version into `project.godot` (`config/version`), where the game reads it.
+
+- **Windows 11 (Intel/AMD x64):** `Builds/Mech-windows-x64-<version>.zip`. Extract the entire archive to a folder, then launch `Mech.exe`. Keep `Mech.pck` and the `data_Mech_windows_x86_64` runtime directory beside the executable. The runtime is bundled, so players do not install .NET separately. This is an unsigned development build without an installer.
+- **Linux:** `Builds/Mech-linux-x64-<version>.tar.gz`. Extract the entire archive, then run `./Mech.x86_64`. Keep its `data_Mech_linuxbsd_x86_64` directory beside the executable; it contains the bundled .NET runtime and game assembly.
+- **macOS 14 or newer:** `Builds/Mech-macos-universal-<version>.zip` (also left at `Builds/macOS/Mech.zip`), containing a Universal 2 `.app` with both Apple Silicon and Intel runtime payloads. Extract and open `Mech.app`. The development preset uses ad-hoc signing, without Apple notarization. macOS may require explicit approval in System Settings → Privacy & Security for downloaded development builds.
 
 The Compatibility renderer supports the 2D command screens and the procedural 3D tactical arena. Windows executable resource modification is disabled so development exports can be produced from Linux/macOS without Windows resource-editing tools. Public-release signing and macOS notarization are outside this first slice.
 

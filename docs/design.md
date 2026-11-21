@@ -10,7 +10,7 @@
 
 # First interface slice
 
-- Open at a main menu with New Company, Load Game, and Quit. New companies enter a painted captain’s office aboard a worn mercenary DropShip.
+- Open at a main menu with New Company, Load Game, and Quit, and the build version under the title (exported builds only; see README.md). New companies enter a painted captain’s office aboard a worn mercenary DropShip.
 - Standalone Windows 11 x64, Linux x64, and macOS (Apple Silicon and Intel) applications are the initial targets, built with Godot and C#. Resizing keeps the complete office image and its hotspots aligned. Strategic screens have no header bar; the date shows on the office calendar and the current location on a strip along the bottom of the wall chart.
 - Every office hotspot (wall chart, calendar, safe, filing cabinet, rolodex, phone, hangar porthole and jacket) responds only within a polygon traced around its painted object, and hover or keyboard focus outlines that shape in gold. The jacket on the wall opens the main menu.
 - Sound: every button and hotspot ticks on hover and clicks when pressed. Committing actions confirm, and back actions (including right-click and Escape) sound a back tone. Menu, strategic screens and battles each have their own looping music track, crossfaded on change. Main menu **Audio** sets Master, Music, Effects and Interface volume and a mute, saved per machine outside every save. See [audio](audio.md).

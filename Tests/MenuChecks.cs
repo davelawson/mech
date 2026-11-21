@@ -19,6 +19,9 @@ public partial class SmokeTests
         var state = _app.State;
         _app.StartAdvancing(true);
         _app.ShowMainMenu();
+        Check(_app.MainMenu.VersionLabel.Visible == (MainMenuScreen.Version.Length > 0)
+            && (MainMenuScreen.Version.Length == 0 || _app.MainMenu.VersionLabel.Text == $"Version {MainMenuScreen.Version}"),
+            "the main menu shows the build version once an export has stamped one");
         var date = state.Date;
         await Delay(.15);
         Check(!_app.IsAdvancing && state.Date == date, "campaign time stays frozen in the menu");

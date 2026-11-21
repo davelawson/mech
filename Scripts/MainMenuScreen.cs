@@ -18,6 +18,9 @@ public partial class MainMenuScreen : Control
     public Button NewButton { get; private set; } = null!;
     public Button LoadButton { get; private set; } = null!;
     public Button QuitButton { get; private set; } = null!;
+    public Label VersionLabel { get; private set; } = null!;
+    /// <summary>The build version, 0.feature.build; empty in a project never exported.</summary>
+    public static string Version => ProjectSettings.GetSetting("application/config/version", "").AsString();
     private VBoxContainer _menu = null!;
 
     public override void _Ready()
@@ -32,6 +35,9 @@ public partial class MainMenuScreen : Control
         title.HorizontalAlignment = HorizontalAlignment.Center;
         var subtitle = Ui.Label(_menu, "MERCENARY COMMAND  ·  3025", 13, Ui.Muted);
         subtitle.HorizontalAlignment = HorizontalAlignment.Center;
+        // Stamped into project.godot by each export (scripts/mech), so a build shows the version in its archive's name.
+        VersionLabel = Ui.Label(_menu, Version is { Length: > 0 } version ? $"Version {version}" : "", 12, Ui.Muted);
+        VersionLabel.HorizontalAlignment = HorizontalAlignment.Center; VersionLabel.Visible = VersionLabel.Text.Length > 0;
         ResumeButton = Ui.Button(_menu, "Resume"); ResumeButton.Pressed += () => EmitSignal(SignalName.ResumeRequested); ResumeButton.Hide();
         NewButton = Ui.Button(_menu, "New Company");
         NewButton.Pressed += () => EmitSignal(SignalName.NewRequested);
@@ -52,6 +58,6 @@ public partial class MainMenuScreen : Control
 
     private void Layout()
     {
-        if (_menu is not null) Ui.Place(_menu, (Size.X - 360) / 2, Math.Max(24, (Size.Y - 614) / 2), 360, 614);
+        if (_menu is not null) Ui.Place(_menu, (Size.X - 360) / 2, Math.Max(24, (Size.Y - 650) / 2), 360, 650);
     }
 }

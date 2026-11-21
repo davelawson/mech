@@ -13,6 +13,46 @@ if ! command -v dotnet >/dev/null 2>&1; then
   fi
 fi
 
+# Build versions are 0.<feature>.<build>, kept in version.cfg. The build number rises on an export only when the exported content
+# changed since the last versioned export, so exports of the same content share one version on every platform. The feature number
+# rises only by `scripts/mech version feature`.
+version_file=version.cfg
+version_key() { sed -n "s/^$1=//p" "$version_file"; }
+# A hash of everything an export is built from: tracked and untracked (not ignored) files, minus tests, docs, tooling and the version
+# itself (the version line of project.godot included).
+content_hash() {
+  git ls-files -z -c -o --exclude-standard | sort -zu \
+    | grep -zvE '^(Tests|Tests\.Unit|TestResults|docs|scripts|\.github)/|\.md$|^(version\.cfg|global\.json)$' \
+    | while IFS= read -r -d '' file; do
+        [[ -f "$file" ]] || continue
+        if [[ "$file" == project.godot ]]; then printf '%s ' "$file"; grep -v '^config/version=' "$file" | sha256sum
+        else printf '%s ' "$file"; sha256sum < "$file"; fi
+      done | sha256sum | cut -d' ' -f1
+}
+format_version() { printf '0.%02d.%02d' "$(version_key feature)" "$(version_key build)"; }
+write_version() {
+  printf '%s\n' '# The build version, 0.<feature>.<build>, managed by scripts/mech. See README.md.' \
+    "feature=$1" "build=$2" "content=$3" > "$version_file"
+}
+# Settles the version for an export and writes it to project.godot, where the game reads it.
+stamp_version() {
+  local hash; hash="$(content_hash)"
+  if [[ "$hash" != "$(version_key content)" ]]; then write_version "$(version_key feature)" "$(( $(version_key build) + 1 ))" "$hash"; fi
+  version="$(format_version)"
+  # Replace the version line, or add one after the name; awk behaves the same on Linux and macOS, unlike sed -i.
+  awk -v line="config/version=\"$version\"" '/^config\/version=/ { next } { print } /^config\/name=/ { print line }' \
+    project.godot > project.godot.tmp && mv project.godot.tmp project.godot
+  echo "Version $version"
+}
+if [[ "${1:-}" == version ]]; then
+  case "${2:-}" in
+    "") format_version; echo ;;
+    feature) write_version "$(( $(version_key feature) + 1 ))" 0 ""; printf 'Next export: 0.%02d.01\n' "$(version_key feature)" ;;
+    *) echo "Usage: $0 version [feature]" >&2; exit 2 ;;
+  esac
+  exit 0
+fi
+
 # Engine-free unit tests need only dotnet. See docs/testing.md.
 if [[ "${1:-}" == unit ]]; then shift; exec dotnet test --project Tests.Unit "$@"; fi
 
@@ -45,12 +85,14 @@ build() {
 }
 export_linux() {
   mkdir -p Builds/Linux
+  rm -rf Builds/Linux/*  # nothing stale from an earlier export is packed
   "$engine" --headless --path . --export-release 'Linux x64' Builds/Linux/Mech.x86_64
-  tar -czf Builds/Mech-linux-x64.tar.gz -C Builds/Linux .
+  tar -czf "Builds/Mech-linux-x64-$version.tar.gz" -C Builds/Linux .
 }
 export_macos() {
   mkdir -p Builds/macOS
   "$engine" --headless --path . --export-release 'macOS Universal' Builds/macOS/Mech.zip
+  cp Builds/macOS/Mech.zip "Builds/Mech-macos-universal-$version.zip"
 }
 
 export_windows() {
@@ -59,8 +101,9 @@ export_windows() {
     return 1
   fi
   mkdir -p Builds/Windows
+  rm -rf Builds/Windows/*  # nothing stale from an earlier export is packed
   "$engine" --headless --path . --export-release 'Windows x64' Builds/Windows/Mech.exe
-  local archive="$PWD/Builds/Mech-windows-x64.zip"
+  local archive="$PWD/Builds/Mech-windows-x64-$version.zip"
   # Recreate the archive so files removed from the export are not retained.
   rm -f "$archive"
   (cd Builds/Windows && zip -q -r "$archive" .)
@@ -154,9 +197,9 @@ case "$command" in
     build; run_tests "$@" ;;
   _job) run_job "$1" ;;
   capture) build; exec "$engine" --path . --scene res://Tests/SmokeTests.tscn -- --screenshots $(test_args "$@") ;;
-  export-linux) build; export_linux ;;
-  export-macos) build; export_macos ;;
-  export-windows) build; export_windows ;;
-  exports) build; export_linux; export_macos; export_windows ;;
-  *) echo "Usage: $0 {run|editor|build|unit|test [--list|group...]|capture [group...]|export-linux|export-macos|export-windows|exports}" >&2; exit 2 ;;
+  export-linux) stamp_version; build; export_linux ;;
+  export-macos) stamp_version; build; export_macos ;;
+  export-windows) stamp_version; build; export_windows ;;
+  exports) stamp_version; build; export_linux; export_macos; export_windows ;;
+  *) echo "Usage: $0 {run|editor|build|unit|test [--list|group...]|capture [group...]|export-linux|export-macos|export-windows|exports|version [feature]}" >&2; exit 2 ;;
 esac
