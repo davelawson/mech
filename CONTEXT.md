@@ -190,6 +190,10 @@ An unpaid financial obligation of the mercenary force carried from a missed quar
 **Bankruptcy**:
 The forced dissolution of the mercenary force when, at the end of its three-month grace period, it cannot pay both carried debt and the new quarterly payment.
 
+**Component**:
+A location (head, an arm, a torso or a leg) as the post-battle summary counts it: *components destroyed* are locations a mech's weapons took to zero structure. The systems mounted in a location's critical slots are not components.
+_Avoid_: outside the post-battle summary, where it is a *location*
+
 **Wreck**:
 A destroyed BattleMech recovered from a mission, distinct from an unrecoverable mech, which may retain sale value.
 

@@ -219,6 +219,7 @@ public partial class SmokeTests
         await PressKey(Key.Escape); await Click(tactical.EndButton);
         Check(tactical.Modal == CombatModal.Results && sim.Outcome == CombatOutcome.Ended, "End Simulation shows damage summary");
         await Capture("combat-results");
+        await TestResultsTabs(tactical, sim);
         await Click(tactical.ReturnButton);
         Check(_app.Hangar.Visible && !tactical.Visible && _app.Hangar.SelectedMech == roster.Mechs[1], "summary returns to preserved hangar selection");
         Check(JsonSerializer.Serialize(_app.State.Snapshot()) == before, "UI simulation preserves campaign date, finances, roster, equipment, assignments and warriors");
@@ -246,6 +247,34 @@ public partial class SmokeTests
         await PressKey(Key.Escape);
         Check(_app.Hangar.Visible && JsonSerializer.Serialize(_app.State.Snapshot()) == before, "result Escape preserves campaign and returns to hangar");
         await PressKey(Key.Escape);
+    }
+    /// <summary>The results' three tabs; clicking a mech's row opens and closes its weapon table.</summary>
+    private async Task TestResultsTabs(CombatScreen tactical, CombatSimulation sim)
+    {
+        var tabs = tactical.ResultsTabs;
+        Check(tabs.GetTabCount() == 3 && tabs.GetTabTitle(0) == "Outcome" && tabs.GetTabTitle(1) == "Mechs" && tabs.GetTabTitle(2) == "Highlights"
+            && tabs.CurrentTab == 0, "the results open on Outcome, beside Mechs and Highlights");
+        Check(tabs.GetGlobalRect().Size.X > tactical.Size.X * .8f, "the results fill most of the screen");
+        Check(TacticalText().Contains("YOUR FORCE") && sim.Units.Where(unit => unit.Side == CombatSide.Friendly).All(unit => TacticalText()
+            .Any(text => text.StartsWith($"{unit.Spec.DisplayName} · “{unit.Warrior.Callsign}”") && text.Contains($": {BattleSummary.Condition(unit)} · "))),
+            "the Outcome tab lists each company mech with its condition and its pilot's");
+        tabs.CurrentTab = 1; await Frames();
+        Check(tactical.ResultRows.Count == sim.Units.Count && TacticalText().Contains("LANCE 1") && TacticalText().Contains("OPPOSITION")
+            && TacticalText().Contains("DAMAGE TAKEN") && TacticalText().Contains("DAMAGE DEALT"),
+            "the Mechs tab has a row for every mech, in a table per lance and for the opposition");
+        var unit = sim.Units[0]; var (row, weapons) = tactical.ResultRows[unit.Id];
+        var at = row.GetGlobalRect().Position + new Vector2(24, row.Size.Y / 2);
+        Check(!weapons.Visible, "a mech's weapon table starts closed");
+        MouseMotion(at, Vector2.Zero); MouseButton(at, Godot.MouseButton.Left, true); MouseButton(at, Godot.MouseButton.Left, false); await Frames();
+        Check(weapons.Visible && tactical.ExpandedResults.Contains(unit.Id), "clicking a mech's row opens its weapon table");
+        Check(row.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.TooltipText.Contains("Gunnery")),
+            "hovering the pilot shows their skills");
+        await Capture("combat-results-mechs");
+        MouseButton(at, Godot.MouseButton.Left, true); MouseButton(at, Godot.MouseButton.Left, false); await Frames();
+        Check(!weapons.Visible && !tactical.ExpandedResults.Contains(unit.Id), "clicking it again closes the table");
+        tabs.CurrentTab = 2; await Frames();
+        Check(tactical.HighlightList.GetChildCount() == Math.Max(1, sim.Highlights.Count), "the Highlights tab lists the battle's highlights");
+        tabs.CurrentTab = 0; await Frames();
     }
     /// <summary>Quick Launch fights the accepted mission from the hangar and settles it into the campaign.</summary>
     /// <summary>Audio settings from the open Combat menu, over the paused battle.</summary>

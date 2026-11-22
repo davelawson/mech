@@ -181,6 +181,8 @@ public sealed class CombatWeapon
     public bool Enabled { get; set; } = true;
     public double Remaining { get; internal set; }
     public int Damage => CombatRules.Damage(Spec);
+    /// <summary>This weapon's record over the battle, for the post-battle summary.</summary>
+    public WeaponTally Tally { get; internal set; } = new();
     internal CombatWeapon(WeaponSpec spec) { Spec = spec; }
 }
 
@@ -323,6 +325,9 @@ public sealed partial class CombatUnit
     public float TurnRate => Mathf.DegToRad(15 * Spec.Walk) * GyroMultiplier;
     public int ArmorLost => Locations.Values.Sum(item => item.InitialArmor - item.Armor + item.InitialRearArmor - item.RearArmor);
     public int StructureLost => Locations.Values.Sum(item => item.InitialStructure - item.Structure);
+    /// <summary>Armour and structure removed by damage itself, so a shot's credited damage leaves out an arm lost with its torso.</summary>
+    internal int AbsorbedArmor { get; set; }
+    internal int AbsorbedStructure { get; set; }
 
     public void ApplyDamage(MechLocation location, int damage, Vector2? attackFrom = null)
     {
@@ -337,6 +342,7 @@ public sealed partial class CombatUnit
                 if (rear) part.RearArmor -= armor; else part.Armor -= armor;
                 damage -= armor;
                 var structure = Math.Min(damage, part.Structure); part.Structure -= structure; damage -= structure;
+                AbsorbedArmor += armor; AbsorbedStructure += structure;
                 if (part.Structure == 0)
                 {
                     if (location == MechLocation.CenterTorso) AutoEject();
@@ -721,6 +727,7 @@ public sealed partial class CombatSimulation
             unit.InterferenceRemaining = Math.Max(0, Math.Round(unit.InterferenceRemaining - CombatRules.StepSeconds, 9));
             unit.AdvanceStandUp(CombatRules.StepSeconds, Elapsed);
         }
+        HighlightShutdowns();
         RefreshDetection();
         // Update every waist before selecting rear targets or taking a firing/damage snapshot.
         // A prone mech holds its waist where it fell.
@@ -801,6 +808,8 @@ public sealed partial class CombatSimulation
                 if (laser) _burns.Add((shot, Elapsed + CombatRules.LaserSecondHalfDelay));
                 if (shot.InFlight && hit) _projectiles.Add((shot, Elapsed + shot.FlightSeconds));
                 weapon.Remaining = CombatRules.Cooldown(weapon.Spec); unit.ShotsFired++;
+                weapon.Tally = weapon.Tally with { ShotsFired = weapon.Tally.ShotsFired + (salvo ? missiles.Length : 1),
+                    Hits = weapon.Tally.Hits + (salvo ? missiles.Count(missile => missile.Hit) : hit ? 1 : 0) };
                 if (hit) { unit.Hits++; if (!shot.InFlight) unit.DamageDealt += damage; }
             }
         }
@@ -812,7 +821,10 @@ public sealed partial class CombatSimulation
             var target = Unit(shot.TargetId);
             var before = target.Locations.Values.ToDictionary(part => part.Location,
                 part => (part.Armor, part.RearArmor, part.Structure));
-            var status = target.Status; var ejected = target.Ejected;
+            var status = target.Status; var ejected = target.Ejected; var killed = target.WarriorKilled;
+            var whole = target.Intact(MechLocation.Head) && target.Intact(MechLocation.CenterTorso);
+            var (absorbedArmor, absorbedStructure) = (target.AbsorbedArmor, target.AbsorbedStructure);
+            _explosionArmor = _explosionStructure = 0; _fatalExplosion = null;
             var criticals = new List<CombatCritical>();
             // Each missile that reaches structure rolls for critical hits on its own; any other shot rolls once per location.
             if (shot.Missiles.Count == 0) Strike(target, () => target.ApplyDamage(shot.Location, shot.Damage, shot.From), criticals);
@@ -843,7 +855,18 @@ public sealed partial class CombatSimulation
             var knockdown = (CountsTowardKnockdown(shot) ? shot.Damage : 0) + criticals.Sum(item => item.Explosion);
             var piloting = target.Status == CombatStatus.Destroyed ? null : RecordKnockdownDamage(target, knockdown);
             // The hit that disables or destroys an enemy earns its shooter the kill.
-            if (!CombatUnit.IsDefeated(status) && target.Defeated && Unit(shot.AttackerId).Side != target.Side) Unit(shot.AttackerId).Kills++;
+            var kill = !CombatUnit.IsDefeated(status) && target.Defeated && Unit(shot.AttackerId).Side != target.Side;
+            if (kill) Unit(shot.AttackerId).Kills++;
+            var weapon = Unit(shot.AttackerId).Weapons.FirstOrDefault(item => item.Spec.Id == shot.WeaponId);
+            if (weapon is not null)
+                weapon.Tally = weapon.Tally with
+                {
+                    ArmorDealt = weapon.Tally.ArmorDealt + target.AbsorbedArmor - absorbedArmor - _explosionArmor,
+                    InternalDealt = weapon.Tally.InternalDealt + target.AbsorbedStructure - absorbedStructure - _explosionStructure,
+                    SystemsDamaged = weapon.Tally.SystemsDamaged + criticals.Count(item => item.Explosion == 0),
+                    ComponentsDestroyed = weapon.Tally.ComponentsDestroyed + destroyed.Count, Kills = weapon.Tally.Kills + (kill ? 1 : 0)
+                };
+            HighlightShot(shot, target, criticals, destroyed, piloting, status, ejected, killed, whole);
             shots[i] = shot with { DamageApplied = Array.AsReadOnly(damage), SystemsLost = Array.AsReadOnly(systems), Criticals = criticals.AsReadOnly(), Piloting = piloting,
                 TargetStatus = target.Status != status ? target.Status : null };
         }
@@ -851,6 +874,7 @@ public sealed partial class CombatSimulation
         foreach (var shot in shots)
         { heat[shot.AttackerId] += shot.GeneratedHeat; heat[shot.TargetId] += shot.TargetHeat; }
         foreach (var unit in Units) unit.AddHeat(heat[unit.Id]);
+        HighlightShutdowns();
         foreach (var shot in shots)
         {
             // Contacts still describe the pre-exchange observation; heat now includes the entire exchange.

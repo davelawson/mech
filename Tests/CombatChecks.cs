@@ -172,6 +172,7 @@ internal static partial class CombatChecks
         CheckCriticalHits(check);
         CheckKnockdowns(check);
         CheckStress(check);
+        CheckBattleSummary(check);
         RunEngagements(check);
     }
     /// <summary>Fast-forward steps the same fixed steps four times as fast, and the battle state carries the speed.</summary>

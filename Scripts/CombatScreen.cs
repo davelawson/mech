@@ -322,7 +322,10 @@ public partial class CombatScreen : Control
         LayoutUnitCards();
         Ui.Place(_unitBar, 16, Size.Y - 8 - unitBar, Size.X - 32, unitBar);
         if (WaitingBanner is not null) PlaceBanner();
-        var width = Math.Min(760, Size.X - 48); var height = Math.Min(650, Size.Y - 48);
+        // The results' tables need nearly the whole screen.
+        var results = Modal == CombatModal.Results;
+        var width = results ? Mathf.Round(Size.X * .9f) : Math.Min(760, Size.X - 48);
+        var height = results ? Mathf.Round(Size.Y * .9f) : Math.Min(650, Size.Y - 48);
         Ui.Place(_modalPanel, (Size.X - width) / 2, (Size.Y - height) / 2, width, height);
     }
     public void Open(ForceRoster roster, string selectedMechId)
@@ -342,7 +345,7 @@ public partial class CombatScreen : Control
     }
     private void Reset(ForceRoster roster, MissionOffer? mission, Func<CombatSimulation, SalvageClaim[], string>? settle)
     {
-        _roster = roster; _mission = mission; _settle = settle; _settlement = null; SalvagePool = []; SalvageChoices.Clear();
+        _roster = roster; _mission = mission; _settle = settle; _settlement = null; SalvagePool = []; SalvageChoices.Clear(); _resultsTab = 0; ExpandedResults.Clear();
         WaitingBanner.Hide();
         Coop = false; Leading = true; ForceReady = false; _othersReady = false; Orders = null;
         Simulation = null; _primary = null; _selected.Clear(); SettingJump = false;
@@ -356,6 +359,7 @@ public partial class CombatScreen : Control
         Modal = modal; Battlefield.CommandsEnabled = false; Battlefield.CancelDrag(); ControlsPanel.Hide();
         Battlefield.MouseFilter = MouseFilterEnum.Ignore;
         RosterUi.Clear(_modalContent); Ui.Label(_modalContent, title, 24, Ui.Gold); _shade.Show();
+        Layout();
     }
     private HBoxContainer ModalActions()
     {
@@ -748,32 +752,27 @@ public partial class CombatScreen : Control
         // A finished battle has nothing left to wait for.
         StopWaitingButton.Hide();
         BeginModal(CombatModal.Results, title);
-        RosterUi.Text(_modalContent, $"Combat time {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}{(_mission is null ? " · Campaign preserved" : "")}", 15, Ui.Gold);
+        ResultsTabs = new TabContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; _modalContent.AddChild(ResultsTabs);
+        var outcome = new VBoxContainer { Name = "Outcome" }; outcome.AddThemeConstantOverride("separation", 12); ResultsTabs.AddChild(outcome);
+        RosterUi.Text(outcome, $"Combat time {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}{(_mission is null ? " · Campaign preserved" : "")}", 15, Ui.Gold);
         if (_mission is not null && Simulation.Outcome == CombatOutcome.Victory && Simulation.EnemyHoldsField)
-            RosterUi.Text(_modalContent, "No salvage: the opposition still holds the field.", 14, Ui.Muted);
-        if (_settlement is not null) RosterUi.Text(_modalContent, _settlement, 14);
-        else if (choosing) RosterUi.Text(_modalContent, $"Choose salvage from the field: the contract allows {Picks(_mission!.SalvagePicks)}. "
+            RosterUi.Text(outcome, "No salvage: the opposition still holds the field.", 14, Ui.Muted);
+        if (_settlement is not null) RosterUi.Text(outcome, _settlement, 14);
+        else if (choosing) RosterUi.Text(outcome, $"Choose salvage from the field: the contract allows {Picks(_mission!.SalvagePicks)}. "
             + $"Up to {Picks(SalvageTuning.ExtraPicks)} more can be taken, at a cost to your reputation.", 14);
-        else if (viewing) RosterUi.Text(_modalContent, $"The leader is choosing salvage: the contract allows {Picks(_mission!.SalvagePicks)}, "
+        else if (viewing) RosterUi.Text(outcome, $"The leader is choosing salvage: the contract allows {Picks(_mission!.SalvagePicks)}, "
             + $"and up to {Picks(SalvageTuning.ExtraPicks)} more at a cost to reputation.", 14, Ui.Muted);
-        else if (_mission is not null) RosterUi.Text(_modalContent, Simulation.Outcome == CombatOutcome.Victory
+        else if (_mission is not null) RosterUi.Text(outcome, Simulation.Outcome == CombatOutcome.Victory
             ? "Waiting for the leader to choose salvage and settle the mission…" : "Waiting for the leader to settle the mission…", 14, Ui.Muted);
-        RosterUi.Text(_modalContent, $"Terrain seed: {Simulation.Terrain.Seed} · {BiomeText(Simulation)}", 14, Ui.Muted);
-        if (choosing) SalvageCount = RosterUi.Text(_modalContent, "", 14, Ui.Gold);
-        var body = RosterUi.Scroll(_modalContent);
+        RosterUi.Text(outcome, $"Terrain seed: {Simulation.Terrain.Seed} · {BiomeText(Simulation)}", 14, Ui.Muted);
+        if (choosing) SalvageCount = RosterUi.Text(outcome, "", 14, Ui.Gold);
+        var body = RosterUi.Scroll(outcome);
         if (choosing || viewing) ShowSalvage(body, readOnly: viewing);
-        foreach (var side in Enum.GetValues<CombatSide>())
-        {
-            RosterUi.Text(body, side == CombatSide.Enemy ? "OPPOSITION" : Coop ? "THE COMPANY" : "YOUR FORCE", 16, Ui.Gold);
-            foreach (var unit in Simulation.Units.Where(item => item.Side == side))
-            {
-                RosterUi.Text(body, $"{unit.Spec.DisplayName} · {unit.Warrior.Callsign} · {unit.Status}{(unit.WarriorKilled ? " · MechWarrior killed" : "")}"
-                    + (unit.Ejected ? " · MechWarrior ejected" : "") + (unit.Surrendered ? " · Pilot taken hostage" : "")
-                    + (unit.Side == CombatSide.Enemy && unit.Unarmed && !unit.Defeated ? " · Unarmed" : ""), 14);
-                RosterUi.Text(body, $"Armor lost (front + rear): {unit.ArmorLost} · Structure lost: {unit.StructureLost}\nShots: {unit.ShotsFired} · Hits: {unit.Hits} · Damage delivered: {unit.DamageDealt}\n"
-                    + string.Join("  ", unit.Locations.Values.Select(loc => $"{DraftCatalog.Abbreviation(loc.Location)} {loc.Armor}/{loc.Structure}")), 12, Ui.Muted);
-            }
-        }
+        ShowCompanyStatus(body);
+        ShowResultTables();
+        ShowHighlights();
+        ResultsTabs.CurrentTab = Math.Clamp(_resultsTab, 0, ResultsTabs.GetTabCount() - 1);
+        ResultsTabs.TabChanged += tab => _resultsTab = (int)tab;
         var actions = ModalActions();
         if (choosing)
         {

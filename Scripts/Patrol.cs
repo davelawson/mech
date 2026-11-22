@@ -320,6 +320,7 @@ public sealed partial class CombatSimulation
         {
             unit.Extracted = true; unit.Moving = false; unit.CurrentSpeed = unit.AngularVelocity = 0;
             unit.Order = CombatOrder.Hold; unit.AttackTarget = unit.FollowTarget = null; unit.CurrentTarget = unit.CurrentRearTarget = null;
+            Highlight(unit, $"{Name(unit)} extracted.");
             patrol.EventList.Add(new(Elapsed, $"{unit.Warrior.Callsign} extracted"
                 + (patrol.AllVisited ? "" : $" · {layout.PatrolPoints - patrol.Visited} patrol {(layout.PatrolPoints - patrol.Visited == 1 ? "point" : "points")} unvisited")));
         }

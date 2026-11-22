@@ -157,6 +157,7 @@ public sealed partial class CombatUnit
     {
         var part = Locations[location];
         var structure = Math.Min(damage, part.Structure); part.Structure -= structure; damage -= structure;
+        AbsorbedStructure += structure;
         if (part.Structure == 0)
         {
             if (location == MechLocation.CenterTorso) AutoEject();
@@ -239,13 +240,25 @@ public sealed partial class CombatSimulation
             var damage = CombatRules.AmmoExplosionDamage(kind, shots);
             target.Injuries++;
             log.Add(new(location, id, $"Ammo explosion · {DraftCatalog.Abbreviation(location)} {target.Spec.Ammo.Single(item => item.Id == id).Name} · {damage} damage", damage));
+            // An explosion's damage is the victim's own: it is kept apart from the shot's credited damage. Explosions it sets off are
+            // counted with it, once.
+            var outer = _explosionDepth == 0;
+            var (armor, structure) = (target.AbsorbedArmor, target.AbsorbedStructure);
+            var whole = target.Intact(MechLocation.Head) && target.Intact(MechLocation.CenterTorso);
+            _explosionDepth++;
             Strike(target, () => target.ApplyInternalDamage(location, damage), log);
+            _explosionDepth--;
+            if (whole && !(target.Intact(MechLocation.Head) && target.Intact(MechLocation.CenterTorso))) _fatalExplosion ??= (location, id);
+            if (outer) { _explosionArmor += target.AbsorbedArmor - armor; _explosionStructure += target.AbsorbedStructure - structure; }
         }
     }
+    private int _explosionDepth, _explosionArmor, _explosionStructure;
+    /// <summary>The bin whose explosion destroyed the head or center torso during the shot being resolved.</summary>
+    private (MechLocation Location, string BinId)? _fatalExplosion;
 
     /// <summary>Recovery days for a unit's injuries this battle: 10–20 days each, added together. The draw depends only on the
     /// battle's seed and the unit, so the report is the same however often it is asked for.</summary>
-    private int InjuryDays(CombatUnit unit)
+    public int InjuryDays(CombatUnit unit)
     {
         if (unit.Injuries == 0 || unit.WarriorKilled) return 0;
         var random = new Random(unchecked(_seed * 31 + Units.ToList().IndexOf(unit) + 1));

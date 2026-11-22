@@ -185,7 +185,8 @@ public sealed partial class CombatSimulation
         // Every check goes to the debug log with its roll and modifiers; the combat log shows only a friendly's change of level,
         // since enemy stress is never shown to the player.
         Note(unit, check.Text, unit.Side == CombatSide.Friendly && (unit.Stress != before || pushed));
-        if (broke) Eject(unit, "panics and ejects");
+        if (unit.Stress == StressLevel.Panicked && !unit.PanicHighlighted) { unit.PanicHighlighted = true; Highlight(unit, $"{Name(unit)} panicked."); }
+        if (broke) Eject(unit, "panics and ejects", $"{unit.Warrior.Callsign} panicked and ejected from the {unit.Spec.DisplayName}.");
         else if (unit.Side == CombatSide.Enemy && EnemyAiEnabled) ConsiderSurrender(unit);
         return check;
     }
@@ -205,7 +206,7 @@ public sealed partial class CombatSimulation
     private void ConsiderSurrender(CombatUnit unit)
     {
         if (unit.Defeated || !CombatRules.CenterTorsoCrippled(unit)) return;
-        if (!ExpectsDefeat(unit.Side)) Eject(unit, "ejects");
+        if (!ExpectsDefeat(unit.Side)) Eject(unit, "ejects", $"{unit.Warrior.Callsign} ejected from the crippled {unit.Spec.DisplayName}.");
         else if (!unit.SurrenderOffered) OfferSurrender(unit);
     }
 
@@ -219,7 +220,7 @@ public sealed partial class CombatSimulation
     private void OfferSurrender(CombatUnit unit)
     {
         unit.SurrenderOffered = true;
-        Note(unit, "offers to surrender");
+        Note(unit, "offers to surrender"); Highlight(unit, $"{Name(unit)} offered to surrender.");
         if (!PromptSurrender) { AnswerSurrender(unit.Id, false); return; }
         unit.Moving = false; unit.CurrentSpeed = unit.AngularVelocity = 0; unit.Order = CombatOrder.Hold; unit.AttackTarget = null;
         unit.Route = Array.Empty<Vector2>();
@@ -239,18 +240,19 @@ public sealed partial class CombatSimulation
             unit.Moving = false; unit.CurrentSpeed = unit.AngularVelocity = 0; unit.Order = CombatOrder.Hold;
             unit.AttackTarget = unit.FollowTarget = unit.CurrentTarget = unit.CurrentRearTarget = null;
             Note(unit, "surrender accepted · pilot taken hostage");
+            Highlight(unit, $"{Name(unit)}'s surrender was accepted: {unit.Warrior.Callsign} was taken hostage.");
             return;
         }
-        Note(unit, "surrender refused");
+        Note(unit, "surrender refused"); Highlight(unit, $"{Name(unit)}'s surrender was refused.");
         if (unit.Unarmed) { unit.Fleeing = true; Note(unit, "flees"); }
     }
 
     /// <summary>A player's Eject order.</summary>
-    internal void EjectOrdered(CombatUnit unit) { if (!unit.Defeated) Eject(unit, "ejects"); }
+    internal void EjectOrdered(CombatUnit unit) { if (!unit.Defeated) Eject(unit, "ejects", $"{unit.Warrior.Callsign} ejected from the {unit.Spec.DisplayName} on orders."); }
 
-    private void Eject(CombatUnit unit, string text)
+    private void Eject(CombatUnit unit, string text, string highlight)
     {
-        if (unit.Eject()) { _surrenderOffers.Remove(unit.Id); Note(unit, text); }
+        if (unit.Eject()) { _surrenderOffers.Remove(unit.Id); Note(unit, text); Highlight(unit, highlight); }
     }
 
     /// <summary>Notes the automatic ejections the step's damage caused: a destroyed center torso throws the pilot clear.</summary>
@@ -270,7 +272,7 @@ public sealed partial class CombatSimulation
             {
                 unit.Fled = true; unit.Fleeing = false; unit.Moving = false; unit.CurrentSpeed = unit.AngularVelocity = 0;
                 unit.Order = CombatOrder.Hold; unit.CurrentTarget = unit.CurrentRearTarget = null;
-                Note(unit, "has fled the battle");
+                Note(unit, "has fled the battle"); Highlight(unit, $"{Name(unit)} fled the battle.");
                 continue;
             }
             unit.DesiredSpeed = Math.Max(CombatRules.MinimumDesiredSpeed, unit.UnheatedRunningSpeed);
