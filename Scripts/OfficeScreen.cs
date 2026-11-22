@@ -8,7 +8,7 @@ public partial class OfficeScreen : Control
     [Signal] public delegate void WarriorsRequestedEventHandler();
     [Signal] public delegate void HangarRequestedEventHandler();
     [Signal] public delegate void DayRequestedEventHandler();
-    [Signal] public delegate void EventRequestedEventHandler();
+    [Signal] public delegate void CalendarRequestedEventHandler();
     [Signal] public delegate void FinancesRequestedEventHandler();
     [Signal] public delegate void FilingRequestedEventHandler();
     [Signal] public delegate void MissionsRequestedEventHandler();
@@ -22,7 +22,7 @@ public partial class OfficeScreen : Control
     public Label ReadyCount { get; private set; } = null!;
     public ArtworkHotspot Hotspot { get; private set; } = null!;
     public ArtworkHotspot CalendarButton { get; private set; } = null!;
-    public ArtworkHotspot ReminderButton { get; private set; } = null!;
+    public ArtworkHotspot SnoozeButton { get; private set; } = null!;
     public ArtworkHotspot SafeButton { get; private set; } = null!;
     public ArtworkHotspot FilingButton { get; private set; } = null!;
     public ArtworkHotspot JacketButton { get; private set; } = null!;
@@ -39,7 +39,7 @@ public partial class OfficeScreen : Control
     public static readonly Rect2 LocationRegion = new(MapRegion.Position.X, MapRegion.End.Y - 28, MapRegion.Size.X, 28);
     public static readonly Vector2[] ChartShape = [new(328, 84), new(652, 84), new(652, 390), new(598, 390), new(598, 410), new(576, 410), new(576, 390), new(328, 390)];
     public static readonly Vector2[] CalendarShape = [new(730, 166), new(904, 166), new(912, 174), new(912, 292), new(904, 300), new(730, 300), new(722, 292), new(722, 174)];
-    public static readonly Vector2[] ReminderShape = [new(767, 271), new(862, 271), new(862, 311), new(767, 311)];
+    public static readonly Vector2[] SnoozeShape = [new(767, 271), new(862, 271), new(862, 311), new(767, 311)];
     public static readonly Vector2[] SafeShape = [new(326, 446), new(598, 446), new(598, 680), new(326, 680)];
     public static readonly Vector2[] FilingShape = [new(0, 330), new(150, 330), new(190, 345), new(190, 790), new(150, 806), new(0, 806)];
     public static readonly Vector2[] RolodexShape = [new(702, 575), new(720, 560), new(745, 553), new(795, 553), new(812, 565), new(818, 585),
@@ -51,7 +51,7 @@ public partial class OfficeScreen : Control
         new(1396, 416), new(1392, 300), new(1386, 240), new(1380, 198), new(1358, 180)];
     public static readonly Rect2 ChartRegion = ArtworkHotspot.Bounds(ChartShape);
     public static readonly Rect2 CalendarRegion = ArtworkHotspot.Bounds(CalendarShape);
-    public static readonly Rect2 ReminderRegion = ArtworkHotspot.Bounds(ReminderShape);
+    public static readonly Rect2 SnoozeRegion = ArtworkHotspot.Bounds(SnoozeShape);
     public static readonly Rect2 SafeRegion = ArtworkHotspot.Bounds(SafeShape);
     public static readonly Rect2 FilingRegion = ArtworkHotspot.Bounds(FilingShape);
     public static readonly Rect2 RolodexRegion = ArtworkHotspot.Bounds(RolodexShape);
@@ -113,7 +113,7 @@ public partial class OfficeScreen : Control
         HangarButton.Pressed += () => EmitSignal(SignalName.HangarRequested);
         JacketButton = AddHotspot("Jacket", JacketShape); JacketButton.TooltipText = "Jacket · Main menu";
         JacketButton.Pressed += () => EmitSignal(SignalName.MenuRequested);
-        _hint = Ui.Label(this, "Phone: missions · Rolodex: MechWarriors · Porthole: hangar · Calendar: next day · Reminder: next event · Safe: finances · Cabinet: save / load · Jacket: main menu", 12, Ui.Muted);
+        _hint = Ui.Label(this, "Phone: missions · Rolodex: MechWarriors · Porthole: hangar · Calendar: upcoming events · Snooze: next day · Safe: finances · Cabinet: save / load · Jacket: main menu", 12, Ui.Muted);
         _hint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         Resized += Layout;
         SetArtwork(ArtworkPath);
@@ -131,8 +131,8 @@ public partial class OfficeScreen : Control
     private void CreateCampaignControls()
     {
         CalendarButton = AddHotspot("Calendar", CalendarShape);
-        CalendarButton.TooltipText = "Advance one day · Click again to stop";
-        CalendarButton.Pressed += () => EmitSignal(SignalName.DayRequested);
+        CalendarButton.TooltipText = "Show upcoming events";
+        CalendarButton.Pressed += () => EmitSignal(SignalName.CalendarRequested);
         CalendarDate = Ui.Label(CalendarButton, "", 16, new Color("b6d4b1"));
         CalendarDate.HorizontalAlignment = HorizontalAlignment.Center;
         CalendarDate.ClipText = true;
@@ -142,13 +142,13 @@ public partial class OfficeScreen : Control
         QuarterText.ClipText = true;
         Ui.Place(QuarterText, 27, 64, 120, 29);
 
-        ReminderButton = AddHotspot("Reminder", ReminderShape);
-        var reminderText = Ui.Label(ReminderButton, "Reminder...", 14, new Color("3d3520"));
-        reminderText.HorizontalAlignment = HorizontalAlignment.Center;
-        reminderText.ClipText = true;
-        Ui.Place(reminderText, 2, 4, 91, 31);
-        ReminderButton.TooltipText = "Advance to the next event · Click anywhere to stop";
-        ReminderButton.Pressed += () => EmitSignal(SignalName.EventRequested);
+        SnoozeButton = AddHotspot("Snooze", SnoozeShape);
+        var snoozeText = Ui.Label(SnoozeButton, "Snooze...", 14, new Color("3d3520"));
+        snoozeText.HorizontalAlignment = HorizontalAlignment.Center;
+        snoozeText.ClipText = true;
+        Ui.Place(snoozeText, 2, 4, 91, 31);
+        SnoozeButton.TooltipText = "Advance one day";
+        SnoozeButton.Pressed += () => EmitSignal(SignalName.DayRequested);
 
         SafeButton = AddHotspot("CompanySafe", SafeShape);
         SafeButton.TooltipText = "Company safe · Quarterly finances";
@@ -183,9 +183,9 @@ public partial class OfficeScreen : Control
         QuarterText.Text = campaign.PaymentPending ? "Payment Due" : $"bills due in {days} {(days == 1 ? "day" : "days")}";
         QuarterText.AddThemeColorOverride("font_color", campaign.PaymentPending || campaign.DeferredDebt > 0
             ? new Color("ff6c63") : Ui.Gold);
-        CalendarButton.Disabled = !campaign.CanAdvance;
-        ReminderButton.Disabled = !campaign.CanAdvance;
-        CalendarButton.TooltipText = $"{campaign.DateText} · {QuarterText.Text}\nAdvance one day · Click again to stop";
+        CalendarButton.Disabled = campaign.RequiresDraft;
+        SnoozeButton.Disabled = !campaign.CanAdvance;
+        CalendarButton.TooltipText = $"{campaign.DateText} · {QuarterText.Text}\nShow upcoming events";
         _safeReadout.Text = $"₡ {campaign.Cash.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)}";
         SafeButton.TooltipText = $"{_safeReadout.Text} · Quarterly finances";
         _paymentPending = campaign.PaymentPending;
@@ -227,7 +227,7 @@ public partial class OfficeScreen : Control
         Ui.Place(_error, 12, _frame.Size.Y / 2 + 60, _frame.Size.X - 24, 50);
         PlaceArtworkControl(WallMap, MapRegion, scale);
         PlaceArtworkControl(LocationStrip, LocationRegion, scale);
-        foreach (var hotspot in new[] { Hotspot, CalendarButton, ReminderButton, SafeButton, FilingButton, RolodexButton, PhoneButton, HangarButton, JacketButton })
+        foreach (var hotspot in new[] { Hotspot, CalendarButton, SnoozeButton, SafeButton, FilingButton, RolodexButton, PhoneButton, HangarButton, JacketButton })
             PlaceArtworkControl(hotspot, hotspot.Region, scale);
     }
 

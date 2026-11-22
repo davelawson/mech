@@ -4,6 +4,7 @@ internal static class CampaignChecks
 {
     public static void Run(Action<bool, string> check)
     {
+        CheckUpcomingEvents(check);
         var campaign = NewCompany();
         check(campaign.Date == new DateOnly(3025, 1, 1) && campaign.Cash == 2_500_000, "new company defaults");
         var salaries = campaign.Roster!.Salaries; var bill = Campaign.QuarterlyCharge + salaries;
@@ -284,6 +285,68 @@ internal static class CampaignChecks
         check(sold.OrbitMarket.Count == 3, "an emptied market refills at the daily rate");
         var coop = TwoPlayerCompany(); coop.Execute(new ViewMarketCommand(), 1);
         check(coop.OrbitMarket is not null, "any player viewing the market stocks it");
+    }
+
+    /// <summary>The calendar's upcoming events: everything dated ahead, soonest first, and healing and deadlines stop the calendar.</summary>
+    private static void CheckUpcomingEvents(Action<bool, string> check)
+    {
+        var campaign = NewCompany();
+        check(campaign.UpcomingEvents is [{ Kind: CampaignEventKind.QuarterlyPayment } payment] && payment.Date == campaign.NextQuarter
+            && payment.Title == $"Quarterly payment · {campaign.ProjectedBill:N0} C-bills (projected)", "a new company has only its next quarterly payment ahead");
+
+        // A journey lists every arrival still to come.
+        var chart = StarChart.Instance; var start = campaign.Travel.OrbitSystemId;
+        var far = chart.Systems.Select(item => chart.Plot(start, item.Id)).Where(route => route is { Length: >= 4 })
+            .OrderBy(route => route!.Length).First()!;
+        campaign.PlotJourney(far[^1]); campaign.Embark();
+        var arrivals = campaign.UpcomingEvents.Where(item => item.Kind == CampaignEventKind.Arrival).ToArray();
+        var expected = new List<DateOnly>(); var date = campaign.Date;
+        for (var leg = 1; leg < far.Length; leg++) expected.Add(date = date.AddDays(chart.JumpDays(far[leg - 1], far[leg])));
+        check(arrivals.Select(item => item.Date).SequenceEqual(expected) && arrivals[0].Title == $"Arrive at {chart[far[1]].Name} · stop 1 of {far.Length - 1}"
+            && arrivals[^1].Title == $"Arrive at {chart[far[^1]].Name}", "every remaining arrival of the journey is listed, intermediate stops numbered");
+        campaign.AdvanceOneDay();
+        check(campaign.UpcomingEvents.Where(item => item.Kind == CampaignEventKind.Arrival).Select(item => item.Date).SequenceEqual(expected),
+            "arrival dates hold while in transit");
+
+        // Repairs, injuries, the mission deadline and scheduled events; same-day events in the order they are handled.
+        campaign = NewCompany(1); var roster = campaign.Roster!;
+        Damage(roster.Mechs[0]); campaign.OrderRepair(roster.Mechs[0].Id, RepairScope.Armor);
+        var repaired = roster.Mechs[0].Repair!.Completes!.Value;
+        var warrior = roster.Warriors[1];
+        roster.SetHealth(warrior.Id, WarriorHealth.Injured, repaired, campaign.Date);
+        var offer = campaign.Missions.Available.First(item => campaign.DeadlineDays(item) is not null);
+        campaign.AcceptMission(offer.Id);
+        var deadline = campaign.Missions.Deadline!.Value;
+        campaign.Schedule(new("arrival", repaired, CampaignEventKind.Arrival, "Arrived somewhere"));
+        var upcoming = campaign.UpcomingEvents;
+        check(upcoming.Zip(upcoming.Skip(1)).All(pair => pair.First.Date <= pair.Second.Date), "upcoming events are soonest first");
+        check(upcoming.Where(item => item.Date == repaired).Select(item => item.Kind)
+            .SequenceEqual([CampaignEventKind.Arrival, CampaignEventKind.RepairCompletion, CampaignEventKind.InjuryHealed]),
+            "events on one date list arrival, then repair, then healing");
+        check(upcoming.Any(item => item.Title == $"Repair complete · {roster.Mechs[0].Spec.DisplayName}")
+            && upcoming.Any(item => item.Title == $"Injury healed · “{warrior.Spec.Callsign}” {warrior.Spec.Name}")
+            && upcoming.Any(item => item.Date == deadline && item.Title == $"Mission deadline · {offer.Name}"),
+            "repairs, healing and the mission deadline are listed");
+        var healed = new List<CampaignEvent>();
+        while (campaign.Date < repaired)
+        {
+            healed.Clear(); healed.AddRange(campaign.AdvanceOneDay().Events);
+            if (campaign.PaymentPending) healed.AddRange(campaign.PayNow());
+        }
+        check(warrior.Health == WarriorHealth.Healthy
+            && healed.Select(item => item.Kind).SequenceEqual([CampaignEventKind.Arrival, CampaignEventKind.RepairCompletion, CampaignEventKind.InjuryHealed])
+            && healed[^1].Title == $"Injury healed · “{warrior.Spec.Callsign}” {warrior.Spec.Name} · back on the active roster",
+            "a recovery stops the calendar, after the day's arrival and repair");
+        var reached = new List<CampaignEvent>();
+        while (campaign.Date < deadline)
+        {
+            var day = campaign.AdvanceOneDay(); reached.AddRange(day.Events);
+            if (campaign.PaymentPending) reached.AddRange(campaign.PayNow());
+        }
+        check(reached.Any(item => item.Date == deadline && item.Kind == CampaignEventKind.ContractDeadline && item.Title == $"Mission deadline · {offer.Name}"),
+            "the mission deadline stops the calendar");
+        check(campaign.UpcomingEvents.All(item => item.Date > campaign.Date) && campaign.UpcomingEvents.All(item => item.Kind != CampaignEventKind.ContractDeadline),
+            "a passed deadline leaves the list");
     }
 
     /// <summary>Damages a mech: front armor stripped from every intact location, plus the given structure and component damage.</summary>

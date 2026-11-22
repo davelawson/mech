@@ -93,6 +93,10 @@ public partial class SmokeTests
             _app.StartAdvancing(false); await Frames();
             Check(!_app.IsAdvancing && _app.Dialog.Heading == "Time cannot advance" && _app.Dialog.Visible, "time cannot advance while a player is away");
             await Click(DialogButton("Close"));
+            await Click(_app.Office.CalendarButton);
+            Check(_app.Calendar.Visible && _app.Calendar.NextDayButton.Disabled && _app.Calendar.Rows.All(row => row.Disabled)
+                && _app.Calendar.Note.Text.StartsWith("Time cannot advance until Sam"), "the calendar lists events but cannot advance while a player is away");
+            await Click(_app.Calendar.CloseButton);
 
             var back = new CoopClient(ENetTransport.Connect("127.0.0.1", port), "Sam");
             try

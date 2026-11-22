@@ -52,8 +52,8 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | **Rejoin** (after a dropped connection) | Reconnect to the same leader and retake your seat |
 | **Office** | |
 | Click wall chart, or Tab then Enter/Space | Open the star map |
-| Click calendar | Advance one day |
-| Click “Reminder...” post-it | Advance to the next event |
+| Click calendar | Upcoming events; click one to advance to its date, or **Next Day** |
+| Click “Snooze...” post-it | Advance one day |
 | Click anywhere while time advances | Stop time (and activate the clicked object) |
 | Click rolodex / porthole / safe / phone / filing cabinet | Personnel / hangar / finances / missions / save and load |
 | Right-click empty office | Stop time and open the main menu |

@@ -2,9 +2,11 @@ using System.Globalization;
 
 namespace Mech;
 
-public enum CampaignEventKind { Arrival, RepairCompletion, MissionResult, ContractDeadline }
+public enum CampaignEventKind { Arrival, RepairCompletion, MissionResult, ContractDeadline, InjuryHealed, QuarterlyPayment }
 
 public sealed record CampaignEvent(string Id, DateOnly Date, CampaignEventKind Kind, string Title);
+/// <summary>A dated event ahead on the calendar, as the upcoming-events panel lists it.</summary>
+public sealed record UpcomingEvent(DateOnly Date, CampaignEventKind Kind, string Title);
 public sealed record DayResult(bool Advanced, bool QuarterReached, IReadOnlyList<CampaignEvent> Events);
 /// <summary>What settling a mission did: payment received, reputation changes in tenths, MechWarriors killed, and the day it took.
 /// Insurance is what the contract paid towards the battle's damage, InsuranceClaim the full cost of that damage. Salvage lists the
@@ -126,17 +128,56 @@ public sealed class Campaign
     public bool CanDefer => !RequiresDraft && PaymentPending && !Bankrupt && DeferredDebt == 0;
     public int DaysUntilQuarter => NextQuarter.DayNumber - Date.DayNumber;
     public string DateText => Date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture).ToUpperInvariant();
-    public DateOnly NextEventDate
+    /// <summary>"“Ace” Jane Doe", as the calendar names a MechWarrior.</summary>
+    private static string WarriorName(RosterWarrior warrior) => $"“{warrior.Spec.Callsign}” {warrior.Spec.Name}";
+
+    /// <summary>Every dated event still ahead, soonest first: the next quarterly payment, each remaining arrival of the journey,
+    /// started repairs and refits, injured MechWarriors' recoveries, the current mission's deadline and anything else scheduled.
+    /// Events on one date follow the order they are handled in: payment, arrival, repair or refit, healing, deadline.</summary>
+    public IReadOnlyList<UpcomingEvent> UpcomingEvents
     {
         get
         {
-            var next = _events.Aggregate(NextQuarter, (date, item) => item.Date < date ? item.Date : date);
-            foreach (var order in Roster?.Mechs.Select(item => item.Repair).OfType<RepairOrder>() ?? [])
-                if (order.Completes is { } completes && completes < next) next = completes;
-            return Travel.HasJourney && Travel.DaysToArrival < next.DayNumber - Date.DayNumber
-                ? Date.AddDays(Travel.DaysToArrival) : next;
+            var all = new List<UpcomingEvent>
+            {
+                new(NextQuarter, CampaignEventKind.QuarterlyPayment,
+                    $"Quarterly payment · {ProjectedBill.ToString("N0", CultureInfo.InvariantCulture)} C-bills (projected)")
+            };
+            if (Travel.Journey is { } journey)
+            {
+                var stops = journey.Count - 1;
+                var arrival = Date.AddDays(Travel.DaysToArrival);
+                for (var leg = Travel.LegIndex + 1; leg <= stops; leg++)
+                {
+                    if (leg > Travel.LegIndex + 1) arrival = arrival.AddDays(StarChart.Instance.JumpDays(journey[leg - 1], journey[leg]));
+                    var name = StarChart.Instance[journey[leg]].Name;
+                    all.Add(new(arrival, CampaignEventKind.Arrival, leg == stops ? $"Arrive at {name}" : $"Arrive at {name} · stop {leg} of {stops}"));
+                }
+            }
+            foreach (var mech in Roster?.Mechs ?? [])
+                if (mech.Repair is { Completes: { } completes } order)
+                    all.Add(new(completes, CampaignEventKind.RepairCompletion, $"{(order.Refit ? "Refit" : "Repair")} complete · {mech.Spec.DisplayName}"));
+            foreach (var warrior in Roster?.Warriors ?? [])
+                if (warrior is { Health: WarriorHealth.Injured, RecoveryDate: { } recovers })
+                    all.Add(new(recovers, CampaignEventKind.InjuryHealed, $"Injury healed · {WarriorName(warrior)}"));
+            if (Missions.Current is { } mission && Missions.Deadline is { } deadline && deadline > Date)
+                all.Add(new(deadline, CampaignEventKind.ContractDeadline, $"Mission deadline · {mission.Name}"));
+            all.AddRange(_events.Where(item => item.Date > Date).Select(item => new UpcomingEvent(item.Date, item.Kind, item.Title)));
+            return all.OrderBy(item => item.Date).ThenBy(item => Rank(item.Kind)).ToArray();
         }
     }
+
+    private static int Rank(CampaignEventKind kind) => kind switch
+    {
+        CampaignEventKind.QuarterlyPayment => 0,
+        CampaignEventKind.Arrival => 1,
+        CampaignEventKind.RepairCompletion => 2,
+        CampaignEventKind.InjuryHealed => 3,
+        CampaignEventKind.ContractDeadline => 4,
+        _ => 5
+    };
+
+    public DateOnly NextEventDate => UpcomingEvents[0].Date;
 
     /// <summary>The leader's player slot; the other slots number on from it, one per lance.</summary>
     public const int LeaderSlot = 0;
@@ -182,7 +223,9 @@ public sealed class Campaign
     {
         if (!CanAdvance) return new(false, false, Array.Empty<CampaignEvent>());
         Date = Date.AddDays(1);
-        Roster?.Recover(Date);
+        foreach (var warrior in Roster?.Recover(Date) ?? [])
+            _events.Add(new($"healed-{warrior.Id}-{Date.DayNumber}", Date, CampaignEventKind.InjuryHealed,
+                $"Injury healed · {WarriorName(warrior)} · back on the active roster"));
         CompleteRepairs();
         if (Travel.HasJourney)
         {
@@ -192,6 +235,8 @@ public sealed class Campaign
                 CampaignEventKind.Arrival, $"Arrived at {StarChart.Instance[arrived].Name}. In orbit for today."));
         }
         Missions.AdvanceDay(Date, MissionOrigin, Reputation);
+        if (Missions.Current is { } mission && Missions.Deadline == Date)
+            _events.Add(new($"deadline-{mission.Id}", Date, CampaignEventKind.ContractDeadline, $"Mission deadline · {mission.Name}"));
         ViewRecruits();
         var quarterReached = Date == NextQuarter;
         // Accounting is evaluated before any other event on the same date.
@@ -487,7 +532,7 @@ public sealed class Campaign
     private CampaignEvent[] TakeDueEvents()
     {
         var due = _events.Where(item => item.Date <= Date)
-            .OrderBy(item => item.Date).ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
+            .OrderBy(item => item.Date).ThenBy(item => Rank(item.Kind)).ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
         _events.RemoveAll(item => item.Date <= Date);
         return due;
     }

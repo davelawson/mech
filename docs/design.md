@@ -18,7 +18,7 @@
 - The wall map opens a separate screen displaying the official 3025 map of the entire Inner Sphere, with pan, zoom, and “Back to office”.
 - The default window is 1440 × 900, with a 900 × 500 minimum. The interface is laid out at a 1440 × 900 base and scales up uniformly with larger windows (by the smaller of the width and height ratios), with the longer direction gaining extra layout space rather than letterboxing. It never scales below full size, so smaller windows keep full-size text and use their compact layouts. 3D views render at the window’s pixel density, so they stay sharp.
 - Every named system on the full reference chart participates in travel; geography and clickable labels are extracted from its pinned vector source.
-- The office now includes a digital wall calendar and attached “Reminder...” post-it, a company safe, and a filing cabinet. Other campaign simulation follows in the first strategy milestone.
+- The office now includes a digital wall calendar and attached “Snooze...” post-it, a company safe, and a filing cabinet. Other campaign simulation follows in the first strategy milestone.
 - Acceptance includes office/map navigation, animated time controls, quarterly payment and bankruptcy flows, and manual save/load, including keyboard navigation and resized windows.
 
 # First strategy milestone
@@ -99,12 +99,22 @@
 # Time controls and initial content
 
 - Time advances only through explicit player action, with next-day and next-event controls.
-- The far-wall calendar displays the date and days to the next quarter. Clicking it advances one day; clicking its attached “Reminder...” post-it advances to the next event. Tick visibly through individual days at 100 ms per day.
-- The painted calendar display reads “bills due in XX days” (or “day” when one remains) and stays synchronized with campaign time. Hover the calendar for its date and countdown in small windows.
+- The far-wall calendar displays the date and days to the next quarter. Clicking it opens the [upcoming events](#upcoming-events-confirmed-november-22-2026); clicking its attached “Snooze...” post-it (tooltip *Advance one day*) advances one day. Tick visibly through individual days at 100 ms per day.
+- The painted calendar display reads “bills due in XX days” (or “day” when one remains) and stays synchronized with campaign time. Hover the calendar for its date and countdown in small windows, with *Show upcoming events*.
 - Any click stops advancement and activates the clicked object, except calendar and post-it clicks, which only stop advancement. Clicking empty space also stops advancement.
-- Stop at arrivals, repair completions, mission results, contract deadlines, and quarterly payments.
+- Stop at arrivals, repair and refit completions, healed injuries (*Injury healed · “Ace” Jane Doe · back on the active roster*), mission results, mission deadlines (*Mission deadline · <mission>*; missing one still has no effect), and quarterly payments.
 - Quarterly payments always guarantee an upcoming event. Other event producers will connect to the scheduling foundation as their systems are implemented.
 - Begin at Galatea, with all named chart systems available for route plotting, randomized draft candidates, and a small set of repeatable contract templates.
+
+## Upcoming events (confirmed November 22, 2026)
+
+Clicking the calendar opens a centred **Upcoming events** panel over the office, stopping any advance. It is a table of every dated event still ahead, soonest first: **Days** to go (e.g. 3), the **Date** as the calendar writes it (`dd MMM yyyy`), and the **Event**.
+
+- **Events:** the next quarterly payment (*Quarterly payment · 312,000 C-bills (projected)*, only the next quarter), every remaining arrival of the plotted journey (*Arrive at Hesperus II*, intermediate ones *Arrive at Hesperus II · stop 2 of 4*), started repairs and refits (*Repair complete · Atlas AS7-D*, *Refit complete · …*; queued orders have no date yet), each injured MechWarrior's recovery (*Injury healed · “Ace” Jane Doe*), the current mission's deadline (*Mission deadline · <mission>*) and any other scheduled event. Events on one date follow the order they are handled in: payment, arrival, repair or refit, healing, deadline.
+- About twelve rows show at once, fewer in a short window; more scroll. The list holds only what is still ahead, and a jump that was stopped is not remembered.
+- **Clicking a row** closes the panel and ticks day by day to its date without stopping for the events on the way. Their notices are held and shown together, in date order, once time stops. Intermediate journey stops continue on as usual. A quarterly payment still stops time on its due date; the jump does not resume after paying. Any click stops the jump, as with other advancing.
+- **Next Day** advances one day and keeps the panel open, its days counting down; that day's notices appear over it. **Close**, Escape or right-click closes the panel.
+- The panel always opens. While a payment is due the rows and Next Day are disabled with *Resolve the quarterly payment first.*; for co-op players other than the leader with *Only the leader advances time.*, and while a player is disconnected with *Time cannot advance until … reconnects.*
 
 # Acceptance scenarios
 
@@ -318,7 +328,7 @@ A silent flashing light on the office phone indicates new mission offers. Openin
 - a completion deadline of travel days to the location plus 14, shown as "N days after acceptance" and fixed as a date on acceptance. The travel estimate finishes the current jump first.
 - fixed rewards, with no negotiation yet. Difficulty is the enemy tonnage, each mech weighted by its pilot's rank (Green 0.8, Regular 1.0, Veteran 1.25, Elite 1.5). The budget is difficulty × 4,000 C-bills, ±20%, split at random: at least 40% to payment, the rest between salvage and the insurance limit. **Payment** is in C-bills. **Salvage** is a number of picks from wrecks and equipment after the battle: its share ÷ 100,000 C-bills, rounded, from 0 to 6. **Insurance** pays the lesser of the cost of repairing the battle's damage to the deployed mechs, destroyed parts at replacement value, and the offer's limit (a negotiated maximum once negotiation exists). Payment and the insurance limit are rounded to 1,000 C-bills.
 
-Payment, salvage and insurance are settled when a mission is fought through [Quick Launch](#quick-launch-confirmed-november-9-2026); see [Salvage and insurance](#salvage-and-insurance-confirmed-november-17-2026). The deadline is recorded but missing it has no effect yet. The numbers live in `MissionTuning`.
+Payment, salvage and insurance are settled when a mission is fought through [Quick Launch](#quick-launch-confirmed-november-9-2026); see [Salvage and insurance](#salvage-and-insurance-confirmed-november-17-2026). The deadline is recorded and stops the calendar, but missing it has no effect yet. The numbers live in `MissionTuning`.
 
 Generation uses a seeded random number generator whose state is saved, so reloading and advancing repeats the same offers and removals. Saves before version 8 receive a freshly generated board and lose their accepted mission. Offers saved before contract kinds existed stored only whether they were a raid; they load as a raid or a defense and keep their opposition.
 
@@ -442,7 +452,7 @@ The second step of [co-op multiplayer](adr/0003-cooperative-multiplayer.md): the
 - **Drafts.** Every player drafts their own lance at the same time. The leader's draft names the company, and the others' show *Draft your lance* with no name field. **Confirm Lance** locks a draft until every player has confirmed. The company then forms with each lance's mechs piloted by the MechWarriors drafted in their columns, and every player goes to the office.
 - **Sync.** The leader's machine holds the campaign. Other players' changes are commands the leader carries out or refuses (refusals appear as *Not possible*). The campaign goes to every player at most five times a second while it changes. Pending hangar changes that still apply survive each update.
 - **Leader-only controls for the other players:**
-  - The calendar explains that only the leader advances time.
+  - Snooze explains that only the leader advances time; the calendar still lists the upcoming events, with advancing disabled.
   - The phone's Accept and Abandon buttons are disabled.
   - The star map shows no Embark or Cancel Journey, and plotting explains that only the leader plots travel.
   - The filing cabinet only explains that the leader saves and loads.

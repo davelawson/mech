@@ -8,7 +8,7 @@ The retained runtime artwork is `Assets/dropship-office-missions.png`, `Assets/i
 
 - Earlier iteration: `dropship-office-integrated.png` (1672 × 940), edited with the built-in imagegen tool from the original painting. Both intermediate images were superseded by the active missions office and removed during cleanup.
 - The brass wall frame holds the complete reference image, including its title, legend and attribution. `CommandApp` shares `MapScreen.Viewport.Texture` through `OfficeScreen.SetWallMap(Texture2D?)`, including reference reload/failure. The wall uses its own fixed 7:6 fit rectangle; the opened map's zoom and pan never change it.
-- Calendar, post-it and safe are painted objects with blank surfaces. Only live date, countdown, reminder and balance text is overlaid. Their transparent hotspots retain subtle hover and keyboard focus outlines. The digital balance alone blinks during a pending payment.
+- Calendar, post-it and safe are painted objects with blank surfaces. Only live date, countdown, “Snooze...” and balance text is overlaid. Their transparent hotspots retain subtle hover and keyboard focus outlines. The digital balance alone blinks during a pending payment.
 - Every region below is in source-image pixels, measured from the top-left of the complete painting. Hotspots, text and image use the same uniform fit scale, without a minimum control scale. Date and balance tooltips provide detail at small window sizes.
 
 | Object / surface | Left | Top | Width | Height |

@@ -289,7 +289,7 @@ public partial class SmokeTests : Node
             foreach (var (control, region) in new (Control, Rect2)[]
             {
                 (hotspot, OfficeScreen.ChartRegion), (office.CalendarButton, OfficeScreen.CalendarRegion),
-                (office.ReminderButton, OfficeScreen.ReminderRegion), (office.SafeButton, OfficeScreen.SafeRegion),
+                (office.SnoozeButton, OfficeScreen.SnoozeRegion), (office.SafeButton, OfficeScreen.SafeRegion),
                 (office.FilingButton, OfficeScreen.FilingRegion), (office.WallMap, OfficeScreen.MapRegion), (office.LocationStrip, OfficeScreen.LocationRegion),
                 (office.PhoneButton, OfficeScreen.PhoneRegion), (office.RolodexButton, OfficeScreen.RolodexRegion), (office.HangarButton, OfficeScreen.HangarRegion),
                 (office.JacketButton, OfficeScreen.JacketRegion)
@@ -329,13 +329,19 @@ public partial class SmokeTests : Node
             _app.ShowOffice();
             await Frames();
             var date = _app.State.Date;
-            await Click(office.CalendarButton);
+            await Click(office.SnoozeButton);
             await Delay(.15);
-            Check(_app.State.Date == date.AddDays(1), $"painted calendar click advances a day at {size}");
-            await Click(office.ReminderButton);
-            Check(_app.IsAdvancing, $"painted post-it starts time at {size}");
+            Check(_app.State.Date == date.AddDays(1), $"painted Snooze post-it advances a day at {size}");
             await Click(office.CalendarButton);
-            Check(!_app.IsAdvancing, $"calendar click stops time at {size}");
+            var screen = GetViewport().GetVisibleRect();
+            Check(_app.Calendar.Visible && _app.Calendar.Rows.Count > 0 && screen.Encloses(_app.Calendar.Rows[0].GetGlobalRect())
+                && screen.Encloses(_app.Calendar.CloseButton.GetGlobalRect()) && screen.Encloses(_app.Calendar.NextDayButton.GetGlobalRect()),
+                $"painted calendar opens the upcoming events on screen at {size}");
+            await Capture($"calendar-{size.X}x{size.Y}");
+            await Click(_app.Calendar.Rows[^1]);
+            Check(_app.IsAdvancing && !_app.Calendar.Visible, $"an upcoming event starts time at {size}");
+            await Click(office.SnoozeButton);
+            Check(!_app.IsAdvancing, $"Snooze click stops time at {size}");
             await Click(office.SafeButton);
             Check(_app.Dialog.Heading == "Quarterly finances", $"painted safe opens finances at {size}");
             await Click(DialogButton("Close"));
@@ -590,7 +596,7 @@ public partial class SmokeTests : Node
         _app.StartAdvancing(true);
         Check(!_app.IsAdvancing, "time cannot advance from map");
         var departedOn = _app.State.Date;
-        _app.ShowOffice(); await Click(_app.Office.CalendarButton); await Delay(.15);
+        _app.ShowOffice(); await Click(_app.Office.SnoozeButton); await Delay(.15);
         Check(!_app.State.Travel.InOrbit && _app.State.AccruedTransitDays == 1, "office calendar departs and accrues first transit day");
         _app.ShowMap(); await Frames();
         Check(!map.EmbarkButton.Visible && !map.CancelButton.Visible && !map.Search.Editable && map.Destinations.Disabled,
@@ -607,7 +613,7 @@ public partial class SmokeTests : Node
         Check(viewport.ShipViewportPosition.DistanceTo(viewport.Size / 2) < .1f && _app.State.Travel.Journey![^1] == destination.Id,
             "in-transit ship can be located without changing destination");
         await Capture("map-transit");
-        _app.ShowOffice(); await Click(_app.Office.ReminderButton); await Delay(.65);
+        _app.ShowOffice(); await JumpTo(0); await Delay(.65);
         Check(!_app.IsAdvancing && _app.State.Travel.InOrbit && _app.State.Travel.OrbitSystemId == route[1]
             && _app.State.Date == departedOn.AddDays(chart.JumpDays(origin, route[1])) && _app.Dialog.Visible,
             "calendar stops at intermediate arrival on expected day");
@@ -622,7 +628,7 @@ public partial class SmokeTests : Node
         await Capture("map-travel-900x500");
         GetWindow().Size = new Vector2I(1440, 900); await Frames();
         var transitDays = _app.State.AccruedTransitDays;
-        _app.ShowOffice(); await Click(_app.Office.CalendarButton); await Delay(.15);
+        _app.ShowOffice(); await Click(_app.Office.SnoozeButton); await Delay(.15);
         Check(_app.State.AccruedTransitDays == transitDays + 1 && _app.State.Travel.Candidate is null,
             "next day automatically continues green journey and clears blue candidate");
         if (_app.Dialog.Visible) await Click(DialogButton("Continue"));
@@ -631,6 +637,57 @@ public partial class SmokeTests : Node
             .Any(label => label.Text.Contains("Transit") && label.Text.Contains("2,000")), "quarterly finances itemize accrued transit");
         await Capture("finances-transit");
         await Click(DialogButton("Close"));
+    }
+
+    /// <summary>Opens the office calendar and clicks one of its upcoming events.</summary>
+    private async Task JumpTo(Index row)
+    {
+        await Click(_app.Office.CalendarButton);
+        await Click(_app.Calendar.Rows[row]);
+    }
+
+    private static string RowText(Control row) => string.Join("|", row.FindChildren("*", "Label", true, false).OfType<Label>().Select(label => label.Text));
+
+    /// <summary>The calendar lists what is ahead, soonest first, and Next Day steps through it with the list open.</summary>
+    private async Task TestCalendarPanel()
+    {
+        var office = _app.Office;
+        Check(office.SnoozeButton.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text == "Snooze...")
+            && office.SnoozeButton.TooltipText == "Advance one day" && office.SnoozeButton.Name == "Snooze"
+            && office.CalendarButton.TooltipText.EndsWith("Show upcoming events"), "the post-it reads Snooze... and advances a day; the calendar shows events");
+        await Click(office.CalendarButton);
+        var events = _app.Calendar.Events;
+        Check(_app.Calendar.Visible && !_app.IsAdvancing && _app.Calendar.Rows.Count == events.Count && events.Count == 2
+            && RowText(_app.Calendar.Rows[0]) == "3|04 JAN 3025|Arrived at destination"
+            && RowText(_app.Calendar.Rows[1]).StartsWith("90|01 APR 3025|Quarterly payment · ") && RowText(_app.Calendar.Rows[1]).EndsWith(" C-bills (projected)"),
+            "the calendar lists days to go, date and event, soonest first, ending with the next quarterly payment");
+        Check(!_app.Calendar.Note.Visible && !_app.Calendar.NextDayButton.Disabled && _app.Calendar.Rows.All(row => !row.Disabled), "a solo leader can advance from the calendar");
+        await Capture("calendar");
+        await Click(_app.Calendar.NextDayButton);
+        Check(_app.State.Date == new DateOnly(3025, 1, 2) && _app.Calendar.Visible && !_app.IsAdvancing
+            && RowText(_app.Calendar.Rows[0]).StartsWith("2|04 JAN 3025|"), "Next Day advances one day and keeps the list open, counting down");
+        await PressKey(Key.Escape);
+        Check(!_app.Calendar.Visible && _app.Office.Visible && _app.State.Date == new DateOnly(3025, 1, 2), "Escape closes the calendar");
+        await Click(office.CalendarButton);
+        await RightClick(new Vector2(5, 85));
+        Check(!_app.Calendar.Visible, "right-click closes the calendar");
+    }
+
+    /// <summary>Clicking a later event runs past earlier ones, whose notices wait until time reaches the chosen date.</summary>
+    private async Task TestCalendarJump(Func<int> delivered)
+    {
+        var before = delivered();
+        _app.State.Schedule(new("held-first", new DateOnly(3025, 1, 7), CampaignEventKind.Arrival, "Held first"));
+        _app.State.Schedule(new("held-second", new DateOnly(3025, 1, 9), CampaignEventKind.RepairCompletion, "Held second"));
+        await Click(_app.Office.CalendarButton);
+        Check(_app.Calendar.Events.Select(item => item.Title).Take(2).SequenceEqual(["Held first", "Held second"]), "scheduled events join the list in date order");
+        await Click(_app.Calendar.Rows[1]);
+        await Delay(.3);
+        Check(_app.IsAdvancing && !_app.Dialog.Visible && _app.State.Date >= new DateOnly(3025, 1, 7), "time runs on past an earlier event without stopping");
+        await Delay(.4);
+        Check(!_app.IsAdvancing && _app.State.Date == new DateOnly(3025, 1, 9) && _app.Dialog.Visible && _app.Dialog.Body == "Held first\nHeld second"
+            && delivered() == before + 2, "time stops on the chosen date, then shows the passed events' notices in date order");
+        await Click(DialogButton("Continue"));
     }
 
     private async Task TestCampaignUi()
@@ -642,16 +699,18 @@ public partial class SmokeTests : Node
         _app.State.Schedule(new("arrival", new DateOnly(3025, 1, 4), CampaignEventKind.Arrival, "Arrived at destination"));
         var delivered = 0;
         _app.EventReached += _ => delivered++;
-        await Click(_app.Office.ReminderButton);
+        await TestCalendarPanel();
+        await JumpTo(0);
         await Delay(.4);
-        Check(!_app.IsAdvancing && _app.State.Date == new DateOnly(3025, 1, 4) && delivered == 1, "reminder ticks daily and stops at scheduled event");
+        Check(!_app.IsAdvancing && _app.State.Date == new DateOnly(3025, 1, 4) && delivered == 1, "an upcoming event ticks daily and stops on its date");
         Check(_app.Dialog.Visible && _app.Dialog.Heading == "Scheduled event", "event is surfaced to the player");
         await Click(DialogButton("Continue"));
-        await Click(_app.Office.CalendarButton);
+        await Click(_app.Office.SnoozeButton);
         await Delay(.15);
-        Check(_app.State.Date == new DateOnly(3025, 1, 5) && !_app.IsAdvancing, "calendar click advances exactly one day");
+        Check(_app.State.Date == new DateOnly(3025, 1, 5) && !_app.IsAdvancing, "Snooze click advances exactly one day");
+        await TestCalendarJump(() => delivered);
 
-        await Click(_app.Office.ReminderButton);
+        await JumpTo(^1);
         await Delay(.22);
         Check(_app.IsAdvancing && _app.State.Date > new DateOnly(3025, 1, 5), "fast-forward visibly advances through dates");
         var stopped = _app.State.Date;
@@ -659,15 +718,15 @@ public partial class SmokeTests : Node
         MouseButton(new Vector2(5, 85), Godot.MouseButton.Left, false);
         await Delay(.15);
         Check(!_app.IsAdvancing && _app.State.Date == stopped, "click on empty space halts time");
-        foreach (var control in new[] { _app.Office.CalendarButton, _app.Office.ReminderButton })
+        foreach (var control in new[] { _app.Office.CalendarButton, _app.Office.SnoozeButton })
         {
-            await Click(_app.Office.ReminderButton);
+            await JumpTo(^1);
             stopped = _app.State.Date;
             await Click(control);
             await Delay(.15);
-            Check(!_app.IsAdvancing && _app.State.Date == stopped, $"{control.Name} stopping click does not restart time");
+            Check(!_app.IsAdvancing && _app.State.Date == stopped && !_app.Calendar.Visible, $"{control.Name} stopping click does not restart time");
         }
-        await Click(_app.Office.ReminderButton);
+        await JumpTo(^1);
         await Click(_app.Office.SafeButton);
         Check(!_app.IsAdvancing && _app.Dialog.Heading == "Quarterly finances", "safe click both stops time and opens finances");
         for (var index = 0; index < 5; index++)
@@ -692,10 +751,15 @@ public partial class SmokeTests : Node
         while (_app.State.Date < new DateOnly(3025, 3, 31)) _app.State.AdvanceOneDay();
         _app.Office.RefreshCampaign(_app.State);
         Check(_app.Office.QuarterText.Text == "bills due in 1 day", "calendar uses singular day for the final day");
-        await Click(_app.Office.CalendarButton);
+        await Click(_app.Office.SnoozeButton);
         await Delay(.15);
         Check(_app.State.PaymentPending && _app.State.Date == new DateOnly(3025, 4, 1), "quarter boundary blocks animated advancement");
-        Check(_app.Office.CalendarButton.Disabled && _app.Office.ReminderButton.Disabled && _app.Office.QuarterText.Text == "Payment Due", "pending quarter disables controls and shows payment due");
+        Check(_app.Office.SnoozeButton.Disabled && !_app.Office.CalendarButton.Disabled && _app.Office.QuarterText.Text == "Payment Due", "pending quarter disables Snooze and shows payment due");
+        await Click(_app.Office.CalendarButton);
+        Check(_app.Calendar.Visible && _app.Calendar.Rows.All(row => row.Disabled) && _app.Calendar.NextDayButton.Disabled
+            && _app.Calendar.Note.Visible && _app.Calendar.Note.Text == "Resolve the quarterly payment first.", "a pending payment leaves the calendar viewable but disables advancing");
+        await Click(_app.Calendar.CloseButton);
+        Check(!_app.Calendar.Visible, "Close dismisses the calendar");
         _app.Office.RefreshCampaign(_app.State);
         _app.Office._Process(.46);
         Check(_app.Office.SafeReadout.Modulate.A < .5f && _app.Office.SafeButton.Modulate == Colors.White,
@@ -750,7 +814,7 @@ public partial class SmokeTests : Node
         var beforeBankruptcy = SaveFingerprint();
         await LoadFromFiling();
         Check(_app.Office.SafeReadout.Text == "₡ 199,999", "loading a different company balance refreshes the safe");
-        await Click(_app.Office.CalendarButton);
+        await Click(_app.Office.SnoozeButton);
         await Delay(.15);
         Check(_app.State.Bankrupt && _app.Dialog.Heading == "Company bankrupt", "grace deadline opens bankruptcy dialog");
         await Capture("bankruptcy");

@@ -618,10 +618,12 @@ public sealed class ForceRoster
         warrior.Health = health; warrior.RecoveryDate = recoveryDate;
         if (health == WarriorHealth.Dead && Assignment(warriorId) is { } mech) mech.WarriorId = null;
     }
-    internal void Recover(DateOnly today)
+    /// <summary>Injured MechWarriors whose recovery date has come are healthy again; returns them.</summary>
+    internal RosterWarrior[] Recover(DateOnly today)
     {
-        foreach (var warrior in Warriors.Where(item => item.Health == WarriorHealth.Injured && item.RecoveryDate <= today))
-        { warrior.Health = WarriorHealth.Healthy; warrior.RecoveryDate = null; }
+        var healed = Warriors.Where(item => item.Health == WarriorHealth.Injured && item.RecoveryDate <= today).ToArray();
+        foreach (var warrior in healed) { warrior.Health = WarriorHealth.Healthy; warrior.RecoveryDate = null; }
+        return healed;
     }
     public RosterSnapshot Snapshot() => new(ForceName, Mechs.Select(item => item.Snapshot()).ToArray(), Warriors.Select(item => item.Snapshot()).ToArray(), Storage.ToArray(), LanceCount);
     /// <summary>Multiplies saved armor and structure, leaving malformed entries for Restore to reject.</summary>

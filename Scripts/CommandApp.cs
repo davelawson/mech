@@ -18,6 +18,7 @@ public partial class CommandApp : Control
     public CombatScreen Tactical { get; private set; } = null!;
     public RolodexPanel Rolodex { get; private set; } = null!;
     public MissionsPanel Missions { get; private set; } = null!;
+    public CalendarPanel Calendar { get; private set; } = null!;
     public LobbyScreen Lobby { get; private set; } = null!;
     public AudioPanel AudioOptions { get; private set; } = null!;
     public SoundPlayer Sound { get; private set; } = null!;
@@ -68,6 +69,8 @@ public partial class CommandApp : Control
     private (string Name, int Port, Campaign Campaign, string Slot)? _pendingHost;
     private double _dayElapsed;
     private bool _untilEvent;
+    private DateOnly? _until;
+    private readonly List<CampaignEvent> _heldEvents = [];
     private string? _savedSnapshot;
     private MissionSettlement? _settlement;
 
@@ -115,6 +118,7 @@ public partial class CommandApp : Control
         AddChild(MainMenu);
         Rolodex = new RolodexPanel { Name = "Rolodex" }; AddChild(Rolodex);
         Missions = new MissionsPanel { Name = "Missions" }; AddChild(Missions);
+        Calendar = new CalendarPanel { Name = "Calendar" }; AddChild(Calendar);
         Lobby = new LobbyScreen { Name = "Lobby" }; AddChild(Lobby);
         AudioOptions = new AudioPanel { Name = "Audio" }; AddChild(AudioOptions);
         Dialog = new CampaignDialog { Name = "CampaignDialog" };
@@ -191,7 +195,10 @@ public partial class CommandApp : Control
         };
         Office.MapRequested += ShowMap;
         Office.DayRequested += () => StartAdvancing(false);
-        Office.EventRequested += () => StartAdvancing(true);
+        Office.CalendarRequested += ShowCalendar;
+        Calendar.Closed += CloseCalendar;
+        Calendar.NextDayRequested += CalendarNextDay;
+        Calendar.JumpRequested += date => { CloseCalendar(); StartAdvancing(date); };
         Office.FinancesRequested += ShowFinances;
         Office.FilingRequested += ShowFiling;
         StarMap.BackRequested += ShowOffice;
@@ -226,6 +233,8 @@ public partial class CommandApp : Control
         Navigation.Register(CommandScreen.Tactical, Tactical, "Mech · Simulated Deployment", false, () => Tactical.Battlefield);
         Navigation.Register(CommandScreen.Rolodex, Rolodex, null, true, () => Rolodex.Section, CloseWarriors);
         Navigation.Register(CommandScreen.Missions, Missions, null, true, () => Missions.CloseButton, ShowOffice);
+        Navigation.Register(CommandScreen.Calendar, Calendar, null, true,
+            () => (Control?)Calendar.Rows.FirstOrDefault(row => !row.Disabled) ?? Calendar.CloseButton, CloseCalendar);
         Control? DialogFocus(CampaignDialog dialog) => dialog.FindChildren("*", "Button", true, false)
             .OfType<Button>().FirstOrDefault(button => !button.Disabled);
         Navigation.Register(CommandScreen.Dialog, Dialog, null, true, () => DialogFocus(Dialog), Dialog.RequestBack);
@@ -303,28 +312,68 @@ public partial class CommandApp : Control
         RefreshCampaign();
     }
 
-    public void StartAdvancing(bool untilEvent)
+    /// <summary>Advances one day, or with <paramref name="untilEvent"/> ticks day by day to the next event.</summary>
+    public void StartAdvancing(bool untilEvent) => StartAdvancing(untilEvent, null);
+
+    /// <summary>Ticks day by day to <paramref name="until"/>, without stopping for the events on the way; their notices wait until
+    /// time stops. A quarterly payment still stops time on its date.</summary>
+    public void StartAdvancing(DateOnly until) => StartAdvancing(true, until);
+
+    private void StartAdvancing(bool untilEvent, DateOnly? until)
     {
         if (IsAdvancing) { StopAdvancing(); return; }
         if (!State.CanAdvance || Navigation.CurrentScreen != CommandScreen.Office) return;
-        if (!IsLeader || Host is { AllPresent: false })
+        if (AdvanceBlocked() is { } blocked)
         {
-            Navigation.Push(CommandScreen.Dialog, Office.CalendarButton);
+            Navigation.Push(CommandScreen.Dialog, Office.SnoozeButton);
             Sound.Play(Cue.UiError);
-            OpenDialog("Time cannot advance", !IsLeader ? "Only the leader advances time."
-                : $"Time cannot advance until {string.Join(" and ", Host!.Seats.Where(seat => !seat.Present).Select(seat => seat.Name))} reconnects.", CloseDialog,
-                new DialogAction("Close", CloseDialog));
+            OpenDialog("Time cannot advance", blocked, CloseDialog, new DialogAction("Close", CloseDialog));
             return;
         }
         IsAdvancing = true;
         _untilEvent = untilEvent;
+        _until = until is { } date && date > State.Date ? date : null;
         _dayElapsed = 0;
     }
+
+    /// <summary>Why only the leader, with every player present, can advance time; null when this player can.</summary>
+    private string? AdvanceBlocked() => !IsLeader ? "Only the leader advances time."
+        : Host is { AllPresent: false } ? $"Time cannot advance until {string.Join(" and ", Host.Seats.Where(seat => !seat.Present).Select(seat => seat.Name))} reconnects."
+        : null;
 
     public void StopAdvancing()
     {
         IsAdvancing = false;
         _dayElapsed = 0;
+        _until = null;
+        if (_heldEvents.Count == 0) return;
+        // Notices passed on the way to a chosen date appear once time stops.
+        var held = _heldEvents.ToArray(); _heldEvents.Clear();
+        Callable.From(() => PresentEvents(held)).CallDeferred();
+    }
+
+    /// <summary>The calendar's upcoming events, over the office.</summary>
+    public void ShowCalendar()
+    {
+        if (State.RequiresDraft || Navigation.CurrentScreen != CommandScreen.Office) return;
+        StopAdvancing();
+        Navigation.Push(CommandScreen.Calendar, Office.CalendarButton);
+        Calendar.Open(State, CalendarBlocked());
+    }
+
+    private string? CalendarBlocked() => State.PaymentPending ? "Resolve the quarterly payment first."
+        : AdvanceBlocked() ?? (State.CanAdvance ? null : "Time cannot advance.");
+
+    private void CloseCalendar() => Navigation.Close(CommandScreen.Calendar, Office.CalendarButton);
+
+    /// <summary>Next Day in the calendar: one day passes and the list stays open, counting down.</summary>
+    private void CalendarNextDay()
+    {
+        if (Navigation.CurrentScreen != CommandScreen.Calendar || CalendarBlocked() is not null) return;
+        var result = Execute(new AdvanceDayCommand());
+        RefreshCampaign();
+        if (State.Bankrupt) ShowBankruptcy();
+        else PresentEvents(result.Events);
     }
 
     public override void _Input(InputEvent @event)
@@ -351,7 +400,7 @@ public partial class CommandApp : Control
             || mouse.ButtonIndex is not (MouseButton.Left or MouseButton.Right or MouseButton.Middle)) return;
         StopAdvancing();
         if (Navigation.CurrentScreen == CommandScreen.Office && (Office.CalendarButton.GetGlobalRect().HasPoint(mouse.Position)
-            || Office.ReminderButton.GetGlobalRect().HasPoint(mouse.Position)))
+            || Office.SnoozeButton.GetGlobalRect().HasPoint(mouse.Position)))
             GetViewport().SetInputAsHandled();
     }
 
@@ -385,14 +434,21 @@ public partial class CommandApp : Control
         _dayElapsed -= .1;
         var result = Execute(new AdvanceDayCommand());
         RefreshCampaign();
+        if (State.Bankrupt) { _heldEvents.Clear(); ShowBankruptcy(); return; }
+        if (_until is { } until)
+        {
+            _heldEvents.AddRange(result.Events);
+            if (State.Date >= until || result.QuarterReached || !result.Advanced) StopAdvancing();
+            return;
+        }
         if (!_untilEvent || result.QuarterReached || result.Events.Count > 0 || !result.Advanced) StopAdvancing();
-        if (State.Bankrupt) ShowBankruptcy();
-        else PresentEvents(result.Events);
+        PresentEvents(result.Events);
     }
 
     private void RefreshCampaign()
     {
         Office.RefreshCampaign(State);
+        if (Calendar.Visible) Calendar.Refresh(State, CalendarBlocked());
         StarMap.SetCampaign(State);
     }
 

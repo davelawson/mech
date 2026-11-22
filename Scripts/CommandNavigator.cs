@@ -2,7 +2,7 @@ using Godot;
 
 namespace Mech;
 
-public enum CommandScreen { MainMenu, Office, Map, Hangar, Draft, Tactical, Rolodex, Missions, Dialog, Saves, SaveDialog, UnsavedDialog, Lobby, Audio }
+public enum CommandScreen { MainMenu, Office, Map, Hangar, Draft, Tactical, Rolodex, Missions, Dialog, Saves, SaveDialog, UnsavedDialog, Lobby, Audio, Calendar }
 
 /// <summary>
 /// Session-only routes. Opaque screens hide their ancestors; modal panels keep them visible.
