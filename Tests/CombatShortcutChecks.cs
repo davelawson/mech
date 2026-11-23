@@ -152,12 +152,13 @@ public partial class SmokeTests
             "a group jumps when any member can, and its jets read ready");
         tactical.SelectUnits([jumper.Id], false); field.GrabFocus(); await PressKey(Key.J);
         Check(tactical.SettingJump, "J arms jump targeting with ready jets");
-        // Any refresh, here a Stop order, notices the mech has run past its heat limit.
+        // Any refresh, here a Stop order, would notice a reason to lapse; heat over the limit is not one.
         jumper.AddHeat(jumper.HeatLimit + 5 - jumper.Heat); await PressKey(Key.Z);
-        Check(!tactical.SettingJump && tactical.JumpNotice?.Contains("Too hot") == true && CombatPaperdoll.FuelFraction(jumper) == 1,
-            $"armed targeting lapses over the heat limit and says why, though the fuel bar stays full: {tactical.JumpNotice}");
-        await PressKey(Key.J);
-        Check(!tactical.SettingJump && tactical.JumpNotice?.Contains("Too hot") == true, "J over the heat limit is refused and says why");
+        Check(tactical.SettingJump && tactical.JumpBlockedReason is null && CombatPaperdoll.FuelFraction(jumper) == 1,
+            $"armed targeting stays armed over the heat limit, with the fuel bar full: {tactical.JumpNotice}");
+        await PressKey(Key.Escape); await PressKey(Key.J);
+        Check(tactical.SettingJump, "J over the heat limit still arms a jump");
+        await PressKey(Key.Escape);
         await PressKey(Key.Escape); await Click(tactical.EndButton); await Click(tactical.ReturnButton);
     }
     /// <summary>? opens the controls reference without pausing; Escape and × close it before anything else.</summary>

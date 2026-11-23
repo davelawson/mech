@@ -47,8 +47,8 @@ public sealed partial class CombatUnit
     /// <summary>Why this unit cannot start the shortest jump now, or null when it can.</summary>
     public string? JumpUnavailableReason => Spec.Jump == 0 ? "No jump jets" : Defeated ? Status.ToString()
         : JumpRange <= 0 ? "Jump jets lost" : Shutdown ? "Shut down" : Airborne ? "Airborne" : Prone ? "Prone"
-        : JumpRecharge > 0 ? "Recharging" : !JumpHeatPermitted ? "Too hot" : null;
-    /// <summary>Like a weapon, a jump may start while heat is at or below the limit.</summary>
+        : JumpRecharge > 0 ? "Recharging" : null;
+    /// <summary>Heat never refuses a jump; enemy AI still jumps only while heat is at or below its limit.</summary>
     public bool JumpHeatPermitted => CombatRules.WithinHeatLimit(Heat, HeatLimit);
 }
 
@@ -112,7 +112,8 @@ public sealed partial class CombatSimulation
         return true;
     }
 
-    /// <summary>Flight is ballistic: shutdown, disablement or destruction in the air never stops a landing.</summary>
+    /// <summary>Flight is ballistic: disablement or destruction in the air never stops a landing, and heat that reaches
+    /// shutdown in flight shuts the mech down as it lands.</summary>
     private void AdvanceJump(CombatUnit unit, float delta)
     {
         unit.JumpElapsed = Math.Min(unit.JumpDuration, unit.JumpElapsed + delta);
@@ -123,6 +124,7 @@ public sealed partial class CombatSimulation
         unit.Moving = true;
         if (t < 1) return;
         unit.Airborne = false; unit.Altitude = 0; unit.Position = unit.JumpTo;
+        unit.CheckShutdown();
         unit.JumpRecharge = CombatRules.JumpRechargeSeconds; unit.LandedAt = Elapsed;
         if (unit.Order == CombatOrder.Hold) unit.Destination = unit.Position;
         if (unit.KnockdownPending) unit.FallProne(Elapsed);
@@ -131,7 +133,8 @@ public sealed partial class CombatSimulation
     /// <summary>Enemy AI jumps toward its movement goal when walking there means a long detour or it cannot see its target.</summary>
     private bool AiJump(CombatUnit unit, Vector2 goal)
     {
-        if (!EnemyAiEnabled || unit.Side != CombatSide.Enemy || unit.JumpUnavailableReason is not null) return false;
+        if (!EnemyAiEnabled || unit.Side != CombatSide.Enemy || unit.JumpUnavailableReason is not null
+            || !unit.JumpHeatPermitted) return false;
         var straight = unit.Position.DistanceTo(goal);
         if (straight < 60) return false;
         var walked = unit.Route.Count == 0 ? straight : unit.Position.DistanceTo(unit.Route[unit.RouteIndex])

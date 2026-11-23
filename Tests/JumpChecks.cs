@@ -33,11 +33,16 @@ internal static partial class CombatChecks
         check(!jenner.Airborne && jenner.JumpUnavailableReason == "Recharging", "recharging jets refuse another jump");
         sim.Advance(CombatRules.JumpRechargeSeconds);
         check(jenner.JumpUnavailableReason is null, "jets are ready again after the recharge");
-        jenner.AddHeat(20.5 - jenner.Heat);
+        jenner.AddHeat(27 - jenner.Heat);
+        check(jenner.JumpUnavailableReason is null && !jenner.JumpHeatPermitted, "heat above the limit never refuses a jump");
         sim.Jump([jenner.Id], Vector2.Zero);
-        check(!jenner.Airborne && jenner.JumpUnavailableReason == "Too hot", "a jump is refused while heat is above the limit");
-        jenner.HeatLimit = 21; sim.Jump([jenner.Id], Vector2.Zero);
-        check(jenner.Airborne && jenner.Heat > 21, "at or below the limit the jump starts and may carry heat past it");
+        check(jenner.Airborne && jenner.Heat >= CombatRules.ShutdownHeat && !jenner.Shutdown && jenner.Active,
+            $"a jump starts above the limit and its heat does not shut the mech down in the air: {jenner.Heat}");
+        // Heat taken in flight, here enough to outlast the sinks until touchdown, waits for the landing too.
+        sim.Advance(1); jenner.AddHeat(40 - jenner.Heat);
+        check(jenner.Airborne && !jenner.Shutdown && jenner.Active, "heat gained in flight does not shut the mech down in the air");
+        Fly(sim, jenner);
+        check(!jenner.Airborne && jenner.Shutdown, "a mech overheated by its jump shuts down as it lands");
 
         var awesome = Battle(); Arrange(awesome); Quiet(awesome);
         Friendly(awesome).Position = Vector2.Zero; awesome.Jump([Friendly(awesome).Id], new Vector2(0, -100));

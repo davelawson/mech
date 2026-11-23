@@ -30,7 +30,7 @@ public sealed partial class CombatUnit
 {
     public double Heat { get; private set; }
     private int _heatLimit = CombatRules.DefaultHeatLimit;
-    /// <summary>Whole heat 0–30: weapons and jumps are held once heat rises above it.</summary>
+    /// <summary>Whole heat 0–30: weapons are held once heat rises above it.</summary>
     public int HeatLimit { get => _heatLimit; set => _heatLimit = CombatRules.ClampHeatLimit(value); }
     private int _ammoEconomy;
     /// <summary>Whole steps 0–10: how sparingly ammo-fed weapons fire. See <see cref="CombatRules.AmmoAllowance"/>.</summary>
@@ -67,7 +67,12 @@ public sealed partial class CombatUnit
         // Normalize numerical drift so an exact threshold is not crossed a step early.
         Heat = Math.Max(0, Math.Round(Heat + amount, 9));
         CheckLifeSupport();
-        if (Heat >= CombatRules.ShutdownHeat) Shutdown = true;
+        CheckShutdown();
+    }
+    /// <summary>Latches thermal shutdown, except in the air: a mech overheated in flight shuts down as it lands.</summary>
+    internal void CheckShutdown()
+    {
+        if (Heat >= CombatRules.ShutdownHeat && !Airborne) Shutdown = true;
         else if (Heat < CombatRules.WarmHeat) Shutdown = false;
         if (Shutdown)
         {

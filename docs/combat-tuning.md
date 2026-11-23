@@ -194,7 +194,7 @@ Each step moves units, integrates movement heat and cooling, refreshes detection
 | Minimum jump | 15 m |
 | Flight time | 1.5 s + distance / 60 m/s (5.25 s for 225 m) |
 | Arc | Parabola peaking max(20 m, 0.2 × distance) above the line between takeoff and landing ground, raised to clear every rock and ridge beneath it by 6 m |
-| Heat | max(3, ⌈distance / 45 m⌉) at takeoff; refused while heat is above the unit's heat limit (0–30, default 10) |
+| Heat | max(3, ⌈distance / 45 m⌉) at takeoff; never refused for heat. Enemy AI jumps only at or below its heat limit (default 10) |
 | Recharge | 10 s from landing |
 | Hit difficulty | +3 for an airborne attacker or target, replacing its walk/run/reverse modifier |
 
@@ -211,7 +211,7 @@ All units begin at zero heat with a heat limit of 10. Heat is continuous, never 
 | 20–below 30 | 75% | +2 |
 | 30 or more | Thermal shutdown | Cannot fire |
 
-Heat reduces walking and running limits without changing the underlying acceleration, braking or turn-rate tuning. Thermal shutdown is latched until heat falls below 10, then restarts automatically without another timer. It stops travel, leg/torso turning, firing and sensor contribution. The unit remains targetable, solid, alive for victory checks, and editable. Orders, Follow relationships, weapon settings and the heat limit survive shutdown. Excess flamer heat extends cooling time; multiple successful hits stack without a special cap.
+Heat reduces walking and running limits without changing the underlying acceleration, braking or turn-rate tuning. Thermal shutdown is latched until heat falls below 10 (an airborne unit latches it on landing instead of in flight), then restarts automatically without another timer. It stops travel, leg/torso turning, firing and sensor contribution. The unit remains targetable, solid, alive for victory checks, and editable. Orders, Follow relationships, weapon settings and the heat limit survive shutdown. Excess flamer heat extends cooling time; multiple successful hits stack without a special cap.
 
 The heat limit is a whole number from 0 to 30 (`CombatRules.DefaultHeatLimit` 10, `MaxHeatLimit` 30). Ready, enabled, usable weapons with valid firing arcs, targets and a hit chance above zero are ordered by expected damage per heat, highest first: expected damage is ordinary damage × current hit chance, divided by the weapon's heat. Weapons that generate no heat (machine guns) have no ratio and come before all others, by expected damage. Ties go to higher expected damage, then mount order, including rear mounts. Each is checked in turn. A weapon that generates no heat always fires, whatever the heat, short of thermal shutdown. Any other fires if the running heat (current heat plus the heat of weapons already fired this step) is at or below the limit; once the running heat passes the limit, the rest of the heat-generating weapons wait. A weapon skipped for an emptied shared ammunition bin adds no heat. The running total decides only who may fire: hit chances use the heat penalty from the start of the step, and firing heat is applied after every discharge. Rolls follow the check order. Held weapons keep their cooldown ready; friendly readouts say "Too Hot!", and enemy readouts say Ready. Above the limit only weapons that generate no heat fire. Both sides use the same rules; enemies keep the default limit.
 
