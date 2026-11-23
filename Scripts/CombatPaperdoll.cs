@@ -14,8 +14,8 @@ public sealed record SystemGroup(int Count, string Name, ComponentCondition Cond
 /// A shared front/rear schematic. The armor rim and internal core are independent.
 /// Compact dolls (unit cards) draw only the regions; the full doll lists each location's systems on hover.
 /// Both carry a jump-fuel bar on the left and a heat bar on the right, without text. The full doll of a friendly mech
-/// adds a draggable heat-limit handle beside its heat bar. The full doll also has a speed gauge and, beneath it, an ammo
-/// economy gauge pinned along its foot, each with a draggable pointer for a friendly mech.
+/// adds a draggable heat-limit handle beside its heat bar. Both also have a speed gauge and, beneath it, an ammo economy
+/// gauge along their foot, each with a pointer for a friendly mech: draggable in the sidebar, fixed and smaller on a card.
 /// </summary>
 public partial class CombatPaperdoll : Control
 {
@@ -24,7 +24,9 @@ public partial class CombatPaperdoll : Control
     /// <summary>Raised with the whole heat limit 0–30 while the player clicks or drags the heat bar.</summary>
     public event Action<int>? HeatLimitChanged;
     /// <summary>Only the sidebar doll of a friendly mech still in the battle offers the heat-limit handle.</summary>
-    public bool EditsHeatLimit => !Compact && Unit is { Side: CombatSide.Friendly, Defeated: false };
+    public bool EditsHeatLimit => !Compact && ShowsSettings;
+    /// <summary>A friendly mech still in the battle shows its settings as pointers: draggable in the sidebar, fixed on its card.</summary>
+    private bool ShowsSettings => Unit is { Side: CombatSide.Friendly, Defeated: false };
     private int? _dragLimit;
     /// <summary>The limit the handle shows: the one being dragged, else the unit's own.</summary>
     public int? DisplayedHeatLimit => !EditsHeatLimit ? null : _dragLimit ?? Unit!.HeatLimit;
@@ -33,19 +35,19 @@ public partial class CombatPaperdoll : Control
     public bool EditsDesiredSpeed => EditsHeatLimit;
     private float? _dragSpeed;
     /// <summary>The desired speed the pointer shows: the one being dragged, else the unit's own.</summary>
-    public float? DisplayedDesiredSpeed => !EditsDesiredSpeed ? null : _dragSpeed ?? Unit!.DesiredSpeed;
-    /// <summary>Only the full doll carries the speed gauge.</summary>
-    public bool ShowsSpeed => !Compact && Unit is not null;
+    public float? DisplayedDesiredSpeed => ShowsSpeed && ShowsSettings ? _dragSpeed ?? Unit!.DesiredSpeed : null;
+    /// <summary>Every doll carries the speed gauge; a card drops both gauges when they would leave too little for its schematic.</summary>
+    public bool ShowsSpeed => Unit is not null && (!Compact || Size.Y - GaugeRows * StripHeight >= CompactMinimumSchematic);
     /// <summary>Raised with the whole ammo economy 0–10 while the player clicks or drags the ammo gauge.</summary>
     public event Action<int>? AmmoEconomyChanged;
-    /// <summary>The full doll shows the ammo gauge for a mech with ammo-fed weapons.</summary>
-    public bool ShowsAmmo => !Compact && AmmoUnit is { HasAmmoWeapons: true };
+    /// <summary>A doll with gauges shows the ammo gauge for a mech with ammo-fed weapons; the row stays blank otherwise.</summary>
+    public bool ShowsAmmo => ShowsSpeed && AmmoUnit is { HasAmmoWeapons: true };
     /// <summary>The mech whose ammunition and economy the gauge shows: the displayed one, or for a group whose first mech
     /// carries no ammo weapons, the first selected mech that does.</summary>
     public CombatUnit? AmmoUnit { get; private set; }
     public bool EditsAmmoEconomy => EditsHeatLimit && ShowsAmmo;
     private int? _dragEconomy;
-    public int? DisplayedAmmoEconomy => !EditsAmmoEconomy ? null : _dragEconomy ?? AmmoUnit!.AmmoEconomy;
+    public int? DisplayedAmmoEconomy => ShowsAmmo && ShowsSettings ? _dragEconomy ?? AmmoUnit!.AmmoEconomy : null;
     public static readonly Color Full = new("b4b8b6"), LightDamage = new("f1d34c"),
         ModerateDamage = new("ef8a32"), CriticalDamage = new("e84c43"), Healthy = new("6fcf6a");
     public static Color SystemColor(ComponentCondition condition) => condition switch
@@ -159,16 +161,22 @@ public partial class CombatPaperdoll : Control
     /// <summary>Each strip along the full doll's foot holds one gauge and its pointer: speed, then ammo economy.</summary>
     private const float SpeedStripHeight = 28, SpeedTrackHeight = 10, SpeedTrackTop = 4;
     private const int GaugeRows = 2;
+    /// <summary>A card's gauge strips are about half the sidebar's, scaled with the card: 20% of the doll height, 10–14 pixels.</summary>
+    private float StripHeight => Compact ? Math.Clamp(Size.Y * .2f, 10, SpeedStripHeight / 2) : SpeedStripHeight;
+    /// <summary>The strip's size relative to the sidebar's, for the track, icon, notches and pointer.</summary>
+    private float GaugeScale => StripHeight / SpeedStripHeight;
+    /// <summary>A card keeps at least this much height for its schematic, or it shows no gauges.</summary>
+    private const float CompactMinimumSchematic = 30;
     /// <summary>The height the schematic and its vertical bars are fitted into.</summary>
-    private float SchematicHeight => Compact ? Size.Y : Math.Max(1, Size.Y - GaugeRows * SpeedStripHeight);
+    private float SchematicHeight => Compact && !ShowsSpeed ? Size.Y : Math.Max(1, Size.Y - GaugeRows * StripHeight);
     /// <summary>Bar width in pixels: about 5–8 on a card, twice that in the sidebar.</summary>
     private float BarWidth => Compact ? Math.Clamp(Size.Y * .1f, 5, 8) : Math.Clamp(Size.Y * .05f, 10, 16);
     private float BarGap => BarWidth * .6f;
     /// <summary>The heat-limit pointer's width, reserved beyond the sidebar heat bar.</summary>
     private float PointerWidth => Compact ? 0 : BarWidth * .8f;
-    private float DrawScale => Compact ? Math.Min(Math.Max(1, Size.X - 2 * (BarWidth + BarGap + 1)) / CompactBounds.Size.X, Size.Y / CompactBounds.Size.Y)
+    private float DrawScale => Compact ? Math.Min(Math.Max(1, Size.X - 2 * (BarWidth + BarGap + 1)) / CompactBounds.Size.X, SchematicHeight / CompactBounds.Size.Y)
         : Math.Min(Math.Max(1, Size.X - 2 * (BarWidth + BarGap + 1) - PointerWidth) / (FullRight - FullLeft), SchematicHeight / (FullViewBottom - FullViewTop));
-    private Vector2 Origin => Compact ? (Size - CompactBounds.Size * DrawScale) / 2 - CompactBounds.Position * DrawScale
+    private Vector2 Origin => Compact ? (new Vector2(Size.X, SchematicHeight) - CompactBounds.Size * DrawScale) / 2 - CompactBounds.Position * DrawScale
         : new Vector2((Size.X - PointerWidth - (FullRight - FullLeft) * DrawScale) / 2 - FullLeft * DrawScale, -FullViewTop * DrawScale);
     /// <summary>The whole fuel bar slot, icon included, beside the doll's left edge.</summary>
     public Rect2 FuelBarRect => BarSlot(left: true);
@@ -205,18 +213,22 @@ public partial class CombatPaperdoll : Control
     {
         var left = FuelBarRect.Position.X; var right = HeatBarRect.End.X + PointerWidth;
         // Directly under the drawn feet, so a width-bound schematic leaves no gap above the gauges.
-        var top = Math.Min(SchematicHeight, Origin.Y + FullViewBottom * DrawScale) + row * SpeedStripHeight;
-        return new Rect2(left, top, right - left, SpeedStripHeight);
+        var feet = Compact ? CompactBounds.End.Y : FullViewBottom;
+        var top = Math.Min(SchematicHeight, Origin.Y + feet * DrawScale) + row * StripHeight;
+        return new Rect2(left, top, right - left, StripHeight);
     }
     private Rect2 GaugeIcon(int row)
     {
-        var strip = GaugeStrip(row); var size = SpeedStripHeight - 8; return new Rect2(strip.Position.X, strip.Position.Y + 2, size, size);
+        var strip = GaugeStrip(row); var scale = GaugeScale; var size = (SpeedStripHeight - 8) * scale;
+        return new Rect2(strip.Position.X, strip.Position.Y + 2 * scale, size, size);
     }
     private Rect2 GaugeTrack(int row)
     {
-        var strip = GaugeStrip(row); var left = GaugeIcon(row).End.X + 4;
-        return new Rect2(left, strip.Position.Y + SpeedTrackTop, Math.Max(1, strip.End.X - left - 2), SpeedTrackHeight);
+        var strip = GaugeStrip(row); var scale = GaugeScale; var left = GaugeIcon(row).End.X + 4 * scale;
+        return new Rect2(left, strip.Position.Y + SpeedTrackTop * scale, Math.Max(1, strip.End.X - left - 2 * scale), SpeedTrackHeight * scale);
     }
+    /// <summary>The gauge pointer's width: the heat pointer's in the sidebar, scaled with the strip on a card.</summary>
+    private float GaugePointerWidth => Compact ? SpeedStripHeight * .35f * GaugeScale : PointerWidth;
     /// <summary>Where a gauge's pointer can be grabbed: the track and the pointer beneath it, with a little slack.</summary>
     private Rect2 GrabArea(Rect2 track) => track.GrowIndividual(6, 3, 6, PointerWidth + 3);
     public Rect2 SpeedStrip => GaugeStrip(0);
@@ -295,6 +307,8 @@ public partial class CombatPaperdoll : Control
             : "No systems");
     public override string _GetTooltip(Vector2 atPosition)
     {
+        // Card dolls only display: the card's own tooltip covers them.
+        if (Compact) return "";
         if (DisplayedHeatLimit is { } limit && HeatGrabArea.HasPoint(atPosition)) { _tooltipLocation = null; return $"Heat limit {limit}"; }
         if (ShowsSpeed && SpeedStrip.HasPoint(atPosition)) { _tooltipLocation = null; return SpeedTooltip(Unit!, DisplayedDesiredSpeed); }
         if (ShowsAmmo && AmmoStrip.HasPoint(atPosition)) { _tooltipLocation = null; return AmmoTooltip(AmmoUnit!, DisplayedAmmoEconomy); }
@@ -406,8 +420,8 @@ public partial class CombatPaperdoll : Control
     /// <summary>A line across a gauge track and a triangle beneath it; the value shows above while dragging.</summary>
     private void GaugePointer(Rect2 track, float at, string? label)
     {
-        var width = PointerWidth;
-        DrawLine(new(at, track.Position.Y), new(at, track.End.Y), HeatLimitColor, 2);
+        var width = GaugePointerWidth;
+        DrawLine(new(at, track.Position.Y), new(at, track.End.Y), HeatLimitColor, Compact ? 1.5f : 2);
         DrawColoredPolygon([new(at, track.End.Y + 1), new(at - width * .7f, track.End.Y + 1 + width), new(at + width * .7f, track.End.Y + 1 + width)], HeatLimitColor);
         if (label is null) return;
         const int fontSize = 12;
@@ -432,7 +446,8 @@ public partial class CombatPaperdoll : Control
         foreach (var notch in new[] { unit.CurrentWalkingSpeed, unit.CurrentRunningSpeed })
         {
             var x = SpeedTrackX(notch);
-            DrawLine(new(x, track.Position.Y - 3), new(x, track.End.Y + 3), SpeedNotchColor, 2);
+            var reach = 3 * GaugeScale;
+            DrawLine(new(x, track.Position.Y - reach), new(x, track.End.Y + reach), SpeedNotchColor, Compact ? 1.5f : 2);
         }
         DrawRect(track, new Color("62706b"), false, 1);
         DrawTextureRect(SpeedIcon, GaugeIcon(0), false, color);

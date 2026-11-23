@@ -122,6 +122,8 @@ public partial class SmokeTests
             tactical.Size = new Vector2(900, 500); await Frames();
             Check(tactical.UnitButtons.All(button => tactical.GetGlobalRect().Encloses(button.GetGlobalRect())),
                 "four long-name heat cards stay within the minimum window: " + string.Join("; ", tactical.UnitButtons.Select(button => $"{button.GetGlobalRect()} min {button.GetCombinedMinimumSize()}")));
+            Check(tactical.UnitDolls.All(doll => !doll.ShowsSpeed && !doll.ShowsAmmo && doll.DisplayedDesiredSpeed is null && doll.DisplayedAmmoEconomy is null),
+                "cards too short for their gauges drop both rows together: " + string.Join("; ", tactical.UnitDolls.Select(doll => doll.Size)));
             tactical.Size = new Vector2(1440, 900);
             await Frames();
             await Capture("combat-heat-shutdown");
@@ -129,6 +131,9 @@ public partial class SmokeTests
             tactical.SelectUnits([friends[0].Id], false);
             await Frames();
             Check(!tactical.Paperdoll.EditsHeatLimit, "physically defeated units do not retain the heat-limit handle");
+            var wreck = tactical.UnitDolls.Single(doll => doll.Unit == friends[0]);
+            Check(wreck.ShowsSpeed && wreck.DisplayedDesiredSpeed is null && wreck.DisplayedAmmoEconomy is null,
+                "a defeated mech's card keeps its gauges without pointers");
         }
         finally
         {
@@ -169,7 +174,7 @@ public partial class SmokeTests
         tactical.SelectUnits(friends.Skip(2).Select(unit => unit.Id).ToArray(), false); await Frames();
         Check(sidebar.Unit == mover && sidebar.ShowsSpeed && sidebar.EditsDesiredSpeed && sidebar.DisplayedDesiredSpeed == mover.DesiredSpeed,
             "a friendly's sidebar doll shows the speed gauge with its desired-speed pointer");
-        Check(!tactical.UnitDolls.Any(doll => doll.ShowsSpeed), "unit cards have no speed gauge");
+        CheckCardGauges(tactical);
         var track = sidebar.SpeedTrack;
         Check(Math.Abs(sidebar.SpeedTrackX(CombatRules.SpeedGaugeMaximum) - track.End.X) < .01f && Math.Abs(sidebar.SpeedTrackX(0) - track.Position.X) < .01f,
             "the gauge runs from 0 at its left edge to 150 km/h at its right");
@@ -185,6 +190,8 @@ public partial class SmokeTests
         MouseMotion(At(Speed(22)), At(Speed(22)) - At(mover.DesiredSpeed)); await Frames();
         MouseButton(At(Speed(22)), Godot.MouseButton.Left, false); await Frames();
         Check(friends.Skip(2).All(unit => CombatPaperdoll.Kmh(unit.DesiredSpeed) == 22), "dragging the pointer sets the same desired speed for the selection");
+        Check(tactical.UnitDolls.Where(doll => friends.Skip(2).Contains(doll.Unit)).All(doll => doll.DisplayedDesiredSpeed is { } shown && CombatPaperdoll.Kmh(shown) == 22),
+            "the cards' speed pointers follow the new desired speed");
         await Frames(); await Frames();
         Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.IsVisibleInTree() && label.Text.Contains("Speed: 22 km/h")),
             "the group readout reports the desired speed");
@@ -213,6 +220,29 @@ public partial class SmokeTests
         Check(sidebar.ShowsSpeed && !sidebar.EditsDesiredSpeed && sidebar.DisplayedDesiredSpeed is null
             && !sidebar._GetTooltip(sidebar.SpeedStrip.GetCenter()).Contains(" / "), "an inspected enemy's gauge has no pointer or desired speed");
         tactical.SelectUnits(friends.Select(unit => unit.Id).ToArray(), false); await Frames();
+    }
+
+    /// <summary>Each card shows the speed and ammo gauges under its doll, display only: fixed pointers at the mech's settings,
+    /// a blank ammo row for a mech without ammo weapons, smaller than the sidebar's, and no tooltip.</summary>
+    private void CheckCardGauges(CombatScreen tactical)
+    {
+        var sidebar = tactical.Paperdoll;
+        foreach (var doll in tactical.UnitDolls)
+        {
+            var unit = doll.Unit!; var bounds = new Rect2(Vector2.Zero, doll.Size).Grow(.5f);
+            var (speed, ammo) = (doll.SpeedStrip, doll.AmmoStrip);
+            Check(doll.ShowsSpeed && !doll.EditsDesiredSpeed && doll.DisplayedDesiredSpeed == (unit.Defeated ? null : unit.DesiredSpeed),
+                $"{unit.Warrior.Callsign}'s card shows the speed gauge with a fixed pointer at the desired speed");
+            Check(doll.ShowsAmmo == unit.HasAmmoWeapons && !doll.EditsAmmoEconomy
+                && doll.DisplayedAmmoEconomy == (unit.HasAmmoWeapons && !unit.Defeated ? unit.AmmoEconomy : null),
+                $"{unit.Warrior.Callsign}'s card shows the ammo gauge only with ammo weapons, its pointer at the economy");
+            Check(bounds.Encloses(speed) && bounds.Encloses(ammo) && speed.Position.Y >= doll.HeatBarRect.End.Y - .5f && Math.Abs(ammo.Position.Y - speed.End.Y) < .5f
+                && doll.SpeedTrack.Size.Y < sidebar.SpeedTrack.Size.Y && doll.SpeedTrack.Size.X > 0,
+                $"a card's smaller gauges sit under its doll, speed then ammo, inside the card: size {doll.Size} heat {doll.HeatBarRect} speed {speed} ammo {ammo}");
+            Check(doll.MouseFilter == Control.MouseFilterEnum.Ignore && doll._GetTooltip(speed.GetCenter()) == "" && doll._GetTooltip(ammo.GetCenter()) == "",
+                "card gauges have no tooltip and let clicks through to the card");
+        }
+        Check(tactical.UnitDolls.Select(doll => doll.SpeedStrip.Position.Y).Distinct().Count() == 1, "every card's gauges line up, with or without ammo weapons");
     }
 
     /// <summary>The ammo economy gauge under the speed gauge: steps, dragging for a group, the fill, tooltip and readout,
