@@ -348,7 +348,7 @@ public partial class CombatScreen : Control
         _roster = roster; _mission = mission; _settle = settle; _settlement = null; SalvagePool = []; SalvageChoices.Clear(); _resultsTab = 0; ExpandedResults.Clear();
         WaitingBanner.Hide();
         Coop = false; Leading = true; ForceReady = false; _othersReady = false; Orders = null;
-        Simulation = null; _primary = null; _selected.Clear(); SettingJump = false;
+        Simulation = null; _primary = null; _selected.Clear(); SettingJump = false; _jumpNoticeSeconds = 0;
         _title.Text = mission is null ? "SIMULATED DEPLOYMENT" : $"MISSION · {mission.Name.ToUpperInvariant()}";
         BattleLog.Hide(); ControlsPanel.Hide(); Layout();
         Show();
@@ -591,8 +591,20 @@ public partial class CombatScreen : Control
     public void ToggleJump()
     {
         if (Simulation is null) return;
-        SettingJump = !SettingJump && JumpUnavailable() is null;
+        var blocked = SettingJump ? null : JumpUnavailable();
+        SettingJump = !SettingJump && blocked is null;
+        if (blocked is not null) RefuseJump(blocked);
         RefreshDetails();
+    }
+    /// <summary>Why the last jump was refused or lapsed, shown on the status line for a moment; null otherwise.</summary>
+    public string? JumpNotice => _jumpNoticeSeconds > 0 ? _jumpNotice : null;
+    private string? _jumpNotice;
+    private double _jumpNoticeSeconds;
+    private const double JumpNoticeSeconds = 3;
+    private void RefuseJump(string reason)
+    {
+        _jumpNotice = $"Cannot jump: {reason}"; _jumpNoticeSeconds = JumpNoticeSeconds;
+        SoundPlayer.For(this)?.Play(Cue.UiError);
     }
     private void StopUnits() => Send(new HoldCommand([.. _selected]));
     public void TogglePause()
@@ -924,6 +936,7 @@ public partial class CombatScreen : Control
         SoundHeatAlarm(delta);
         _uiElapsed += delta;
         if (_ejectArmed > 0 && (_ejectArmed -= delta) <= 0) { _ejectArmed = 0; RefreshDetails(); }
+        if (_jumpNoticeSeconds > 0) _jumpNoticeSeconds = Math.Max(0, _jumpNoticeSeconds - delta);
         if (_uiElapsed >= .1) { _uiElapsed = 0; RefreshDetails(); }
     }
     /// <summary>While a friendly mech runs hot enough for heat penalties, an alarm sounds every couple of seconds.</summary>
@@ -942,11 +955,12 @@ public partial class CombatScreen : Control
         if (Simulation is null) return;
         RefreshSurrender();
         _status.Text = $"{(Simulation.Paused ? $"PAUSED{PauseHolders} · orders available" : "LIVE")}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}"
-            + (Simulation.PatrolObjectiveText() is { } objective ? $"  |  {objective}" : "");
+            + (Simulation.PatrolObjectiveText() is { } objective ? $"  |  {objective}" : "")
+            + (JumpNotice is { } notice ? $"  |  {notice}" : "");
         // The time panel shows the local player's own toggle; the battle stays paused while any player holds one.
         RefreshTimePanel();
         // Jump targeting lapses once no selected unit can still jump.
-        if (SettingJump && JumpUnavailable() is not null) SettingJump = false;
+        if (SettingJump && JumpUnavailable() is { } lapsed) { SettingJump = false; RefuseJump(lapsed); }
         Battlefield.JumpArmed = SettingJump;
         var friends = OwnUnits.ToArray();
         for (var i = 0; i < UnitButtons.Count; i++)

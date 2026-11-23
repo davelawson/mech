@@ -119,6 +119,7 @@ public partial class SmokeTests
         tactical.SelectUnits([grounded.Id], false); field.GrabFocus(); await PressKey(Key.J);
         Check(!tactical.SettingJump && tactical.JumpBlockedReason?.Contains("No jump jets") == true,
             $"mechs without jump jets cannot arm a jump and say why: {tactical.JumpBlockedReason}");
+        Check(tactical.JumpNotice?.Contains("No jump jets") == true, $"a refused J shows why on the status line: {tactical.JumpNotice}");
         Check(!tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Jump: no jump jets")),
             "selected details leave jump availability to the Jump button");
         Check(tactical.UnitDolls.Single(doll => doll.Unit == jumper).ShowsFuel && !tactical.UnitDolls.Single(doll => doll.Unit == grounded).ShowsFuel
@@ -149,6 +150,14 @@ public partial class SmokeTests
         sim.Paused = false; sim.Advance(CombatRules.JumpRechargeSeconds + 5); sim.Paused = true; tactical.SelectUnits([jumper.Id, grounded.Id], false);
         Check(tactical.JumpBlockedReason is null && jumper.JumpUnavailableReason is null,
             "a group jumps when any member can, and its jets read ready");
+        tactical.SelectUnits([jumper.Id], false); field.GrabFocus(); await PressKey(Key.J);
+        Check(tactical.SettingJump, "J arms jump targeting with ready jets");
+        // Any refresh, here a Stop order, notices the mech has run past its heat limit.
+        jumper.AddHeat(jumper.HeatLimit + 5 - jumper.Heat); await PressKey(Key.Z);
+        Check(!tactical.SettingJump && tactical.JumpNotice?.Contains("Too hot") == true && CombatPaperdoll.FuelFraction(jumper) == 1,
+            $"armed targeting lapses over the heat limit and says why, though the fuel bar stays full: {tactical.JumpNotice}");
+        await PressKey(Key.J);
+        Check(!tactical.SettingJump && tactical.JumpNotice?.Contains("Too hot") == true, "J over the heat limit is refused and says why");
         await PressKey(Key.Escape); await Click(tactical.EndButton); await Click(tactical.ReturnButton);
     }
     /// <summary>? opens the controls reference without pausing; Escape and × close it before anything else.</summary>

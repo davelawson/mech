@@ -3,7 +3,7 @@ config_version=5
 
 [application]
 config/name="Mech"
-config/version="0.01.02"
+config/version="0.01.03"
 run/main_scene="res://Scenes/Command.tscn"
 config/features=PackedStringArray("4.7", "C#", "GL Compatibility")
 config/description="Mercenary command aboard a DropShip, January 1, 3025."
