@@ -67,7 +67,7 @@ public partial class SmokeTests
             tactical.TerrainSeedInput.Text = "183";
             tactical.TerrainSeedInput.EmitSignal(LineEdit.SignalName.TextChanged, "183");
             tactical.ChooseBiome(Biome.Valley);
-            tactical.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed);
+            tactical.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed); await Land(tactical);
             var sim = tactical.Simulation!;
             var friendly = sim.Units.Single(unit => unit.Side == CombatSide.Friendly);
             var enemy = sim.Units.Single(unit => unit.Side == CombatSide.Enemy);

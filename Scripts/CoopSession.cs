@@ -148,7 +148,7 @@ public sealed class CoopHost : IDisposable
         if (ForceProblem(Campaign.LeaderSlot, leaderMechs, true) is { } problem) throw new ArgumentException(problem);
         var force = leaderMechs.Concat(_deployment.Where(seat => seat.Slot != Campaign.LeaderSlot).OrderBy(seat => seat.Slot).SelectMany(seat => seat.Mechs)).ToArray();
         var combatSeed = seed ?? System.Random.Shared.Next();
-        var battle = CombatSimulation.DeployMission(Campaign!.Roster!, force, Campaign.Missions.Current!, combatSeed, terrainSeed);
+        var battle = CombatSimulation.DeployMission(Campaign!.Roster!, force, Campaign.Missions.Current!, combatSeed, terrainSeed, dropPhase: true);
         Flush();
         _deployment = null; Battle = battle; _battleStart = new(force, combatSeed, terrainSeed); _sentHistory = 0; _sentEvents = 0; _sentHighlights = 0; _lastState = null;
         Broadcast(_battleStart); SendBattle();
@@ -422,7 +422,7 @@ public sealed class CoopClient : IDisposable
             case DeploymentMessage deployment: Deployment = deployment.Seats; DeploymentChanged?.Invoke(); break;
             case BattleStartMessage start:
                 if (Campaign?.Roster is not { } roster || Campaign.Missions.Current is not { } mission) { End("The leader's battle could not be recreated."); return; }
-                try { Battle = CombatSimulation.DeployMission(roster, start.Force, mission, start.Seed, start.TerrainSeed); }
+                try { Battle = CombatSimulation.DeployMission(roster, start.Force, mission, start.Seed, start.TerrainSeed, dropPhase: true); }
                 catch (ArgumentException) { End("The leader's battle could not be recreated."); return; }
                 Battle.BecomeReplica(); Deployment = null; Settlement = null; BattleStarted?.Invoke();
                 break;

@@ -85,6 +85,8 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | **Quick Launch** (leader in co-op) | Fight the accepted mission: choose 1–4 mechs, then **Launch mission** |
 | **Ready** / **Not Ready** (co-op force selection) | Mark your chosen mechs ready for the leader to launch / unlock them |
 | **Combat** | |
+| Left-click inside the drop zone (drop phase) | Choose or move your lance's drop site |
+| **Ready** / **Force Start** (drop phase) | Confirm your drop site / (leader) drop every lance still choosing at a random site and begin |
 | Click / drag | Select friendly mechs |
 | Shift+click | Add to / remove from selection |
 | 1–4 / Shift+1–4 | Select / toggle a deployment slot |

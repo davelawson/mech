@@ -18,7 +18,7 @@ public partial class SmokeTests
             tactical.MirrorMatchButton.EmitSignal(BaseButton.SignalName.Pressed);
             foreach (var choice in tactical.ForceChoices) choice.ButtonPressed = true;
             tactical.ChooseBiome(Biome.Valley);
-            tactical.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed);
+            tactical.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed); await Land(tactical);
             var sim = tactical.Simulation!; sim.Paused = true;
             var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
             var energy = friends.Single(unit => !unit.HasAmmoWeapons);
@@ -57,7 +57,7 @@ public partial class SmokeTests
             tactical.MirrorMatchButton.EmitSignal(BaseButton.SignalName.Pressed);
             foreach (var choice in tactical.ForceChoices) choice.ButtonPressed = true;
             tactical.ChooseBiome(Biome.Valley);
-            tactical.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed);
+            tactical.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed); await Land(tactical);
             var sim = tactical.Simulation!;
             var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
             tactical.SelectUnits(friends.Select(unit => unit.Id).ToArray(), false);

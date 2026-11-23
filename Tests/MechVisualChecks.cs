@@ -157,7 +157,7 @@ public partial class SmokeTests
         var combat = new CombatScreen(); stage.AddChild(combat); combat.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         combat.Open(damagedRoster, damaged.Id); combat.RandomizedEnemyButton.EmitSignal(BaseButton.SignalName.Pressed);
         combat.ChooseBiome(Biome.Valley);
-        combat.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed); await Frames();
+        combat.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed); await Land(combat);
         var damagedFriendly = combat.Simulation!.Units.First(unit => unit.Side == CombatSide.Friendly);
         Check(combat.Paperdoll.Unit == damagedFriendly
             && damagedFriendly.Locations[MechLocation.RightTorso].Armor == damagedFriendly.Locations[MechLocation.RightTorso].InitialArmor
@@ -166,7 +166,7 @@ public partial class SmokeTests
             "randomized battle preserves pre-deployment damage colored against stock maxima");
         combat.Open(damagedRoster, damaged.Id); combat.MirrorMatchButton.EmitSignal(BaseButton.SignalName.Pressed);
         combat.ChooseBiome(Biome.Valley);
-        combat.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed); await Frames();
+        combat.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed); await Land(combat);
         var sim = combat.Simulation!; var friendly = sim.Units.First(unit => unit.Side == CombatSide.Friendly);
         var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
         // Model review uses the guaranteed clear spawn band, independently of random scenery.

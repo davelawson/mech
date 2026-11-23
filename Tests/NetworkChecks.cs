@@ -56,7 +56,29 @@ internal static class NetworkChecks
         CheckHostAddress(check);
     }
     /// <summary>A whole battle replayed on a replica and matched field by field, the longest single check.</summary>
-    public static void RunReplica(Action<bool, string> check) { CheckReplica(check); CheckReplicaSpeed(check); }
+    public static void RunReplica(Action<bool, string> check) { CheckReplica(check); CheckReplicaSpeed(check); CheckReplicaDrop(check); }
+
+    /// <summary>A replica shows the leader's drop phase: every chosen site and landed lance, and its end.</summary>
+    private static void CheckReplicaDrop(Action<bool, string> check)
+    {
+        var roster = InitialDraft.CreateRandom(new Random(4)).Establish();
+        var force = roster.LanceMechs(0).Select(mech => mech.Id).ToArray();
+        CombatSimulation Deploy() => CombatSimulation.Deploy(roster, force, seed: 9, terrainSeed: 12, dropPhase: true);
+        var battle = Deploy(); var replica = Deploy(); replica.BecomeReplica();
+        CombatState Sent() => ((BattleStateMessage)NetProtocol.Decode(NetProtocol.Encode(new BattleStateMessage(battle.State())))!).State;
+        var zone = battle.FriendlyZone!;
+        var site = Enumerable.Range(0, 100).Select(i => PatrolLayout.EdgePoint(zone.Edge, i * 30, zone.Depth(zone.Anchor)))
+            .First(point => battle.DropSiteProblem(Campaign.LeaderSlot, point) is null);
+        battle.Execute(new DropSiteCommand(site)); replica.Apply(Sent());
+        check(replica.Drop?.Site(Campaign.LeaderSlot).Site == site && replica.DropSiteProblem(Campaign.LeaderSlot, site) is null
+            && replica.Units.Where(unit => unit.Side == CombatSide.Friendly).All(replica.AwaitingDrop),
+            "a replica shows the leader's chosen drop site, but not where its mechs will land");
+        battle.Execute(new DropReadyCommand(true)); replica.Apply(Sent());
+        check(replica.Drop is null && replica.Paused
+            && replica.Units.Where(unit => unit.Side == CombatSide.Friendly).Zip(battle.Units.Where(unit => unit.Side == CombatSide.Friendly))
+                .All(pair => pair.First.Position == pair.Second.Position && !replica.AwaitingDrop(pair.First)),
+            "a replica's drop phase ends with the leader's, the battle paused and the lance where the leader landed it");
+    }
 
     /// <summary>A replica takes the leader's battle speed and runs its clock at it between states.</summary>
     private static void CheckReplicaSpeed(Action<bool, string> check)
@@ -229,7 +251,7 @@ internal static class NetworkChecks
             new MoveCommand(["a", "b"], new Vector2(1.5f, -2.25f)), new MaintainRangeCommand(["a"], false), new FollowCommand(["a"], "b"),
             new JumpCommand(["a"], new Vector2(3, 4)), new HoldCommand(["a"]), new PriorityCommand(["a"], null), new MovementCommand(["a"], MovementMode.Run),
             new FiringCommand(["a"], FiringMode.HoldFire), new HeatLimitCommand(["a"], 30), new DistanceCommand(["a"], 300),
-            new WeaponCommand("a", 2, false), new PauseCommand(false)
+            new WeaponCommand("a", 2, false), new PauseCommand(false), new DropSiteCommand(new Vector2(12, 2400)), new DropReadyCommand(true), new ForceDropCommand()
         };
         foreach (var command in commands)
         {
@@ -343,6 +365,8 @@ internal static class NetworkChecks
         check(host.OthersReady && sam.Deployment![1] is { Ready: true, Mechs.Length: 3 }, "a player marks their force ready");
 
         var battle = host.Launch(leaderMechs, 77, seed: 8); Pump();
+        check(battle.Drop is not null && sam.Battle?.Drop is not null, "a co-op battle opens in its drop phase for every player");
+        Drops.Land(battle); Pump();
         var replica = sam.Battle;
         check(replica is { Replica: true } && replica.Terrain.Seed == 77 && replica.Units.Select(unit => unit.Id).SequenceEqual(battle.Units.Select(unit => unit.Id))
             && sam.Deployment is null, "every player sees the leader's battle on the same terrain");
@@ -385,7 +409,7 @@ internal static class NetworkChecks
         Rejoin();
         check(back.Deployment is { Count: 2 }, "a rejoining player returns to force selection");
         back.ChooseDeployment(samMechs, true); for (var i = 0; i < 4; i++) { host.Update(0); back.Update(); }
-        battle = host.Launch(leaderMechs, 78);
+        battle = host.Launch(leaderMechs, 78); Drops.Land(battle);
         for (var i = 0; i < 4; i++) { host.Update(0); back.Update(); }
         battle.Paused = false; battle.Advance(1);
         back.Dispose(); host.Update(0);

@@ -8,6 +8,16 @@ public partial class CombatViewport : Control
     public event Action<IReadOnlyList<string>, bool>? SelectionRequested;
     /// <summary>Ground point, picked mech and the movement mode an Alt (Walk) or Ctrl (Run) modifier sets.</summary>
     public event Action<Vector2, string?, MovementMode?>? CommandRequested;
+    /// <summary>A left-click on the ground while choosing a drop site.</summary>
+    public event Action<Vector2>? DropRequested;
+    /// <summary>The local player is choosing a drop site: a left-click places it, and the site under the pointer is previewed.</summary>
+    public bool DropPlacing { get; set; }
+    /// <summary>Why the local player's lance cannot drop at a point, or null when it can.</summary>
+    public Func<Vector2, string?>? DropSiteProblem { get; set; }
+    /// <summary>The name shown on a lance's drop site.</summary>
+    public Func<int, string>? LanceLabel { get; set; }
+    /// <summary>The local player's lance, whose drop site is previewed in its colour.</summary>
+    public int Slot { get; set; }
     public const float FastPanMultiplier = 5;
     public CombatSimulation? Simulation { get; private set; }
     public IReadOnlyCollection<string> Selection { get; set; } = Array.Empty<string>();
@@ -334,6 +344,12 @@ public partial class CombatViewport : Control
             // Open behind the company's start, looking into the arena.
             var inward = PatrolLayout.Inward(layout.StartEdge); var focus = layout.StartCenter + inward * 600;
             _focus = new Vector3(focus.X, 0, focus.Y); _yaw = Mathf.Atan2(-inward.X, -inward.Y);
+        }
+        if (simulation.Drop is { Zone: var zone })
+        {
+            // The drop phase opens over the whole drop zone, looking into the arena.
+            var focus = PatrolLayout.EdgePoint(zone.Edge, 0, CombatRules.DropZoneDepth + 400);
+            _focus = new Vector3(focus.X, 0, focus.Y); _yaw = Mathf.Atan2(-zone.Inward.X, -zone.Inward.Y); Camera.Size = 5400;
         }
         UpdateCamera();
         foreach (var unit in simulation.Units) CreateMech(unit);
@@ -852,7 +868,7 @@ public partial class CombatViewport : Control
         foreach (var unit in Simulation.Units)
         {
             var model = _models[unit.Id];
-            model.Visible = !unit.OffField && (unit.Side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, unit.Id));
+            model.Visible = !unit.OffField && !Simulation.AwaitingDrop(unit) && (unit.Side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, unit.Id));
             var ground = World(unit.Position, Simulation.Terrain.HeightAt(unit.Position) + unit.Altitude);
             var yaw = Mathf.Atan2(-unit.Facing.X, -unit.Facing.Y);
             model.SetCondition(unit.Intact);
@@ -1268,7 +1284,7 @@ public partial class CombatViewport : Control
         CombatUnit? picked = null;
         foreach (var unit in Simulation.Units)
         {
-            if (unit.Side != CombatSide.Friendly && !Simulation.Detected(CombatSide.Friendly, unit.Id)) continue;
+            if (unit.Side != CombatSide.Friendly && !Simulation.Detected(CombatSide.Friendly, unit.Id) || Simulation.AwaitingDrop(unit)) continue;
             if (!_pickBounds.TryGetValue(unit.Id, out var bounds)) continue;
             var inverse = _models[unit.Id].GlobalTransform.AffineInverse();
             // Keep the local direction unnormalized: its parameter still measures world distance.
@@ -1322,7 +1338,11 @@ public partial class CombatViewport : Control
                 else if (_selecting)
                 {
                     _selecting = false;
-                    if (_dragStart.DistanceTo(mouse.Position) < 6)
+                    if (DropPlacing && Simulation.Drop is not null)
+                    {
+                        if (_dragStart.DistanceTo(mouse.Position) < 6) DropRequested?.Invoke(GroundPoint(mouse.Position));
+                    }
+                    else if (_dragStart.DistanceTo(mouse.Position) < 6)
                     {
                         var picked = PickMech(mouse.Position);
                         var friendly = picked?.Side == CombatSide.Friendly ? picked : null;
@@ -1365,7 +1385,8 @@ public partial class CombatViewport : Control
     {
         get
         {
-            if (Simulation is null) return [];
+            // Mechs still waiting to drop have no position yet to measure from.
+            if (Simulation is null || Simulation.Drop is not null) return [];
             var target = RangeTarget;
             return Selection.Select(Simulation.Unit).Where(unit => unit.Side == CombatSide.Friendly && unit.Active).Select(observer =>
             {
@@ -1443,10 +1464,62 @@ public partial class CombatViewport : Control
             DrawString(font, at, text, HorizontalAlignment.Left, -1, 13, color);
         }
     }
+    public static readonly Color DropZoneColor = new("e8c46a"), EnemyDropZoneColor = new("e5735f"), InvalidDropColor = new("ed735e");
+    /// <summary>The ground outline of a zone, following the terrain along each side.</summary>
+    private Vector2[] ZoneOutline(DropZone zone)
+    {
+        var corners = zone.Corners; var points = new List<Vector2>();
+        for (var side = 0; side < 4; side++)
+        {
+            var from = corners[side]; var to = corners[(side + 1) % 4];
+            var segments = Math.Max(1, (int)(from.DistanceTo(to) / 120));
+            for (var i = 0; i < segments; i++) points.Add(ScreenPoint(from.Lerp(to, (float)i / segments), .8f));
+        }
+        points.Add(points[0]);
+        return [.. points];
+    }
+    private void DrawZone(DropZone zone, Color color, string label, Font font)
+    {
+        var outline = ZoneOutline(zone);
+        // The fill is only a tint: a polygon the camera folds over itself is skipped rather than drawn wrongly.
+        var fill = outline[..^1];
+        if (Geometry2D.TriangulatePolygon(fill).Length > 0) DrawColoredPolygon(fill, new Color(color, .12f));
+        DrawPolyline(outline, new Color(color, .75f), 2, true);
+        // The label sits toward one end of the zone, clear of the default sites along its middle.
+        var at = ScreenPoint(PatrolLayout.EdgePoint(zone.Edge, -(CombatRules.ArenaHalfSize - CombatRules.DropEdgePadding) * .7f, CombatRules.DropZoneDepth - 80), 2);
+        at += new Vector2(-font.GetStringSize(label, fontSize: 14).X / 2, 0);
+        DrawStringOutline(font, at, label, HorizontalAlignment.Left, -1, 14, 4, new Color("101820"));
+        DrawString(font, at, label, HorizontalAlignment.Left, -1, 14, color);
+    }
+    private void DrawSite(Vector2 center, Color color, float width, string? label, Font font)
+    {
+        DrawPolyline(Enumerable.Range(0, 65).Select(segment => ScreenPoint(center + Vector2.FromAngle(segment * Mathf.Tau / 64) * CombatRules.DropSiteRadius, .8f)).ToArray(),
+            color, width, true);
+        DrawCircle(ScreenPoint(center, .8f), 3, color);
+        if (label is null) return;
+        var at = ScreenPoint(center, 2) + new Vector2(-font.GetStringSize(label, fontSize: 13).X / 2, -12);
+        DrawStringOutline(font, at, label, HorizontalAlignment.Left, -1, 13, 4, new Color("101820"));
+        DrawString(font, at, label, HorizontalAlignment.Left, -1, 13, color);
+    }
+    /// <summary>The drop phase: both zones, every chosen drop site in its lance's colour, and the site under the pointer while choosing.</summary>
+    private void DrawDrop(DropPhase drop, Font font)
+    {
+        DrawZone(drop.Zone, DropZoneColor, "DROP ZONE", font);
+        if (drop.EnemyZone is { } enemy) DrawZone(enemy, EnemyDropZoneColor, "ENEMY DROP ZONE", font);
+        foreach (var site in drop.Sites)
+            if (site.Site is { } center)
+                DrawSite(center, MechModel.TeamColor(CombatSide.Friendly, site.Slot), site.Ready ? 3 : 2,
+                    (LanceLabel?.Invoke(site.Slot) ?? ForceRoster.LanceName(site.Slot)) + (site.Ready ? " ✓" : ""), font);
+        var pointer = GetLocalMousePosition();
+        if (!DropPlacing || !CommandsEnabled || !new Rect2(Vector2.Zero, Size).HasPoint(pointer)) return;
+        var aim = GroundPoint(pointer); var problem = DropSiteProblem?.Invoke(aim);
+        DrawSite(aim, problem is null ? new Color(MechModel.TeamColor(CombatSide.Friendly, Slot), .8f) : InvalidDropColor, 2, problem, font);
+    }
     public override void _Draw()
     {
         if (Simulation is null || Camera is null) return;
         var font = ThemeDB.FallbackFont;
+        if (Simulation.Drop is { } drop) DrawDrop(drop, font);
         if (Simulation.Patrol is { } patrol) DrawPatrol(patrol, font);
         else
         {
@@ -1472,7 +1545,7 @@ public partial class CombatViewport : Control
         foreach (var unit in Simulation.Units)
         {
             var friendly = unit.Side == CombatSide.Friendly;
-            if (!friendly && !Simulation.Detected(CombatSide.Friendly, unit.Id)) continue;
+            if (!friendly && !Simulation.Detected(CombatSide.Friendly, unit.Id) || Simulation.AwaitingDrop(unit)) continue;
             var at = ScreenPoint(unit.Position);
             var color = MechModel.TeamColor(unit.Side, unit.Lance);
             var baseRadius = _models[unit.Id].Scale.X * .95f;

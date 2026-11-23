@@ -66,7 +66,7 @@ public partial class SmokeTests
             && tactical.GetGlobalRect().Encloses(tactical.LaunchButton.GetGlobalRect()), "terrain seed and launch controls fit the minimum window");
         await Capture("deployment-terrain-900x500");
         GetWindow().Size = new Vector2I(1440, 900); await Frames();
-        await Click(tactical.LaunchButton);
+        await Click(tactical.LaunchButton); await CheckDropUi(tactical);
         var sim = tactical.Simulation!; var field = tactical.Battlefield;
         Check(tactical.Modal == CombatModal.None && sim.Paused && tactical.UnitButtons.Count == 2, "launch creates selected mirrored force and starts paused");
         Check(tactical.Selected.Count == 1 && !sim.Contacts(CombatSide.Friendly).Any(), "first friendly selected and enemy starts hidden");
@@ -232,7 +232,7 @@ public partial class SmokeTests
         tactical.TerrainSeedInput.Text = "183";
         tactical.TerrainSeedInput.EmitSignal(LineEdit.SignalName.TextChanged, "183");
         tactical.ChooseBiome(Biome.Lunar);
-        await Click(tactical.LaunchButton);
+        await Click(tactical.LaunchButton); await Land(tactical);
         var randomFriends = tactical.Simulation!.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
         var randomEnemies = tactical.Simulation.Units.Where(unit => unit.Side == CombatSide.Enemy).ToArray();
         Check(randomFriends.Length == 2 && randomEnemies.Length == 2 && randomFriends.Zip(randomEnemies)
@@ -368,7 +368,7 @@ public partial class SmokeTests
         Check(hangar.Visible && state.Missions.Current == offer && hangar.QuickLaunchButton.HasFocus(), "backing out keeps the mission and restores focus");
 
         var date = state.Date; var cash = state.Cash;
-        await Click(hangar.QuickLaunchButton); await Click(tactical.LaunchButton);
+        await Click(hangar.QuickLaunchButton); await Click(tactical.LaunchButton); await Land(tactical);
         var sim = tactical.Simulation!;
         Check(sim.Units.Count(unit => unit.Side == CombatSide.Enemy) == offer.Opposition.Length && sim.Terrain.Biome == biome,
             "the mission fields its opposition");
@@ -396,7 +396,7 @@ public partial class SmokeTests
         if (!_app.Office.Visible) _app.ShowOffice();
         await Frames(); await Click(_app.Office.HangarButton);
         var mechs = state.Roster!.Mechs.Count;
-        await Click(hangar.QuickLaunchButton); await Click(tactical.LaunchButton);
+        await Click(hangar.QuickLaunchButton); await Click(tactical.LaunchButton); await Land(tactical);
         var sim = tactical.Simulation!;
         // The lightest enemy loses both legs, disabled but whole (claimable within any allotment plus the extra picks); the rest lose their center torso.
         var enemies = sim.Units.Where(unit => unit.Side == CombatSide.Enemy).OrderBy(unit => unit.Spec.WeightClass).ToArray();
@@ -460,7 +460,7 @@ public partial class SmokeTests
         Check(tactical.Opponent == SimulationOpponent.Patrol && tactical.Modal == CombatModal.ForceSelection, "Simulate Deployment offers a patrol");
         if (!tactical.ForceChoices[1].ButtonPressed) await Click(tactical.ForceChoices[1]);
         tactical.ChooseBiome(Biome.Grassland);
-        await Click(tactical.LaunchButton);
+        await Click(tactical.LaunchButton); await Land(tactical);
         var sim = tactical.Simulation!;
         Check(sim.Patrol is { } patrol && patrol.Groups.Count == patrol.Layout.PatrolPoints && sim.Units.Where(unit => unit.Side == CombatSide.Enemy).All(sim.Passive)
             && TacticalText().Any(text => text.Contains($"Patrol point 1 of {patrol.Layout.PatrolPoints}")),

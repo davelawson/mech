@@ -188,7 +188,7 @@ public partial class SmokeTests
         await Exchange(() => sam.Deployment is not null, "the other player is pulled into force selection", client: sam);
         sam.ChooseDeployment(state.Roster.LanceMechs(1).Select(mech => mech.Id).Take(1), true);
         await Exchange(() => !tactical.LaunchButton.Disabled, "the leader can launch once the other player is ready", client: sam);
-        await Click(tactical.LaunchButton);
+        await Click(tactical.LaunchButton); await Land(tactical);
         Check(!tactical.WaitingBanner.Visible, "nobody is waited for while every player is present");
         sam.Dispose();
         await Exchange(() => tactical.WaitingBanner.Visible, "the battle shows who it is waiting for");
@@ -233,6 +233,8 @@ public partial class SmokeTests
         Check(tactical.DeploymentStatus.Text.Contains("Sam · Ready · 2 mechs"), "force selection shows every player's readiness");
         await Click(tactical.LaunchButton);
         var battle = tactical.Simulation!;
+        Check(battle.Drop is not null && tactical.ForceDropButton.Visible, "the leader may force a co-op drop phase to end");
+        await Land(tactical);
         Check(tactical.Modal == CombatModal.None && !battle.Replica && battle.Units.Count(unit => unit.Lance == 1) == 2
             && tactical.UnitButtons.Count == battle.Units.Count(unit => unit.Lance == 0), "the leader fights with the whole company, commanding their own lance");
         Check(!_app.HasUnsavedChanges, "the campaign is saved as the mission starts");
@@ -285,6 +287,22 @@ public partial class SmokeTests
         await Exchange(() => tactical.Simulation is { Replica: true } && tactical.Modal == CombatModal.None, "the joined player sees the leader's battle", host);
         Check(tactical.UnitButtons.Count == mine.Length && tactical.Selected.All(mine.Contains) && tactical.Simulation!.Terrain.Seed == 4242,
             "the joined player commands their own lance on the leader's terrain");
+        var drop = battle.Drop!;
+        Check(tactical.DropBanner.Visible && !tactical.ForceDropButton.Visible && tactical.Simulation!.Drop is not null,
+            "the joined player chooses their own drop site; only the leader may force the start");
+        battle.Execute(new DropSiteCommand(drop.DefaultSite(0)));
+        await Exchange(() => tactical.Simulation!.Drop?.Site(0).Site is not null, "the joined player sees the leader's drop site", host);
+        tactical.ChooseDropSite(drop.DefaultSite(0)); await Frames();
+        Check(tactical.DropText.Text.Contains("Overlaps another lance's drop site") && drop.Site(1).Site is null,
+            "the joined player cannot drop onto the leader's site");
+        tactical.ChooseDropSite(drop.DefaultSite(1));
+        await Exchange(() => drop.Site(1).Site is not null && tactical.Simulation!.Drop?.Site(1).Site is not null && !tactical.DropReadyButton.Disabled,
+            "the joined player's drop site reaches the leader and comes back in its state", host);
+        await Click(tactical.DropReadyButton);
+        await Exchange(() => drop.Site(1).Ready, "the joined player's Ready reaches the leader", host);
+        battle.Execute(new DropReadyCommand(true));
+        await Exchange(() => battle.Drop is null && tactical.Simulation!.Drop is null && !tactical.DropBanner.Visible,
+            "the battle begins for every player once both are ready", host);
         tactical.TogglePause();
         await Exchange(() => !battle.PauseHolds.Contains(1), "the joined player's pause toggle reaches the leader", host);
         await Frames();

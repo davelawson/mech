@@ -33,6 +33,15 @@ internal static class TerrainChecks
         check(first.Patches.SequenceEqual(repeat.Patches) && first.Buildings.SequenceEqual(repeat.Buildings) && SameRelief(first, repeat),
             "terrain seed recreates all geometry");
         CheckNavigationQueries(first, check);
+        foreach (var (terrain, dropEdge) in standard.Values.Select(terrain => (terrain, ArenaEdge.South))
+            .Append((BattlefieldTerrain.Generate(183, dropEdge: ArenaEdge.East), ArenaEdge.East)))
+        {
+            var zones = new[] { DropZone.Standard(dropEdge), DropZone.Standard(DropZone.Opposite(dropEdge)) };
+            check(terrain.Patches.Where(patch => BattlefieldTerrain.IsFlat(patch.Kind))
+                    .All(patch => zones.All(zone => zone.Depth(patch.Center) - patch.Radius >= CombatRules.DropZoneDepth))
+                && terrain.Component(zones[0].Anchor) != 0 && terrain.Component(zones[0].Anchor) == terrain.Component(zones[1].Anchor),
+                $"lakes, ice and lava keep out of both drop zones, whose anchors connect ({terrain.Biome}, {dropEdge})");
+        }
         check(!first.Patches.SequenceEqual(other.Patches), "different terrain seeds create different maps");
         check(first.Biome == Biome.Valley && first.Patches.Count(patch => patch.Kind == TerrainKind.Rock) > 30
             && first.Patches.Count(patch => patch.Kind == TerrainKind.Vegetation) > 36
@@ -57,9 +66,12 @@ internal static class TerrainChecks
         }
         var roster = Roster();
         var deployed = CombatSimulation.Deploy(roster, roster.Mechs.Select(unit => unit.Id), 42, 183);
-        check(deployed.Terrain.Patches.SequenceEqual(first.Patches), "deployment uses supplied terrain seed independently of combat seed");
+        var edge = DropZone.StandardEdge(183);
+        check(deployed.Terrain.Patches.SequenceEqual(BattlefieldTerrain.Generate(183, dropEdge: edge).Patches)
+            && deployed.FriendlyZone!.Edge == edge && deployed.EnemyZone!.Edge == DropZone.Opposite(edge),
+            "deployment uses supplied terrain seed independently of combat seed, and draws its drop edge from it");
         var lunar = CombatSimulation.Deploy(roster, roster.Mechs.Select(unit => unit.Id), 42, 183, biome: Biome.Lunar);
-        check(lunar.Terrain.Biome == Biome.Lunar && lunar.Terrain.Patches.SequenceEqual(standard[Biome.Lunar].Patches)
+        check(lunar.Terrain.Biome == Biome.Lunar && lunar.Terrain.Patches.SequenceEqual(BattlefieldTerrain.Generate(183, Biome.Lunar, dropEdge: edge).Patches)
             && lunar.Units.All(unit => unit.Climate == Biomes.Spec(Biome.Lunar)), "deployment generates the chosen biome and gives every mech its climate");
     }
     /// <summary>Hand-built rocks, hills, vegetation, water and lava: clearance, sight, navigation and movement.</summary>
@@ -119,7 +131,7 @@ internal static class TerrainChecks
     }
     /// <summary>A four-on-four battle on the seed-183 valley, the longest single simulation.</summary>
     public static void RunLanceEngagement(Action<bool, string> check) =>
-        CheckEngagement(BattlefieldTerrain.Generate(183), new[] { "firestarter", "griffin", "catapult", "awesome" }, check);
+        CheckEngagement(BattlefieldTerrain.Generate(183), new[] { "firestarter", "griffin", "catapult", "awesome" }, check, 184);
     private static bool SameRelief(BattlefieldTerrain a, BattlefieldTerrain b)
     {
         for (var z = -2880f; z <= 2880; z += 90) for (var x = -2880f; x <= 2880; x += 90)
@@ -241,7 +253,7 @@ internal static class TerrainChecks
     private static void CheckNavigationQueries(BattlefieldTerrain terrain, Action<bool, string> check)
     {
         var from = new Vector2(-360, 1920); var to = new Vector2(360, -1920);
-        Vector2[] expected = [new(-840, 1170), new(-810, 720), new(-510, -90), new(-240, -900), new(30, -1230), to];
+        Vector2[] expected = [new(-840, 1170), new(-840, 1080), new(210, -1260), to];
         var retained = terrain.FindPath(from, to);
         check(retained.SequenceEqual(expected), "seeded path retains its original waypoints and tie ordering");
         var rocks = new BattlefieldTerrain(1, [new(TerrainKind.Rock, Vector2.Zero, 60, 120)], []);
@@ -275,11 +287,11 @@ internal static class TerrainChecks
         var firingBytes = GC.GetAllocatedBytesForCurrentThread() - before;
         check(firingBytes < 16_000, $"warmed firing search avoids candidate-array allocations: {firingBytes} bytes");
     }
-    private static void CheckEngagement(BattlefieldTerrain terrain, string[] definitions, Action<bool, string> check)
+    private static void CheckEngagement(BattlefieldTerrain terrain, string[] definitions, Action<bool, string> check, int seed = 183)
     {
         var roster = ForceRoster.Create("Terrain engagement", definitions.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(definitions.Length));
         for (var i = 0; i < definitions.Length; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
-        var sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(unit => unit.Id), terrain, 183);
+        var sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(unit => unit.Id), terrain, seed);
         var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
         sim.Move(friends.Select(unit => unit.Id), Vector2.Zero); sim.Paused = false;
         var passable = true;

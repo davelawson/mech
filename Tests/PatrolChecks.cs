@@ -80,9 +80,13 @@ internal static class PatrolChecks
                 $"the {locations}-location extraction zone touches a different edge from the start");
             check(layout.Locations[..^1].All(point => EdgeDistance(point) >= CombatRules.PatrolEdgeMargin - 1),
                 $"{locations}-location patrol points keep 400 m from every edge");
-            check(friends.All(unit => Math.Abs(Half + unit.Position.Dot(PatrolLayout.Inward(layout.StartEdge)) - CombatRules.PatrolStartInset) < 1
+            var zone = sim.FriendlyZone!;
+            check(zone.Edge == layout.StartEdge && sim.EnemyZone is null && friends.All(unit => zone.Depth(unit.Position) <= CombatRules.DropZoneDepth
                 && unit.Facing.IsEqualApprox(PatrolLayout.Inward(layout.StartEdge))),
-                $"the company starts 960 m in from its edge, facing into the arena ({locations} locations)");
+                $"the company drops in the zone on its start edge, facing into the arena, and the patrol has no enemy zone ({locations} locations)");
+            check(layout.Locations[..^1].All(point => zone.Depth(point) - CombatRules.PatrolVisitRadius >= CombatRules.DropZoneDepth)
+                && zone.Depth(layout.Extraction) - CombatRules.ExtractionRadius >= CombatRules.DropZoneDepth - 1,
+                $"patrol points and the extraction zone lie outside the company's drop zone ({locations} locations)");
             check(enemies.All(unit => unit.Group is { } group && group < layout.Posts.Length
                 && unit.Position.DistanceTo(layout.Posts[group]) < 250 && sim.Passive(unit)),
                 $"each enemy group gathers, passive, around its post ({locations} locations)");

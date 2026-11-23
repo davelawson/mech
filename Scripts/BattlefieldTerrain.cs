@@ -193,13 +193,21 @@ public sealed class BattlefieldTerrain
     /// <summary>A circle of ground that generation keeps clear and connected, such as a patrol point.</summary>
     public readonly record struct Clearing(Vector2 Center, float Radius);
 
-    public static BattlefieldTerrain Generate(int seed, Biome biome = Mech.Biome.Valley, IReadOnlyList<Clearing>? clearings = null)
+    /// <summary>Generates a battlefield whose drop zones lie on <paramref name="dropEdge"/> and the edge opposite.</summary>
+    public static BattlefieldTerrain Generate(int seed, Biome biome = Mech.Biome.Valley, IReadOnlyList<Clearing>? clearings = null,
+        ArenaEdge dropEdge = ArenaEdge.South)
     {
         var random = new Random(seed);
-        // Spawn bands and a central rendezvous remain clear for every force size, and so do any requested clearings.
+        // Coordinates turned so the drop zones lie south and north.
+        var across = dropEdge is ArenaEdge.East or ArenaEdge.West;
+        Vector2 Turned(Vector2 point) => across ? new(point.Y, point.X) : point;
+        // A clear band across the middle of each drop zone and a central rendezvous remain clear for every force size, and so do
+        // any requested clearings.
         float Standard(Vector2 point) => Math.Min(point.Length() - 60, new[] { CombatRules.DeploymentDepth, -CombatRules.DeploymentDepth }
-            .Min(z => new Vector2(Math.Max(0, Math.Abs(point.X) - CombatRules.DeploymentSpacing * 1.5f - 90),
-                Math.Max(0, Math.Abs(point.Y - z) - 150)).Length()));
+            .Min(z => new Vector2(Math.Max(0, Math.Abs(Turned(point).X) - CombatRules.DeploymentSpacing * 1.5f - 90),
+                Math.Max(0, Math.Abs(Turned(point).Y - z) - 150)).Length()));
+        // Lakes, ice and lava keep out of both drop zones.
+        bool OutOfDropZones(Vector2 point, float radius) => Math.Abs(Turned(point).Y) + radius <= CombatRules.ArenaHalfSize - CombatRules.DropZoneDepth;
         float ClearDistance(Vector2 point) => clearings is null || clearings.Count == 0 ? Standard(point)
             : Math.Min(Standard(point), clearings.Min(clearing => point.DistanceTo(clearing.Center) - clearing.Radius));
         bool Clear(Vector2 point, float radius) => ClearDistance(point) > radius;
@@ -246,15 +254,15 @@ public sealed class BattlefieldTerrain
                             : fields[i % fields.Length] + Vector2.FromAngle(random.NextSingle() * MathF.Tau) * (random.NextSingle() * 300);
                         tries++;
                     }
-                    while (tries < 500 && (!Free(point, radius) || !Clear(point, radius + clearance)
+                    while (tries < 500 && (!Free(point, radius) || !Clear(point, radius + clearance) || (flat && !OutOfDropZones(point, radius))
                         || (flat && tries < 400 && relief[Node(point)] > lowGround + 1)));
-                    if (!Free(point, radius) || !Clear(point, radius + clearance)) continue;
+                    if (!Free(point, radius) || !Clear(point, radius + clearance) || (flat && !OutOfDropZones(point, radius))) continue;
                     patches.Add(new(rule.Kind, point, radius, rule.MaxHeight > 0 ? Between(rule.MinHeight, rule.MaxHeight) : 0));
                 }
             }
             var terrain = new BattlefieldTerrain(seed, patches, [], buildings, biome, relief);
             var starts = Enumerable.Range(-3, 7).Select(index => index * CombatRules.DeploymentSpacing / 2)
-                .SelectMany(x => new[] { new Vector2(x, CombatRules.DeploymentDepth), new Vector2(x, -CombatRules.DeploymentDepth) })
+                .SelectMany(x => new[] { Turned(new Vector2(x, CombatRules.DeploymentDepth)), Turned(new Vector2(x, -CombatRules.DeploymentDepth)) })
                 .Append(Vector2.Zero).Concat(clearings?.Select(clearing => clearing.Center) ?? []).ToArray();
             var component = terrain.Component(starts[0]);
             if (component != 0 && starts.All(point => terrain.Passable(point) && terrain.Component(point) == component)
@@ -610,7 +618,8 @@ public sealed class BattlefieldTerrain
         return Enumerable.Range(0, _walkable.Length).Where(index => _walkable[index])
             .OrderBy(index => Point(index).DistanceSquaredTo(point)).Where(index => CanTraverse(point, Point(index))).DefaultIfEmpty(-1).First();
     }
-    private int Component(Vector2 point) { var node = NearestNode(point); return node < 0 ? 0 : _components[node]; }
+    /// <summary>The connected walkable region a point belongs to; 0 off walkable ground.</summary>
+    public int Component(Vector2 point) { var node = NearestNode(point); return node < 0 ? 0 : _components[node]; }
     public Vector2 ReachableDestination(Vector2 from, Vector2 requested)
     {
         requested = CombatRules.Clamp(requested);

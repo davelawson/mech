@@ -112,7 +112,7 @@ public partial class SmokeTests
         await Click(tactical.MirrorMatchButton);
         if (!tactical.ForceChoices[1].ButtonPressed) await Click(tactical.ForceChoices[1]);
         tactical.ChooseBiome(Biome.Valley);
-        await Click(tactical.LaunchButton);
+        await Click(tactical.LaunchButton); await Land(tactical);
         var field = tactical.Battlefield; var sim = tactical.Simulation!;
         var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
         var jumper = friends.Single(unit => unit.Spec.Id == "jenner"); var grounded = friends.Single(unit => unit.Spec.Id == "awesome");

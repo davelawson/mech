@@ -8,7 +8,7 @@ The first tactical slice implements [the confirmed combat design](combat-design.
 | --- | --- |
 | Distance unit | Metre; one world unit is one metre |
 | Arena | 5,760 × 5,760 metres, centered on the origin |
-| Starts | Z = +1,920 / −1,920; 240-metre spacing |
+| Starts | Drop sites in the [drop zones](#drop-phase) on opposite edges |
 | Occupied radius | 9.75 metres, with swept-disc collision checks |
 | Identification range | `1500 × (1 + (6 − Sensors) / 4) × (0.5 + (target tons − 20) / 160)` metres |
 | Detailed status range | Half identification range; same terrain sight requirement |
@@ -339,15 +339,30 @@ The terrain and heat checks cover stable route/firing choices, concurrent search
 
 `./scripts/mech test` exercises seeded generation, connected spawns, slope/rock clearance, terrain detours, cover, sight, water movement, generated-map engagements, terrain picking and seed controls alongside the ten acceptance scenarios with deterministic model checks and actual mouse/keyboard input. `./scripts/mech capture` repeats the suite with graphical rendering and saves deployment, combat, minimum-window, menu and report captures in `TestResults/`. Linux checks do not establish native Windows/macOS runtime verification.
 
+## Drop phase
+
+| Value | Default |
+| --- | --- |
+| Drop zone | The whole edge less 200 m at each end; 200 m to 1,152 m (20% of the arena) in from the edge |
+| Edge | Standard battles: random from the terrain seed, the enemy on the opposite edge. Patrols: the start edge |
+| Drop site | 100 m radius; centre inside the zone; centres at least 200 m apart |
+| Landing | Decided when the drop phase ends: random passable points in the site, on the main connected region, at least 40 m apart, facing into the arena |
+| Enemy lances | The opposition in fours, in order, each at a random valid site in the enemy zone |
+| Default sites | 300 m apart along the zone, centred, 960 m in from the edge (no drop phase, and Force Start's fallback) |
+| Terrain | Lakes, ice, deep water and lava keep out of both zones; the clear band 960 m in from each edge stays connected |
+
+The numbers live in `CombatRules` (`Scripts/Drop.cs`).
+
 ## Patrols
 
 | Value | Default |
 | --- | --- |
 | Visit radius | 100 m around the current patrol point |
 | Extraction zone | 150 m radius, centred 150 m in from its edge so it touches the edge |
-| Start | 960 m in from the start edge, 240 m spacing, rows of up to 8, further rows 120 m nearer the edge |
+| Start | The drop zone on the start edge; default sites centred at a random point along it, 960 m in |
 | Patrol points | At least 400 m from every edge; 800 m from each other, the start and extraction, relaxed by 20% at a time if they cannot fit |
-| Clearings | 150 m around each start position and patrol point, 200 m around the extraction zone |
+| Clearings | 150 m around each nominal start position, their centre and each patrol point, 200 m around the extraction zone |
+| Objectives and the drop zone | Patrol points and the extraction zone lie wholly outside the drop zone; a group post moved into it is pushed 100 m beyond it |
 | Group posts | Leg midpoint, moved sideways by up to 300 m; members spiral out from the post at least 29 m apart |
 | Reaction to fire | 1 s after the attack resolves: flight time, or at once for a laser |
 | Search | Random points within 500 m of the lead, for 30 s after any member comes within 60 m of it or all have stopped near it |

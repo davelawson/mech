@@ -128,6 +128,16 @@ A healthy MechWarrior available for immediate deployment, whether currently assi
 
 **Deployment**:
 The force committed to a particular mission.
+_Avoid_: for where mechs start a battle, use drop zone and drop site.
+
+**Drop phase**:
+The opening of a battle, before it begins paused, in which each player chooses their lance's drop site.
+
+**Drop zone**:
+The area along one arena edge that a side drops into. The players share one; a standard battle's opposition drops in the zone on the opposite edge.
+
+**Drop site**:
+A 100 m circle inside a drop zone, chosen by a player, across which their lance's mechs land.
 
 **MechWarrior**:
 A pilot who operates a BattleMech.

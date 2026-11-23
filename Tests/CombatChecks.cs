@@ -107,6 +107,7 @@ internal static partial class CombatChecks
         check(JsonSerializer.Serialize(damagedRoster.Snapshot()) == damagedBefore, "neither simulation mode repairs or damages the campaign roster");
         CheckRandomizedOpposition(check);
         CheckMissionDeployment(check);
+        CheckDropPhase(check);
         var nonoperational = ForceRoster.Restore(saved with { Mechs = [stock with { Locations = stock.Locations.Select(loc => loc.Location == MechLocation.LeftLeg ? loc with { Structure = 0 } : loc).ToArray() }] }, Campaign.StartDate);
         check(CombatSimulation.UnavailableReason(nonoperational, nonoperational.Mechs[0])!.Contains("not operational"), "nonoperational mech explains exclusion");
 
@@ -372,16 +373,24 @@ internal static partial class CombatChecks
         check(enemies.All(unit => unit.ArmorLost == 0 && unit.StructureLost == 0 && unit.Equipment.Values.All(item => item == ComponentCondition.Operational)
             && unit.Ammo.All(bin => bin.Shots == unit.Spec.Ammo.Single(stock => stock.Id == bin.Id).Shots)), "mission opposition starts pristine");
         check(sim.Terrain.Biome == system.Biome && sim.Terrain.Seed == 183, "a mission is fought on its system's biome");
-        check(Math.Abs(friends[0].Position.X) < 1e-3f && Math.Abs(enemies.Sum(unit => unit.Position.X)) < 1e-3f
-            && enemies.Zip(enemies.Skip(1)).All(pair => Math.Abs(pair.Second.Position.X - pair.First.Position.X - CombatRules.DeploymentSpacing) < 1e-3f),
-            "uneven sides are each centred on their own deployment line");
+        check(sim.FriendlyZone is { } zone && sim.EnemyZone is { } enemyZone && enemyZone.Edge == DropZone.Opposite(zone.Edge)
+            && friends.All(unit => zone.Depth(unit.Position) >= CombatRules.DropEdgePadding - CombatRules.DropSiteRadius
+                && zone.Depth(unit.Position) <= CombatRules.DropZoneDepth + CombatRules.DropSiteRadius && unit.Facing.IsEqualApprox(zone.Inward))
+            && enemies.All(unit => enemyZone.Depth(unit.Position) <= CombatRules.DropZoneDepth + CombatRules.DropSiteRadius
+                && unit.Facing.IsEqualApprox(enemyZone.Inward)),
+            "each side drops in its own zone on opposite edges, facing into the arena");
+        check(enemies.All(unit => enemies.All(other => other == unit || other.Position.DistanceTo(unit.Position) >= CombatRules.DropMechSpacing - 1e-3f))
+            && enemies.Max(unit => unit.Position.X) - enemies.Min(unit => unit.Position.X) <= CombatRules.DropSiteRadius * 2,
+            "an enemy lance scatters across one drop site, its mechs apart");
         var company = ForceRoster.Create("Eight lances", Enumerable.Repeat(DraftCatalog.Mech("jenner"), 32), DraftCatalog.Warriors.Take(32), lances: 8);
         for (var i = 0; i < 32; i++) company.Assign(company.Mechs[i].Id, company.Warriors[i].Id);
         var crowd = Deploy(company, company.Mechs.Select(item => item.Id));
+        var lanceCentres = crowd.Units.Where(unit => unit.Side == CombatSide.Friendly).GroupBy(unit => unit.Lance)
+            .Select(lance => lance.Aggregate(Vector2.Zero, (sum, unit) => sum + unit.Position) / lance.Count()).ToArray();
         check(crowd.Units.Count == 64 && crowd.Units.All(unit => Math.Abs(unit.Position.X) < CombatRules.ArenaHalfSize && Math.Abs(unit.Position.Y) < CombatRules.ArenaHalfSize)
-            && crowd.Units.GroupBy(unit => (unit.Side, unit.Position.Y)).All(row => row.Count() == CombatRules.DeploymentRowSize)
-            && crowd.Units.Where(unit => unit.Side == CombatSide.Friendly).Max(unit => unit.Position.Y) == CombatRules.DeploymentDepth + 3 * CombatRules.DeploymentRowSpacing,
-            "eight lances deploy in rows of eight, each further row behind the first, all inside the arena");
+            && lanceCentres.Length == 8 && crowd.Units.Where(unit => unit.Side == CombatSide.Friendly).All(unit => crowd.FriendlyZone!.Depth(unit.Position) <= CombatRules.DropZoneDepth)
+            && crowd.Units.Where(unit => unit.Side == CombatSide.Enemy).All(unit => crowd.EnemyZone!.Depth(unit.Position) <= CombatRules.DropZoneDepth),
+            "eight lances on each side all drop inside their zones and the arena");
 
         var worn = Roster(1);
         var source = Deploy(worn, [worn.Mechs[0].Id]); source.Units[0].ApplyDamage(MechLocation.LeftArm, 30); source.End();
@@ -472,7 +481,8 @@ internal static partial class CombatChecks
         check(jenner.Units.All(unit => unit.PreferredDistance == 300), "both sides prefer the tripled medium-laser short range, rounded to 300 m");
         var griffin = Battle(definition: "griffin");
         check(griffin.Units.All(unit => unit.PreferredDistance == 600), "mixed long-range loadouts use expanded preferences beyond the old cap, rounded to 600 m");
-        check(jenner.Units.All(unit => Math.Abs(unit.Position.Y) == 1920), "expanded deployment doubles initial separation");
+        check(jenner.Units[0].Position.DistanceTo(jenner.Units[1].Position) >= CombatRules.ArenaHalfSize * 2 - CombatRules.DropZoneDepth * 2,
+            "the sides drop at least three fifths of the arena apart");
         jenner.EnemyAiEnabled = false;
         foreach (var unit in jenner.Units) unit.Firing = FiringMode.HoldFire;
         f = Friendly(jenner); e = Enemy(jenner); f.Position = Vector2.Zero; e.Position = new(720, 0);

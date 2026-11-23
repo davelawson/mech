@@ -15,6 +15,8 @@ public static partial class CombatRules
     public const float PatrolStartInset = ArenaHalfSize - DeploymentDepth;
     /// <summary>A group's post is the middle of its leg, moved sideways by up to this much.</summary>
     public const float PatrolGroupOffset = 300;
+    /// <summary>A group's post keeps at least this far beyond the company's drop zone.</summary>
+    public const float PatrolGroupClearance = 100;
     /// <summary>Terrain generation keeps these radii clear around each start position, patrol point and the extraction zone.</summary>
     public const float PatrolClearing = 150, ExtractionClearing = 200;
     /// <summary>A passive group wakes this long after an attack on one of its mechs resolves, hit or miss.</summary>
@@ -43,9 +45,10 @@ public sealed record PatrolLayout(ArenaEdge StartEdge, ArenaEdge ExtractionEdge,
     {
         ArenaEdge.South => Vector2.Up, ArenaEdge.North => Vector2.Down, ArenaEdge.East => Vector2.Left, _ => Vector2.Right,
     };
-    private static Vector2 Along(ArenaEdge edge) => edge is ArenaEdge.South or ArenaEdge.North ? Vector2.Right : Vector2.Down;
+    /// <summary>The direction along an edge, from its middle toward positive offsets.</summary>
+    public static Vector2 Along(ArenaEdge edge) => edge is ArenaEdge.South or ArenaEdge.North ? Vector2.Right : Vector2.Down;
     /// <summary>A point <paramref name="inset"/> in from an edge, <paramref name="along"/> from the edge's middle.</summary>
-    private static Vector2 EdgePoint(ArenaEdge edge, float along, float inset) =>
+    public static Vector2 EdgePoint(ArenaEdge edge, float along, float inset) =>
         -Inward(edge) * (CombatRules.ArenaHalfSize - inset) + Along(edge) * along;
 
     /// <summary>Lays out a patrol and generates its terrain. Everything follows from the terrain seed, so every co-op player's
@@ -66,8 +69,13 @@ public sealed record PatrolLayout(ArenaEdge StartEdge, ArenaEdge ExtractionEdge,
             var (row, offset) = CombatRules.DeploymentSlot(i, friendlyCount);
             return EdgePoint(startEdge, along + offset, CombatRules.PatrolStartInset - row * CombatRules.DeploymentRowSpacing);
         }).ToArray();
-        var extraction = EdgePoint(extractionEdge, Uniform(CombatRules.ArenaHalfSize - CombatRules.PatrolEdgeMargin - CombatRules.ExtractionRadius),
-            CombatRules.ExtractionRadius);
+        // Objectives keep out of the company's drop zone.
+        var zone = new DropZone(startEdge, Vector2.Zero);
+        bool OutOfZone(Vector2 point, float radius) => zone.Depth(point) - radius >= CombatRules.DropZoneDepth;
+        var extraction = Vector2.Zero;
+        for (var attempt = 0; attempt < 200 && (attempt == 0 || !OutOfZone(extraction, CombatRules.ExtractionRadius)); attempt++)
+            extraction = EdgePoint(extractionEdge, Uniform(CombatRules.ArenaHalfSize - CombatRules.PatrolEdgeMargin - CombatRules.ExtractionRadius),
+                CombatRules.ExtractionRadius);
         var start = starts.Aggregate(Vector2.Zero, (sum, point) => sum + point) / starts.Length;
         // Points spread across the arena; the spacing relaxes only if the arena cannot fit them.
         var points = new List<Vector2>();
@@ -79,20 +87,24 @@ public sealed record PatrolLayout(ArenaEdge StartEdge, ArenaEdge ExtractionEdge,
             {
                 var limit = CombatRules.ArenaHalfSize - CombatRules.PatrolEdgeMargin;
                 var candidate = new Vector2(Uniform(limit), Uniform(limit));
-                if (points.Append(start).Append(extraction).All(other => other.DistanceTo(candidate) >= spacing)) { points.Add(candidate); found = true; }
+                if (OutOfZone(candidate, CombatRules.PatrolVisitRadius)
+                    && points.Append(start).Append(extraction).All(other => other.DistanceTo(candidate) >= spacing)) { points.Add(candidate); found = true; }
             }
             if (!found) spacing *= .8f;
         }
-        var clearings = starts.Select(point => new BattlefieldTerrain.Clearing(point, CombatRules.PatrolClearing))
+        var clearings = starts.Append(start).Select(point => new BattlefieldTerrain.Clearing(point, CombatRules.PatrolClearing))
             .Concat(points.Select(point => new BattlefieldTerrain.Clearing(point, CombatRules.PatrolClearing)))
             .Append(new BattlefieldTerrain.Clearing(extraction, CombatRules.ExtractionClearing)).ToArray();
-        var terrain = BattlefieldTerrain.Generate(terrainSeed, biome, clearings);
+        var terrain = BattlefieldTerrain.Generate(terrainSeed, biome, clearings, startEdge);
         var ordered = ShortestOrder(terrain, start, points, extraction).Append(extraction).ToArray();
         var posts = Enumerable.Range(0, ordered.Length - 1).Select(group =>
         {
             var from = ordered[group]; var to = ordered[group + 1];
             var side = (to - from).Normalized().Orthogonal() * Uniform(CombatRules.PatrolGroupOffset);
-            return terrain.ReachableDestination(from, (from + to) / 2 + side);
+            // A post pushed sideways into the drop zone is moved back out along the zone's depth.
+            var post = (from + to) / 2 + side;
+            post += zone.Inward * Math.Max(0, CombatRules.DropZoneDepth + CombatRules.PatrolGroupClearance - zone.Depth(post));
+            return terrain.ReachableDestination(from, post);
         }).ToArray();
         return (new(startEdge, extractionEdge, starts, ordered, posts), terrain);
     }
@@ -174,7 +186,7 @@ public sealed partial class CombatSimulation
     public bool Passive(CombatUnit unit) => Patrol is not null && unit.Group is { } group && Patrol.Groups[group].Passive;
 
     private static CombatSimulation DeployPatrol(IReadOnlyList<DeployedMech> friendly, IReadOnlyList<DeployedMech> enemy, int seed, int terrainSeed,
-        Biome biome, int locations)
+        Biome biome, int locations, bool dropPhase)
     {
         var (layout, terrain) = PatrolLayout.Create(terrainSeed, biome, locations, friendly.Count);
         var random = new Random(terrainSeed ^ 0x51ED270B);
@@ -200,6 +212,8 @@ public sealed partial class CombatSimulation
         }
         var simulation = new CombatSimulation(units, seed, terrain);
         simulation.Patrol = new PatrolState(layout, layout.Posts.Length); simulation._patrolRandom = new Random(seed ^ 0x7A11);
+        // The company drops in the zone on its start edge, centred where its start positions lie; the groups keep their posts.
+        simulation.LandAll(new DropZone(layout.StartEdge, layout.StartCenter), null, dropPhase);
         return simulation;
     }
 

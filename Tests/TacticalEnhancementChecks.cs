@@ -19,7 +19,7 @@ public partial class SmokeTests
             foreach (var choice in screen.ForceChoices) choice.ButtonPressed = true;
             screen.TerrainSeedInput.Text = "183";
             screen.ChooseBiome(Biome.Valley);
-            screen.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed);
+            screen.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed); await Land(screen);
             await Frames();
             var sim = screen.Simulation!; var field = screen.Battlefield;
             var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
@@ -36,7 +36,9 @@ public partial class SmokeTests
             KeyPress(Key.Key1, true);
             Check(screen.Selected.Count == 0, "shift-number can toggle the last selected mech off");
             field.Camera.Size = 6600; KeyPress(Key.Quoteleft);
-            Check(Math.Abs(field.Camera.Size - 1500) < .3 && field.GroundPoint(field.Size / 2).DistanceTo(new Vector2(0, 1920)) < .6,
+            var middle = new Vector2((friends.Min(unit => unit.Position.X) + friends.Max(unit => unit.Position.X)) / 2,
+                (friends.Min(unit => unit.Position.Y) + friends.Max(unit => unit.Position.Y)) / 2);
+            Check(Math.Abs(field.Camera.Size - 1500) < .3 && field.GroundPoint(field.Size / 2).DistanceTo(middle) < .6,
                 "backtick with no selection restores tactical zoom and centers all friendly slots");
 
             friends[0].Position = new(-2700, -2400); friends[1].Position = new(2700, 2400);

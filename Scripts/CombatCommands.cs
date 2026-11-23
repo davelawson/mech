@@ -22,6 +22,9 @@ namespace Mech;
 [JsonDerivedType(typeof(PauseCommand), "pause")]
 [JsonDerivedType(typeof(EjectCommand), "eject")]
 [JsonDerivedType(typeof(SurrenderAnswerCommand), "surrender-answer")]
+[JsonDerivedType(typeof(DropSiteCommand), "drop-site")]
+[JsonDerivedType(typeof(DropReadyCommand), "drop-ready")]
+[JsonDerivedType(typeof(ForceDropCommand), "force-drop")]
 public abstract record CombatCommand
 {
     internal abstract void Apply(CombatSimulation simulation, int slot);
@@ -139,6 +142,24 @@ public sealed record SurrenderAnswerCommand(string Unit, bool Accept) : CombatCo
     {
         if (slot == Campaign.LeaderSlot && simulation.SurrenderOffers.Contains(Unit)) simulation.AnswerSurrender(Unit, Accept);
     }
+}
+
+/// <summary>Chooses or moves the sending player's drop site during the drop phase.</summary>
+public sealed record DropSiteCommand(Vector2 Point) : CombatCommand
+{
+    internal override void Apply(CombatSimulation simulation, int slot) => simulation.ChooseDropSite(slot, Point);
+}
+
+/// <summary>Confirms the sending player's drop site, or reopens it to move it again.</summary>
+public sealed record DropReadyCommand(bool Ready) : CombatCommand
+{
+    internal override void Apply(CombatSimulation simulation, int slot) => simulation.ReadyDrop(slot, Ready);
+}
+
+/// <summary>The leader ends the drop phase: every lance without a site drops at a random valid one.</summary>
+public sealed record ForceDropCommand : CombatCommand
+{
+    internal override void Apply(CombatSimulation simulation, int slot) => simulation.ForceDrop(slot);
 }
 
 public sealed partial class CombatSimulation

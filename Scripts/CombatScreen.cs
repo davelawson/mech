@@ -84,6 +84,17 @@ public partial class CombatScreen : Control
     /// <summary>Who the co-op game is waiting for, over the battlefield and force selection.</summary>
     public PanelContainer WaitingBanner { get; private set; } = null!;
     public PanelContainer SurrenderBanner { get; private set; } = null!;
+    /// <summary>The drop phase's banner: how to choose a drop site, every player's progress, Ready and, for the leader, Force Start.</summary>
+    public PanelContainer DropBanner { get; private set; } = null!;
+    public Label DropText { get; private set; } = null!;
+    public Button DropReadyButton { get; private set; } = null!;
+    public Button ForceDropButton { get; private set; } = null!;
+    /// <summary>Why the last drop site was turned away, shown on the banner for a moment; null otherwise.</summary>
+    public string? DropNotice => _dropNoticeSeconds > 0 ? _dropNotice : null;
+    private string? _dropNotice;
+    private double _dropNoticeSeconds;
+    private int _dropBounced;
+    private bool _dropping;
     public Label SurrenderText { get; private set; } = null!;
     public Button AcceptSurrenderButton { get; private set; } = null!;
     public Button RefuseSurrenderButton { get; private set; } = null!;
@@ -248,6 +259,18 @@ public partial class CombatScreen : Control
         RefuseSurrenderButton.TooltipText = "Refuse: an armed mech fights on, an unarmed one tries to flee the battlefield.";
         RefuseSurrenderButton.Pressed += () => AnswerSurrender(false);
         AddChild(SurrenderBanner);
+        DropBanner = new PanelContainer { Visible = false, FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled };
+        DropBanner.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Gold, 2));
+        var drop = new HBoxContainer(); drop.AddThemeConstantOverride("separation", 14); DropBanner.AddChild(drop);
+        DropText = Ui.Label(drop, "", 14, Ui.Gold); DropText.VerticalAlignment = VerticalAlignment.Center;
+        DropReadyButton = Ui.Sound(Ui.Button(drop, "Ready"), Cue.UiConfirm); DropReadyButton.Pressed += ToggleDropReady;
+        DropReadyButton.TooltipText = "Confirm your lance's drop site. The battle begins, paused, once every player is ready.";
+        ForceDropButton = Ui.Button(drop, "Force Start"); ForceDropButton.Pressed += ForceDrop;
+        ForceDropButton.TooltipText = "Begin now: every lance without a drop site drops at a random one in the zone.";
+        AddChild(DropBanner);
+        Battlefield.DropRequested += ChooseDropSite;
+        Battlefield.DropSiteProblem = point => Simulation?.DropSiteProblem(Slot, point);
+        Battlefield.LanceLabel = PlayerName;
         // The banner stays above force selection and the combat menu.
         AddChild(WaitingBanner);
         Resized += Layout; Layout(); Hide();
@@ -262,6 +285,49 @@ public partial class CombatScreen : Control
         PlaceBanner();
     }
     /// <summary>The oldest waiting surrender: the leader answers it, the others wait. The battle stays paused until it is answered.</summary>
+    /// <summary>Shows the drop phase's banner while it lasts.</summary>
+    private void RefreshDrop()
+    {
+        var drop = Simulation?.Drop;
+        // Once every lance has landed, the camera moves to the player's own.
+        if (_dropping && drop is null) { _dropping = false; Battlefield.ResetToSelection(); }
+        DropBanner.Visible = drop is not null && Modal == CombatModal.None;
+        Battlefield.DropPlacing = drop is not null && !drop.Site(Slot).Ready;
+        if (drop is null) return;
+        var own = drop.Site(Slot);
+        if (own.Bounced > _dropBounced) { _dropNotice = "That drop site was taken by another lance."; _dropNoticeSeconds = 3; SoundPlayer.For(this)?.Play(Cue.UiError); }
+        _dropBounced = own.Bounced;
+        var others = drop.Sites.Where(site => site.Slot != Slot).Select(site => $"{PlayerName(site.Slot)}: "
+            + (site.Ready ? "Ready" : site.Site is null ? "Choosing" : "Placed"));
+        DropText.Text = "DROP PHASE · " + (own.Ready ? "Ready · waiting for the other players" : own.Site is null
+                ? "Left-click inside the drop zone to choose your lance's drop site"
+                : "Left-click to move your drop site, then press Ready\nYour mechs land somewhere inside it when the drop ends")
+            + (drop.Sites.Count > 1 ? "\n" + string.Join("  ·  ", others) : "") + (DropNotice is { } notice ? $"\n{notice}" : "");
+        DropReadyButton.Text = own.Ready ? "Not Ready" : "Ready"; DropReadyButton.Disabled = own.Site is null;
+        ForceDropButton.Visible = Leading && drop.Sites.Count > 1;
+        DropBanner.Size = Vector2.Zero;
+        var size = DropBanner.GetCombinedMinimumSize();
+        Ui.Place(DropBanner, (Size.X - size.X) / 2, Math.Max(72, _timePanel.Position.Y + _timePanel.Size.Y + 6) + (WaitingBanner.Visible ? WaitingBanner.Size.Y + 6 : 0),
+            size.X, size.Y);
+    }
+    /// <summary>Chooses the local player's drop site, as a left-click on the battlefield does.</summary>
+    public void ChooseDropSite(Vector2 point)
+    {
+        if (Simulation?.Drop is not { } drop || drop.Site(Slot).Ready || Modal != CombatModal.None) return;
+        if (Simulation.DropSiteProblem(Slot, point) is { } problem)
+        { _dropNotice = $"Cannot drop there: {problem}."; _dropNoticeSeconds = 3; SoundPlayer.For(this)?.Play(Cue.UiError); RefreshDetails(); return; }
+        Send(new DropSiteCommand(point));
+    }
+    public void ToggleDropReady()
+    {
+        if (Simulation?.Drop is not { } drop || drop.Site(Slot).Site is null) return;
+        Send(new DropReadyCommand(!drop.Site(Slot).Ready));
+    }
+    public void ForceDrop()
+    {
+        if (Simulation?.Drop is null || !Leading) return;
+        Send(new ForceDropCommand());
+    }
     private void RefreshSurrender()
     {
         var offer = Simulation is { Outcome: CombatOutcome.Ongoing } battle && battle.SurrenderOffers.Count > 0 ? battle.Unit(battle.SurrenderOffers[0]) : null;
@@ -468,10 +534,11 @@ public partial class CombatScreen : Control
         var terrainSeed = int.Parse(TerrainSeedInput.Text, System.Globalization.CultureInfo.InvariantCulture);
         if (Coop) { LaunchRequested?.Invoke(force, terrainSeed); return; }
         var biome = SelectedBiome ?? Biomes.All[Random.Shared.Next(Biomes.All.Count)].Biome;
-        Begin(_mission is not null ? CombatSimulation.DeployMission(_roster, force, _mission, terrainSeed: terrainSeed)
+        Begin(_mission is not null ? CombatSimulation.DeployMission(_roster, force, _mission, terrainSeed: terrainSeed, dropPhase: true)
             : Opponent == SimulationOpponent.Patrol ? CombatSimulation.DeployMission(_roster, force,
-                MissionGenerator.SimulatedPatrol(new MissionRandom((ulong)Random.Shared.NextInt64()), Reputation), terrainSeed: terrainSeed, biome: biome)
-            : CombatSimulation.Deploy(_roster, force, terrainSeed: terrainSeed, opponent: Opponent, biome: biome));
+                MissionGenerator.SimulatedPatrol(new MissionRandom((ulong)Random.Shared.NextInt64()), Reputation), terrainSeed: terrainSeed, biome: biome,
+                dropPhase: true)
+            : CombatSimulation.Deploy(_roster, force, terrainSeed: terrainSeed, opponent: Opponent, biome: biome, dropPhase: true));
     }
     /// <summary>Shows every player's force selection. The leader may launch once every other player is ready.</summary>
     public void ShowDeployment(IReadOnlyList<DeploymentSeat> seats, bool othersReady)
@@ -493,7 +560,7 @@ public partial class CombatScreen : Control
         // A battle on screen waits for the leader to answer a surrender; a replica only shows the leader's.
         if (!simulation.Replica) simulation.PromptSurrender = true;
         _ejectArmed = 0;
-        Battlefield.Display(Simulation); _shade.Hide(); Modal = CombatModal.None; Battlefield.CommandsEnabled = true;
+        Battlefield.Slot = Slot; Battlefield.Display(Simulation); _shade.Hide(); Modal = CombatModal.None; Battlefield.CommandsEnabled = true;
         BattleLog.Hide(); BattleLog.Display(Simulation); Layout();
         Battlefield.MouseFilter = MouseFilterEnum.Stop;
         RosterUi.Clear(_unitBar); UnitButtons.Clear(); UnitDolls.Clear(); UnitFaces.Clear();
@@ -520,6 +587,7 @@ public partial class CombatScreen : Control
         }
         LayoutUnitCards();
         SelectUnits([OwnUnits.First().Id], false);
+        _dropBounced = simulation.Drop?.Site(Slot).Bounced ?? 0; _dropNoticeSeconds = 0; _dropping = simulation.Drop is not null;
         Battlefield.GrabFocus(); RefreshDetails();
     }
     public void SelectUnits(IReadOnlyList<string> ids, bool additive)
@@ -535,7 +603,7 @@ public partial class CombatScreen : Control
     }
     public void IssueCommand(Vector2 ground, string? target, MovementMode? mode = null)
     {
-        if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing) return;
+        if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing || Simulation.Drop is not null) return;
         if (SettingJump)
         {
             // Mechs are not landing points: a click on one keeps jump targeting armed.
@@ -591,7 +659,7 @@ public partial class CombatScreen : Control
     }
     public void ToggleJump()
     {
-        if (Simulation is null) return;
+        if (Simulation is null || Simulation.Drop is not null) return;
         var blocked = SettingJump ? null : JumpUnavailable();
         SettingJump = !SettingJump && blocked is null;
         if (blocked is not null) RefuseJump(blocked);
@@ -610,14 +678,14 @@ public partial class CombatScreen : Control
     private void StopUnits() => Send(new HoldCommand([.. _selected]));
     public void TogglePause()
     {
-        if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing) return;
+        if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing || Simulation.Drop is not null) return;
         Send(new PauseCommand(!Simulation.PauseHolds.Contains(Slot)));
     }
     /// <summary>Play and Fast-forward: the battle runs at <paramref name="scale"/>, releasing this player's pause.
     /// In co-op only the leader sets the speed.</summary>
     public void SetSpeed(double scale)
     {
-        if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing || !SetsSpeed) return;
+        if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing || !SetsSpeed || Simulation.Drop is not null) return;
         Simulation.TimeScale = scale;
         if (Simulation.PauseHolds.Contains(Slot)) Send(new PauseCommand(false));
         RefreshDetails();
@@ -939,6 +1007,7 @@ public partial class CombatScreen : Control
         _uiElapsed += delta;
         if (_ejectArmed > 0 && (_ejectArmed -= delta) <= 0) { _ejectArmed = 0; RefreshDetails(); }
         if (_jumpNoticeSeconds > 0) _jumpNoticeSeconds = Math.Max(0, _jumpNoticeSeconds - delta);
+        if (_dropNoticeSeconds > 0) _dropNoticeSeconds = Math.Max(0, _dropNoticeSeconds - delta);
         if (_uiElapsed >= .1) { _uiElapsed = 0; RefreshDetails(); }
     }
     /// <summary>While a friendly mech runs hot enough for heat penalties, an alarm sounds every couple of seconds.</summary>
@@ -955,8 +1024,9 @@ public partial class CombatScreen : Control
     private void RefreshDetails()
     {
         if (Simulation is null) return;
-        RefreshSurrender();
-        _status.Text = $"{(Simulation.Paused ? $"PAUSED{PauseHolders} · orders available" : "LIVE")}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}"
+        RefreshSurrender(); RefreshDrop();
+        _status.Text = (Simulation.Drop is not null ? "DROP PHASE · the battle begins, paused, once every lance has landed"
+                : $"{(Simulation.Paused ? $"PAUSED{PauseHolders} · orders available" : "LIVE")}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}")
             + (Simulation.PatrolObjectiveText() is { } objective ? $"  |  {objective}" : "")
             + (JumpNotice is { } notice ? $"  |  {notice}" : "");
         // The time panel shows the local player's own toggle; the battle stays paused while any player holds one.

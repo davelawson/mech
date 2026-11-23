@@ -23,7 +23,8 @@ public sealed record CombatContactState(CombatSide Side, string UnitId, ContactL
 /// battle events from <see cref="EventsStart"/> on and the highlights from <see cref="HighlightsStart"/> on.</summary>
 public sealed record CombatState(double Elapsed, CombatOutcome Outcome, double? WindDownEnds, int[] PauseHolds, CombatUnitState[] Units,
     CombatContactState[] Contacts, int HistoryStart, CombatLogEntry[] History, PatrolProgress? Patrol = null, double TimeScale = 1,
-    string[]? SurrenderOffers = null, CombatEvent[]? Events = null, int EventsStart = 0, CombatHighlight[]? Highlights = null, int HighlightsStart = 0);
+    string[]? SurrenderOffers = null, CombatEvent[]? Events = null, int EventsStart = 0, CombatHighlight[]? Highlights = null, int HighlightsStart = 0,
+    DropSiteState[]? Drop = null);
 
 public sealed partial class CombatUnit
 {
@@ -106,7 +107,7 @@ public sealed partial class CombatSimulation
             _contacts.SelectMany(side => side.Value.Values.Select(contact => new CombatContactState(side.Key, contact.UnitId, contact.Level,
                 contact.LastKnownPosition, contact.LastSeenAt))).ToArray(),
             historyStart, _history.Skip(historyStart).ToArray(), Patrol?.Progress(), TimeScale, [.. _surrenderOffers], [.. _events.Skip(eventsStart)], eventsStart,
-            [.. _highlights.Skip(highlightsStart)], highlightsStart);
+            [.. _highlights.Skip(highlightsStart)], highlightsStart, Drop?.State());
     }
 
     /// <summary>A replica takes on the leader's battle: log entries it lacks are added and their shots fired, in order.</summary>
@@ -119,6 +120,7 @@ public sealed partial class CombatSimulation
             || (state.Patrol is null) != (Patrol is null))
             throw new ArgumentException("The battle state does not match this battle.", nameof(state));
         if (state.Patrol is { } progress) Patrol!.Apply(progress);
+        ApplyDrop(state.Drop);
         var clock = Clock;
         Elapsed = state.Elapsed; Outcome = state.Outcome; WindDownEnds = state.WindDownEnds;
         TimeScale = state.TimeScale;

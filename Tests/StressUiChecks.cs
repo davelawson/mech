@@ -17,7 +17,7 @@ public partial class SmokeTests
             tactical.Open(roster, roster.Mechs[0].Id);
             tactical.MirrorMatchButton.EmitSignal(BaseButton.SignalName.Pressed);
             foreach (var choice in tactical.ForceChoices) choice.ButtonPressed = true;
-            tactical.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed);
+            tactical.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed); await Land(tactical);
             var sim = tactical.Simulation!;
             Check(sim.PromptSurrender, "a battle on screen waits for the leader to answer a surrender");
             sim.NerveChecksEnabled = false;

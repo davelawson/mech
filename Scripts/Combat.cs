@@ -444,7 +444,7 @@ public sealed partial class CombatSimulation
     /// releases every player's pause at once, as single-player pausing does.</summary>
     public bool Paused
     {
-        get => _pauseHolds.Count > 0 || _surrenderOffers.Count > 0;
+        get => _pauseHolds.Count > 0 || _surrenderOffers.Count > 0 || Drop is not null;
         set { _pauseHolds.Clear(); if (value) _pauseHolds.UnionWith(Players); }
     }
     /// <summary>Simulation seconds per real second: 1 or 4. The leader sets it in co-op, and replicas take it from the leader's state.</summary>
@@ -492,14 +492,17 @@ public sealed partial class CombatSimulation
         return reasons.Count == 0 ? null : string.Join(" · ", reasons);
     }
 
+    /// <summary>A simulated deployment. With <paramref name="dropPhase"/> the battle opens with its drop phase; without it every lance
+    /// lands at once on its default site.</summary>
     public static CombatSimulation Deploy(ForceRoster roster, IEnumerable<string> selected, int? seed = null, int? terrainSeed = null,
-        SimulationOpponent opponent = SimulationOpponent.Mirror, Biome biome = Biome.Valley) =>
-        CreateDeployment(roster, selected, seed, terrainSeed, null, opponent, biome);
+        SimulationOpponent opponent = SimulationOpponent.Mirror, Biome biome = Biome.Valley, bool dropPhase = false) =>
+        CreateDeployment(roster, selected, seed, terrainSeed, null, opponent, biome, dropPhase);
+    /// <summary>A battle on given terrain, the company dropping on the south edge.</summary>
     internal static CombatSimulation DeployOnTerrain(ForceRoster roster, IEnumerable<string> selected, BattlefieldTerrain terrain, int seed = 41,
-        SimulationOpponent opponent = SimulationOpponent.Mirror) =>
-        CreateDeployment(roster, selected, seed, null, terrain, opponent, Biome.Valley);
+        SimulationOpponent opponent = SimulationOpponent.Mirror, bool dropPhase = false) =>
+        CreateDeployment(roster, selected, seed, null, terrain, opponent, Biome.Valley, dropPhase);
     private static CombatSimulation CreateDeployment(ForceRoster roster, IEnumerable<string> selected, int? seed, int? terrainSeed,
-        BattlefieldTerrain? terrain, SimulationOpponent opponent, Biome biome)
+        BattlefieldTerrain? terrain, SimulationOpponent opponent, Biome biome, bool dropPhase)
     {
         if (!Enum.IsDefined(opponent) || opponent == SimulationOpponent.Patrol) throw new ArgumentOutOfRangeException(nameof(opponent));
         var force = DeployedForce(roster, selected);
@@ -508,22 +511,25 @@ public sealed partial class CombatSimulation
         var friendly = force.Select(source => Deployed(source, roster.Pilot(source)!.Spec, pristine: opponent == SimulationOpponent.Mirror)).ToArray();
         var enemy = force.Select((source, i) => enemies is null ? Deployed(source, roster.Pilot(source)!.Spec, pristine: true)
             : Deployed(enemies[i].Mech, enemies[i].Pilot, pristine: true)).ToArray();
-        return Deploy(friendly, enemy, combatSeed, terrain ?? BattlefieldTerrain.Generate(terrainSeed ?? Random.Shared.Next(), biome));
+        if (terrain is not null) return Deploy(friendly, enemy, combatSeed, terrain, ArenaEdge.South, dropPhase);
+        var fieldSeed = terrainSeed ?? Random.Shared.Next(); var edge = DropZone.StandardEdge(fieldSeed);
+        return Deploy(friendly, enemy, combatSeed, BattlefieldTerrain.Generate(fieldSeed, biome, dropEdge: edge), edge, dropPhase);
     }
 
     /// <summary>Fights a mission: the selected mechs as they stand against its opposition, stock and fully supplied,
     /// with pilots skilled by rank, on the biome of the mission's system.</summary>
     /// <summary>A simulated deployment chooses its biome; a mission's comes from its system.</summary>
     public static CombatSimulation DeployMission(ForceRoster roster, IEnumerable<string> selected, MissionOffer offer, int? seed = null, int? terrainSeed = null,
-        Biome? biome = null)
+        Biome? biome = null, bool dropPhase = false)
     {
         var force = DeployedForce(roster, selected);
         var friendly = force.Select(source => Deployed(source, roster.Pilot(source)!.Spec, pristine: false)).ToArray();
         var enemy = offer.Opposition.Select((item, i) => Stock(DraftCatalog.Mech(item.MechId), MissionTuning.EnemyPilot(item.Rank, i + 1)) with { Group = item.Group }).ToArray();
         var world = biome ?? StarChart.Instance[offer.SystemId].Biome ?? Biome.Valley;
         var combatSeed = seed ?? Random.Shared.Next(); var fieldSeed = terrainSeed ?? Random.Shared.Next();
-        if (offer.Kind == MissionKind.Patrol) return DeployPatrol(friendly, enemy, combatSeed, fieldSeed, world, offer.PatrolLocations);
-        return Deploy(friendly, enemy, combatSeed, BattlefieldTerrain.Generate(fieldSeed, world));
+        if (offer.Kind == MissionKind.Patrol) return DeployPatrol(friendly, enemy, combatSeed, fieldSeed, world, offer.PatrolLocations, dropPhase);
+        var edge = DropZone.StandardEdge(fieldSeed);
+        return Deploy(friendly, enemy, combatSeed, BattlefieldTerrain.Generate(fieldSeed, world, dropEdge: edge), edge, dropPhase);
     }
 
     private static OwnedMech[] DeployedForce(ForceRoster roster, IEnumerable<string> selected)
@@ -558,25 +564,21 @@ public sealed partial class CombatSimulation
             .Select(id => new EquipmentCondition(id, ComponentCondition.Operational)),
         spec.Ammo.Select(item => new AmmoCondition(item.Id, item.Shots)));
 
-    /// <summary>Each side is spread across its own deployment line, in rows of up to eight, so uneven sides stay centred.</summary>
-    private static CombatSimulation Deploy(IReadOnlyList<DeployedMech> friendly, IReadOnlyList<DeployedMech> enemy, int seed, BattlefieldTerrain terrain)
+    /// <summary>The company drops in the zone on <paramref name="edge"/> and the opposition in the zone opposite.</summary>
+    private static CombatSimulation Deploy(IReadOnlyList<DeployedMech> friendly, IReadOnlyList<DeployedMech> enemy, int seed, BattlefieldTerrain terrain,
+        ArenaEdge edge, bool dropPhase)
     {
-        static Vector2 At(int i, int count, float side)
-        {
-            var (row, offset) = CombatRules.DeploymentSlot(i, count);
-            return new(offset, side * (CombatRules.DeploymentDepth + row * CombatRules.DeploymentRowSpacing));
-        }
         var units = new List<CombatUnit>();
         for (var i = 0; i < Math.Max(friendly.Count, enemy.Count); i++)
         {
-            if (i < friendly.Count)
-                units.Add(Unit(friendly[i], friendly[i].Id, CombatSide.Friendly, At(i, friendly.Count, 1)));
-            if (i < enemy.Count)
-                units.Add(Unit(enemy[i], $"enemy-{i + 1}", CombatSide.Enemy, At(i, enemy.Count, -1)));
+            if (i < friendly.Count) units.Add(Unit(friendly[i], friendly[i].Id, CombatSide.Friendly));
+            if (i < enemy.Count) units.Add(Unit(enemy[i], $"enemy-{i + 1}", CombatSide.Enemy));
         }
-        return new CombatSimulation(units, seed, terrain);
-        static CombatUnit Unit(DeployedMech mech, string id, CombatSide side, Vector2 position) =>
-            new(id, mech.Spec, mech.Pilot, side, mech.Locations, mech.Equipment, mech.Ammo, position, mech.Lance);
+        var simulation = new CombatSimulation(units, seed, terrain);
+        simulation.LandAll(DropZone.Standard(edge), DropZone.Standard(DropZone.Opposite(edge)), dropPhase);
+        return simulation;
+        static CombatUnit Unit(DeployedMech mech, string id, CombatSide side) =>
+            new(id, mech.Spec, mech.Pilot, side, mech.Locations, mech.Equipment, mech.Ammo, Vector2.Zero, mech.Lance);
     }
 
     /// <summary>The battlefield facts of a fought mission. Only victory succeeds; defeat, a draw or withdrawing fails.</summary>
