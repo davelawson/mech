@@ -108,6 +108,7 @@ public sealed class Recruitment
     internal void Place(string systemId, DateOnly date, IEnumerable<string> warriorIds)
     {
         foreach (var list in _lists.Values) list.Warriors.RemoveAll(warriorIds.Contains);
+        foreach (var id in warriorIds) _departed.Remove(id);
         _lists[systemId] = new(systemId, date, date, warriorIds);
     }
 

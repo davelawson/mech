@@ -1,6 +1,6 @@
 # Cooperative multiplayer with a host-authoritative leader
 
-The campaign supports one to three players cooperating as one mercenary company, each commanding one lance. The player count is fixed when a campaign begins, and every player must be present to start or resume it. Single-player is a one-slot campaign on the same code path.
+The campaign supports one to eight players (three until November 23, 2026) cooperating as one mercenary company, each commanding one lance. The player count is fixed when a campaign begins, and every player must be present to start or resume it. Single-player is a one-slot campaign on the same code path.
 
 The **leader** (player slot 0) hosts the game and runs the only authoritative campaign and combat simulation. Other players connect by direct IP and port over Godot's `ENetMultiplayerPeer`, carrying typed messages defined in one protocol class rather than node-path RPCs. Clients send commands. The host validates them in arrival order, applies them, and broadcasts state. Clients and host must run the same build: a protocol version plus a build hash is checked on joining. There is no host migration. If the leader disconnects, the others return to the main menu.
 

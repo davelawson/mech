@@ -79,7 +79,80 @@ public static class DraftCatalog
         new("hiro-matsuda", "Hiro Matsuda", "Pinpoint", 2, 5, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
         new("greta-sorensen", "Greta Sorensen", "Trail", 5, 3, 5, 3, WarriorExperience.Regular, WarriorSpecialty.Piloting),
         new("obi-mensah", "Obi Mensah", "Halo", 4, 5, 3, 4, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("dmitri-volkov", "Dmitri Volkov", "Granite", 4, 5, 5, 2, WarriorExperience.Regular, WarriorSpecialty.None)
+        new("dmitri-volkov", "Dmitri Volkov", "Granite", 4, 5, 5, 2, WarriorExperience.Regular, WarriorSpecialty.None),
+        // Added so eight players can each draft MechWarriors of their own in either scenario; no portraits yet.
+        new("tobias-wren", "Tobias Wren", "Ratchet", 4, 4, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
+        new("ingrid-falk", "Ingrid Falk", "Vane", 2, 5, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("samir-qureshi", "Samir Qureshi", "Tether", 5, 2, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("delia-marchetti", "Delia Marchetti", "Comet", 5, 4, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("kwame-asante", "Kwame Asante", "Sledge", 4, 4, 5, 3, WarriorExperience.Regular, WarriorSpecialty.None),
+        new("rosa-iglesias", "Rosa Iglesias", "Lark", 3, 4, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("henrik-dahl", "Henrik Dahl", "Fathom", 4, 2, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("mira-kowalski", "Mira Kowalski", "Ember", 4, 5, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("jonah-pike", "Jonah Pike", "Rivet", 4, 5, 4, 3, WarriorExperience.Regular, WarriorSpecialty.None),
+        new("leona-achterberg", "Leona Achterberg", "Gale", 2, 4, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("dev-malhotra", "Dev Malhotra", "Cipher", 5, 3, 4, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("talia-brenner", "Talia Brenner", "Hatch", 5, 5, 2, 4, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("bastian-roth", "Bastian Roth", "Quarry", 3, 5, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
+        new("nadia-petrov", "Nadia Petrov", "Frost", 2, 5, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("caleb-ishikawa", "Caleb Ishikawa", "Torque", 4, 3, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("selin-aydin", "Selin Aydin", "Mirage", 4, 4, 3, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("rowan-ashby", "Rowan Ashby", "Thistle", 4, 4, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
+        new("farah-siddiqui", "Farah Siddiqui", "Lumen", 2, 5, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("gareth-lyle", "Gareth Lyle", "Hammer", 5, 2, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("odile-fournier", "Odile Fournier", "Chime", 5, 4, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("kenji-mori", "Kenji Mori", "Ricochet", 4, 4, 5, 3, WarriorExperience.Regular, WarriorSpecialty.None),
+        new("ayla-demir", "Ayla Demir", "Swift", 3, 4, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("victor-almeida", "Victor Almeida", "Brick", 4, 2, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("lucia-ferraro", "Lucia Ferraro", "Saber", 4, 5, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("theo-lindqvist", "Theo Lindqvist", "Pylon", 4, 5, 4, 3, WarriorExperience.Regular, WarriorSpecialty.None),
+        new("zainab-osei", "Zainab Osei", "Wick", 2, 4, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("felix-hartmann", "Felix Hartmann", "Strut", 5, 3, 4, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("maren-solberg", "Maren Solberg", "Fjord", 5, 5, 2, 4, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("ravi-banerjee", "Ravi Banerjee", "Gauge", 3, 5, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
+        new("clara-duval", "Clara Duval", "Ripple", 2, 5, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("mateo-cruz", "Mateo Cruz", "Cinder", 4, 3, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("signe-halvorsen", "Signe Halvorsen", "Drum", 4, 4, 3, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("abel-nakamura", "Abel Nakamura", "Hinge", 4, 4, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
+        new("petra-novak", "Petra Novak", "Talon", 2, 5, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("omar-farouk", "Omar Farouk", "Mirror", 5, 2, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("liesel-kraus", "Liesel Kraus", "Kettle", 5, 4, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("arjun-rao", "Arjun Rao", "Spoke", 4, 4, 5, 3, WarriorExperience.Regular, WarriorSpecialty.None),
+        new("bianca-moretti", "Bianca Moretti", "Flare", 3, 4, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("desmond-okeke", "Desmond Okeke", "Ballast", 4, 2, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
+        new("eva-lindgren", "Eva Lindgren", "Shard", 4, 5, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
+        new("silas-grant", "Silas Grant", "Crank", 4, 5, 4, 3, WarriorExperience.Regular, WarriorSpecialty.None),
+        new("yusra-karim", "Yusra Karim", "Whisper", 2, 4, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
+        new("conrad-weiss", "Conrad Weiss", "Warden", 3, 3, 4, 4, WarriorExperience.Veteran, WarriorSpecialty.None),
+        new("ilse-vogel", "Ilse Vogel", "Harrier", 2, 3, 4, 5, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
+        new("magnus-strand", "Magnus Strand", "Bastion", 3, 2, 4, 5, WarriorExperience.Veteran, WarriorSpecialty.Piloting),
+        new("tamsin-hale", "Tamsin Hale", "Raptor", 4, 4, 2, 4, WarriorExperience.Veteran, WarriorSpecialty.Sensors),
+        new("alaric-dunn", "Alaric Dunn", "Monolith", 4, 3, 4, 3, WarriorExperience.Veteran, WarriorSpecialty.None),
+        new("sabine-laurent", "Sabine Laurent", "Corsair", 2, 4, 4, 4, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
+        new("hector-ruiz", "Hector Ruiz", "Mortar", 4, 2, 4, 4, WarriorExperience.Veteran, WarriorSpecialty.Piloting),
+        new("noriko-abe", "Noriko Abe", "Ronin", 3, 5, 2, 4, WarriorExperience.Veteran, WarriorSpecialty.Sensors),
+        new("garrick-shaw", "Garrick Shaw", "Phalanx", 3, 4, 3, 4, WarriorExperience.Veteran, WarriorSpecialty.None),
+        new("odette-varne", "Odette Varne", "Banshee", 2, 4, 3, 5, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
+        new("viktor-petrenko", "Viktor Petrenko", "Citadel", 3, 2, 5, 4, WarriorExperience.Veteran, WarriorSpecialty.Piloting),
+        new("imogen-pryce", "Imogen Pryce", "Specter", 4, 3, 2, 5, WarriorExperience.Veteran, WarriorSpecialty.Sensors),
+        new("lazlo-fekete", "Lazlo Fekete", "Hussar", 3, 3, 4, 4, WarriorExperience.Veteran, WarriorSpecialty.None),
+        new("rania-aziz", "Rania Aziz", "Sirocco", 2, 3, 4, 5, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
+        new("bertrand-clay", "Bertrand Clay", "Rampart", 3, 2, 4, 5, WarriorExperience.Veteran, WarriorSpecialty.Piloting),
+        new("astrid-nyberg", "Astrid Nyberg", "Valkyrie", 4, 4, 2, 4, WarriorExperience.Veteran, WarriorSpecialty.Sensors),
+        new("chidi-achebe", "Chidi Achebe", "Sentinel", 4, 3, 4, 3, WarriorExperience.Veteran, WarriorSpecialty.None),
+        new("katya-morozova", "Katya Morozova", "Tempest", 2, 4, 4, 4, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
+        new("milo-pratt", "Milo Pratt", "Rookie", 5, 5, 5, 5, WarriorExperience.Green, WarriorSpecialty.None),
+        new("daisy-fairweather", "Daisy Fairweather", "Puddle", 4, 5, 5, 6, WarriorExperience.Green, WarriorSpecialty.Gunnery),
+        new("tobin-lacey", "Tobin Lacey", "Nudge", 5, 4, 5, 6, WarriorExperience.Green, WarriorSpecialty.Piloting),
+        new("hattie-crane", "Hattie Crane", "Skip", 6, 5, 4, 5, WarriorExperience.Green, WarriorSpecialty.Sensors),
+        new("ned-ollerton", "Ned Ollerton", "Dent", 5, 5, 4, 6, WarriorExperience.Green, WarriorSpecialty.None),
+        new("pia-rasmussen", "Pia Rasmussen", "Sparkplug", 3, 6, 5, 6, WarriorExperience.Green, WarriorSpecialty.Gunnery),
+        new("gus-albright", "Gus Albright", "Butter", 6, 3, 6, 5, WarriorExperience.Green, WarriorSpecialty.Piloting),
+        new("lottie-kemp", "Lottie Kemp", "Doodle", 5, 6, 3, 6, WarriorExperience.Green, WarriorSpecialty.Sensors),
+        new("finn-carraway", "Finn Carraway", "Scuff", 5, 5, 5, 5, WarriorExperience.Green, WarriorSpecialty.None),
+        new("ivy-thatcher", "Ivy Thatcher", "Fizz", 4, 5, 5, 6, WarriorExperience.Green, WarriorSpecialty.Gunnery),
+        new("barnaby-hobb", "Barnaby Hobb", "Clank", 5, 4, 5, 6, WarriorExperience.Green, WarriorSpecialty.Piloting),
+        new("suki-morrow", "Suki Morrow", "Hiccup", 6, 5, 4, 5, WarriorExperience.Green, WarriorSpecialty.Sensors)
     });
     public static readonly ImmutableArray<string> PoolNames = ["Light", "Medium", "Heavy", "Assault",
         "MechWarriors · I", "MechWarriors · II", "MechWarriors · III", "MechWarriors · Veterans"];
@@ -179,7 +252,7 @@ public sealed class InitialDraft
     /// <summary>Why a company of this many players cannot be drafted, or null when it can.</summary>
     public static string? CompanyProblem(int players, StartingScenario scenario = StartingScenario.Established)
     {
-        if (players is < 1 or > ForceRoster.MaxLances) return "A company has one to three players.";
+        if (players is < 1 or > ForceRoster.MaxLances) return "A company has one to eight players.";
         if (players <= MaxPlayers(scenario)) return null;
         var ranks = Scenarios.WarriorPools(scenario).Distinct().ToArray();
         return $"{players} players need {string.Join(" and ", ranks.Select(rank => $"{players * Needed(scenario, rank)} {rank.ToString().ToLowerInvariant()}"))} MechWarriors in the catalog; it has "
@@ -491,7 +564,7 @@ public sealed class ForceRoster
     public IReadOnlyList<StorageEntry> Storage => _storage.AsReadOnly();
     private readonly List<StorageEntry> _storage;
     public int ReadyWarriors => Warriors.Count(item => item.Ready);
-    public const int LanceSize = 4, MaxLances = 3;
+    public const int LanceSize = 4, MaxLances = 8;
     /// <summary>One lance per player slot, fixed when the company forms.</summary>
     public int LanceCount { get; }
     private ForceRoster(string name, IEnumerable<OwnedMech> mechs, IEnumerable<RosterWarrior> warriors, IEnumerable<StorageEntry>? storage = null, int lances = 1)

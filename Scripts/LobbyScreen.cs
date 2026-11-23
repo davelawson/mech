@@ -160,7 +160,7 @@ public partial class LobbyScreen : Control
             var index = seat.Slot; claim.Pressed += () => ClaimRequested?.Invoke(index); ClaimButtons.Add(claim);
         }
         StartButton.Visible = Hosting && phase == LobbyPhase.Gathering; StartButton.Disabled = !canStart;
-        Status.Text = status; Show();
+        Status.Text = status; Show(); Callable.From(Layout).CallDeferred();
     }
 
     public void ShowStatus(string status) => Status.Text = status;
@@ -182,6 +182,9 @@ public partial class LobbyScreen : Control
 
     private void Layout()
     {
-        if (_box is not null) Ui.Place(_box, (Size.X - 560) / 2, Math.Max(24, (Size.Y - 460) / 2), 560, 460);
+        // Eight seats outgrow the form's height, so the box grows with its content and stays centred.
+        if (_box is null) return;
+        var height = Math.Max(460, _box.GetCombinedMinimumSize().Y);
+        Ui.Place(_box, (Size.X - 560) / 2, Math.Max(24, (Size.Y - height) / 2), 560, height);
     }
 }

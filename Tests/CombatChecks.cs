@@ -375,6 +375,13 @@ internal static partial class CombatChecks
         check(Math.Abs(friends[0].Position.X) < 1e-3f && Math.Abs(enemies.Sum(unit => unit.Position.X)) < 1e-3f
             && enemies.Zip(enemies.Skip(1)).All(pair => Math.Abs(pair.Second.Position.X - pair.First.Position.X - CombatRules.DeploymentSpacing) < 1e-3f),
             "uneven sides are each centred on their own deployment line");
+        var company = ForceRoster.Create("Eight lances", Enumerable.Repeat(DraftCatalog.Mech("jenner"), 32), DraftCatalog.Warriors.Take(32), lances: 8);
+        for (var i = 0; i < 32; i++) company.Assign(company.Mechs[i].Id, company.Warriors[i].Id);
+        var crowd = Deploy(company, company.Mechs.Select(item => item.Id));
+        check(crowd.Units.Count == 64 && crowd.Units.All(unit => Math.Abs(unit.Position.X) < CombatRules.ArenaHalfSize && Math.Abs(unit.Position.Y) < CombatRules.ArenaHalfSize)
+            && crowd.Units.GroupBy(unit => (unit.Side, unit.Position.Y)).All(row => row.Count() == CombatRules.DeploymentRowSize)
+            && crowd.Units.Where(unit => unit.Side == CombatSide.Friendly).Max(unit => unit.Position.Y) == CombatRules.DeploymentDepth + 3 * CombatRules.DeploymentRowSpacing,
+            "eight lances deploy in rows of eight, each further row behind the first, all inside the arena");
 
         var worn = Roster(1);
         var source = Deploy(worn, [worn.Mechs[0].Id]); source.Units[0].ApplyDamage(MechLocation.LeftArm, 30); source.End();

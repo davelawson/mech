@@ -12,9 +12,11 @@ internal static class RosterChecks
         }
         check(DraftCatalog.AllMechs.Length == 49 && DraftCatalog.Mech("atlas") is { Variant: "AS7-D", Tonnage: 100 }, "all 49 chassis are catalogued");
         check(DraftCatalog.Mech("atlas").Weapons.Count(weapon => weapon.Rear && weapon.Location == MechLocation.CenterTorso) == 2, "Atlas retains both stock rear-facing lasers");
-        check(DraftCatalog.Warriors.Length == 48 && DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Regular) == 30
-            && DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Veteran) == 6 && DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Green) == 12,
-            "pilot catalog holds 12 Green, 30 Regular and 6 Veteran MechWarriors");
+        check(DraftCatalog.Warriors.Length == 120 && DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Regular) == 72
+            && DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Veteran) == 24 && DraftCatalog.Warriors.Count(w => w.Rank == WarriorExperience.Green) == 24,
+            "pilot catalog holds 24 Green, 72 Regular and 24 Veteran MechWarriors");
+        check(DraftCatalog.Warriors.Select(w => w.Callsign).Distinct().Count() == DraftCatalog.Warriors.Length
+            && DraftCatalog.Warriors.Select(w => w.Name).Distinct().Count() == DraftCatalog.Warriors.Length, "every MechWarrior has their own name and callsign");
         check(DraftCatalog.Warriors.All(w => new[] { w.Gunnery, w.Piloting, w.Sensors, w.Grit }.All(value => value is >= 2 and <= 7)
             && w.SkillPoints == w.Rank switch { WarriorExperience.Veteran => 10, WarriorExperience.Green => 4, _ => 8 }), "every authored pilot spends its quality budget across four bounded skills");
         var untrained = DraftCatalog.Warriors.Where(w => new[] { w.Gunnery, w.Piloting, w.Sensors, w.Grit }.Contains(WarriorSkills.Untrained)).ToArray();
@@ -199,7 +201,7 @@ internal static class RosterChecks
             "a saved lance of more than four mechs is rejected");
         reject(() => ForceRoster.Restore(save with { Mechs = save.Mechs.Select((mech, i) => i == 0 ? mech with { Lance = 1 } : mech).ToArray() }, Campaign.StartDate),
             "a saved mech in a lance the company does not have is rejected");
-        reject(() => ForceRoster.Restore(save with { Lances = 4 }, Campaign.StartDate), "a company has at most three lances");
+        reject(() => ForceRoster.Restore(save with { Lances = ForceRoster.MaxLances + 1 }, Campaign.StartDate), "a company has at most eight lances");
         var three = ForceRoster.Create("Company", Enumerable.Repeat(DraftCatalog.Mech("jenner"), 12), DraftCatalog.Warriors.Take(12), lances: 3);
         check(three.LanceCount == 3 && Enumerable.Range(0, 3).All(lance => three.LanceMechs(lance).Count() == 4) && !three.Reserves.Any()
             && three.Controls(1, three.Mechs[4]) && !three.Controls(1, three.Mechs[0]), "each player controls their own lance and no other");

@@ -39,6 +39,15 @@ public static partial class CombatRules
     public const float ArenaHalfSize = 2880;
     public const float DeploymentDepth = ArenaHalfSize * 2 / 3;
     public const float DeploymentSpacing = 240;
+    /// <summary>At most this many mechs share a deployment row; further rows form this far behind it, away from the enemy.</summary>
+    public const int DeploymentRowSize = 8;
+    public const float DeploymentRowSpacing = 120;
+    /// <summary>Where the i-th of count mechs stands: its row, and its sideways offset with each row centred.</summary>
+    public static (int Row, float Offset) DeploymentSlot(int i, int count)
+    {
+        var row = i / DeploymentRowSize; var inRow = Math.Min(DeploymentRowSize, count - row * DeploymentRowSize);
+        return (row, (i % DeploymentRowSize - (inRow - 1) / 2f) * DeploymentSpacing);
+    }
     /// <summary>Metres per stock catalog range point.</summary>
     public const float WeaponRangeScale = 90;
     public const float MinimumPreferredDistance = 1.5f * WeaponRangeScale;
@@ -549,17 +558,21 @@ public sealed partial class CombatSimulation
             .Select(id => new EquipmentCondition(id, ComponentCondition.Operational)),
         spec.Ammo.Select(item => new AmmoCondition(item.Id, item.Shots)));
 
-    /// <summary>Each side is spread across its own deployment line, so uneven sides stay centred.</summary>
+    /// <summary>Each side is spread across its own deployment line, in rows of up to eight, so uneven sides stay centred.</summary>
     private static CombatSimulation Deploy(IReadOnlyList<DeployedMech> friendly, IReadOnlyList<DeployedMech> enemy, int seed, BattlefieldTerrain terrain)
     {
-        static float X(int i, int count) => (i - (count - 1) / 2f) * CombatRules.DeploymentSpacing;
+        static Vector2 At(int i, int count, float side)
+        {
+            var (row, offset) = CombatRules.DeploymentSlot(i, count);
+            return new(offset, side * (CombatRules.DeploymentDepth + row * CombatRules.DeploymentRowSpacing));
+        }
         var units = new List<CombatUnit>();
         for (var i = 0; i < Math.Max(friendly.Count, enemy.Count); i++)
         {
             if (i < friendly.Count)
-                units.Add(Unit(friendly[i], friendly[i].Id, CombatSide.Friendly, new Vector2(X(i, friendly.Count), CombatRules.DeploymentDepth)));
+                units.Add(Unit(friendly[i], friendly[i].Id, CombatSide.Friendly, At(i, friendly.Count, 1)));
             if (i < enemy.Count)
-                units.Add(Unit(enemy[i], $"enemy-{i + 1}", CombatSide.Enemy, new Vector2(X(i, enemy.Count), -CombatRules.DeploymentDepth)));
+                units.Add(Unit(enemy[i], $"enemy-{i + 1}", CombatSide.Enemy, At(i, enemy.Count, -1)));
         }
         return new CombatSimulation(units, seed, terrain);
         static CombatUnit Unit(DeployedMech mech, string id, CombatSide side, Vector2 position) =>

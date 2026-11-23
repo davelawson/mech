@@ -1019,7 +1019,9 @@ public partial class SmokeTests : Node
     {
         var state = _app.State; var roster = state.Roster!;
         Check(PilotTuning.Slots(StarChart.Instance[state.Travel.OrbitSystemId]) >= 2, "the starting system lists MechWarriors for hire");
-        state.PlaceRecruits("pell-avery", "sofia-brandt");
+        // A Green and a Regular the drafted company did not take.
+        state.PlaceRecruits(new[] { WarriorExperience.Green, WarriorExperience.Regular }
+            .Select(rank => DraftCatalog.Warriors.First(w => w.Rank == rank && roster.Warriors.All(hired => hired.Id != w.Id)).Id).ToArray());
         await Click(_app.Office.RolodexButton);
         _app.Rolodex.Section.Select(RolodexPanel.HireSection); _app.Rolodex.Section.EmitSignal(OptionButton.SignalName.ItemSelected, (long)RolodexPanel.HireSection); await Frames();
         var recruit = DraftCatalog.Warrior(_app.Rolodex.SelectedId!); var cost = state.HireCost(recruit);

@@ -37,8 +37,16 @@ public partial class SmokeTests
         Check(lobby.AddressLabel.IsVisibleInTree() && lobby.AddressLabel.Text.StartsWith($"Internet: 203.0.113.7:{NetProtocol.DefaultPort}") && !lobby.CopyAddressButton.Disabled,
             "the host form shows the internet address the router reports");
         Check(lobby.Visible && lobby.Hosting && !lobby.SeatsShown && lobby.ConfirmButton.Disabled, "Host Co-op opens the hosting form, which needs a name");
-        Check(lobby.PlayersPicker.IsItemDisabled(1) && lobby.PlayersPicker.GetItemTooltip(1).Contains("27 regular"),
-            "three players wait for enough MechWarriors in the catalog");
+        Check(lobby.PlayersPicker.ItemCount == ForceRoster.MaxLances - 1 && lobby.PlayersPicker.GetItemText(lobby.PlayersPicker.ItemCount - 1) == "8 players"
+            && Enumerable.Range(0, lobby.PlayersPicker.ItemCount).All(item => !lobby.PlayersPicker.IsItemDisabled(item)),
+            "the host may choose two to eight players, and the catalog has MechWarriors for all of them");
+        var crowded = new LobbyScreen(); AddChild(crowded); crowded.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        crowded.ShowSeats(Enumerable.Range(0, ForceRoster.MaxLances).Select(slot => new LobbySeat(slot, $"Player {slot + 1}", true)).ToArray(),
+            LobbyPhase.Gathering, null, false, "");
+        await Frames();
+        Check(crowded.SeatLabels.Count == 8 && crowded.SeatLabels.All(label => crowded.GetGlobalRect().Encloses(label.GetGlobalRect()))
+            && crowded.GetGlobalRect().Encloses(crowded.BackButton.GetGlobalRect()), "eight seats and the lobby's buttons fit on screen");
+        crowded.QueueFree();
         Check(lobby.AddressLabel.Text.EndsWith($"UDP port {NetProtocol.DefaultPort} is opened on your router when you host, if it supports UPnP.") && forwarded is null,
             "the host form says the port is opened on the router once hosting");
         var port = FreePort();

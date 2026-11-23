@@ -24,7 +24,8 @@ public partial class MechModel : Node3D
     private static readonly Color Joint = new("242d2c"), Steel = new("56605a"), Trim = new("b1a477"), Amber = new("eda82d");
 
     // One outline colour per co-op lance (player slot); none is shared with another lance or with the opposition.
-    private static readonly Color[] LanceColors = [new("85d0df"), new("9ee08a"), new("c2a8f0")];
+    private static readonly Color[] LanceColors = [new("85d0df"), new("9ee08a"), new("c2a8f0"), new("f29ad8"),
+        new("6f8ef5"), new("f2e07a"), new("eef2f4"), new("c8f060")];
     private static readonly Color EnemyColor = new("ee9c85");
 
     /// <summary>The outline colour for a side; a friendly mech takes its lance's colour, lance 0's when none is given.</summary>

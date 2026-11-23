@@ -13,9 +13,6 @@ public static partial class CombatRules
     public const float PatrolEdgeMargin = 400, PatrolPointSpacing = 800;
     /// <summary>The company deploys this far in from its edge, the depth of the standard deployment line.</summary>
     public const float PatrolStartInset = ArenaHalfSize - DeploymentDepth;
-    /// <summary>At most this many mechs share a start row; further rows form 120 m nearer the edge.</summary>
-    public const int PatrolRowSize = 8;
-    public const float PatrolRowSpacing = 120;
     /// <summary>A group's post is the middle of its leg, moved sideways by up to this much.</summary>
     public const float PatrolGroupOffset = 300;
     /// <summary>Terrain generation keeps these radii clear around each start position, patrol point and the extraction zone.</summary>
@@ -62,13 +59,12 @@ public sealed record PatrolLayout(ArenaEdge StartEdge, ArenaEdge ExtractionEdge,
         var exits = Enum.GetValues<ArenaEdge>().Where(edge => edge != startEdge).ToArray();
         var extractionEdge = exits[random.Next(exits.Length)];
         // Rows of up to eight, centred at a random point along the start edge.
-        var widest = (Math.Min(friendlyCount, CombatRules.PatrolRowSize) - 1) / 2f * CombatRules.DeploymentSpacing;
+        var widest = (Math.Min(friendlyCount, CombatRules.DeploymentRowSize) - 1) / 2f * CombatRules.DeploymentSpacing;
         var along = Uniform(Math.Max(0, CombatRules.ArenaHalfSize - CombatRules.PatrolEdgeMargin - widest));
         var starts = Enumerable.Range(0, friendlyCount).Select(i =>
         {
-            var row = i / CombatRules.PatrolRowSize; var inRow = Math.Min(CombatRules.PatrolRowSize, friendlyCount - row * CombatRules.PatrolRowSize);
-            var offset = (i % CombatRules.PatrolRowSize - (inRow - 1) / 2f) * CombatRules.DeploymentSpacing;
-            return EdgePoint(startEdge, along + offset, CombatRules.PatrolStartInset - row * CombatRules.PatrolRowSpacing);
+            var (row, offset) = CombatRules.DeploymentSlot(i, friendlyCount);
+            return EdgePoint(startEdge, along + offset, CombatRules.PatrolStartInset - row * CombatRules.DeploymentRowSpacing);
         }).ToArray();
         var extraction = EdgePoint(extractionEdge, Uniform(CombatRules.ArenaHalfSize - CombatRules.PatrolEdgeMargin - CombatRules.ExtractionRadius),
             CombatRules.ExtractionRadius);

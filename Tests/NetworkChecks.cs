@@ -195,10 +195,13 @@ internal static class NetworkChecks
         var rejected = false;
         try { _ = new CoopHost(new MemoryNetwork().Leader, "Dave", 2, solo); } catch (ArgumentException) { rejected = true; }
         check(rejected, "a single-player campaign cannot be hosted as co-op");
-        check(InitialDraft.MaxPlayers() == 2 && InitialDraft.CompanyProblem(3) is { } problem && problem.Contains("27 regular and 9 veteran"),
-            "three-player established companies wait for enough MechWarriors in the catalog");
-        check(InitialDraft.MaxPlayers(StartingScenario.StartingOut) == 3 && InitialDraft.CompanyProblem(3, StartingScenario.StartingOut) is null,
-            "three players can start out together");
+        check(InitialDraft.MaxPlayers() == 8 && InitialDraft.MaxPlayers(StartingScenario.StartingOut) == 8
+            && InitialDraft.CompanyProblem(8) is null && InitialDraft.CompanyProblem(8, StartingScenario.StartingOut) is null,
+            "eight players can draft MechWarriors of their own in either scenario");
+        check(InitialDraft.CompanyProblem(9) is { } problem && problem.Contains("one to eight"), "a company has at most eight players");
+        var eight = InitialDraft.CreateCompany(8, new Random(5));
+        check(eight.SelectMany(draft => Enumerable.Range(4, draft.Columns).SelectMany(pool => Enumerable.Range(0, 3).Select(choice => draft.WarriorCandidate(pool, choice).Id)))
+            .GroupBy(id => id).All(group => group.Count() == 1), "eight drafts never offer the same MechWarrior twice");
 
         var network = new MemoryNetwork();
         var setup = new CoopHost(network.Leader, "Dave", 2); var sam = new CoopClient(network.Connect(), "Sam");

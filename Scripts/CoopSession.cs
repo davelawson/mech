@@ -59,7 +59,7 @@ public sealed class CoopHost : IDisposable
         Scenario = scenario;
         if (!Campaign.ValidPlayerName(leaderName)) throw new ArgumentException("Enter a player name.", nameof(leaderName));
         if (resume is not null) players = resume.PlayerNames?.Count ?? throw new ArgumentException("This campaign is not a co-op campaign.", nameof(resume));
-        else if (players < 2) throw new ArgumentOutOfRangeException(nameof(players), "A co-op campaign has two or three players.");
+        else if (players < 2) throw new ArgumentOutOfRangeException(nameof(players), "A co-op campaign has two to eight players.");
         else if (InitialDraft.CompanyProblem(players, scenario) is { } problem) throw new ArgumentOutOfRangeException(nameof(players), problem);
         _transport = transport; Campaign = resume;
         _seats = Enumerable.Range(0, players).Select(slot => new LobbySeat(slot, slot == 0 ? leaderName : resume?.PlayerNames![slot], slot == 0)).ToArray();
