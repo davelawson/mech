@@ -302,6 +302,8 @@ public partial class SmokeTests
         Check(tactical.SalvagePool.Any(option => option.WholeMech && option.UnitId == enemies[0].Id) && tactical.SalvageChoices.Count == 0
             && labels.Contains("SALVAGE") && labels.Any(text => text.StartsWith("The leader is choosing salvage"))
             && labels.Any(text => text.StartsWith("Whole mech · ")), "the joined player looks over the salvage, read-only, while the leader chooses");
+        Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Where(label => label.GetParent() is HFlowContainer && label.Text.Contains(" · "))
+            .All(label => label.AutowrapMode == TextServer.AutowrapMode.Off), "the joined player's salvage items keep to one line instead of wrapping letter by letter");
         Check(tactical.ReturnButton.Disabled && tactical.ReturnButton.Text == "Waiting for leader"
             && !tactical.FindChildren("*", "Button", true, false).OfType<Button>().Any(button => button.Text is "Claim Salvage" or "Take Nothing"),
             "only the leader claims salvage and leaves the results");

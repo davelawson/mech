@@ -814,7 +814,8 @@ public partial class CombatScreen : Control
             {
                 if (readOnly)
                 {
-                    var item = RosterUi.Text(row, option.WholeMech ? $"Whole mech · {Picks(option.Picks)}" : $"{option.Name} · {Picks(option.Picks)}", 13);
+                    // Not word-wrapped: a wrapping label in a flow row shrinks to nothing and breaks after every letter.
+                    var item = Ui.Label(row, option.WholeMech ? $"Whole mech · {Picks(option.Picks)}" : $"{option.Name} · {Picks(option.Picks)}", 13);
                     item.MouseFilter = MouseFilterEnum.Pass;
                     item.TooltipText = option.WholeMech ? "Joins the hangar's reserves as it stands, with no pilot" : StoredTooltip(option);
                     continue;
