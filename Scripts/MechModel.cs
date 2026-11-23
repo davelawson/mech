@@ -23,13 +23,19 @@ public partial class MechModel : Node3D
     private static readonly Color Olive = new("777749"), LightOlive = new("909063"), DarkOlive = new("555b3e");
     private static readonly Color Joint = new("242d2c"), Steel = new("56605a"), Trim = new("b1a477"), Amber = new("eda82d");
 
-    public static Color TeamColor(CombatSide side) => new(side == CombatSide.Friendly ? "85d0df" : "ee9c85");
+    // One outline colour per co-op lance (player slot); none is shared with another lance or with the opposition.
+    private static readonly Color[] LanceColors = [new("85d0df"), new("9ee08a"), new("c2a8f0")];
+    private static readonly Color EnemyColor = new("ee9c85");
+
+    /// <summary>The outline colour for a side; a friendly mech takes its lance's colour, lance 0's when none is given.</summary>
+    public static Color TeamColor(CombatSide side, int? lance = null) =>
+        side == CombatSide.Friendly ? LanceColors[Math.Clamp(lance ?? 0, 0, LanceColors.Length - 1)] : EnemyColor;
 
     /// <summary>World metres per authored model unit; prepared models stand roughly 36–55 metres tall.</summary>
     public const float MetresPerModelUnit = 15;
 
     /// <summary>Builds the chassis with its weapons' visuals, resolved from the spec unless a mount map is given.</summary>
-    public static MechModel Create(MechSpec spec, CombatSide side, MountMap? mounts = null)
+    public static MechModel Create(MechSpec spec, CombatSide side, MountMap? mounts = null, int? lance = null)
     {
         var model = new MechModel { Name = "MechModel", ChassisId = spec.Id };
         model.Mounts = mounts ?? WeaponMounts.Resolve(spec);
@@ -50,7 +56,7 @@ public partial class MechModel : Node3D
             }
             void fragment() { ALBEDO = team_color.rgb; }
             """ } };
-        model._teamColor = TeamColor(side);
+        model._teamColor = TeamColor(side, lance);
         model._outline.SetShaderParameter("team_color", model._teamColor);
         PreparedMechModels.Models.TryGetValue(spec.Id, out var prepared);
         if (prepared is not null) model._outlineWidth = .65f;

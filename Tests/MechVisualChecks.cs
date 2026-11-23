@@ -36,6 +36,16 @@ public partial class SmokeTests
             && enemyOutline.GetShaderParameter("team_color").AsColor() == MechModel.TeamColor(CombatSide.Enemy),
             "imported meshes are shared while friendly and enemy outlines remain independent");
         opponent.Free();
+        var teamColors = Enumerable.Range(0, ForceRoster.MaxLances).Select(lance => MechModel.TeamColor(CombatSide.Friendly, lance))
+            .Append(MechModel.TeamColor(CombatSide.Enemy)).ToArray();
+        Check(teamColors.Distinct().Count() == teamColors.Length, "every lance and the opposition have their own outline colour");
+        var secondLance = MechModel.Create(DraftCatalog.Mech("awesome"), CombatSide.Friendly, lance: 1);
+        var secondEmitter = (MeshInstance3D)secondLance.Locations[MechLocation.RightArm].FindChild("PpcEmitter", true, false);
+        Check(secondEmitter.GetActiveMaterial(0).NextPass is ShaderMaterial secondOutline
+            && secondOutline.GetShaderParameter("team_color").AsColor() == MechModel.TeamColor(CombatSide.Friendly, 1)
+            && MechModel.TeamColor(CombatSide.Friendly, 1) != MechModel.TeamColor(CombatSide.Friendly),
+            "a second lance's mech is outlined in that lance's colour");
+        secondLance.Free();
         var detailCounts = new Dictionary<string, int>();
         foreach (var id in new[] { "awesome", "jenner", "wolverine", "catapult" })
         {

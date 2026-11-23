@@ -842,7 +842,7 @@ public partial class CombatViewport : Control
     private float Age(ShotEffect effect) => (float)((Simulation?.Clock ?? effect.Start) - effect.Start);
     private void CreateMech(CombatUnit unit)
     {
-        var model = MechModel.Create(unit.Spec, unit.Side);
+        var model = MechModel.Create(unit.Spec, unit.Side, lance: unit.Lance);
         _world.AddChild(model); _models[unit.Id] = model;
     }
     private void SyncModels(float animationDelta = 0)
@@ -1474,7 +1474,7 @@ public partial class CombatViewport : Control
             var friendly = unit.Side == CombatSide.Friendly;
             if (!friendly && !Simulation.Detected(CombatSide.Friendly, unit.Id)) continue;
             var at = ScreenPoint(unit.Position);
-            var color = MechModel.TeamColor(unit.Side);
+            var color = MechModel.TeamColor(unit.Side, unit.Lance);
             var baseRadius = _models[unit.Id].Scale.X * .95f;
             DrawPolyline(Enumerable.Range(0, 49).Select(segment => ScreenPoint(unit.Position
                 + Vector2.FromAngle(segment * Mathf.Tau / 48) * baseRadius, .45f)).ToArray(), new Color(color, .7f), 1, true);
@@ -1505,9 +1505,16 @@ public partial class CombatViewport : Control
             else if (unit.Fleeing) text += " · Fleeing";
             // A wreck reads as destroyed even though its pilot ejected; only an intact empty mech says so.
             else if (unit.Ejected && unit.Status != CombatStatus.Destroyed) text += " · Ejected";
-            var labelOffset = new Vector2(-font.GetStringSize(text, fontSize: 12).X / 2, -4);
+            // A friendly still in the fight shows its pilot's stress face right after the text; enemy stress is never shown.
+            const float stressIconSize = 14, stressIconGap = 3;
+            var showStress = friendly && !unit.Defeated;
+            var textWidth = font.GetStringSize(text, fontSize: 12).X;
+            var labelOffset = new Vector2(-(textWidth + (showStress ? stressIconGap + stressIconSize : 0)) / 2, -4);
             DrawStringOutline(font, label + labelOffset, text, HorizontalAlignment.Left, -1, 12, 4, new Color("101820"));
             DrawString(font, label + labelOffset, text, HorizontalAlignment.Left, -1, 12, color);
+            if (showStress)
+                DrawTextureRect(CombatPaperdoll.StressIcon(unit.Stress), new Rect2(label + labelOffset + new Vector2(textWidth + stressIconGap,
+                    -stressIconSize + 2), new Vector2(stressIconSize, stressIconSize)), false, CombatPaperdoll.StressColor(unit.Stress));
             if (friendly)
             {
                 var heatColor = unit.Shutdown ? new Color("ed735e") : unit.Heat >= CombatRules.HotHeat
