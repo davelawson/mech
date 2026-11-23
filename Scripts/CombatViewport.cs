@@ -2,6 +2,9 @@ using Godot;
 
 namespace Mech;
 
+/// <summary>The battlefield range overlay R cycles through, in order.</summary>
+public enum RangeOverlay { Sensors, WeaponRanges, FiringArcs }
+
 /// <summary>Location-owned chassis models with a screen-space command/visibility overlay.</summary>
 public partial class CombatViewport : Control
 {
@@ -22,6 +25,8 @@ public partial class CombatViewport : Control
     public CombatSimulation? Simulation { get; private set; }
     public IReadOnlyCollection<string> Selection { get; set; } = Array.Empty<string>();
     public string? InspectedEnemy { get; set; }
+    /// <summary>Which rings the selected friendlies show. A view setting only: each battle starts on sensors.</summary>
+    public RangeOverlay Overlay { get; set; } = RangeOverlay.Sensors;
     public string? HoveredMech { get; private set; }
     /// <summary>Jump targeting is armed: draw selected range circles and the landing point under the pointer.</summary>
     public bool JumpArmed { get; set; }
@@ -1386,7 +1391,7 @@ public partial class CombatViewport : Control
         get
         {
             // Mechs still waiting to drop have no position yet to measure from.
-            if (Simulation is null || Simulation.Drop is not null) return [];
+            if (Simulation is null || Simulation.Drop is not null || Overlay != RangeOverlay.Sensors) return [];
             var target = RangeTarget;
             return Selection.Select(Simulation.Unit).Where(unit => unit.Side == CombatSide.Friendly && unit.Active).Select(observer =>
             {
@@ -1411,6 +1416,52 @@ public partial class CombatViewport : Control
         return RangeTarget is { } inspected
             ? $"Selected mechs · {inspected.Spec.Chassis}: identify {identificationSpan} m (blue) · status {ranges.Min(range => range.Detail):0}–{ranges.Max(range => range.Detail):0} m (gold)"
             : $"Selected mechs · 100t: identify {identificationSpan} m (blue) · 20–100t: {ranges.Min(range => CombatRules.DetectionRadius(range.Observer.Warrior.Sensors, 20)):0}–{ranges.Max(range => range.Identification):0} m";
+    }
+    /// <summary>The selected friendlies the weapon overlays draw around: active, and on the ground after the drop.</summary>
+    private IEnumerable<CombatUnit> WeaponOverlayUnits => Simulation is null || Simulation.Drop is not null ? []
+        : Selection.Select(Simulation.Unit).Where(unit => unit.Side == CombatSide.Friendly && unit.Active);
+    /// <summary>Weapon range mode: each selected friendly's circles. Empty in the other modes.</summary>
+    public IReadOnlyList<(CombatUnit Unit, float Range, HardpointClass[] Classes)> WeaponRangeCircles => Overlay != RangeOverlay.WeaponRanges ? []
+        : WeaponOverlayUnits.SelectMany(unit => CombatRules.WeaponRangeCircles(unit).Select(circle => (unit, circle.Range, circle.Classes))).ToArray();
+    /// <summary>Firing arc mode: each selected friendly's wedges. Empty in the other modes.</summary>
+    public IReadOnlyList<(CombatUnit Unit, FiringArcDirection Direction, float Range, HardpointClass[] Classes)> FiringArcWedges =>
+        Overlay != RangeOverlay.FiringArcs ? []
+        : WeaponOverlayUnits.SelectMany(unit => CombatRules.FiringArcWedges(unit).Select(wedge => (unit, wedge.Direction, wedge.Range, wedge.Classes))).ToArray();
+    /// <summary>A ground outline in the hangar colours of its weapon classes, alternating in dashes when several share it.</summary>
+    private void DrawClassOutline(IReadOnlyList<Vector2> ground, HardpointClass[] classes)
+    {
+        var points = ground.Select(point => ScreenPoint(point)).ToArray();
+        Color ColorOf(int index) => new(HangarLocationPanel.MountColor(classes[index % classes.Length]), .7f);
+        if (classes.Length == 1) { DrawPolyline(points, ColorOf(0), 1, true); return; }
+        // Dashes run about 60 m along the ground whatever the outline's size.
+        var dashes = new List<Vector2> { points[0] }; var dash = 0; var travelled = 0f;
+        for (var i = 1; i < ground.Count; i++)
+        {
+            dashes.Add(points[i]); travelled += ground[i].DistanceTo(ground[i - 1]);
+            if (travelled < 60 && i < ground.Count - 1) continue;
+            DrawPolyline(dashes.ToArray(), ColorOf(dash++), 1, true);
+            dashes = [points[i]]; travelled = 0;
+        }
+    }
+    private static IEnumerable<Vector2> ArcPoints(Vector2 center, float radius, float from, float to)
+    {
+        var segments = Math.Max(4, Mathf.CeilToInt((to - from) * Math.Max(96, radius / 15) / Mathf.Tau));
+        return Enumerable.Range(0, segments + 1).Select(segment => center + Vector2.FromAngle(Mathf.Lerp(from, to, (float)segment / segments)) * radius);
+    }
+    private void DrawWeaponOverlays()
+    {
+        foreach (var (unit, range, classes) in WeaponRangeCircles)
+            DrawClassOutline(ArcPoints(unit.Position, range, 0, Mathf.Tau).ToArray(), classes);
+        foreach (var (unit, direction, range, classes) in FiringArcWedges)
+        {
+            var (facing, from, to) = CombatRules.FiringArc(unit, direction);
+            var heading = facing.Angle();
+            // Radial edges are stepped too, so long dashes follow the terrain like the arc does.
+            IEnumerable<Vector2> Edge(float angle, bool outward) => Enumerable.Range(0, 9)
+                .Select(step => unit.Position + Vector2.FromAngle(angle) * range * (outward ? step : 8 - step) / 8);
+            DrawClassOutline(Edge(heading + from, true).Concat(ArcPoints(unit.Position, range, heading + from, heading + to).Skip(1))
+                .Concat(Edge(heading + to, false).Skip(1)).ToArray(), classes);
+        }
     }
     private void DrawRangeUnion(IReadOnlyList<CircleUnion.Circle> circles, Color color)
     {
@@ -1542,6 +1593,7 @@ public partial class CombatViewport : Control
             if (ranges[0].Detail is not null)
                 DrawRangeUnion(ranges.Select(range => new CircleUnion.Circle(range.Observer.Position, range.Detail!.Value)).ToArray(), Ui.Gold);
         }
+        DrawWeaponOverlays();
         foreach (var unit in Simulation.Units)
         {
             var friendly = unit.Side == CombatSide.Friendly;

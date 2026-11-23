@@ -23,6 +23,19 @@ public partial class SmokeTests
             Check(friends.All(unit => unit.Firing == FiringMode.HoldFire), "G sets Hold fire");
             await PressKey(Key.F);
             Check(friends.All(unit => unit.Firing == FiringMode.FireAtWill), "F sets Fire at will");
+            Check(field.Overlay == RangeOverlay.Sensors && tactical.RangeOverlayButton.Text == "Sensor range [R]",
+                "battles start on the sensor range overlay");
+            await PressKey(Key.R);
+            Check(field.Overlay == RangeOverlay.WeaponRanges && tactical.RangeOverlayButton.Text == "Weapon range [R]", "R shows weapon ranges");
+            tactical.RangeOverlayButton.EmitSignal(BaseButton.SignalName.Pressed); await Frames();
+            Check(field.Overlay == RangeOverlay.FiringArcs && tactical.RangeOverlayButton.Text == "Firing arcs [R]",
+                "the range button cycles like R, to firing arcs");
+            await PressKey(Key.R);
+            Check(field.Overlay == RangeOverlay.Sensors && tactical.RangeOverlayButton.Text == "Sensor range [R]", "R cycles back to sensor range");
+            var settingsRow = tactical.RangeOverlayButton.GetParent();
+            Check(settingsRow.GetChildren().IndexOf(tactical.RangeOverlayButton) == settingsRow.GetChildren().IndexOf(settingsRow.GetChildren()
+                .First(child => child.FindChildren("*", "Button", true, false).OfType<Button>().Any(button => button.Text.Contains("[F]")))) + 1,
+                "the range button sits directly beneath the firing buttons");
             tactical.IssueCommand(new Vector2(0, 600), null);
             Check(friends.All(unit => unit.Order == CombatOrder.Move), "a ground command moves the group");
             await PressKey(Key.Z);

@@ -146,6 +146,8 @@ public partial class CombatScreen : Control
     private bool _draggingDistance;
     private Button _fire = null!;
     private Button _hold = null!;
+    /// <summary>Shows the battlefield's current range overlay; pressing it, or R, moves to the next.</summary>
+    public Button RangeOverlayButton { get; private set; } = null!;
     private bool _refreshing;
     private bool _resumeRunning;
     private string? _primary;
@@ -205,6 +207,8 @@ public partial class CombatScreen : Control
         _fire = Fit(Ui.Button(fire, "Fire at will")); _hold = Fit(Ui.Button(fire, "Hold fire"));
         _fire.Pressed += () => Send(new FiringCommand([.. _selected], FiringMode.FireAtWill));
         _hold.Pressed += () => Send(new FiringCommand([.. _selected], FiringMode.HoldFire));
+        RangeOverlayButton = Fit(Ui.Button(_settings, ""));
+        RangeOverlayButton.Pressed += CycleRangeOverlay;
         var range = new HBoxContainer(); range.AddThemeConstantOverride("separation", 6); _settings.AddChild(range);
         MaintainRangeToggle = new CheckBox(); range.AddChild(MaintainRangeToggle);
         MaintainRangeToggle.Toggled += on => { if (!_refreshing) Send(new MaintainRangeCommand([.. _selected], on)); };
@@ -559,7 +563,7 @@ public partial class CombatScreen : Control
         Simulation = simulation;
         // A battle on screen waits for the leader to answer a surrender; a replica only shows the leader's.
         if (!simulation.Replica) simulation.PromptSurrender = true;
-        _ejectArmed = 0;
+        _ejectArmed = 0; Battlefield.Overlay = RangeOverlay.Sensors;
         Battlefield.Slot = Slot; Battlefield.Display(Simulation); _shade.Hide(); Modal = CombatModal.None; Battlefield.CommandsEnabled = true;
         BattleLog.Hide(); BattleLog.Display(Simulation); Layout();
         Battlefield.MouseFilter = MouseFilterEnum.Stop;
@@ -657,6 +661,16 @@ public partial class CombatScreen : Control
         return units.Length == 0 ? "No selection" : units.Any(unit => unit.JumpUnavailableReason is null) ? null
             : string.Join(" · ", units.Select(unit => $"{unit.Warrior.Callsign}: {unit.JumpUnavailableReason}").Distinct());
     }
+    /// <summary>Sensor range → Weapon range → Firing arcs → Sensor range, for the whole battlefield.</summary>
+    public void CycleRangeOverlay()
+    {
+        Battlefield.Overlay = (RangeOverlay)(((int)Battlefield.Overlay + 1) % Enum.GetValues<RangeOverlay>().Length);
+        Battlefield.QueueRedraw(); RefreshDetails();
+    }
+    public static string RangeOverlayLabel(RangeOverlay overlay) => overlay switch
+    {
+        RangeOverlay.WeaponRanges => "Weapon range", RangeOverlay.FiringArcs => "Firing arcs", _ => "Sensor range"
+    } + " [R]";
     public void ToggleJump()
     {
         if (Simulation is null || Simulation.Drop is not null) return;
@@ -985,6 +999,7 @@ public partial class CombatScreen : Control
             Key.G => () => Send(new FiringCommand([.. _selected], FiringMode.HoldFire)),
             Key.F => () => Send(new FiringCommand([.. _selected], FiringMode.FireAtWill)),
             Key.J => ToggleJump,
+            Key.R => CycleRangeOverlay,
             Key.V => () => PingRequested?.Invoke(Battlefield.GroundPoint(Battlefield.GetLocalMousePosition())),
             _ => null
         };
@@ -1108,6 +1123,7 @@ public partial class CombatScreen : Control
                     ? $" · Ammo economy: {(economies.Length > 1 ? "Mixed" : economies[0].ToString())}" : "");
             _fire.Text = (active.All(item => item.Firing == FiringMode.FireAtWill) ? "● Fire at will" : "Fire at will") + " [F]";
             _hold.Text = (active.All(item => item.Firing == FiringMode.HoldFire) ? "● Hold fire" : "Hold fire") + " [G]";
+            RangeOverlayButton.Text = RangeOverlayLabel(Battlefield.Overlay);
             _refreshing = true;
             var maintaining = active.All(item => item.MaintainRange);
             MaintainRangeToggle.SetPressedNoSignal(maintaining);

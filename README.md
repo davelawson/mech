@@ -98,6 +98,7 @@ Behavior behind each input is specified in [docs/design.md](docs/design.md) (str
 | Drag / click the sidebar ammo gauge | Set how sparingly the selection fires ammunition (left: freely; right: optimal shots only) |
 | J, then right-click ground | Jump there (Escape cancels) |
 | G / F | Hold fire / Fire at will |
+| R / sidebar range button | Cycle the selection's rings: sensor range, weapon range, firing arcs |
 | Drag / click the sidebar heat bar | Set the selection's heat limit (0–30): weapons and jumps wait while heat is above it |
 | **Clear priority target** | Remove the selection's priority target |
 | **Eject**, pressed twice | The selection's MechWarriors eject: they survive, injured, and their mechs are left disabled |

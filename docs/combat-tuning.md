@@ -19,7 +19,7 @@ The first tactical slice implements [the confirmed combat design](combat-design.
 | Moving turn rate | Stationary rate × (1 − 0.55 × actual speed / running speed) |
 | Torso twist limit | ±90° relative to legs |
 | Torso twist speed | Light 90°/s; Medium 75°/s; Heavy 60°/s; Assault 45°/s, relative to legs |
-| Weapon arc | ±30° about mount facing; leg mounts use legs; rear mounts point backward |
+| Weapon arc | 120° (±60°) about mount facing; arm mounts reach 60° further toward their arm (right arm −60° to +120° of torso facing); leg mounts use legs; rear mounts point backward |
 | Rear armor arc | Rear 120° about torso facing, including boundaries |
 | Reverse limit | Walking speed, including when Run is selected |
 | One leg lost | Half movement speed |

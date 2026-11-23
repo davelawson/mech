@@ -52,6 +52,18 @@ public partial class SmokeTests
             field.InspectedEnemy = enemy.Id; enemy.Position = new(-2700, -2700); sim.RefreshDetection(); field._Process(0);
             Check(field.DetectionRanges is [{ Identification: 3000f, Detail: null }] && field.SensorRangeText.Contains("circle: 100t"),
                 "losing the inspected contact restores generic identification ranges");
+            Check(field.WeaponRangeCircles.Count == 0 && field.FiringArcWedges.Count == 0, "sensor mode draws no weapon overlays");
+            field.Overlay = RangeOverlay.WeaponRanges; await Frames();
+            Check(field.DetectionRanges.Count == 0 && field.FiringArcWedges.Count == 0
+                && field.WeaponRangeCircles.Select(circle => (circle.Unit, circle.Range))
+                    .SequenceEqual(CombatRules.WeaponRangeCircles(friends[2]).Select(circle => (friends[2], circle.Range))),
+                "weapon range mode replaces the sensor rings with the selection's weapon circles");
+            field.Overlay = RangeOverlay.FiringArcs; await Frames();
+            Check(field.WeaponRangeCircles.Count == 0 && field.FiringArcWedges.Count == CombatRules.FiringArcWedges(friends[2]).Count
+                && field.FiringArcWedges.Count > 0, "firing arc mode draws the selection's wedges");
+            field.Selection = [friends[0].Id, friends[2].Id]; await Frames();
+            Check(field.FiringArcWedges.All(wedge => wedge.Unit == friends[2]), "disabled and destroyed selections draw no wedges");
+            field.Overlay = RangeOverlay.Sensors;
         }
         finally { field.QueueFree(); await Frames(); }
     }

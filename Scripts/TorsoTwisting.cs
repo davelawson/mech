@@ -2,10 +2,16 @@ using Godot;
 
 namespace Mech;
 
+/// <summary>Which arc a weapon fires through, from its mount.</summary>
+public enum FiringArcDirection { Forward, LeftArm, RightArm, Leg, Rear }
+
 public static partial class CombatRules
 {
     public static readonly float MaxTorsoTwist = Mathf.DegToRad(90);
-    public static readonly float FiringTolerance = Mathf.DegToRad(30);
+    /// <summary>Half of the 120° arc every weapon covers about its mount facing.</summary>
+    public static readonly float FiringHalfArc = Mathf.DegToRad(60);
+    /// <summary>Arm weapons reach this much further toward their own arm's side.</summary>
+    public static readonly float ArmArcExtension = Mathf.DegToRad(60);
     private const float ArcEpsilon = .00001f;
     public static float TorsoTurnRate(MechSpec spec) => Mathf.DegToRad(spec.WeightClass switch
     {
@@ -15,13 +21,54 @@ public static partial class CombatRules
     public static bool IsTorso(MechLocation location) => location is
         MechLocation.CenterTorso or MechLocation.LeftTorso or MechLocation.RightTorso;
     public static bool IsLeg(MechLocation location) => location is MechLocation.LeftLeg or MechLocation.RightLeg;
-    public static Vector2 WeaponFacing(CombatUnit unit, CombatWeapon weapon)
+    public static FiringArcDirection ArcDirection(WeaponSpec weapon) => weapon.Rear ? FiringArcDirection.Rear
+        : IsLeg(weapon.Location) ? FiringArcDirection.Leg : weapon.Location switch
+        {
+            MechLocation.LeftArm => FiringArcDirection.LeftArm, MechLocation.RightArm => FiringArcDirection.RightArm,
+            _ => FiringArcDirection.Forward
+        };
+    /// <summary>A weapon's arc: angles From to To (radians, positive toward the mech's right) about Facing.</summary>
+    public static (Vector2 Facing, float From, float To) FiringArc(CombatUnit unit, FiringArcDirection direction) => direction switch
     {
-        var facing = IsLeg(weapon.Spec.Location) ? unit.Facing : unit.TorsoFacing;
-        return weapon.Spec.Rear ? -facing : facing;
+        FiringArcDirection.Leg => (unit.Facing, -FiringHalfArc, FiringHalfArc),
+        FiringArcDirection.Rear => (-unit.TorsoFacing, -FiringHalfArc, FiringHalfArc),
+        FiringArcDirection.LeftArm => (unit.TorsoFacing, -FiringHalfArc - ArmArcExtension, FiringHalfArc),
+        FiringArcDirection.RightArm => (unit.TorsoFacing, -FiringHalfArc, FiringHalfArc + ArmArcExtension),
+        _ => (unit.TorsoFacing, -FiringHalfArc, FiringHalfArc)
+    };
+    public static (Vector2 Facing, float From, float To) FiringArc(CombatUnit unit, CombatWeapon weapon) =>
+        FiringArc(unit, ArcDirection(weapon.Spec));
+    public static bool InFiringArc(CombatUnit unit, CombatUnit target, CombatWeapon weapon)
+    {
+        var (facing, from, to) = FiringArc(unit, weapon);
+        var angle = facing.AngleTo(target.Position - unit.Position);
+        return angle >= from - ArcEpsilon && angle <= to + ArcEpsilon;
     }
-    public static bool InFiringArc(CombatUnit unit, CombatUnit target, CombatWeapon weapon) =>
-        Math.Abs(WeaponFacing(unit, weapon).AngleTo(target.Position - unit.Position)) <= FiringTolerance + ArcEpsilon;
+    /// <summary>The weapons a range overlay counts: switched on, intact and with ammunition.</summary>
+    private static IEnumerable<CombatWeapon> ReadyWeapons(CombatUnit unit) =>
+        unit.Weapons.Where(weapon => weapon.Enabled && unit.WeaponUsable(weapon));
+    /// <summary>One circle per distinct long range, longest first, with the weapon classes reaching it in enum order.</summary>
+    public static IReadOnlyList<(float Range, HardpointClass[] Classes)> WeaponRangeCircles(CombatUnit unit) =>
+        ReadyWeapons(unit).GroupBy(weapon => weapon.LongRange).OrderByDescending(group => group.Key)
+            .Select(group => (group.Key, Classes(group))).ToArray();
+    /// <summary>One wedge per arc direction and distinct long range, longest first, with the classes reaching it.</summary>
+    public static IReadOnlyList<(FiringArcDirection Direction, float Range, HardpointClass[] Classes)> FiringArcWedges(CombatUnit unit) =>
+        ReadyWeapons(unit).GroupBy(weapon => (Direction: ArcDirection(weapon.Spec), weapon.LongRange))
+            .OrderByDescending(group => group.Key.LongRange).ThenBy(group => group.Key.Direction)
+            .Select(group => (group.Key.Direction, group.Key.LongRange, Classes(group))).ToArray();
+    private static HardpointClass[] Classes(IEnumerable<CombatWeapon> weapons) =>
+        weapons.Select(weapon => WeaponMounts.ClassOf(weapon.Spec.Kind)).Distinct().Order().ToArray();
+    /// <summary>Whether twisting the torso could bring a forward or arm weapon's arc onto the target with the legs held.</summary>
+    public static bool ReachableByTwist(CombatUnit unit, CombatUnit target, CombatWeapon weapon)
+    {
+        var direction = ArcDirection(weapon.Spec);
+        if (direction is FiringArcDirection.Rear or FiringArcDirection.Leg) return false;
+        var (_, from, to) = FiringArc(unit, direction);
+        var angle = unit.Facing.AngleTo(target.Position - unit.Position);
+        // An arm's reach can pass straight behind the legs, so the bearing is also tried a full turn either way.
+        return new[] { angle, angle - Mathf.Tau, angle + Mathf.Tau }
+            .Any(bearing => bearing >= from - MaxTorsoTwist - ArcEpsilon && bearing <= to + MaxTorsoTwist + ArcEpsilon);
+    }
 }
 
 public sealed partial class CombatUnit
@@ -136,9 +183,7 @@ public sealed partial class CombatSimulation
         if (unit.Position.DistanceTo(target.Position) > weapon.LongRange) return "Out of range";
         if (!LineOfFire(unit, target, weapon)) return "Line of fire blocked";
         if (!CombatRules.InFiringArc(unit, target, weapon))
-            return weapon.Spec.Rear || CombatRules.IsLeg(weapon.Spec.Location)
-                || Math.Abs(unit.Facing.AngleTo(target.Position - unit.Position)) > CombatRules.MaxTorsoTwist + CombatRules.FiringTolerance
-                    ? "Outside firing arc" : "Turning to target";
+            return CombatRules.ReachableByTwist(unit, target, weapon) ? "Turning to target" : "Outside firing arc";
         if (weapon.Remaining > .000001) return $"Ready in {weapon.Remaining:0.0}s";
         if (TerrainHitChance(unit, target, weapon) == 0) return "Cannot hit";
         if (SavingAmmo(unit, target, weapon))

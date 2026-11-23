@@ -53,18 +53,20 @@ internal static partial class CombatChecks
             "a directly rearward main target cannot be reached with forward guns while legs retain course");
 
         f.Facing = Vector2.Up; f.TorsoTwist = Mathf.Pi / 2;
-        foreach (var angle in new[] { -30f, 30f, -30.1f, 30.1f })
+        foreach (var angle in new[] { -60f, 60f, -60.1f, 60.1f })
         {
             e.Position = f.Position + f.TorsoFacing.Rotated(Mathf.DegToRad(angle)) * 60;
-            check(CombatRules.InFiringArc(f, e, laser) == (Math.Abs(angle) <= 30), "forward firing arc includes both 30 degree boundaries only");
+            check(CombatRules.InFiringArc(f, e, laser) == (Math.Abs(angle) <= 60), "forward firing arc includes both 60 degree boundaries only");
         }
         var legSim = Battle(definition: "crusader"); var legMech = Friendly(legSim); var legTarget = Enemy(legSim);
         legMech.Facing = Vector2.Up; legMech.TorsoTwist = Mathf.Pi / 2;
         var legWeapon = legMech.Weapons.First(weapon => CombatRules.IsLeg(weapon.Spec.Location));
-        var torsoWeapon = legMech.Weapons.First(weapon => !CombatRules.IsLeg(weapon.Spec.Location) && !weapon.Spec.Rear);
+        var torsoWeapon = legMech.Weapons.First(weapon => weapon.Spec.Location == MechLocation.RightArm);
         legTarget.Position = legMech.Position + Vector2.Up * 60;
         check(CombatRules.InFiringArc(legMech, legTarget, legWeapon) && !CombatRules.InFiringArc(legMech, legTarget, torsoWeapon),
             "leg-mounted launchers keep leg facing while torso weapons twist");
+        CheckArmArcs(check);
+        CheckRangeOverlays(check);
 
         CheckRearWeapons(check);
         CheckRearDamage(check);
@@ -98,10 +100,10 @@ internal static partial class CombatChecks
         sim.Paused = false; sim.Advance(.05);
         check(f.CurrentTarget == enemies[0].Id && f.CurrentRearTarget == enemies[1].Id && rear.Remaining > 0 && f.TorsoTwist == 0,
             "rear mounts actually fire at independent rear targets without steering away from the main target");
-        foreach (var angle in new[] { -30f, 30f, -30.1f, 30.1f })
+        foreach (var angle in new[] { -60f, 60f, -60.1f, 60.1f })
         {
             enemies[1].Position = -f.TorsoFacing.Rotated(Mathf.DegToRad(angle)) * 240;
-            check(CombatRules.InFiringArc(f, enemies[1], rear) == (Math.Abs(angle) <= 30), "rear weapon arcs are centered directly behind the torso");
+            check(CombatRules.InFiringArc(f, enemies[1], rear) == (Math.Abs(angle) <= 60), "rear weapon arcs are centered directly behind the torso");
         }
         enemies[0].Position = new(30, 180); enemies[1].Position = new(0, 240); sim.RefreshDetection();
         check(sim.SelectRearTarget(f) == enemies[0], "eligible rear priority beats retained and nearest rear targets");

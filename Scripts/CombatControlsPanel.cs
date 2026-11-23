@@ -50,6 +50,8 @@ public partial class CombatControlsPanel : PanelContainer
         Section("ORDERS", coop ? [.. orders, ("V", "Ping the ground under the cursor for every player")] : orders);
         Section("FIRING AND WEAPONS",
             ("G / F", "Hold fire / Fire at will"),
+            ("R", "Cycle the selection's rings: sensor range, weapon range (a circle per long range, in hangar weapon colours), "
+                + "firing arcs (a wedge per mount arc and range). The sidebar button below the firing buttons does the same."),
             ("Weapon toggles", "The WEAPONS list in the sidebar switches each weapon of the primary selection on or off. "
                 + "A disabled weapon stays off whatever the orders; it is not weapon loss and comes back on when toggled."),
             ("Ammo gauge", "The yellow gauge under the speed gauge shows ammunition left. Drag its pointer to set ammo economy for the selection: "
