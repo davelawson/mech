@@ -35,6 +35,8 @@ public sealed partial class CombatUnit
     private int _ammoEconomy;
     /// <summary>Whole steps 0–10: how sparingly ammo-fed weapons fire. See <see cref="CombatRules.AmmoAllowance"/>.</summary>
     public int AmmoEconomy { get => _ammoEconomy; set => _ammoEconomy = CombatRules.ClampAmmoEconomy(value); }
+    /// <summary>Carries autocannons, missiles or machine guns, so its ammo economy matters.</summary>
+    public bool HasAmmoWeapons => Weapons.Any(weapon => weapon.Spec.AmmoKind is not null);
     public bool Shutdown { get; private set; }
     public string HeatBand => Shutdown ? "Shutdown" : Heat >= CombatRules.HotHeat ? "Hot"
         : Heat >= CombatRules.WarmHeat ? "Warm" : "Cool";

@@ -4,6 +4,47 @@ namespace Mech.Tests;
 
 public partial class SmokeTests
 {
+    /// <summary>A group led by a mech without ammo weapons still shows the ammo gauge, and it sets only the mechs that carry ammo.</summary>
+    private async Task TestMixedAmmoGauge()
+    {
+        var roster = ForceRoster.Create("Mixed ammo", [DraftCatalog.Mech("awesome"), DraftCatalog.Mech("thunderbolt"), DraftCatalog.Mech("thunderbolt")],
+            DraftCatalog.Warriors.Take(3));
+        for (var i = 0; i < 3; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
+        var tactical = new CombatScreen { Theme = Ui.CreateTheme(), Size = new Vector2(1440, 900) };
+        AddChild(tactical);
+        try
+        {
+            tactical.Open(roster, roster.Mechs[0].Id);
+            tactical.MirrorMatchButton.EmitSignal(BaseButton.SignalName.Pressed);
+            foreach (var choice in tactical.ForceChoices) choice.ButtonPressed = true;
+            tactical.ChooseBiome(Biome.Valley);
+            tactical.LaunchButton.EmitSignal(BaseButton.SignalName.Pressed);
+            var sim = tactical.Simulation!; sim.Paused = true;
+            var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
+            var energy = friends.Single(unit => !unit.HasAmmoWeapons);
+            var carriers = friends.Where(unit => unit.HasAmmoWeapons).ToArray();
+            var sidebar = tactical.Paperdoll;
+            tactical.SelectUnits([energy.Id], false); await Frames();
+            Check(sidebar.Unit == energy && !sidebar.ShowsAmmo, "a mech without ammo weapons selected alone shows no ammo gauge");
+            tactical.SelectUnits([energy.Id, .. carriers.Select(unit => unit.Id)], false); await Frames();
+            Check(sidebar.Unit == energy && sidebar.AmmoUnit == carriers[0] && sidebar.ShowsAmmo && sidebar.EditsAmmoEconomy
+                && sidebar.DisplayedAmmoEconomy == 0, "a group led by a mech without ammo weapons shows its first ammo carrier's gauge");
+            Vector2 At(int step) => sidebar.GetGlobalTransform() * new Vector2(sidebar.AmmoTrackX(step), sidebar.AmmoTrack.GetCenter().Y);
+            MouseMotion(At(0), Vector2.Zero);
+            MouseButton(At(0), Godot.MouseButton.Left, true); await Frames();
+            MouseMotion(At(5), At(5) - At(0)); await Frames();
+            MouseButton(At(5), Godot.MouseButton.Left, false); await Frames(); await Frames();
+            Check(carriers.All(unit => unit.AmmoEconomy == 5) && energy.AmmoEconomy == 0,
+                $"dragging the gauge sets every selected ammo carrier and leaves the others: {string.Join(", ", friends.Select(unit => unit.AmmoEconomy))}");
+            Check(tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.IsVisibleInTree() && label.Text.Contains("Ammo economy: 5")),
+                "the group readout gives the ammo carriers' economy");
+        }
+        finally
+        {
+            RemoveChild(tactical); tactical.QueueFree(); await Frames();
+        }
+    }
+
     private async Task TestHeatControls()
     {
         var roster = ForceRoster.Create("Heat controls", Enumerable.Repeat(DraftCatalog.Mech("thunderbolt"), 4), DraftCatalog.Warriors.Take(4));

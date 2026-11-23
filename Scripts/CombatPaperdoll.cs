@@ -39,10 +39,13 @@ public partial class CombatPaperdoll : Control
     /// <summary>Raised with the whole ammo economy 0–10 while the player clicks or drags the ammo gauge.</summary>
     public event Action<int>? AmmoEconomyChanged;
     /// <summary>The full doll shows the ammo gauge for a mech with ammo-fed weapons.</summary>
-    public bool ShowsAmmo => !Compact && Unit is not null && Unit.Weapons.Any(weapon => weapon.Spec.AmmoKind is not null);
+    public bool ShowsAmmo => !Compact && AmmoUnit is { HasAmmoWeapons: true };
+    /// <summary>The mech whose ammunition and economy the gauge shows: the displayed one, or for a group whose first mech
+    /// carries no ammo weapons, the first selected mech that does.</summary>
+    public CombatUnit? AmmoUnit { get; private set; }
     public bool EditsAmmoEconomy => EditsHeatLimit && ShowsAmmo;
     private int? _dragEconomy;
-    public int? DisplayedAmmoEconomy => !EditsAmmoEconomy ? null : _dragEconomy ?? Unit!.AmmoEconomy;
+    public int? DisplayedAmmoEconomy => !EditsAmmoEconomy ? null : _dragEconomy ?? AmmoUnit!.AmmoEconomy;
     public static readonly Color Full = new("b4b8b6"), LightDamage = new("f1d34c"),
         ModerateDamage = new("ef8a32"), CriticalDamage = new("e84c43"), Healthy = new("6fcf6a");
     public static Color SystemColor(ComponentCondition condition) => condition switch
@@ -135,7 +138,7 @@ public partial class CombatPaperdoll : Control
         // Keep layout stable and fit the drawing to the allocated size instead.
         Resized += QueueRedraw;
     }
-    public void Display(CombatUnit? unit) { Unit = unit; Visible = unit is not null; QueueRedraw(); }
+    public void Display(CombatUnit? unit, CombatUnit? ammoUnit = null) { Unit = unit; AmmoUnit = ammoUnit ?? unit; Visible = unit is not null; QueueRedraw(); }
     /// <summary>Weapons, components and ammunition in one location, grouped by name and condition in mount order.</summary>
     public static IReadOnlyList<SystemGroup> LocationSystems(CombatUnit unit, MechLocation location)
     {
@@ -261,7 +264,7 @@ public partial class CombatPaperdoll : Control
     private void DragEconomy(float x)
     {
         var economy = AmmoEconomyAt(x);
-        if (economy != (_dragEconomy ?? Unit!.AmmoEconomy)) AmmoEconomyChanged?.Invoke(economy);
+        if (economy != (_dragEconomy ?? AmmoUnit!.AmmoEconomy)) AmmoEconomyChanged?.Invoke(economy);
         _dragEconomy = economy; QueueRedraw();
     }
     private void DragSpeed(float x)
@@ -294,7 +297,7 @@ public partial class CombatPaperdoll : Control
     {
         if (DisplayedHeatLimit is { } limit && HeatGrabArea.HasPoint(atPosition)) { _tooltipLocation = null; return $"Heat limit {limit}"; }
         if (ShowsSpeed && SpeedStrip.HasPoint(atPosition)) { _tooltipLocation = null; return SpeedTooltip(Unit!, DisplayedDesiredSpeed); }
-        if (ShowsAmmo && AmmoStrip.HasPoint(atPosition)) { _tooltipLocation = null; return AmmoTooltip(Unit!, DisplayedAmmoEconomy); }
+        if (ShowsAmmo && AmmoStrip.HasPoint(atPosition)) { _tooltipLocation = null; return AmmoTooltip(AmmoUnit!, DisplayedAmmoEconomy); }
         if (ShowsStress && StressRect.Grow(4).HasPoint(atPosition)) { _tooltipLocation = null; return StressTooltip(Unit!); }
         _tooltipLocation = Compact ? null : LocationAt(atPosition);
         return _tooltipLocation is { } location ? LocationTooltip(location) : "";
@@ -365,7 +368,7 @@ public partial class CombatPaperdoll : Control
             Region(location, Compact ? shape.Select(point => point + CompactRearShift).ToArray() : shape, true);
         if (DisplayedHeatLimit is { } limit) HeatLimitHandle(limit);
         if (ShowsSpeed) SpeedGauge(Unit);
-        if (ShowsAmmo) AmmoGauge(Unit);
+        if (ShowsAmmo) AmmoGauge(AmmoUnit!);
         if (ShowsStress) StressFace(Unit);
     }
     /// <summary>A friendly MechWarrior's stress level, centered above the schematic. Enemy stress is never shown.</summary>

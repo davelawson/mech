@@ -184,7 +184,8 @@ public partial class CombatScreen : Control
         Paperdoll.HeatLimitChanged += limit => Send(new HeatLimitCommand([.. _selected], limit));
         // Dragging the speed gauge's pointer sets the same desired speed for the whole selection; X, C, J and Z remain hotkeys only.
         Paperdoll.DesiredSpeedChanged += speed => Send(new SpeedCommand([.. _selected], speed));
-        Paperdoll.AmmoEconomyChanged += economy => Send(new AmmoEconomyCommand([.. _selected], economy));
+        Paperdoll.AmmoEconomyChanged += economy => Send(new AmmoEconomyCommand(
+            [.. _selected.Where(id => Simulation?.Unit(id).HasAmmoWeapons == true)], economy));
         _unitInfo = RosterUi.Text(body, "", 13);
         _targetInfo = RosterUi.Text(body, "", 12, Ui.Gold);
         _settings = new VBoxContainer(); body.AddChild(_settings);
@@ -983,7 +984,8 @@ public partial class CombatScreen : Control
         _settings.Visible = active.Length > 0 && inspected is null;
         _weapons.Visible = inspected is null;
         _weaponsTitle.Visible = unit is not null && inspected is null;
-        Paperdoll.Display(unit);
+        // A group's ammo gauge belongs to its first mech with ammo weapons and sets every such mech.
+        Paperdoll.Display(unit, unit is { HasAmmoWeapons: true } ? unit : active.FirstOrDefault(item => item.HasAmmoWeapons));
         PilotRow.Visible = unit is not null && inspected is null;
         if (unit is not null && inspected is null && PilotInfo.Text != PilotText(unit.Warrior))
         {
@@ -1032,7 +1034,8 @@ public partial class CombatScreen : Control
             _groupInfo.Text = $"{active.Length} units · edits apply to group\n"
                 + $"Speed: {(active.Select(item => CombatPaperdoll.Kmh(item.DesiredSpeed)).Distinct().Count() > 1 ? "Mixed" : $"{CombatPaperdoll.Kmh(active[0].DesiredSpeed)} km/h")} · Fire: {(active.Select(item => item.Firing).Distinct().Count() > 1 ? "Mixed" : active[0].Firing == FiringMode.FireAtWill ? "At will" : "Hold")}\n"
                 + $"Heat limit: {(active.Select(item => item.HeatLimit).Distinct().Count() > 1 ? "Mixed" : active[0].HeatLimit.ToString())}"
-                + $" · Ammo economy: {(active.Select(item => item.AmmoEconomy).Distinct().Count() > 1 ? "Mixed" : active[0].AmmoEconomy.ToString())}";
+                + (active.Where(item => item.HasAmmoWeapons).Select(item => item.AmmoEconomy).Distinct().ToArray() is { Length: > 0 } economies
+                    ? $" · Ammo economy: {(economies.Length > 1 ? "Mixed" : economies[0].ToString())}" : "");
             _fire.Text = (active.All(item => item.Firing == FiringMode.FireAtWill) ? "● Fire at will" : "Fire at will") + " [F]";
             _hold.Text = (active.All(item => item.Firing == FiringMode.HoldFire) ? "● Hold fire" : "Hold fire") + " [G]";
             _refreshing = true;
