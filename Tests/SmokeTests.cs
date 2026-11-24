@@ -896,9 +896,9 @@ public partial class SmokeTests : Node
     {
         Check(_app.Drafting.Visible && _app.State.RequiresDraft && !_app.State.CanAdvance, "new company must draft before operations");
         var initialDraft = _app.Drafting.Draft;
-        foreach (var warrior in DraftCatalog.Warriors)
-            Check(Ui.LoadTexture(warrior.Artwork) is not null, $"portrait is imported for {warrior.Id}");
-        var missingPortrait = DraftCatalog.Warriors[0] with { Id = "test-missing-portrait" };
+        foreach (var portrait in PilotData.Instance.Portraits)
+            Check(Ui.LoadTexture($"res://Assets/Roster/{portrait.Id}.png") is not null, $"portrait {portrait.Id} is imported");
+        var missingPortrait = TestPilots.Warriors[0] with { Portrait = "test-missing-portrait" };
         Check(RosterUi.Portrait(missingPortrait) == RosterUi.PlaceholderPortrait, "a missing pilot texture shows the placeholder portrait");
         var initialChoices = Enumerable.Range(0, 8).Select(initialDraft.Choice).ToArray();
         for (var pool = 0; pool < 4; pool++) for (var choice = 0; choice < 3; choice++)
@@ -1020,12 +1020,12 @@ public partial class SmokeTests : Node
     {
         var state = _app.State; var roster = state.Roster!;
         Check(PilotTuning.Slots(StarChart.Instance[state.Travel.OrbitSystemId]) >= 2, "the starting system lists MechWarriors for hire");
-        // A Green and a Regular the drafted company did not take.
-        state.PlaceRecruits(new[] { WarriorExperience.Green, WarriorExperience.Regular }
-            .Select(rank => DraftCatalog.Warriors.First(w => w.Rank == rank && roster.Warriors.All(hired => hired.Id != w.Id)).Id).ToArray());
+        // A newly generated Green and Regular.
+        var inUse = new PilotsInUse(roster.Warriors.Select(item => item.Spec)); var rolls = new Random(3025);
+        state.PlaceRecruits([.. new[] { WarriorExperience.Green, WarriorExperience.Regular }.Select(rank => PilotGenerator.Generate(rolls, inUse, rank))]);
         await Click(_app.Office.RolodexButton);
         _app.Rolodex.Section.Select(RolodexPanel.HireSection); _app.Rolodex.Section.EmitSignal(OptionButton.SignalName.ItemSelected, (long)RolodexPanel.HireSection); await Frames();
-        var recruit = DraftCatalog.Warrior(_app.Rolodex.SelectedId!); var cost = state.HireCost(recruit);
+        var recruit = state.OrbitRecruits.Single(item => item.Id == _app.Rolodex.SelectedId); var cost = state.HireCost(recruit);
         var record = _app.Rolodex.FindChildren("*", nameof(Label), true, false).OfType<Label>().Select(label => label.Text).First(text => text.StartsWith("FOR HIRE"));
         Check(record.Contains($"Salary: {RosterUi.Money(recruit.Salary)} a quarter") && _app.Rolodex.ActionButton.Visible && !_app.Rolodex.ActionButton.Disabled
             && _app.Rolodex.ActionButton.Text == $"Recruit · {RosterUi.Money(cost.Total)}" && _app.Rolodex.ActionButton.TooltipText.Contains("signing bonus")
@@ -1036,7 +1036,7 @@ public partial class SmokeTests : Node
         await Click(_app.Rolodex.ActionButton);
         Check(state.Cash == cash - cost.Total && roster.Warriors.Any(item => item.Id == recruit.Id) && state.OrbitRecruits.All(item => item.Id != recruit.Id)
             && !_app.Rolodex.CardName.Text.Contains(recruit.Name), "Recruit pays at once, hires the MechWarrior and takes them off the list");
-        var other = DraftCatalog.Warrior(_app.Rolodex.SelectedId!);
+        var other = state.OrbitRecruits.Single(item => item.Id == _app.Rolodex.SelectedId);
         var poor = Campaign.Restore(state.Snapshot() with { Cash = 0 });
         Check(poor.HireProblem(other) is not null, "a hire the company cannot afford is refused");
         _app.Rolodex.Section.Select(RolodexPanel.ActiveSection); _app.Rolodex.Section.EmitSignal(OptionButton.SignalName.ItemSelected, (long)RolodexPanel.ActiveSection); await Frames();
@@ -1055,7 +1055,7 @@ public partial class SmokeTests : Node
         Check(roster.Warriors.Any(item => item.Id == recruit.Id) && _app.Rolodex.Visible, "cancelling keeps the MechWarrior");
         cash = state.Cash;
         await Click(_app.Rolodex.ActionButton); await Click(DialogButton("Dismiss"));
-        Check(roster.Warriors.All(item => item.Id != recruit.Id) && state.Recruits.IsDismissed(recruit.Id) && state.Cash == cash && _app.Rolodex.Visible
+        Check(roster.Warriors.All(item => item.Id != recruit.Id) && state.Cash == cash && _app.Rolodex.Visible
             && _app.Rolodex.SelectedId != recruit.Id, "a dismissed MechWarrior leaves the company without a refund");
         _app.Rolodex.Section.Select(RolodexPanel.MemorialSection); _app.Rolodex.Section.EmitSignal(OptionButton.SignalName.ItemSelected, (long)RolodexPanel.MemorialSection); await Frames();
         Check(!_app.Rolodex.ActionButton.Visible, "memorial cards have no Recruit or Dismiss button");

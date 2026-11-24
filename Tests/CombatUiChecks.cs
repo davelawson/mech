@@ -448,7 +448,7 @@ public partial class SmokeTests
     }
     private async Task TestPatrolUi()
     {
-        var roster = ForceRoster.Create("Patrol checks", new[] { "wolverine", "jenner" }.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(2));
+        var roster = ForceRoster.Create("Patrol checks", new[] { "wolverine", "jenner" }.Select(DraftCatalog.Mech), TestPilots.Warriors.Take(2));
         for (var i = 0; i < 2; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var tactical = _app.Tactical; _app.Navigation.Push(CommandScreen.Tactical, _app.Hangar.DeploymentButton);
         tactical.Open(roster, roster.Mechs[0].Id); await Frames();

@@ -350,7 +350,7 @@ public sealed class Campaign
     }
 
     /// <summary>Lists exactly these MechWarriors for hire where the DropShip orbits, as a test fixture.</summary>
-    internal void PlaceRecruits(params string[] warriorIds) => Recruits.Place(Travel.OrbitSystemId, Date, warriorIds);
+    internal void PlaceRecruits(params WarriorSpec[] warriors) => Recruits.Place(Travel.OrbitSystemId, Date, warriors);
 
     /// <summary>What hiring a MechWarrior costs today: the rest of the quarter's salary, prorated by days and rounded up to
     /// <see cref="PilotTuning.HireRounding"/>, and a signing bonus of a full quarter's salary.</summary>
@@ -371,19 +371,15 @@ public sealed class Campaign
     /// <summary>Hires a MechWarrior listed where the DropShip orbits, paying the prorated salary and signing bonus at once.</summary>
     public void Recruit(string warriorId)
     {
-        var warrior = DraftCatalog.Warrior(warriorId);
+        var warrior = OrbitRecruits.SingleOrDefault(item => item.Id == warriorId) ?? throw new InvalidOperationException("That MechWarrior is not for hire here.");
         if (HireProblem(warrior) is { } problem) throw new InvalidOperationException(problem);
         var cost = HireCost(warrior).Total;
         Recruits.Hire(Travel.OrbitSystemId, warriorId);
         RequireRoster().Hire(warrior);
         Cash -= cost;
     }
-    /// <summary>Dismisses a MechWarrior for good: no refund, and they are never listed for hire again.</summary>
-    public void Dismiss(string warriorId)
-    {
-        RequireRoster().Dismiss(warriorId);
-        Recruits.Dismiss(warriorId);
-    }
+    /// <summary>Dismisses a MechWarrior for good: no refund, and they are gone from the game.</summary>
+    public void Dismiss(string warriorId) => RequireRoster().Dismiss(warriorId);
 
     /// <summary>Repair orders working in a bay: at most <see cref="RepairTuning.Bays"/>.</summary>
     public int ActiveRepairs => Roster?.Mechs.Count(item => item.UnderRepair) ?? 0;
@@ -548,8 +544,8 @@ public sealed class Campaign
         var quarterStart = date == default ? StartDate : new DateOnly(date.Year, (date.Month - 1) / 3 * 3 + 1, 1);
         if (save.Version is < 1 or > SaveVersion || date < StartDate || date.Year >= 9999 || save.Cash < 0
             || save.DeferredDebt < 0
-            || save.DeferredDebt != 0 && (save.DeferredDebt < QuarterlyCharge || save.DeferredDebt % PilotTuning.HireRounding != 0)
-            || save.BilledSalaries < 0 || save.BilledSalaries % PilotTuning.HireRounding != 0 || save.PaymentDue == 0 && save.BilledSalaries != 0
+            || save.DeferredDebt != 0 && save.DeferredDebt < QuarterlyCharge
+            || save.BilledSalaries < 0 || save.PaymentDue == 0 && save.BilledSalaries != 0
             || save.AccruedTransitDays < 0 || save.AccruedTransitDays > date.DayNumber - quarterStart.DayNumber
             || save.BilledTransitDays is < 0 or > 92
             || save.PaymentDue == 0 && save.BilledTransitDays != 0

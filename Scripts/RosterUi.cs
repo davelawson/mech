@@ -45,15 +45,14 @@ internal static class RosterUi
             control.FocusNeighborLeft = control.FocusPrevious; control.FocusNeighborRight = control.FocusNext;
         }
     }
-    /// <summary>The three skills on one line, as words: "Gunnery: Veteran  /  Piloting: Elite  /  Sensors: Regular".</summary>
+    /// <summary>The four skills on one line, as words: "Gunnery: Veteran  /  Piloting: Elite  /  Sensors: Regular  /  Grit: Green".</summary>
     public static string SkillText(WarriorSpec warrior) => string.Join("  /  ", SkillParts(warrior));
-    /// <summary>The three skills as words, one per line.</summary>
+    /// <summary>The four skills as words, one per line.</summary>
     public static string SkillLines(WarriorSpec warrior) => string.Join("\n", SkillParts(warrior));
     private static string[] SkillParts(WarriorSpec warrior) =>
         [$"Gunnery: {WarriorSkills.Descriptor(warrior.Gunnery)}", $"Piloting: {WarriorSkills.Descriptor(warrior.Piloting)}", $"Sensors: {WarriorSkills.Descriptor(warrior.Sensors)}", $"Grit: {WarriorSkills.Descriptor(warrior.Grit)}"];
-    public static string SkillBudgetText(WarriorSpec warrior) => $"Skill points: {warrior.SkillPoints}/{warrior.SkillBudget} spent";
     public static string Money(long amount) => $"{amount.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)} C-bills";
-    /// <summary>A MechWarrior's portrait, or a plain silhouette for one whose portrait has not been painted yet.</summary>
+    /// <summary>A MechWarrior's portrait, or a plain silhouette when the picture is missing.</summary>
     public static Texture2D Portrait(WarriorSpec warrior) => Ui.LoadTexture(warrior.Artwork) ?? PlaceholderPortrait;
     private static Texture2D? _placeholder;
     public static Texture2D PlaceholderPortrait => _placeholder ??= DrawPlaceholder();

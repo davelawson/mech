@@ -14,7 +14,7 @@ internal static partial class CombatChecks
         };
         var units = Enum.GetValues<CombatSide>().Select(side =>
         {
-            var unit = new CombatUnit(side.ToString(), spec, DraftCatalog.Warriors[0] with { Gunnery = side == CombatSide.Friendly ? gunnery : 4 }, side,
+            var unit = new CombatUnit(side.ToString(), spec, TestPilots.Warriors[0] with { Gunnery = side == CombatSide.Friendly ? gunnery : 4 }, side,
                 spec.Locations.Select(location => new LocationCondition(location.Location, location.Armor, location.RearArmor, location.Structure)),
                 spec.Weapons.Select(weapon => new EquipmentCondition(weapon.Id, ComponentCondition.Operational)),
                 [], side == CombatSide.Friendly ? Vector2.Zero : new Vector2(distance, 0));

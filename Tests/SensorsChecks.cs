@@ -7,7 +7,7 @@ internal static partial class CombatChecks
     private static CombatUnit SensorUnit(string id, string definition, int sensors, CombatSide side, Vector2 position)
     {
         var spec = DraftCatalog.Mech(definition);
-        return new(id, spec, DraftCatalog.Warriors[0] with { Sensors = sensors }, side,
+        return new(id, spec, TestPilots.Warriors[0] with { Sensors = sensors }, side,
             spec.Locations.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)),
             spec.Weapons.Select(w => w.Id).Concat(spec.Components.Select(c => c.Id)).Concat(spec.Ammo.Select(a => a.Id))
                 .Select(item => new EquipmentCondition(item, ComponentCondition.Operational)),

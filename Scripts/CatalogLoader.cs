@@ -132,24 +132,6 @@ internal static class CatalogLoader
         }).ToImmutableArray();
     internal static string GroupedId(string group, int index) => $"{group}.{index}";
 
-    internal static ImmutableArray<WarriorSpec> ValidateWarriors(IEnumerable<WarriorSpec> source)
-    {
-        var warriors = source.ToImmutableArray(); var ids = new HashSet<string>(StringComparer.Ordinal);
-        Require(warriors.Length > 0, "warriors", "empty catalog");
-        foreach (var w in warriors)
-        {
-            Require(w is not null, "warriors", "null definition"); var path = $"warrior {w!.Id}";
-            Text(w.Id, path + ".Id"); Text(w.Name, path + ".Name"); Text(w.Callsign, path + ".Callsign");
-            Require(ids.Add(w.Id), path + ".Id", "duplicate identity");
-            Defined(w.Rank, path + ".Rank"); Defined(w.Specialty, path + ".Specialty");
-            Require(new[] { w.Gunnery, w.Piloting, w.Sensors, w.Grit }.All(v => v is >= WarriorSkills.Expert and <= WarriorSkills.Untrained),
-                path + ".Skills", "ratings must be between 2 and 7");
-            Require(w.Rank == WarriorExperience.Green || new[] { w.Gunnery, w.Piloting, w.Sensors, w.Grit }.All(v => v <= WarriorSkills.Novice),
-                path + ".Skills", "only Green MechWarriors may be Untrained");
-            Require(w.SkillPoints == w.SkillBudget, path + ".Skills", $"must spend exactly {w.SkillBudget} points");
-        }
-        return warriors;
-    }
     private static void Defined<T>(T value, string path) where T : struct, Enum => Require(Enum.IsDefined(value), path, "unsupported category");
     private static void Text(string? value, string path) => Require(!string.IsNullOrWhiteSpace(value), path, "missing text");
     private static void Require(bool condition, string path, string message) { if (!condition) throw Invalid(path, message); }

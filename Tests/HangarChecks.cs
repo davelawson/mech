@@ -86,7 +86,7 @@ internal static class HangarChecks
     /// <summary>Installing spares: placement after the stock items, mounts, location and compatibility rules, storage, tonnage and saves.</summary>
     private static void DamageNoticeChecks(Action<bool, string> check)
     {
-        var snapshot = ForceRoster.Create("Damage Test", [DraftCatalog.Mech("wolverine")], DraftCatalog.Warriors.Take(1)).Snapshot();
+        var snapshot = ForceRoster.Create("Damage Test", [DraftCatalog.Mech("wolverine")], TestPilots.Warriors.Take(1)).Snapshot();
         var mech = snapshot.Mechs[0];
         OwnedMech With(MechSnapshot changed) => ForceRoster.Restore(snapshot with { Mechs = [changed] }, Campaign.StartDate).Mechs[0];
         MechSnapshot Torso(Func<LocationCondition, LocationCondition> change) => mech with
@@ -112,7 +112,7 @@ internal static class HangarChecks
     private static void InstallChecks(Action<bool, string> check)
     {
         var wolverine = DraftCatalog.Mech("wolverine");
-        var roster = ForceRoster.Create("Install Test", [wolverine, wolverine], DraftCatalog.Warriors.Take(2));
+        var roster = ForceRoster.Create("Install Test", [wolverine, wolverine], TestPilots.Warriors.Take(2));
         var mech = roster.Mechs[0]; var stock = mech.Spec;
         int Count(string id) => roster.Storage.SingleOrDefault(item => item.Id == id)?.Count ?? 0;
         int Free(OwnedMech owned, MechLocation location) => EquipmentRules.Capacity(location) - CriticalLayout.Used(CriticalLayout.For(owned.Spec)[location]);
@@ -244,7 +244,7 @@ internal static class HangarChecks
         check(EquipmentRules.EngineSinksText(atlas) == "12 heat sinks inside the engine · 10 free, 2 at 1 t each"
             && EquipmentRules.EngineSinksText(blackjack) == "7 heat sinks inside the engine · all free", "the engine reports its internal sinks and their mass");
 
-        var roster = ForceRoster.Create("Free sinks", [flea, blackjack], DraftCatalog.Warriors.Take(2));
+        var roster = ForceRoster.Create("Free sinks", [flea, blackjack], TestPilots.Warriors.Take(2));
         var fleaMech = roster.Mechs[0]; var jackMech = roster.Mechs[1];
         var lighterFlea = fleaMech.WithLoadout(LoadoutPlan.Removing(new HashSet<string> { fleaSinks[0].Id }));
         check(lighterFlea.Spec.HeatSinks == 9 && lighterFlea.Tons == flea.Tonnage, "removing a free heat sink frees no tonnage");
@@ -272,7 +272,7 @@ internal static class HangarChecks
         check(CriticalLayout.For(wolverine).Values.SelectMany(blocks => blocks).Count(block => block.Kind == SlotKind.JumpJet) == wolverine.Jump,
             "Wolverine shows each of its jump jets as a separate slot");
 
-        ForceRoster Company() => ForceRoster.Create("Loadout Test", [wolverine, wolverine], DraftCatalog.Warriors.Take(2));
+        ForceRoster Company() => ForceRoster.Create("Loadout Test", [wolverine, wolverine], TestPilots.Warriors.Take(2));
         var roster = Company(); var mech = roster.Mechs[0]; var stock = mech.Spec;
         int Count(string id) => roster.Storage.SingleOrDefault(item => item.Id == id)?.Count ?? 0;
         var weapon = stock.Weapons.First(item => item.AmmoKind is not null);

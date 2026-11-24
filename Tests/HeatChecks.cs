@@ -16,7 +16,7 @@ internal static partial class CombatChecks
         { Weapons = weapons.ToImmutableArray(), HeatSinks = sinks, HeatSinkType = sinkType, Components = (components ?? []).ToImmutableArray(), Ammo = [] };
         var units = Enum.GetValues<CombatSide>().Select(side =>
         {
-            var unit = new CombatUnit(side.ToString(), spec, DraftCatalog.Warriors[0] with { Gunnery = gunnery }, side,
+            var unit = new CombatUnit(side.ToString(), spec, TestPilots.Warriors[0] with { Gunnery = gunnery }, side,
                 spec.Locations.Select(location => new LocationCondition(location.Location, location.Armor, location.RearArmor, location.Structure)),
                 spec.Weapons.Select(weapon => new EquipmentCondition(weapon.Id, ComponentCondition.Operational))
                     .Concat(spec.Components.Select(component => new EquipmentCondition(component.Id, sinkCondition))),

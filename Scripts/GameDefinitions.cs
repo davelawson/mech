@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Mech;
 
@@ -7,8 +8,8 @@ public enum WarriorHealth { Healthy, Injured, Dead }
 public enum ComponentCondition { Operational, Damaged, Destroyed }
 public enum MechWeightClass { Light, Medium, Heavy, Assault }
 public enum HeatSinkKind { Single, Double }
-public enum WarriorExperience { Regular, Veteran, Green }
-public enum WarriorSpecialty { None, Gunnery, Piloting, Sensors }
+/// <summary>A MechWarrior's rank, worked out from the skill points spent (see <see cref="WarriorSkills.RankFor"/>).</summary>
+public enum WarriorExperience { Green, Regular, Veteran, Elite, Legendary }
 public enum DamageKind { Direct, Missile }
 public enum WeaponKind { MediumLaser, SmallLaser, LargeLaser, PPC, Flamer, MachineGun, AC2, ERLargeLaser,
     AC5, AC10, AC20, LRM5, LRM10, LRM15, LRM20, SRM2, SRM4, SRM6 }
@@ -37,16 +38,16 @@ public sealed record MechSpec(string Id, string Chassis, string Variant, int Ton
     public int CoolingPerSink => HeatSinkType switch
     { HeatSinkKind.Single => 1, HeatSinkKind.Double => 2, _ => throw new ArgumentOutOfRangeException(nameof(HeatSinkType)) };
 }
-public sealed record WarriorSpec(string Id, string Name, string Callsign, int Gunnery, int Piloting, int Sensors, int Grit,
-    WarriorExperience Rank, WarriorSpecialty Specialty)
+/// <summary>A MechWarrior: a generated combination of portrait, name and callsign with skills bought from rolled points. Portrait is the
+/// id of a picture in Assets/Roster.</summary>
+public sealed record WarriorSpec(string Id, string Name, string Callsign, string Portrait, int Gunnery, int Piloting, int Sensors, int Grit)
 {
-    public string DisplayName => $"{Name}  “{Callsign}”";
-    public string Artwork => $"res://Assets/Roster/{Id}.png";
+    [JsonIgnore] public string DisplayName => $"{Name}  “{Callsign}”";
+    [JsonIgnore] public string Artwork => $"res://Assets/Roster/{Portrait}.png";
     /// <summary>What the company pays this MechWarrior each quarter.</summary>
-    public long Salary => PilotTuning.Salary(this);
-    public string Experience => DefinitionText.Experience(this);
-    public int SkillPoints => WarriorSkills.Cost(Gunnery) + WarriorSkills.Cost(Piloting) + WarriorSkills.Cost(Sensors) + WarriorSkills.Cost(Grit);
-    public int SkillBudget => Rank switch
-    { WarriorExperience.Regular => WarriorSkills.RegularBudget, WarriorExperience.Veteran => WarriorSkills.VeteranBudget,
-        WarriorExperience.Green => WarriorSkills.GreenBudget, _ => throw new ArgumentOutOfRangeException(nameof(Rank)) };
+    [JsonIgnore] public long Salary => PilotTuning.Salary(this);
+    [JsonIgnore] public string Experience => DefinitionText.Experience(this);
+    /// <summary>The points spent on all four skills; it sets rank and salary.</summary>
+    [JsonIgnore] public int SkillPoints => WarriorSkills.Spent(Gunnery) + WarriorSkills.Spent(Piloting) + WarriorSkills.Spent(Sensors) + WarriorSkills.Spent(Grit);
+    [JsonIgnore] public WarriorExperience Rank => WarriorSkills.RankFor(SkillPoints);
 }

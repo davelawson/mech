@@ -31,8 +31,7 @@ public static class DefinitionText
             || StorageCatalog.Weapon(kind) is not { } weapon) return null;
         return $"{item.Tons.ToString("0.#", CultureInfo.InvariantCulture)} t · {item.Slots} {(item.Slots == 1 ? "slot" : "slots")}\n{WeaponStats(weapon)}";
     }
-    public static string Experience(WarriorSpec warrior) => warrior.Specialty == WarriorSpecialty.None
-        ? warrior.Rank.ToString() : $"{warrior.Rank} · {warrior.Specialty}";
+    public static string Experience(WarriorSpec warrior) => warrior.Rank.ToString();
     public static string WeightClass(MechWeightClass weight) => weight.ToString();
     public static string HeatSinks(HeatSinkKind kind) => kind.ToString().ToLowerInvariant();
 }

@@ -117,7 +117,7 @@ public partial class SmokeTests
     /// Uses its own Jenner and Awesome rather than the randomly drafted company, which may have no jump jets.</summary>
     private async Task TestCombatJumping()
     {
-        var roster = ForceRoster.Create("Jump checks", new[] { "jenner", "awesome" }.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(2));
+        var roster = ForceRoster.Create("Jump checks", new[] { "jenner", "awesome" }.Select(DraftCatalog.Mech), TestPilots.Warriors.Take(2));
         for (var i = 0; i < 2; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         // Open through navigation, as the hangar does, so keys route to the combat screen.
         var tactical = _app.Tactical; _app.Navigation.Push(CommandScreen.Tactical, _app.Hangar.DeploymentButton);
@@ -230,7 +230,7 @@ public partial class SmokeTests
             ["ml4"] = ComponentCondition.Operational, ["ml5"] = ComponentCondition.Operational,
             ["hs1"] = ComponentCondition.Damaged, ["ac"] = ComponentCondition.Operational
         };
-        CombatUnit Unit() => new("systems", spec, DraftCatalog.Warriors[0], CombatSide.Friendly,
+        CombatUnit Unit() => new("systems", spec, TestPilots.Warriors[0], CombatSide.Friendly,
             spec.Locations.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)),
             conditions.Select(item => new EquipmentCondition(item.Key, item.Value)), [new AmmoCondition("ac", 5)], Vector2.Zero);
         var unit = Unit();

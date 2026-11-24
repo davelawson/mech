@@ -18,7 +18,7 @@ public partial class SmokeTests
         hangar.Preview.SetProcess(false); var failures = new List<string>();
         foreach (var spec in mechs)
         {
-            var roster = ForceRoster.Create("Additional model review", [spec], DraftCatalog.Warriors.Take(1));
+            var roster = ForceRoster.Create("Additional model review", [spec], TestPilots.Warriors.Take(1));
             roster.Assign(roster.Mechs[0].Id, roster.Warriors[0].Id);
             hangar.Open(roster); await Frames(); var model = hangar.Preview.Model!; model.Rotation = Vector3.Zero;
             var meshes = model.FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>().ToArray();
@@ -100,7 +100,7 @@ public partial class SmokeTests
         hangar.Hide();
         foreach (var group in mechs.Chunk(4))
         {
-            var roster = ForceRoster.Create("Additional combat review", group, DraftCatalog.Warriors.Take(group.Length));
+            var roster = ForceRoster.Create("Additional combat review", group, TestPilots.Warriors.Take(group.Length));
             for (var i = 0; i < group.Length; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
             var field = new CombatViewport(); stage.AddChild(field); field.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect); field.OffsetTop = 72;
             var sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(mech => mech.Id), BattlefieldTerrain.Flat, 183); sim.EnemyAiEnabled = false;

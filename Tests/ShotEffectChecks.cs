@@ -37,7 +37,7 @@ public partial class SmokeTests
             "successive SRM shots cycle through the launcher's tubes");
         stage.QueueFree();
 
-        var roster = ForceRoster.Create("Shot effect checks", [DraftCatalog.Mech("awesome"), DraftCatalog.Mech("atlas")], DraftCatalog.Warriors.Take(2));
+        var roster = ForceRoster.Create("Shot effect checks", [DraftCatalog.Mech("awesome"), DraftCatalog.Mech("atlas")], TestPilots.Warriors.Take(2));
         for (var i = 0; i < 2; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var field = new CombatViewport { Position = new Vector2(40, 40), Size = new Vector2(900, 650) };
         AddChild(field); await Frames();
@@ -300,7 +300,7 @@ public partial class SmokeTests
             }
             Check(CombatViewport.TracerRadius * 3 <= CombatViewport.ShellRadius(WeaponKind.AC2) + 1e-6f && CombatViewport.TracerRounds == 15,
                 "machine gun tracers are a third of an AC/2 shell's radius, fifteen to a burst");
-            var gunners = ForceRoster.Create("Tracer checks", [DraftCatalog.Mech("firestarter")], DraftCatalog.Warriors.Take(1));
+            var gunners = ForceRoster.Create("Tracer checks", [DraftCatalog.Mech("firestarter")], TestPilots.Warriors.Take(1));
             gunners.Assign(gunners.Mechs[0].Id, gunners.Warriors[0].Id);
             void DeployGunners()
             {

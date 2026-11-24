@@ -72,7 +72,7 @@ internal static partial class CombatChecks
 
         // A fought battle: weapon tallies match the shot log, and damage credited never exceeds what the target lost.
         var explosions = 0;
-        var lance = ForceRoster.Create("Mixed lance", new[] { "firestarter", "griffin", "catapult", "awesome" }.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(4));
+        var lance = ForceRoster.Create("Mixed lance", new[] { "firestarter", "griffin", "catapult", "awesome" }.Select(DraftCatalog.Mech), TestPilots.Warriors.Take(4));
         for (var i = 0; i < 4; i++) lance.Assign(lance.Mechs[i].Id, lance.Warriors[i].Id);
         foreach (var seed in new[] { 183, 7, 11 })
         {

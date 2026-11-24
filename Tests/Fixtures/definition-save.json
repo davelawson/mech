@@ -204,7 +204,16 @@
     ],
     "Warriors": [
       {
-        "DefinitionId": "mara-vale",
+        "Spec": {
+          "Id": "mara-vale",
+          "Name": "Mara Vale",
+          "Callsign": "Kestrel",
+          "Portrait": "mara-vale",
+          "Gunnery": 4,
+          "Piloting": 4,
+          "Sensors": 4,
+          "Grit": 4
+        },
         "Health": "Injured",
         "RecoveryDate": "3025-01-03"
       }

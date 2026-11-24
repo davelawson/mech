@@ -6,7 +6,7 @@ internal static class TerrainChecks
 {
     private static ForceRoster Roster(int count = 1)
     {
-        var roster = ForceRoster.Create("Terrain checks", Enumerable.Repeat(DraftCatalog.Mech("jenner"), count), DraftCatalog.Warriors.Take(count));
+        var roster = ForceRoster.Create("Terrain checks", Enumerable.Repeat(DraftCatalog.Mech("jenner"), count), TestPilots.Warriors.Take(count));
         for (var i = 0; i < count; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         return roster;
     }
@@ -289,7 +289,7 @@ internal static class TerrainChecks
     }
     private static void CheckEngagement(BattlefieldTerrain terrain, string[] definitions, Action<bool, string> check, int seed = 183)
     {
-        var roster = ForceRoster.Create("Terrain engagement", definitions.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(definitions.Length));
+        var roster = ForceRoster.Create("Terrain engagement", definitions.Select(DraftCatalog.Mech), TestPilots.Warriors.Take(definitions.Length));
         for (var i = 0; i < definitions.Length; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(unit => unit.Id), terrain, seed);
         var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();

@@ -8,7 +8,7 @@ public partial class SmokeTests
     {
         var originalSize = GetWindow().Size;
         GetWindow().Size = new Vector2I(1440, 900);
-        var roster = ForceRoster.Create("Picking checks", [DraftCatalog.Mech("jenner"), DraftCatalog.Mech("atlas")], DraftCatalog.Warriors.Take(2));
+        var roster = ForceRoster.Create("Picking checks", [DraftCatalog.Mech("jenner"), DraftCatalog.Mech("atlas")], TestPilots.Warriors.Take(2));
         for (var i = 0; i < 2; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var field = new CombatViewport { Position = new Vector2(40, 40), Size = new Vector2(900, 650) };
         // The group's app sits at the office, where right-click means Back; keep it from consuming this field's clicks.

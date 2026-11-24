@@ -7,7 +7,7 @@ public partial class SmokeTests
     private async Task TestAdditionalChassis()
     {
         var ids = new[] { "panther", "shadow-hawk", "griffin" };
-        var roster = ForceRoster.Create("Imported model review", ids.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(3));
+        var roster = ForceRoster.Create("Imported model review", ids.Select(DraftCatalog.Mech), TestPilots.Warriors.Take(3));
         for (var i = 0; i < ids.Length; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var stage = new Control(); AddChild(stage); stage.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         var hangar = new HangarScreen(); stage.AddChild(hangar); hangar.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect); hangar.OffsetTop = 72;

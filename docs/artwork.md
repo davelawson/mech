@@ -99,7 +99,7 @@ The original roster artwork was generated with the built-in `image_gen.imagegen`
 - The former `dropship-office-rosters.png` was an edit of the integrated office that added a physical rolodex and an enclosed repair-bay view beyond the porthole. The active missions office retains those additions; the intermediate office images were removed during cleanup.
 - `Assets/Roster/hangar-background.png` is an empty maintenance bay with matching olive steel, amber lamps and painted industrial textures.
 - `Assets/Roster/{firestarter,jenner,panther,griffin,shadow-hawk,wolverine,catapult,crusader,thunderbolt,awesome,victor,zeus}.png` are individually generated transparent mech illustrations. They are visual interpretations of the chassis, not technical record sheets; the adjacent classic specifications are authoritative.
-- All 120 catalog MechWarriors have individually generated original portraits in `Assets/Roster/`, named by their IDs in `DraftCatalog`. The original 24 are 1254 × 1254 PNGs. The other 96 are opaque 512 × 512 PNGs made with the same built-in tool.
+- `Assets/Roster/` holds 120 individually generated original MechWarrior portraits, named after the authored pilots they were first painted for. The original 24 are 1254 × 1254 PNGs. The other 96 are opaque 512 × 512 PNGs made with the same built-in tool. Since November 24, 2026 MechWarriors are generated, and a portrait is combined with a random name and callsign; `Data/pilots.json` tags each portrait as a man, a woman or either, from its prompt or, for the 12 without a recorded prompt, by eye.
 
 All new textures are imported losslessly with mipmaps. Cutout transparency is preserved. No project asset depends on an image remaining in the generator's output directory.
 

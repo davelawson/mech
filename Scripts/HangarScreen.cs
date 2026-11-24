@@ -573,7 +573,7 @@ public partial class HangarScreen : Control
             $"Heat generated {Rate(generated)}/s\nHeat sunk {Rate(sunk)}/s\nEvery weapon firing as soon as it is ready, while running");
         _portrait.Texture = warrior is null ? null : Ui.LoadTexture(warrior.Spec.Artwork);
         _pilot.Text = warrior is null ? "No pilot assigned" : $"“{warrior.Spec.Callsign}”\n{warrior.Spec.Name}\n{RosterUi.SkillLines(warrior.Spec)}";
-        _pilot.TooltipText = warrior is null ? "" : RosterUi.SkillBudgetText(warrior.Spec);
+        _pilot.TooltipText = warrior is null ? "" : warrior.Spec.Experience;
         UnassignButton.Disabled = warrior is null;
         PilotPicker.Clear(); _pilotIds.Clear();
         foreach (var candidate in _roster.Warriors.Where(item => item.Health != WarriorHealth.Dead))

@@ -7,7 +7,7 @@ internal static partial class CombatChecks
 {
     private static ForceRoster Roster(int count = 1, string definition = "awesome")
     {
-        var roster = ForceRoster.Create("Tactical checks", Enumerable.Repeat(DraftCatalog.Mech(definition), count), DraftCatalog.Warriors.Take(count));
+        var roster = ForceRoster.Create("Tactical checks", Enumerable.Repeat(DraftCatalog.Mech(definition), count), TestPilots.Warriors.Take(count));
         for (var i = 0; i < count; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         return roster;
     }
@@ -31,7 +31,7 @@ internal static partial class CombatChecks
         check(CombatSimulation.UnavailableReason(pooled, pooled.Mechs[3]) == "In reserve", "reserve mechs cannot deploy");
         reject(() => Deploy(pooled, ["mech-1", "mech-4"]), "a deployment with a reserve mech is rejected");
 
-        var roster = ForceRoster.Create("Two lances", Enumerable.Repeat(DraftCatalog.Mech("awesome"), 5), DraftCatalog.Warriors.Take(5), lances: 2);
+        var roster = ForceRoster.Create("Two lances", Enumerable.Repeat(DraftCatalog.Mech("awesome"), 5), TestPilots.Warriors.Take(5), lances: 2);
         for (var i = 0; i < 5; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var sim = Deploy(roster, roster.Mechs.Select(item => item.Id));
         var (leader, player) = (sim.Unit("mech-1"), sim.Unit("mech-5"));
@@ -321,7 +321,7 @@ internal static partial class CombatChecks
             new[] { "awesome", "jenner", "catapult", "wolverine" }
         })
         {
-            var roster = ForceRoster.Create("Random opposition checks", definitions.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(definitions.Length));
+            var roster = ForceRoster.Create("Random opposition checks", definitions.Select(DraftCatalog.Mech), TestPilots.Warriors.Take(definitions.Length));
             for (var i = 0; i < definitions.Length; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
             var before = JsonSerializer.Serialize(roster.Snapshot());
             var signatures = new HashSet<string>();
@@ -336,8 +336,8 @@ internal static partial class CombatChecks
                 check(enemies.All(unit => unit.Equipment.Values.All(condition => condition == ComponentCondition.Operational)
                     && unit.Locations.Values.All(loc => loc.Armor == unit.Spec.Locations.Single(stock => stock.Location == loc.Location).Armor)
                     && unit.Ammo.All(bin => bin.Shots == unit.Spec.Ammo.Single(stock => stock.Id == bin.Id).Shots)
-                    && unit.Warrior.SkillPoints == unit.Warrior.SkillBudget
-                    && unit.Warrior.Rank == (unit.Spec.WeightClass == MechWeightClass.Assault ? WarriorExperience.Veteran : WarriorExperience.Regular)),
+                    && PilotGenerator.Valid(unit.Warrior)
+                    && unit.Warrior.SkillPoints <= WarriorSkills.Bracket(unit.Spec.WeightClass == MechWeightClass.Assault ? WarriorExperience.Veteran : WarriorExperience.Regular).Max),
                     "drafted enemies are pristine with legal pilots assigned by draft column");
                 signatures.Add(string.Join(",", enemies.Select(unit => $"{unit.Spec.Id}/{unit.Warrior.Id}")));
                 foreach (var unit in sim.Units) unit.ApplyDamage(MechLocation.CenterTorso, 10000);
@@ -382,7 +382,7 @@ internal static partial class CombatChecks
         check(enemies.All(unit => enemies.All(other => other == unit || other.Position.DistanceTo(unit.Position) >= CombatRules.DropMechSpacing - 1e-3f))
             && enemies.Max(unit => unit.Position.X) - enemies.Min(unit => unit.Position.X) <= CombatRules.DropSiteRadius * 2,
             "an enemy lance scatters across one drop site, its mechs apart");
-        var company = ForceRoster.Create("Eight lances", Enumerable.Repeat(DraftCatalog.Mech("jenner"), 32), DraftCatalog.Warriors.Take(32), lances: 8);
+        var company = ForceRoster.Create("Eight lances", Enumerable.Repeat(DraftCatalog.Mech("jenner"), 32), TestPilots.Warriors.Take(32), lances: 8);
         for (var i = 0; i < 32; i++) company.Assign(company.Mechs[i].Id, company.Warriors[i].Id);
         var crowd = Deploy(company, company.Mechs.Select(item => item.Id));
         var lanceCentres = crowd.Units.Where(unit => unit.Side == CombatSide.Friendly).GroupBy(unit => unit.Lance)
@@ -649,7 +649,7 @@ internal static partial class CombatChecks
             check(sim.Outcome is CombatOutcome.Victory or CombatOutcome.Defeat or CombatOutcome.Draw, $"{definition} full engagement reaches a result");
             Console.WriteLine($"Combat tuning: {definition} {sim.Elapsed:0}s, {sim.Outcome}");
         }
-        var roster = ForceRoster.Create("Mixed lance", new[] { "firestarter", "griffin", "catapult", "awesome" }.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(4));
+        var roster = ForceRoster.Create("Mixed lance", new[] { "firestarter", "griffin", "catapult", "awesome" }.Select(DraftCatalog.Mech), TestPilots.Warriors.Take(4));
         for (var i = 0; i < 4; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var lance = Deploy(roster, roster.Mechs.Select(item => item.Id), 183); lance.Paused = false;
         lance.Move(lance.Units.Where(item => item.Side == CombatSide.Friendly).Select(item => item.Id), Vector2.Zero);

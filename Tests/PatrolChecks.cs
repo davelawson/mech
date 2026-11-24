@@ -8,7 +8,7 @@ internal static class PatrolChecks
 {
     private static ForceRoster Company(int count)
     {
-        var roster = ForceRoster.Create("Patrol checks", Enumerable.Repeat(DraftCatalog.Mech("wolverine"), count), DraftCatalog.Warriors.Take(count));
+        var roster = ForceRoster.Create("Patrol checks", Enumerable.Repeat(DraftCatalog.Mech("wolverine"), count), TestPilots.Warriors.Take(count));
         for (var i = 0; i < count; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         return roster;
     }
@@ -43,7 +43,7 @@ internal static class PatrolChecks
     /// <summary>A whole patrol with enemy AI on: the company marches the route, fighting whatever it wakes.</summary>
     private static void CheckPlaythrough(Action<bool, string> check)
     {
-        var roster = ForceRoster.Create("Patrol march", new[] { "atlas", "atlas", "awesome", "awesome" }.Select(DraftCatalog.Mech), DraftCatalog.Warriors.Take(4));
+        var roster = ForceRoster.Create("Patrol march", new[] { "atlas", "atlas", "awesome", "awesome" }.Select(DraftCatalog.Mech), TestPilots.Warriors.Take(4));
         for (var i = 0; i < 4; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var sim = CombatSimulation.DeployMission(roster, roster.Mechs.Select(mech => mech.Id), Offer(3), 21, 5150, Biome.Grassland);
         sim.Paused = false;

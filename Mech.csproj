@@ -10,6 +10,7 @@
     <!-- The unit test project builds separately and reads the shared checks in Tests/. -->
     <Compile Remove="Tests.Unit/**" />
     <EmbeddedResource Include="Data/mech-catalog.json" />
+    <EmbeddedResource Include="Data/pilots.json" />
     <EmbeddedResource Include="Data/star-systems.json" />
     <EmbeddedResource Include="Data/system-climate.json" />
     <EmbeddedResource Include="Data/system-factions.json" />

@@ -6,8 +6,8 @@ public partial class SmokeTests
 {
     private async Task TestDetectionOverlay()
     {
-        var warriors = new[] { DraftCatalog.Warriors.First(warrior => warrior.Sensors == 6) }
-            .Concat(DraftCatalog.Warriors.Where(warrior => warrior.Sensors == 2).Take(2)).ToArray();
+        var warriors = new[] { TestPilots.Warriors.First(warrior => warrior.Sensors == 6) }
+            .Concat(TestPilots.Warriors.Where(warrior => warrior.Sensors == 2).Take(2)).ToArray();
         var roster = ForceRoster.Create("Range checks", Enumerable.Repeat(DraftCatalog.Mech("locust"), 3), warriors);
         for (var i = 0; i < 3; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(unit => unit.Id), BattlefieldTerrain.Flat);

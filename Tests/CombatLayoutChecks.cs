@@ -52,7 +52,7 @@ public partial class SmokeTests
 
     private async Task TestContactPreviewLayout()
     {
-        var roster = ForceRoster.Create("Contact layout check", [DraftCatalog.Mech("atlas")], [DraftCatalog.Warrior("amir-solano")]);
+        var roster = ForceRoster.Create("Contact layout check", [DraftCatalog.Mech("atlas")], [TestPilots.Warrior("amir-solano")]);
         roster.Assign(roster.Mechs[0].Id, roster.Warriors[0].Id);
         var window = GetWindow();
         var originalSize = window.Size;

@@ -8,7 +8,7 @@ internal static partial class CombatChecks
     private static CombatSimulation DropBattle(int lances = 2, int terrainSeed = 183, int seed = 21)
     {
         var count = lances * 2;
-        var roster = ForceRoster.Create("Drop checks", Enumerable.Repeat(DraftCatalog.Mech("jenner"), count), DraftCatalog.Warriors.Take(count), lances: lances);
+        var roster = ForceRoster.Create("Drop checks", Enumerable.Repeat(DraftCatalog.Mech("jenner"), count), TestPilots.Warriors.Take(count), lances: lances);
         for (var i = 0; i < count; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         foreach (var (mech, i) in roster.Mechs.Select((mech, i) => (mech, i))) roster.SetLance(mech.Id, i / 2);
         return CombatSimulation.Deploy(roster, roster.Mechs.Select(mech => mech.Id), seed, terrainSeed, dropPhase: true);

@@ -43,14 +43,14 @@ public partial class DraftScreen : Control
                 button.Pressed += () => { Draft.Select(p, c); Refresh(); };
                 Choices[pool, choice] = button;
                 var isMech = pool < 4;
-                var path = isMech ? DraftCatalog.Mechs[index].Artwork : DraftCatalog.Warriors[index].Artwork;
+                var path = isMech ? DraftCatalog.Mechs[index].Artwork : "";
                 _portraits[pool, choice] = RosterUi.Picture(button, path, Vector2.Zero);
                 if (isMech)
                 {
                     _portraits[pool, choice].Hide();
                     var preview = new MechPreview(); button.AddChild(preview); _mechPreviews[pool, choice] = preview;
                 }
-                _candidateNames[pool, choice] = Ui.Label(button, isMech ? DraftCatalog.Mechs[index].Chassis : $"“{DraftCatalog.Warriors[index].Callsign}”", 15);
+                _candidateNames[pool, choice] = Ui.Label(button, isMech ? DraftCatalog.Mechs[index].Chassis : "", 15);
                 _candidateNames[pool, choice].ClipText = true;
                 _candidateStats[pool, choice] = Ui.Label(button, "", 10, Ui.Muted);
                 _candidateStats[pool, choice].VerticalAlignment = VerticalAlignment.Top;
@@ -116,7 +116,7 @@ public partial class DraftScreen : Control
                 _portraits[pool, choice].Texture = RosterUi.Portrait(spec);
                 _candidateNames[pool, choice].Text = $"“{spec.Callsign}”";
                 _candidateStats[pool, choice].Text = RosterUi.SkillLines(spec);
-                Choices[pool, choice].TooltipText = $"{spec.DisplayName}\n{spec.Experience}\n{RosterUi.SkillLines(spec)}\n{RosterUi.SkillBudgetText(spec)}";
+                Choices[pool, choice].TooltipText = $"{spec.DisplayName}\n{spec.Experience}\n{RosterUi.SkillLines(spec)}";
             }
         }
     }
@@ -149,7 +149,7 @@ public partial class DraftScreen : Control
             var spec = Draft.WarriorCandidate(pool, choice);
             var image = RosterUi.Picture(_previewBody, "", new Vector2(180, 180)); image.Texture = RosterUi.Portrait(spec); image.SizeFlagsVertical = SizeFlags.ExpandFill;
             RosterUi.Text(_previewBody, spec.DisplayName, 22, Ui.Gold);
-            RosterUi.Text(_previewBody, $"{spec.Experience}\n{RosterUi.SkillLines(spec)}\n{RosterUi.SkillBudgetText(spec)}\nHealthy · Ready for deployment", 16);
+            RosterUi.Text(_previewBody, $"{spec.Experience}\n{RosterUi.SkillLines(spec)}\nHealthy · Ready for deployment", 16);
         }
         var actions = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End }; _previewBody.AddChild(actions);
         var back = Ui.Sound(Ui.Button(actions, "Back to draft"), Cue.UiCancel); back.Pressed += ClosePreview;

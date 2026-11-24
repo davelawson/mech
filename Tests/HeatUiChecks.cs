@@ -8,7 +8,7 @@ public partial class SmokeTests
     private async Task TestMixedAmmoGauge()
     {
         var roster = ForceRoster.Create("Mixed ammo", [DraftCatalog.Mech("awesome"), DraftCatalog.Mech("thunderbolt"), DraftCatalog.Mech("thunderbolt")],
-            DraftCatalog.Warriors.Take(3));
+            TestPilots.Warriors.Take(3));
         for (var i = 0; i < 3; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var tactical = new CombatScreen { Theme = Ui.CreateTheme(), Size = new Vector2(1440, 900) };
         AddChild(tactical);
@@ -47,7 +47,7 @@ public partial class SmokeTests
 
     private async Task TestHeatControls()
     {
-        var roster = ForceRoster.Create("Heat controls", Enumerable.Repeat(DraftCatalog.Mech("thunderbolt"), 4), DraftCatalog.Warriors.Take(4));
+        var roster = ForceRoster.Create("Heat controls", Enumerable.Repeat(DraftCatalog.Mech("thunderbolt"), 4), TestPilots.Warriors.Take(4));
         for (var i = 0; i < 4; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var tactical = new CombatScreen { Theme = Ui.CreateTheme(), Size = new Vector2(1440, 900) };
         AddChild(tactical);
@@ -279,7 +279,7 @@ public partial class SmokeTests
         sidebar.Display(enemy);
         Check(sidebar.ShowsAmmo && !sidebar.EditsAmmoEconomy && sidebar.DisplayedAmmoEconomy is null
             && sidebar._GetTooltip(sidebar.AmmoStrip.GetCenter()) == $"{stock}/{stock} shots", "an inspected enemy's ammo gauge has no pointer, only its shots");
-        var energyRoster = ForceRoster.Create("Energy only", [DraftCatalog.Mech("awesome")], DraftCatalog.Warriors.Take(1));
+        var energyRoster = ForceRoster.Create("Energy only", [DraftCatalog.Mech("awesome")], TestPilots.Warriors.Take(1));
         energyRoster.Assign(energyRoster.Mechs[0].Id, energyRoster.Warriors[0].Id);
         var energyOnly = CombatSimulation.DeployOnTerrain(energyRoster, [energyRoster.Mechs[0].Id], BattlefieldTerrain.Flat, 41)
             .Units.First(unit => unit.Side == CombatSide.Friendly);

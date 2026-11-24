@@ -8,7 +8,8 @@ internal static class CampaignChecks
         var campaign = NewCompany();
         check(campaign.Date == new DateOnly(3025, 1, 1) && campaign.Cash == 2_500_000, "new company defaults");
         var salaries = campaign.Roster!.Salaries; var bill = Campaign.QuarterlyCharge + salaries;
-        check(salaries == 170_000 && campaign.ProjectedBill == bill, "the next bill includes a quarter's salaries for three Regulars and a Veteran");
+        check(salaries == campaign.Roster.Warriors.Sum(item => PilotTuning.Salary(item.Spec.SkillPoints)) && salaries > 0 && campaign.ProjectedBill == bill,
+            "the next bill includes a quarter's salaries for the drafted MechWarriors");
         check(campaign.DaysUntilQuarter == 90 && campaign.NextEventDate == new DateOnly(3025, 4, 1), "quarter guarantees the next event");
         campaign.Schedule(new("arrival", new DateOnly(3025, 1, 3), CampaignEventKind.Arrival, "Arrival"));
         check(campaign.NextEventDate == new DateOnly(3025, 1, 3), "earlier scheduled event takes precedence");
@@ -118,8 +119,8 @@ internal static class CampaignChecks
         var deserted = InOrbitAt(NewCompany(7), empty.Id); deserted.ViewRecruits();
         check(!deserted.Recruits.Visited(empty.Id) && deserted.OrbitRecruits.Count == 0, "an uninhabited world lists no one");
 
-        // Over many days in orbit, lists fill and turn over; a MechWarrior is never on two lists, and never relisted within a week.
-        var seen = new Dictionary<string, (string System, DateOnly Until)>();
+        // Over many days in orbit, lists fill and turn over with newly generated MechWarriors; one who leaves is gone for good.
+        var gone = new HashSet<string>(StringComparer.Ordinal);
         var lists = new HashSet<string>(); var filled = 0; var turnover = 0;
         var rover = InOrbitAt(NewCompany(11), populous[1].Id);
         for (var leg = 0; leg < 6; leg++)
@@ -131,17 +132,15 @@ internal static class CampaignChecks
                 rover.ViewRecruits();
                 var now = rover.OrbitRecruits.Select(item => item.Id).ToArray();
                 if (now.Length == 3) filled++;
-                foreach (var id in now)
-                {
-                    if (seen.TryGetValue(id, out var last) && last.System != system) check(rover.Date >= last.Until, $"{id} is not relisted elsewhere within {PilotTuning.RelistDays} days");
-                    seen[id] = (system, rover.Date.AddDays(PilotTuning.RelistDays + 1));
-                }
+                foreach (var id in now) check(!gone.Contains(id), $"{id} is never listed again after leaving");
                 var all = StarChart.Instance.Systems.SelectMany(item => rover.Recruits.Listed(item.Id)).Select(item => item.Id).ToArray();
                 check(all.Distinct().Count() == all.Length, "no MechWarrior is on two hiring lists");
                 lists.UnionWith(now);
                 var before = now.ToHashSet();
                 rover.AdvanceOneDay(); if (rover.PaymentPending) rover.PayNow();
-                if (!rover.OrbitRecruits.Select(item => item.Id).ToHashSet().IsSupersetOf(before)) turnover++;
+                var after = rover.OrbitRecruits.Select(item => item.Id).ToHashSet();
+                if (!after.IsSupersetOf(before)) turnover++;
+                gone.UnionWith(before.Where(id => !after.Contains(id)));
             }
         }
         check(filled > 0 && turnover > 0 && lists.Count > 6, $"hiring lists fill and turn over (full {filled} days, {turnover} departures, {lists.Count} MechWarriors seen)");
@@ -179,18 +178,16 @@ internal static class CampaignChecks
         var moving = NewCompany(); var start = moving.Travel.OrbitSystemId;
         moving.ViewRecruits();
         moving.PlotJourney(StarChart.Instance.Systems.First(item => item.Id != start && StarChart.Instance.Distance(start, item.Id) is > 12 and <= 30).Id); moving.Embark(); moving.AdvanceOneDay();
-        check(!moving.Travel.InOrbit && moving.OrbitRecruits.Count == 0 && moving.HireProblem(DraftCatalog.Warrior("pell-avery")) is not null, "no one can be hired in transit");
+        check(!moving.Travel.InOrbit && moving.OrbitRecruits.Count == 0 && moving.HireProblem(TestPilots.Warrior("pell-avery")) is not null, "no one can be hired in transit");
 
-        // Dismissal: gone for good, unassigned, no refund, never listed again.
+        // Dismissal: gone for good, unassigned, no refund.
         var restored = Campaign.Restore(hiring.Snapshot());
         check(restored.Roster!.Warriors.Any(item => item.Id == recruit.Id) && restored.Cash == hiring.Cash, "a recruit survives saving");
         cash = hiring.Cash;
         hiring.Dismiss(recruit.Id);
         check(hiring.Roster.Warriors.All(item => item.Id != recruit.Id) && hiring.Roster.Mechs[0].WarriorId is null && hiring.Cash == cash
-            && hiring.Recruits.IsDismissed(recruit.Id) && hiring.Roster.Salaries == payroll,
-            "a dismissed MechWarrior leaves the company and their mech, without a refund");
+            && hiring.Roster.Salaries == payroll, "a dismissed MechWarrior leaves the company and their mech, without a refund");
         var dismissedSave = Campaign.Restore(hiring.Snapshot());
-        check(dismissedSave.Recruits.IsDismissed(recruit.Id), "dismissals survive saving");
         for (var day = 0; day < 120; day++)
         {
             dismissedSave.ViewRecruits();
@@ -199,9 +196,9 @@ internal static class CampaignChecks
         }
         var dead = NewCompany(); dead.Roster!.SetHealth(dead.Roster.Warriors[0].Id, WarriorHealth.Dead, null, dead.Date);
         Throws(() => dead.Dismiss(dead.Roster.Warriors[0].Id), check, "the deceased cannot be dismissed");
-        check(dead.Roster.Salaries == 130_000 && dead.Roster.SalariedWarriors == 3, "the deceased draw no salary");
+        check(dead.Roster.Salaries == NewCompany().Roster!.Salaries - dead.Roster.Warriors[0].Spec.Salary && dead.Roster.SalariedWarriors == 3, "the deceased draw no salary");
         var injured = NewCompany(); injured.Roster!.SetHealth(injured.Roster.Warriors[0].Id, WarriorHealth.Injured, injured.Date.AddDays(10), injured.Date);
-        check(injured.Roster.Salaries == 170_000, "injured MechWarriors are still paid");
+        check(injured.Roster.Salaries == NewCompany().Roster!.Salaries, "injured MechWarriors are still paid");
 
         // Co-op: a slot dismisses only MechWarriors it controls.
         var coop = NewCompany();
@@ -212,9 +209,12 @@ internal static class CampaignChecks
 
         // Saves: corrupt hiring lists are refused.
         var snapshot = hiring.Snapshot();
-        Throws(() => Campaign.Restore(snapshot with { Recruitment = new([new(populous[0].Id, hiring.Date, hiring.Date, ["mara-vale", "mara-vale"])], [], []) }), check, "a list cannot name a MechWarrior twice");
-        Throws(() => Campaign.Restore(snapshot with { Recruitment = new([new(empty.Id, hiring.Date, hiring.Date, [])], [], []) }), check, "an uninhabited world has no hiring list");
-        Throws(() => Campaign.Restore(snapshot with { Recruitment = new([], [], [hiring.Roster.Warriors[0].Id]) }), check, "a company MechWarrior cannot be dismissed in the save");
+        var mara = TestPilots.Warrior("mara-vale");
+        Throws(() => Campaign.Restore(snapshot with { Recruitment = new([new(populous[0].Id, hiring.Date, hiring.Date, [mara, mara])]) }), check, "a list cannot name a MechWarrior twice");
+        Throws(() => Campaign.Restore(snapshot with { Recruitment = new([new(empty.Id, hiring.Date, hiring.Date, [])]) }), check, "an uninhabited world has no hiring list");
+        Throws(() => Campaign.Restore(snapshot with { Recruitment = new([new(populous[0].Id, hiring.Date, hiring.Date, [hiring.Roster.Warriors[0].Spec])]) }), check, "a company MechWarrior cannot be listed for hire in the save");
+        Throws(() => Campaign.Restore(snapshot with { Recruitment = new([new(populous[0].Id, hiring.Date, hiring.Date, [mara with { Gunnery = 8 }])]) }), check, "a listed MechWarrior's skills must be 2 to 7");
+        Throws(() => Campaign.Restore(snapshot with { Recruitment = new([new(populous[0].Id, hiring.Date, hiring.Date, [mara with { Portrait = "nobody" }])]) }), check, "a listed MechWarrior needs a known portrait");
         Throws(() => Campaign.Restore(snapshot with { BilledSalaries = 500 }), check, "billed salaries need a matching bill");
         var legacy = Campaign.Restore(snapshot with { Recruitment = null, BilledSalaries = 0 });
         check(legacy.Recruits.Snapshot() is null && legacy.OrbitRecruits.Count == 0, "older saves have no hiring lists until viewed");

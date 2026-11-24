@@ -179,7 +179,7 @@ internal static partial class CombatChecks
 
         // Only the leader answers.
         // Four mechs fill the first lance; the fifth gives the second player slot a lance.
-        var roster = ForceRoster.Create("Two lances", Enumerable.Repeat(DraftCatalog.Mech("griffin"), 5), DraftCatalog.Warriors.Take(5), lances: 2);
+        var roster = ForceRoster.Create("Two lances", Enumerable.Repeat(DraftCatalog.Mech("griffin"), 5), TestPilots.Warriors.Take(5), lances: 2);
         for (var i = 0; i < 5; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         sim = Deploy(roster, roster.Mechs.Select(item => item.Id)); sim.PromptSurrender = true; sim.NerveChecksEnabled = false;
         foreach (var item in sim.Units) item.Firing = FiringMode.HoldFire;

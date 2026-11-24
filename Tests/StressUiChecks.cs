@@ -8,7 +8,7 @@ public partial class SmokeTests
     private async Task TestStressUi()
     {
         var roster = ForceRoster.Create("Stress check", [DraftCatalog.Mech("griffin"), DraftCatalog.Mech("griffin")],
-            [DraftCatalog.Warrior("mara-vale"), DraftCatalog.Warrior("ivo-chen")]);
+            [TestPilots.Warrior("mara-vale"), TestPilots.Warrior("ivo-chen")]);
         for (var i = 0; i < 2; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var tactical = new CombatScreen { Theme = Ui.CreateTheme(), Size = new Vector2(1440, 900) };
         AddChild(tactical);

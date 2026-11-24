@@ -79,7 +79,7 @@ internal static partial class CombatChecks
         var single = stock.Components.First(item => item.Kind == ComponentKind.HeatSink);
         var doubled = stock with { HeatSinkType = HeatSinkKind.Double, Components = stock.Components.Select(item => item.Id == single.Id
             ? item with { Location = MechLocation.LeftTorso, Slots = EquipmentRules.HeatSinkSlots(HeatSinkKind.Double) } : item).ToImmutableArray() };
-        var cooler = new CombatUnit("cooler", doubled, DraftCatalog.Warriors[0], CombatSide.Friendly,
+        var cooler = new CombatUnit("cooler", doubled, TestPilots.Warriors[0], CombatSide.Friendly,
             doubled.Locations.Select(item => new LocationCondition(item.Location, item.Armor, item.RearArmor, item.Structure)),
             doubled.Weapons.Select(item => item.Id).Concat(doubled.Components.Select(item => item.Id)).Concat(doubled.Ammo.Select(item => item.Id))
                 .Select(id => new EquipmentCondition(id, ComponentCondition.Operational)),

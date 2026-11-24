@@ -1094,7 +1094,7 @@ public partial class CombatScreen : Control
         if (unit is not null && inspected is null && PilotInfo.Text != PilotText(unit.Warrior))
         {
             PilotPortrait.Texture = Ui.LoadTexture(unit.Warrior.Artwork);
-            PilotInfo.Text = PilotText(unit.Warrior); PilotInfo.TooltipText = RosterUi.SkillBudgetText(unit.Warrior);
+            PilotInfo.Text = PilotText(unit.Warrior); PilotInfo.TooltipText = unit.Warrior.Experience;
         }
         if (_primary != primary)
         {

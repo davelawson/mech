@@ -5,12 +5,24 @@ namespace Mech;
 
 public static class WarriorSkills
 {
-    /// <summary>Untrained (7) is one step worse than Novice (Green, 6); only Green MechWarriors may have an Untrained skill, and it
-    /// gives back one point to spend on another.</summary>
+    /// <summary>Skills run from Untrained (7), where every MechWarrior starts, to Legendary (Expert, 2). Novice (Green, 6) is the
+    /// rating detection and similar combat rules count from.</summary>
     public const int Expert = 2, Novice = 6, Untrained = 7;
-    public const int GreenBudget = 4, RegularBudget = 8, VeteranBudget = 10;
-    public static int Cost(int rating) => rating is >= Expert and <= Untrained ? Novice - rating
-        : throw new ArgumentOutOfRangeException(nameof(rating), "Pilot skills must be between 2 and 7.");
+    /// <summary>What raising a skill one level from this rating costs: 1 to Green, 2 to Regular and so on up to 5 to Legendary.</summary>
+    public static int RaiseCost(int rating) => rating is > Expert and <= Untrained ? Untrained - rating + 1
+        : throw new ArgumentOutOfRangeException(nameof(rating), "Only skills rated 3 to 7 can be raised.");
+    /// <summary>The points spent to reach a rating: Untrained 0, Green 1, Regular 3, Veteran 6, Elite 10, Legendary 15. Ratings
+    /// outside 2–7 (test-only units) count as the nearest.</summary>
+    public static int Spent(int rating) { var levels = Untrained - Math.Clamp(rating, Expert, Untrained); return levels * (levels + 1) / 2; }
+    /// <summary>The skill points spent on all four skills that make each rank: about the points of four skills at that level.</summary>
+    public static (int Min, int Max) Bracket(WarriorExperience rank) => rank switch
+    {
+        WarriorExperience.Green => (0, 7), WarriorExperience.Regular => (8, 17), WarriorExperience.Veteran => (18, 31),
+        WarriorExperience.Elite => (32, 49), WarriorExperience.Legendary => (50, 4 * Spent(Expert)),
+        _ => throw new ArgumentOutOfRangeException(nameof(rank)),
+    };
+    public static WarriorExperience RankFor(int points) => points switch
+    { <= 7 => WarriorExperience.Green, <= 17 => WarriorExperience.Regular, <= 31 => WarriorExperience.Veteran, <= 49 => WarriorExperience.Elite, _ => WarriorExperience.Legendary };
     /// <summary>The word shown for a skill rating: 7 Untrained, 6 Green through 2 Legendary. Ratings outside 2–7 (test-only units) take the nearest word.</summary>
     public static string Descriptor(int rating) => Math.Clamp(rating, Expert, Untrained) switch
     {
@@ -29,131 +41,6 @@ public static class DraftCatalog
         "firestarter", "jenner", "panther", "griffin", "shadow-hawk", "wolverine",
         "catapult", "crusader", "thunderbolt", "awesome", "victor", "zeus"
     }.Select(id => AllMechs.Single(mech => mech.Id == id)).ToImmutableArray();
-    public static readonly ImmutableArray<WarriorSpec> Warriors = CatalogLoader.ValidateWarriors(new WarriorSpec[]
-    {
-        new("mara-vale", "Mara Vale", "Kestrel", 4, 4, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("ivo-chen", "Ivo Chen", "Needle", 2, 5, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("sana-idris", "Sana Idris", "Drift", 5, 3, 4, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("tomas-reed", "Tomas Reed", "Rook", 4, 4, 2, 6, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("elena-voss", "Elena Voss", "Flint", 2, 4, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("amir-solano", "Amir Solano", "Switch", 4, 2, 6, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("niko-ward", "Niko Ward", "Anchor", 4, 4, 5, 3, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("hana-sato", "Hana Sato", "Glint", 2, 5, 3, 6, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("leila-darzi", "Leila Darzi", "Kite", 5, 2, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("renata-kovac", "Renata Kovac", "Iron", 3, 3, 5, 3, WarriorExperience.Veteran, WarriorSpecialty.None),
-        new("gideon-price", "Gideon Price", "Crosshair", 2, 3, 4, 5, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
-        new("oskar-lind", "Oskar Lind", "Skid", 3, 2, 3, 6, WarriorExperience.Veteran, WarriorSpecialty.Piloting),
-        new("ada-moreno", "Ada Moreno", "Sparrow", 5, 4, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("malik-stone", "Malik Stone", "Hawk", 2, 5, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("yara-ortiz", "Yara Ortiz", "Vector", 4, 2, 4, 6, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("lucas-chen", "Lucas Chen", "Scope", 6, 4, 2, 4, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("imani-brooks", "Imani Brooks", "Viper", 2, 4, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("erik-holm", "Erik Holm", "Dash", 4, 2, 4, 6, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("mei-tanaka", "Mei Tanaka", "Beacon", 4, 6, 2, 4, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("rafiq-nasir", "Rafiq Nasir", "Bolt", 2, 5, 3, 6, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("fiona-kerr", "Fiona Kerr", "Slip", 5, 2, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("vera-holt", "Vera Holt", "Bulwark", 4, 5, 2, 3, WarriorExperience.Veteran, WarriorSpecialty.Sensors),
-        new("anton-mercer", "Anton Mercer", "Longshot", 2, 3, 4, 5, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
-        new("zara-okoro", "Zara Okoro", "Dancer", 3, 2, 5, 4, WarriorExperience.Veteran, WarriorSpecialty.Piloting),
-        // Entry-level MechWarriors, added for hiring and the Just Starting Out draft.
-        new("pell-avery", "Pell Avery", "Sprout", 5, 5, 5, 5, WarriorExperience.Green, WarriorSpecialty.None),
-        new("juno-marsh", "Juno Marsh", "Tinder", 4, 5, 5, 6, WarriorExperience.Green, WarriorSpecialty.Gunnery),
-        new("coby-vance", "Coby Vance", "Skitter", 5, 4, 5, 6, WarriorExperience.Green, WarriorSpecialty.Piloting),
-        new("wren-hollis", "Wren Hollis", "Static", 6, 5, 4, 5, WarriorExperience.Green, WarriorSpecialty.Sensors),
-        new("dario-fenn", "Dario Fenn", "Chalk", 4, 6, 6, 4, WarriorExperience.Green, WarriorSpecialty.Gunnery),
-        new("tess-okafor", "Tess Okafor", "Pebble", 6, 4, 6, 4, WarriorExperience.Green, WarriorSpecialty.Piloting),
-        new("bram-kettle", "Bram Kettle", "Shaky", 3, 7, 5, 5, WarriorExperience.Green, WarriorSpecialty.Gunnery),
-        new("ines-calder", "Ines Calder", "Wobble", 5, 3, 7, 5, WarriorExperience.Green, WarriorSpecialty.Piloting),
-        new("otto-varga", "Otto Varga", "Squint", 7, 5, 3, 5, WarriorExperience.Green, WarriorSpecialty.Sensors),
-        new("lina-brask", "Lina Brask", "Jitters", 4, 4, 5, 7, WarriorExperience.Green, WarriorSpecialty.None),
-        new("remy-stroud", "Remy Stroud", "Hotshot", 2, 6, 5, 7, WarriorExperience.Green, WarriorSpecialty.Gunnery),
-        new("kaia-dunmore", "Kaia Dunmore", "Fumble", 7, 3, 6, 4, WarriorExperience.Green, WarriorSpecialty.Piloting),
-        new("sofia-brandt", "Sofia Brandt", "Ledger", 4, 4, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("marcus-thorne", "Marcus Thorne", "Tack", 3, 4, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("priya-nandakumar", "Priya Nandakumar", "Swerve", 5, 3, 4, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("joel-barrett", "Joel Barrett", "Lantern", 5, 5, 2, 4, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("noor-haddad", "Noor Haddad", "Spindle", 3, 4, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("ezra-cole", "Ezra Cole", "Gravel", 4, 4, 5, 3, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("ana-lucero", "Ana Lucero", "Glide", 4, 2, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("callum-reyes", "Callum Reyes", "Radar", 5, 4, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("hiro-matsuda", "Hiro Matsuda", "Pinpoint", 2, 5, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("greta-sorensen", "Greta Sorensen", "Trail", 5, 3, 5, 3, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("obi-mensah", "Obi Mensah", "Halo", 4, 5, 3, 4, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("dmitri-volkov", "Dmitri Volkov", "Granite", 4, 5, 5, 2, WarriorExperience.Regular, WarriorSpecialty.None),
-        // Added so eight players can each draft MechWarriors of their own in either scenario.
-        new("tobias-wren", "Tobias Wren", "Ratchet", 4, 4, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("ingrid-falk", "Ingrid Falk", "Vane", 2, 5, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("samir-qureshi", "Samir Qureshi", "Tether", 5, 2, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("delia-marchetti", "Delia Marchetti", "Comet", 5, 4, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("kwame-asante", "Kwame Asante", "Sledge", 4, 4, 5, 3, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("rosa-iglesias", "Rosa Iglesias", "Lark", 3, 4, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("henrik-dahl", "Henrik Dahl", "Fathom", 4, 2, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("mira-kowalski", "Mira Kowalski", "Ember", 4, 5, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("jonah-pike", "Jonah Pike", "Rivet", 4, 5, 4, 3, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("leona-achterberg", "Leona Achterberg", "Gale", 2, 4, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("dev-malhotra", "Dev Malhotra", "Cipher", 5, 3, 4, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("talia-brenner", "Talia Brenner", "Hatch", 5, 5, 2, 4, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("bastian-roth", "Bastian Roth", "Quarry", 3, 5, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("nadia-petrov", "Nadia Petrov", "Frost", 2, 5, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("caleb-ishikawa", "Caleb Ishikawa", "Torque", 4, 3, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("selin-aydin", "Selin Aydin", "Mirage", 4, 4, 3, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("rowan-ashby", "Rowan Ashby", "Thistle", 4, 4, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("farah-siddiqui", "Farah Siddiqui", "Lumen", 2, 5, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("gareth-lyle", "Gareth Lyle", "Hammer", 5, 2, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("odile-fournier", "Odile Fournier", "Chime", 5, 4, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("kenji-mori", "Kenji Mori", "Ricochet", 4, 4, 5, 3, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("ayla-demir", "Ayla Demir", "Swift", 3, 4, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("victor-almeida", "Victor Almeida", "Brick", 4, 2, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("lucia-ferraro", "Lucia Ferraro", "Saber", 4, 5, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("theo-lindqvist", "Theo Lindqvist", "Pylon", 4, 5, 4, 3, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("zainab-osei", "Zainab Osei", "Wick", 2, 4, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("felix-hartmann", "Felix Hartmann", "Strut", 5, 3, 4, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("maren-solberg", "Maren Solberg", "Fjord", 5, 5, 2, 4, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("ravi-banerjee", "Ravi Banerjee", "Gauge", 3, 5, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("clara-duval", "Clara Duval", "Ripple", 2, 5, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("mateo-cruz", "Mateo Cruz", "Cinder", 4, 3, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("signe-halvorsen", "Signe Halvorsen", "Drum", 4, 4, 3, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("abel-nakamura", "Abel Nakamura", "Hinge", 4, 4, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("petra-novak", "Petra Novak", "Talon", 2, 5, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("omar-farouk", "Omar Farouk", "Mirror", 5, 2, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("liesel-kraus", "Liesel Kraus", "Kettle", 5, 4, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("arjun-rao", "Arjun Rao", "Spoke", 4, 4, 5, 3, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("bianca-moretti", "Bianca Moretti", "Flare", 3, 4, 5, 4, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("desmond-okeke", "Desmond Okeke", "Ballast", 4, 2, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
-        new("eva-lindgren", "Eva Lindgren", "Shard", 4, 5, 2, 5, WarriorExperience.Regular, WarriorSpecialty.Sensors),
-        new("silas-grant", "Silas Grant", "Crank", 4, 5, 4, 3, WarriorExperience.Regular, WarriorSpecialty.None),
-        new("yusra-karim", "Yusra Karim", "Whisper", 2, 4, 5, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
-        new("conrad-weiss", "Conrad Weiss", "Warden", 3, 3, 4, 4, WarriorExperience.Veteran, WarriorSpecialty.None),
-        new("ilse-vogel", "Ilse Vogel", "Harrier", 2, 3, 4, 5, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
-        new("magnus-strand", "Magnus Strand", "Bastion", 3, 2, 4, 5, WarriorExperience.Veteran, WarriorSpecialty.Piloting),
-        new("tamsin-hale", "Tamsin Hale", "Raptor", 4, 4, 2, 4, WarriorExperience.Veteran, WarriorSpecialty.Sensors),
-        new("alaric-dunn", "Alaric Dunn", "Monolith", 4, 3, 4, 3, WarriorExperience.Veteran, WarriorSpecialty.None),
-        new("sabine-laurent", "Sabine Laurent", "Corsair", 2, 4, 4, 4, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
-        new("hector-ruiz", "Hector Ruiz", "Mortar", 4, 2, 4, 4, WarriorExperience.Veteran, WarriorSpecialty.Piloting),
-        new("noriko-abe", "Noriko Abe", "Ronin", 3, 5, 2, 4, WarriorExperience.Veteran, WarriorSpecialty.Sensors),
-        new("garrick-shaw", "Garrick Shaw", "Phalanx", 3, 4, 3, 4, WarriorExperience.Veteran, WarriorSpecialty.None),
-        new("odette-varne", "Odette Varne", "Banshee", 2, 4, 3, 5, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
-        new("viktor-petrenko", "Viktor Petrenko", "Citadel", 3, 2, 5, 4, WarriorExperience.Veteran, WarriorSpecialty.Piloting),
-        new("imogen-pryce", "Imogen Pryce", "Specter", 4, 3, 2, 5, WarriorExperience.Veteran, WarriorSpecialty.Sensors),
-        new("lazlo-fekete", "Lazlo Fekete", "Hussar", 3, 3, 4, 4, WarriorExperience.Veteran, WarriorSpecialty.None),
-        new("rania-aziz", "Rania Aziz", "Sirocco", 2, 3, 4, 5, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
-        new("bertrand-clay", "Bertrand Clay", "Rampart", 3, 2, 4, 5, WarriorExperience.Veteran, WarriorSpecialty.Piloting),
-        new("astrid-nyberg", "Astrid Nyberg", "Valkyrie", 4, 4, 2, 4, WarriorExperience.Veteran, WarriorSpecialty.Sensors),
-        new("chidi-achebe", "Chidi Achebe", "Sentinel", 4, 3, 4, 3, WarriorExperience.Veteran, WarriorSpecialty.None),
-        new("katya-morozova", "Katya Morozova", "Tempest", 2, 4, 4, 4, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
-        new("milo-pratt", "Milo Pratt", "Rookie", 5, 5, 5, 5, WarriorExperience.Green, WarriorSpecialty.None),
-        new("daisy-fairweather", "Daisy Fairweather", "Puddle", 4, 5, 5, 6, WarriorExperience.Green, WarriorSpecialty.Gunnery),
-        new("tobin-lacey", "Tobin Lacey", "Nudge", 5, 4, 5, 6, WarriorExperience.Green, WarriorSpecialty.Piloting),
-        new("hattie-crane", "Hattie Crane", "Skip", 6, 5, 4, 5, WarriorExperience.Green, WarriorSpecialty.Sensors),
-        new("ned-ollerton", "Ned Ollerton", "Dent", 5, 5, 4, 6, WarriorExperience.Green, WarriorSpecialty.None),
-        new("pia-rasmussen", "Pia Rasmussen", "Sparkplug", 3, 6, 5, 6, WarriorExperience.Green, WarriorSpecialty.Gunnery),
-        new("gus-albright", "Gus Albright", "Butter", 6, 3, 6, 5, WarriorExperience.Green, WarriorSpecialty.Piloting),
-        new("lottie-kemp", "Lottie Kemp", "Doodle", 5, 6, 3, 6, WarriorExperience.Green, WarriorSpecialty.Sensors),
-        new("finn-carraway", "Finn Carraway", "Scuff", 5, 5, 5, 5, WarriorExperience.Green, WarriorSpecialty.None),
-        new("ivy-thatcher", "Ivy Thatcher", "Fizz", 4, 5, 5, 6, WarriorExperience.Green, WarriorSpecialty.Gunnery),
-        new("barnaby-hobb", "Barnaby Hobb", "Clank", 5, 4, 5, 6, WarriorExperience.Green, WarriorSpecialty.Piloting),
-        new("suki-morrow", "Suki Morrow", "Hiccup", 6, 5, 4, 5, WarriorExperience.Green, WarriorSpecialty.Sensors)
-    });
     public static readonly ImmutableArray<string> PoolNames = ["Light", "Medium", "Heavy", "Assault",
         "MechWarriors · I", "MechWarriors · II", "MechWarriors · III", "MechWarriors · Veterans"];
 
@@ -165,8 +52,6 @@ public static class DraftCatalog
     }
     public static MechSpec Mech(string id) => AllMechs.SingleOrDefault(item => item.Id == id)
         ?? throw new ArgumentException("Unknown BattleMech variant.");
-    public static WarriorSpec Warrior(string id) => Warriors.SingleOrDefault(item => item.Id == id)
-        ?? throw new ArgumentException("Unknown MechWarrior.");
     public static string LocationName(MechLocation location) => location switch
     {
         MechLocation.CenterTorso => "Center torso", MechLocation.LeftTorso => "Left torso", MechLocation.RightTorso => "Right torso",
@@ -201,14 +86,14 @@ public static class Scenarios
 
 /// <summary>A draft as sent to the player who makes it: candidate ids pool by pool (active pools only), the current choices, whether
 /// this draft names the company, and the scenario it drafts for.</summary>
-public sealed record DraftOffer(string[] Mechs, string[] Warriors, int[] Choices, string ForceName, bool NamesCompany,
+public sealed record DraftOffer(string[] Mechs, WarriorSpec[] Warriors, int[] Choices, string ForceName, bool NamesCompany,
     StartingScenario Scenario = StartingScenario.Established);
 
 /// <summary>A reversible selection; nothing reaches the campaign until every pool and its name are confirmed. Pools 0–3 hold mechs and
 /// 4–7 MechWarriors; a scenario with fewer columns leaves the rest of each row unused.</summary>
 public sealed class InitialDraft
 {
-    private const int Candidates = 3, Pools = 8;
+    private const int Candidates = 3, Pools = 8, PlaceholderSeed = 3025;
     private static readonly string[] NamePrefixes = ["Iron", "Ashen", "Crimson", "Silver", "Steel", "Ember", "Storm", "Obsidian"];
     private static readonly string[] NameSuffixes = ["Jackals", "Lancers", "Falcons", "Wolves", "Sentinels", "Dragoons", "Marauders", "Wardens"];
     private readonly int[] _choices = Enumerable.Repeat(-1, Pools).ToArray();
@@ -218,12 +103,11 @@ public sealed class InitialDraft
     public InitialDraft(StartingScenario scenario = StartingScenario.Established)
     {
         Scenario = scenario;
-        // Fixed placeholder candidates, in catalog order, each MechWarrior offered once.
+        // Fixed placeholder candidates: mechs in catalog order, and MechWarriors generated from a fixed seed.
         var mechs = Scenarios.MechPools(scenario).Distinct().ToDictionary(weight => weight,
             weight => new Queue<MechSpec>(scenario == StartingScenario.Established ? DraftCatalog.Mechs.Where(m => m.WeightClass == weight) : DraftCatalog.AllMechs.Where(m => m.WeightClass == weight)));
-        var warriors = Scenarios.WarriorPools(scenario).Distinct().ToDictionary(rank => rank, rank => new Queue<WarriorSpec>(DraftCatalog.Warriors.Where(w => w.Rank == rank)));
-        for (var p = 0; p < Columns; p++) for (var c = 0; c < Candidates; c++)
-        { _mechs[p, c] = mechs[MechClass(p)].Dequeue(); _warriors[p, c] = warriors[WarriorRank(p + 4)].Dequeue(); }
+        for (var p = 0; p < Columns; p++) for (var c = 0; c < Candidates; c++) _mechs[p, c] = mechs[MechClass(p)].Dequeue();
+        GenerateWarriors(new Random(PlaceholderSeed), new PilotsInUse());
     }
     public StartingScenario Scenario { get; }
     /// <summary>Columns of the draft: one mech pool over one MechWarrior pool each.</summary>
@@ -243,34 +127,30 @@ public sealed class InitialDraft
         return values;
     }
 
-    private static int Needed(StartingScenario scenario, WarriorExperience rank) => Scenarios.WarriorPools(scenario).Count(item => item == rank) * Candidates;
-    private static int Available(WarriorExperience rank) => DraftCatalog.Warriors.Count(w => w.Rank == rank);
-    /// <summary>The most players whose drafts can all offer different MechWarriors: each draft needs three candidates of its own per
-    /// MechWarrior pool.</summary>
-    public static int MaxPlayers(StartingScenario scenario = StartingScenario.Established) => Math.Min(ForceRoster.MaxLances,
-        Scenarios.WarriorPools(scenario).Distinct().Min(rank => Available(rank) / Needed(scenario, rank)));
+    /// <summary>The most players a company can have. Generated MechWarriors never run out.</summary>
+    public static int MaxPlayers(StartingScenario scenario = StartingScenario.Established) => ForceRoster.MaxLances;
     /// <summary>Why a company of this many players cannot be drafted, or null when it can.</summary>
-    public static string? CompanyProblem(int players, StartingScenario scenario = StartingScenario.Established)
+    public static string? CompanyProblem(int players, StartingScenario scenario = StartingScenario.Established) =>
+        players is < 1 or > ForceRoster.MaxLances ? "A company has one to eight players." : null;
+
+    /// <summary>Generates every MechWarrior candidate, each within the bracket of its pool's rank, recording them in
+    /// <paramref name="inUse"/>.</summary>
+    private void GenerateWarriors(Random random, PilotsInUse inUse)
     {
-        if (players is < 1 or > ForceRoster.MaxLances) return "A company has one to eight players.";
-        if (players <= MaxPlayers(scenario)) return null;
-        var ranks = Scenarios.WarriorPools(scenario).Distinct().ToArray();
-        return $"{players} players need {string.Join(" and ", ranks.Select(rank => $"{players * Needed(scenario, rank)} {rank.ToString().ToLowerInvariant()}"))} MechWarriors in the catalog; it has "
-            + $"{string.Join(" and ", ranks.Select(Available))}.";
+        for (var p = 0; p < Columns; p++) for (var c = 0; c < Candidates; c++) _warriors[p, c] = PilotGenerator.Generate(random, inUse, WarriorRank(p + 4));
     }
 
-    /// <summary>One draft per player slot. Mech candidates are drawn for each player separately; MechWarrior candidates never repeat
-    /// between players, so every lance ends with MechWarriors of its own. Only the leader's draft names the company.</summary>
+    /// <summary>One draft per player slot. Mech candidates are drawn for each player separately; MechWarrior candidates are generated
+    /// for the whole company together, so they share no portrait, name or callsign while any are left. Only the leader's draft names
+    /// the company.</summary>
     public static IReadOnlyList<InitialDraft> CreateCompany(int players, Random? random = null, StartingScenario scenario = StartingScenario.Established)
     {
         if (CompanyProblem(players, scenario) is { } problem) throw new ArgumentOutOfRangeException(nameof(players), problem);
         random ??= Random.Shared;
-        var queues = Scenarios.WarriorPools(scenario).Distinct().ToDictionary(rank => rank,
-            rank => new Queue<WarriorSpec>(Shuffle(DraftCatalog.Warriors.Where(w => w.Rank == rank), random)));
+        var inUse = new PilotsInUse();
         return Enumerable.Range(0, players).Select(slot =>
         {
-            var draft = CreateRandom(random, scenario);
-            for (var p = 0; p < draft.Columns; p++) for (var c = 0; c < Candidates; c++) draft._warriors[p, c] = queues[draft.WarriorRank(p + 4)].Dequeue();
+            var draft = CreateRandom(random, scenario, inUse);
             if (slot > 0) { draft.NamesCompany = false; draft.ForceName = ""; }
             return draft;
         }).ToArray();
@@ -279,7 +159,7 @@ public sealed class InitialDraft
     /// <summary>Whether this draft names the company: the leader's does; the other players' drafts only choose their lances.</summary>
     public bool NamesCompany { get; private set; } = true;
     public DraftOffer Offer() => new(Enumerable.Range(0, Columns).SelectMany(p => Enumerable.Range(0, Candidates).Select(c => MechCandidate(p, c).Id)).ToArray(),
-        Enumerable.Range(0, Columns).SelectMany(p => Enumerable.Range(0, Candidates).Select(c => WarriorCandidate(p + 4, c).Id)).ToArray(), [.. _choices], ForceName, NamesCompany, Scenario);
+        Enumerable.Range(0, Columns).SelectMany(p => Enumerable.Range(0, Candidates).Select(c => WarriorCandidate(p + 4, c))).ToArray(), [.. _choices], ForceName, NamesCompany, Scenario);
     public static InitialDraft FromOffer(DraftOffer offer)
     {
         if (offer is null || !Enum.IsDefined(offer.Scenario)) throw new ArgumentException("Invalid draft.");
@@ -290,9 +170,9 @@ public sealed class InitialDraft
         for (var p = 0; p < columns; p++) for (var c = 0; c < Candidates; c++)
         {
             draft._mechs[p, c] = DraftCatalog.Mech(offer.Mechs[p * Candidates + c]);
-            draft._warriors[p, c] = DraftCatalog.Warrior(offer.Warriors[p * Candidates + c]);
-            if (draft._mechs[p, c]!.WeightClass != draft.MechClass(p) || draft._warriors[p, c]!.Rank != draft.WarriorRank(p + 4))
-                throw new ArgumentException("Invalid draft.");
+            var warrior = offer.Warriors[p * Candidates + c];
+            if (draft._mechs[p, c]!.WeightClass != draft.MechClass(p) || !PilotGenerator.Valid(warrior)) throw new ArgumentException("Invalid draft.");
+            draft._warriors[p, c] = warrior;
         }
         foreach (var pool in draft.ActivePools) if (offer.Choices[pool] >= 0) draft.Select(pool, offer.Choices[pool]);
         return draft;
@@ -324,7 +204,9 @@ public sealed class InitialDraft
         return roster;
     }
 
-    public static InitialDraft CreateRandom(Random? random = null, StartingScenario scenario = StartingScenario.Established)
+    /// <summary>A draft with random mech candidates, generated MechWarriors (sharing nothing with <paramref name="inUse"/> while
+    /// portraits, names and callsigns are left), a random company name and a random choice in every pool.</summary>
+    public static InitialDraft CreateRandom(Random? random = null, StartingScenario scenario = StartingScenario.Established, PilotsInUse? inUse = null)
     {
         random ??= Random.Shared;
         var draft = new InitialDraft(scenario)
@@ -335,9 +217,7 @@ public sealed class InitialDraft
         var mechs = Scenarios.MechPools(scenario).Distinct().ToDictionary(weight => weight,
             weight => new Queue<MechSpec>(Shuffle(DraftCatalog.AllMechs.Where(m => m.WeightClass == weight), random)));
         for (var p = 0; p < draft.Columns; p++) for (var c = 0; c < Candidates; c++) draft._mechs[p, c] = mechs[draft.MechClass(p)].Dequeue();
-        var warriors = Scenarios.WarriorPools(scenario).Distinct().ToDictionary(rank => rank,
-            rank => new Queue<WarriorSpec>(Shuffle(DraftCatalog.Warriors.Where(w => w.Rank == rank), random)));
-        for (var p = 0; p < draft.Columns; p++) for (var c = 0; c < Candidates; c++) draft._warriors[p, c] = warriors[draft.WarriorRank(p + 4)].Dequeue();
+        draft.GenerateWarriors(random, inUse ?? new PilotsInUse());
         foreach (var pool in draft.ActivePools) draft.Select(pool, random.Next(Candidates));
         return draft;
     }
@@ -376,7 +256,7 @@ public sealed record MechSnapshot(string Id, string DefinitionId, string? Warrio
     EquipmentCondition[] Equipment, AmmoCondition[] Ammo, string[]? Removed = null, InstalledItem[]? Installed = null, ArmorFit[]? Armor = null,
     int? Lance = null, RepairOrder? Repair = null);
 /// <summary>Deployments and Kills are the warrior's career record; saves from before it have none.</summary>
-public sealed record WarriorSnapshot(string DefinitionId, WarriorHealth Health, DateOnly? RecoveryDate, int Deployments = 0, int Kills = 0);
+public sealed record WarriorSnapshot(WarriorSpec Spec, WarriorHealth Health, DateOnly? RecoveryDate, int Deployments = 0, int Kills = 0);
 /// <summary>Lances is the company's lance count; saves from before lances have none.</summary>
 public sealed record RosterSnapshot(string ForceName, MechSnapshot[] Mechs, WarriorSnapshot[] Warriors, StorageEntry[]? Storage = null, int? Lances = null);
 
@@ -544,12 +424,12 @@ public sealed class RosterWarrior
     public int Kills { get; internal set; }
     internal RosterWarrior(WarriorSnapshot save)
     {
-        Spec = DraftCatalog.Warrior(save.DefinitionId); Health = save.Health; RecoveryDate = save.RecoveryDate;
+        Spec = save.Spec; Health = save.Health; RecoveryDate = save.RecoveryDate;
         Deployments = Math.Max(0, save.Deployments); Kills = Math.Max(0, save.Kills);
     }
     public bool Ready => Health == WarriorHealth.Healthy;
     public string Status => Health switch { WarriorHealth.Healthy => "Healthy · ready for deployment", WarriorHealth.Injured => $"Injured · recovers {RecoveryDate:dd MMM yyyy}", _ => "In memoriam" };
-    internal WarriorSnapshot Snapshot() => new(Id, Health, RecoveryDate, Deployments, Kills);
+    internal WarriorSnapshot Snapshot() => new(Spec, Health, RecoveryDate, Deployments, Kills);
 }
 
 /// <summary>Owned assets and personnel; assignments are independent of any future mission deployment.</summary>
@@ -587,7 +467,7 @@ public sealed class ForceRoster
                 .Select(id => new EquipmentCondition(id, ComponentCondition.Operational)).ToArray(),
             spec.Ammo.Select(item => new AmmoCondition(item.Id, item.Shots)).ToArray(),
             Lance: lanceOf is not null ? (i < lanceOf.Length ? lanceOf[i] : null) : i < lances * LanceSize ? i / LanceSize : null)));
-        return new(name, units, warriors.Select(spec => new RosterWarrior(new(spec.Id, WarriorHealth.Healthy, null))), lances: lances);
+        return new(name, units, warriors.Select(spec => new RosterWarrior(new(spec, WarriorHealth.Healthy, null))), lances: lances);
     }
     public static string LanceName(int lance) => $"Lance {lance + 1}";
     public IEnumerable<OwnedMech> LanceMechs(int lance) => Mechs.Where(item => item.Lance == lance);
@@ -608,7 +488,7 @@ public sealed class ForceRoster
     internal RosterWarrior Hire(WarriorSpec spec)
     {
         if (Warriors.Any(item => item.Id == spec.Id)) throw new InvalidOperationException("That MechWarrior is already in the company.");
-        var warrior = new RosterWarrior(new(spec.Id, WarriorHealth.Healthy, null));
+        var warrior = new RosterWarrior(new(spec, WarriorHealth.Healthy, null));
         _warriors.Add(warrior);
         return warrior;
     }
@@ -726,10 +606,9 @@ public sealed class ForceRoster
         var warriorIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var warrior in save.Warriors)
         {
-            if (warrior is null || !warriorIds.Add(warrior.DefinitionId) || !Enum.IsDefined(warrior.Health)
+            if (warrior is null || !PilotGenerator.Valid(warrior.Spec) || !warriorIds.Add(warrior.Spec.Id) || !Enum.IsDefined(warrior.Health)
                 || (warrior.Health == WarriorHealth.Injured ? warrior.RecoveryDate is null || warrior.RecoveryDate <= date : warrior.RecoveryDate is not null))
                 throw new ArgumentException("Invalid MechWarrior state.");
-            _ = DraftCatalog.Warrior(warrior.DefinitionId);
         }
         var mechIds = new HashSet<string>(StringComparer.Ordinal); var assigned = new HashSet<string>(StringComparer.Ordinal);
         var mechs = new List<MechSnapshot>();
@@ -750,7 +629,7 @@ public sealed class ForceRoster
             if ((mech.Installed ?? []).Any(item => CriticalLayout.Used(layout[item.Location]) > EquipmentRules.Capacity(item.Location)))
                 throw new ArgumentException("Invalid loadout.");
             if (mech.WarriorId is { } pilot && (!warriorIds.Contains(pilot) || !assigned.Add(pilot)
-                || save.Warriors.Single(item => item.DefinitionId == pilot).Health == WarriorHealth.Dead)) throw new ArgumentException("Invalid pilot assignment.");
+                || save.Warriors.Single(item => item.Spec.Id == pilot).Health == WarriorHealth.Dead)) throw new ArgumentException("Invalid pilot assignment.");
             if (mech.Locations is null || mech.Locations.Length != spec.Locations.Length || mech.Locations.Any(item => item is null)
                 || mech.Locations.Select(item => item.Location).Distinct().Count() != spec.Locations.Length) throw new ArgumentException("Invalid location condition.");
             foreach (var loc in mech.Locations)

@@ -9,7 +9,7 @@ public partial class SmokeTests
         var ids = new[] { "firestarter", "crusader", "thunderbolt", "victor", "zeus" };
         foreach (var id in ids)
         {
-            var roster = ForceRoster.Create("Model review", [DraftCatalog.Mech(id)], DraftCatalog.Warriors.Take(1));
+            var roster = ForceRoster.Create("Model review", [DraftCatalog.Mech(id)], TestPilots.Warriors.Take(1));
             roster.Assign(roster.Mechs[0].Id, roster.Warriors[0].Id);
             var stage = new Control(); AddChild(stage); stage.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
             var hangar = new HangarScreen(); stage.AddChild(hangar); hangar.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect); hangar.OffsetTop = 72;

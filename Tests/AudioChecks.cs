@@ -75,7 +75,7 @@ public partial class SmokeTests
         sound.SetMusic(MusicContext.Combat);
         Check(sound.MusicFade > 0, "the playing context does not restart");
         sound.SetMusic(MusicContext.None);
-        var roster = ForceRoster.Create("Audio checks", [DraftCatalog.Mech("awesome"), DraftCatalog.Mech("atlas")], DraftCatalog.Warriors.Take(2));
+        var roster = ForceRoster.Create("Audio checks", [DraftCatalog.Mech("awesome"), DraftCatalog.Mech("atlas")], TestPilots.Warriors.Take(2));
         for (var i = 0; i < 2; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var field = new CombatViewport { Position = new Vector2(40, 40), Size = new Vector2(900, 650), Sound = sound };
         AddChild(field); await Frames();

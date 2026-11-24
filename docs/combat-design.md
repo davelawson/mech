@@ -265,7 +265,7 @@ Lava and deep water are flat like water, but no mech may stand in them: they blo
 
 ## Sensors and pilot budgets (confirmed October 27, 2026)
 
-Each pilot has Gunnery, Piloting and Sensors in the range 2 (expert) to 6 (novice). All start at 6; each step of improvement costs one point, so a skill costs `6 - rating`. Regular pilots spend exactly six points, veterans eight. (Since November 20, 2026 a fourth skill, Grit, shares the budget, now eight and ten points; see [stress](#stress-surrender-and-ejection-confirmed-november-20-2026).) Existing named pilots retain identities and quality classifications but have rebalanced fixed ratings, including Sensors specialists. These allocations resolve through existing catalog IDs in saves.
+Each pilot has Gunnery, Piloting and Sensors in the range 2 (expert) to 6 (novice). All start at 6; each step of improvement costs one point, so a skill costs `6 - rating`. Regular pilots spend exactly six points, veterans eight. (Since November 20, 2026 a fourth skill, Grit, shares the budget, now eight and ten points; see [stress](#stress-surrender-and-ejection-confirmed-november-20-2026).) Existing named pilots retain identities and quality classifications but have rebalanced fixed ratings, including Sensors specialists. These allocations resolve through existing catalog IDs in saves. (Since November 24, 2026 MechWarriors are generated instead, with skills from 2 to 7; see [Generated MechWarriors](design.md#generated-mechwarriors-confirmed-november-24-2026).)
 
 `identification radius = 1500 metres × (1 + (6 − Sensors) / 4) × (0.5 + (target tonnage − 20) / 160)`
 
@@ -392,7 +392,7 @@ A mech travelling in reverse takes the running penalty on its own shots, whateve
 
 Fewer mechs should end a battle destroyed and fewer MechWarriors dead. MechWarriors grow stressed, may eject, and enemies may surrender or flee. The same rules apply to both sides except where stated; the numbers are in [combat tuning](combat-tuning.md#stress-and-nerve-checks).
 
-**Grit.** A fourth skill, rated 2–6 like the others (lower is better) and shown as a word everywhere skills are. It is the MechWarrior's determination under stress. Named pilots have hand-picked Grit within their budgets; enemy pilots take their rank's rating for every skill, Grit included.
+**Grit.** A fourth skill, rated 2–6 like the others (lower is better) and shown as a word everywhere skills are. It is the MechWarrior's determination under stress. Generated MechWarriors buy Grit like any other skill; enemy pilots take their rank's rating for every skill, Grit included.
 
 **Stress.** Each MechWarrior is Calm, Steady, Excited, Stressed or Panicked, starting every battle Calm. Calm, Steady and Excited change nothing. Stressed plays every skill but Grit one rating worse, Panicked two: Gunnery for hit chances, Piloting for knockdown checks and stand-up time, Sensors for detection. A Green pilot can play worse than Green.
 

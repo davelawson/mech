@@ -8,7 +8,7 @@ public partial class SmokeTests
     {
         var window = GetWindow(); var oldSize = window.Size;
         window.Size = new Vector2I(1440, 900);
-        var roster = ForceRoster.Create("Tactical shortcuts", Enumerable.Repeat(DraftCatalog.Mech("atlas"), 4), DraftCatalog.Warriors.Take(4));
+        var roster = ForceRoster.Create("Tactical shortcuts", Enumerable.Repeat(DraftCatalog.Mech("atlas"), 4), TestPilots.Warriors.Take(4));
         for (var i = 0; i < 4; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var screen = new CombatScreen { Theme = Ui.CreateTheme(), Size = new Vector2(1440, 900) };
         AddChild(screen);
@@ -79,7 +79,7 @@ public partial class SmokeTests
             // Generate real resolved shots without damaging this screen's paused deployment.
             var spec = DraftCatalog.Mech("atlas") with { HeatSinks = 0, Components = [], Ammo = [],
                 Weapons = [new("log-laser", "Log Laser", MechLocation.RightArm, false, 0, new(DamageKind.Direct, 1, 1, 0), 0, 20, 25, 30, null, WeaponKind.Flamer)] };
-            CombatUnit Unit(CombatSide side) => new(side.ToString(), spec, DraftCatalog.Warriors[0] with { Gunnery = -10 }, side,
+            CombatUnit Unit(CombatSide side) => new(side.ToString(), spec, TestPilots.Warriors[0] with { Gunnery = -10 }, side,
                 spec.Locations.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)),
                 [new EquipmentCondition("log-laser", ComponentCondition.Operational)], [], side == CombatSide.Friendly ? Vector2.Zero : new Vector2(60, 0));
             var source = Unit(CombatSide.Friendly); var target = Unit(CombatSide.Enemy);

@@ -1,6 +1,6 @@
-`catalog-baseline.json` freezes the pre-refactor stock catalog and authored warrior records. Its legacy damage strings are an independent regression oracle, not runtime input. It keeps stock points; the catalog checks scale it to the game's tenths of a point and machine guns' half-point damage. The stock facts retain the attribution and license recorded inside the fixture and in [Data/README.md](../../Data/README.md).
+`catalog-baseline.json` freezes the pre-refactor stock catalog (and the authored warrior records of the catalog MechWarriors had before they were generated). Its legacy damage strings are an independent regression oracle, not runtime input. It keeps stock points; the catalog checks scale it to the game's tenths of a point and machine guns' half-point damage. The stock facts retain the attribution and license recorded inside the fixture and in [Data/README.md](../../Data/README.md).
 
-`definition-save.json` uses the existing version-four campaign format with damaged armor/equipment, partial ammunition, an assignment, and a recovering warrior. It contains only definition IDs and condition, never serialized definitions.
+`definition-save.json` uses the existing version-four campaign format with damaged armor/equipment, partial ammunition, an assignment, and a recovering warrior. It contains only definition IDs and condition, never serialized mech definitions. Its one MechWarrior is saved in full, as generated MechWarriors are; MechWarriors saved as catalog IDs are no longer supported.
 
 `mtf/` contains mechanical excerpts from MegaMek/mm-data revision `71fefad545e254b4a224f0d232eaef24473db1ee`, with upstream notices retained and descriptive lore removed. Sources:
 

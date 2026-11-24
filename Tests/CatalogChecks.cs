@@ -94,10 +94,6 @@ internal static class CatalogChecks
             check(m.Components.All(c => c.HeatSinkCount == (c.Kind == ComponentKind.HeatSink ? c.Slots : 0)),
                 $"{m.Id} preserves explicit sink contributions");
         }
-        // The baseline holds the original 24; the entry-level MechWarriors added after it are checked by the roster suite.
-        var warriors = JsonSerializer.SerializeToNode(DraftCatalog.Warriors.Take(24).Select(w => new
-            { w.Id, w.Name, w.Callsign, w.Gunnery, w.Piloting, w.Sensors, w.Grit, w.Experience }));
-        check(JsonNode.DeepEquals(warriors, baseline["Warriors"]), "all authored warriors preserve identity, skills, labels and order");
         var meta = DraftCatalog.Metadata;
         check(meta.SchemaVersion == 1 && meta.Source == baseline["Source"]!.GetValue<string>()
             && meta.Revision == baseline["Revision"]!.GetValue<string>() && meta.License == baseline["License"]!.GetValue<string>()
@@ -126,8 +122,8 @@ internal static class CatalogChecks
         ReadOnly(stock.Locations, "locations"); ReadOnly(stock.Weapons, "weapons");
         ReadOnly(DraftCatalog.Mech("awesome").Components, "components"); ReadOnly(stock.Ammo, "ammunition");
         ReadOnly(DraftCatalog.AllMechs, "complete mech catalog"); ReadOnly(DraftCatalog.Mechs, "draft subset");
-        ReadOnly(DraftCatalog.Warriors, "warrior catalog"); ReadOnly(DraftCatalog.PoolNames, "pool labels");
-        var roster = ForceRoster.Create("Shared definitions", [stock, stock], DraftCatalog.Warriors.Take(2));
+        ReadOnly(TestPilots.Warriors, "warrior catalog"); ReadOnly(DraftCatalog.PoolNames, "pool labels");
+        var roster = ForceRoster.Create("Shared definitions", [stock, stock], TestPilots.Warriors.Take(2));
         for (var i = 0; i < 2; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
         var sim = CombatSimulation.Deploy(roster, roster.Mechs.Select(m => m.Id), seed: 41, terrainSeed: 41);
         var changed = stock with { Weapons = stock.Weapons.SetItem(0, originalWeapon with
@@ -138,7 +134,7 @@ internal static class CatalogChecks
             && roster.Mechs.All(m => m.LocationIntact(MechLocation.LeftArm)) && sim.Units[1].Intact(MechLocation.LeftArm),
             "two owned mechs and mirrored combat units safely share definitions while copies and condition change independently");
     }
-    private static CombatUnit Unit(MechSpec spec, string? destroyed = null) => new("fixture", spec, DraftCatalog.Warriors[0], CombatSide.Friendly,
+    private static CombatUnit Unit(MechSpec spec, string? destroyed = null) => new("fixture", spec, TestPilots.Warriors[0], CombatSide.Friendly,
         spec.Locations.Select(l => new LocationCondition(l.Location, l.Armor, l.RearArmor, l.Structure)),
         spec.Weapons.Select(w => w.Id).Concat(spec.Components.Select(c => c.Id)).Concat(spec.Ammo.Select(a => a.Id))
             .Select(id => new EquipmentCondition(id, id == destroyed ? ComponentCondition.Destroyed : ComponentCondition.Operational)),
@@ -157,7 +153,7 @@ internal static class CatalogChecks
                 && before.Weapons.All(before.WeaponUsable) && after.Weapons.All(after.WeaponUsable)
                 && before.PreferredDistance == after.PreferredDistance && before.CoolingRate == after.CoolingRate,
                 $"{stock.Id} display names cannot change weapon rules, ammunition, preference or cooling");
-            var roster = ForceRoster.Create("Names", [stock], DraftCatalog.Warriors.Take(1)); var snapshot = roster.Snapshot().Mechs[0];
+            var roster = ForceRoster.Create("Names", [stock], TestPilots.Warriors.Take(1)); var snapshot = roster.Snapshot().Mechs[0];
             check(new OwnedMech(snapshot, renamed).Operational, $"{stock.Id} renamed core systems retain operational status");
             var core = stock.Components.First(c => c.Kind == ComponentKind.Cockpit);
             var damaged = snapshot with { Equipment = snapshot.Equipment.Select(e => e.Id == core.Id ? e with { Condition = ComponentCondition.Destroyed } : e).ToArray() };
@@ -172,8 +168,6 @@ internal static class CatalogChecks
         check(unit.EffectiveHeatSinks == 10, "destroyed and lost sink groups are subtracted once");
         var mauler = Unit(DraftCatalog.Mech("mauler"));
         check(mauler.EffectiveHeatSinks == 11 && mauler.CoolingRate == 2.2, "Mauler retains all eleven internal double sinks");
-        check(DraftCatalog.Warriors.All(w => (w with { Specialty = WarriorSpecialty.None }).SkillBudget == w.SkillBudget),
-            "warrior specialty labels do not determine budgets");
     }
     private static void CheckValidation(Action<bool, string> check)
     {
@@ -222,19 +216,20 @@ internal static class CatalogChecks
         Reject("missing attribution", n => n["Attribution"] = null, "Attribution");
         Reject("unpinned revision", n => n["Revision"] = "main", "Revision");
         Reject("mismatched entry provenance", n => M(n)["Source"] = "https://example.com/unit", "Source");
-        void RejectWarrior(string label, params WarriorSpec[] warriors)
+        void RejectPilots(string label, Func<PilotData, PilotData> change)
         {
             var rejected = false;
-            try { _ = CatalogLoader.ValidateWarriors(warriors); } catch (InvalidOperationException error) { rejected = error.Message.Contains("warrior", StringComparison.Ordinal); }
-            check(rejected, $"warrior catalog rejects {label}");
+            try { _ = PilotData.Validate(change(PilotData.Instance)); } catch (InvalidOperationException error) { rejected = error.Message.Contains("pilots", StringComparison.Ordinal); }
+            check(rejected, $"pilot data rejects {label}");
         }
-        var regular = DraftCatalog.Warriors[0];
-        RejectWarrior("duplicate identities", regular, regular);
-        RejectWarrior("unknown experience", regular with { Rank = (WarriorExperience)99 });
-        RejectWarrior("unknown specialty", regular with { Specialty = (WarriorSpecialty)99 });
-        RejectWarrior("unbounded skills", regular with { Gunnery = -10 });
-        RejectWarrior("incorrect budget", regular with { Rank = WarriorExperience.Veteran });
-        RejectWarrior("untrained regular", regular with { Gunnery = 7, Piloting = 3, Sensors = 3, Grit = 3 });
+        RejectPilots("duplicate portraits", data => data with { Portraits = data.Portraits.Add(data.Portraits[0]) });
+        RejectPilots("duplicate callsigns", data => data with { Callsigns = data.Callsigns.Add(data.Callsigns[0]) });
+        RejectPilots("blank names", data => data with { Surnames = data.Surnames.Add(" ") });
+        RejectPilots("an empty list", data => data with { MaleNames = [] });
+        var regular = TestPilots.Warriors[0];
+        check(PilotGenerator.Valid(regular) && !PilotGenerator.Valid(regular with { Gunnery = -10 }) && !PilotGenerator.Valid(regular with { Grit = 8 })
+            && !PilotGenerator.Valid(regular with { Portrait = "atlas" }) && !PilotGenerator.Valid(regular with { Callsign = " " }) && !PilotGenerator.Valid(null),
+            "a MechWarrior needs a name, a callsign, a known portrait and skills from 2 to 7");
     }
     private static void CheckSave(Action<bool, string> check)
     {
@@ -244,7 +239,7 @@ internal static class CatalogChecks
             File.WriteAllText(path, fixture); var store = new CampaignStore(path); var campaign = store.Load();
             var mech = campaign.Roster!.Mechs[0]; var warrior = campaign.Roster.Warriors[0];
             check(ReferenceEquals(mech.Spec, DraftCatalog.Mech("firestarter")) && mech.WarriorId == "mara-vale"
-                && warrior.Spec.SkillBudget == 8 && warrior.Health == WarriorHealth.Injured
+                && warrior.Spec == TestPilots.Warrior("mara-vale") && warrior.Health == WarriorHealth.Injured
                 && warrior.RecoveryDate == new DateOnly(3025, 1, 3) && mech.Condition("weapon-0") == ComponentCondition.Damaged
                 && mech.Ammo.All(a => a.Shots == mech.Spec.Ammo.Single(s => s.Id == a.Id).Shots / 2),
                 "pre-refactor campaign save resolves typed definitions and retains damage, ammo, assignment and injury");

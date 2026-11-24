@@ -51,7 +51,7 @@ internal static partial class CombatChecks
         // Lost jets and legs shorten the jump.
         var spec = DraftCatalog.Mech("jenner");
         var jet = spec.Components.First(component => component.Kind == ComponentKind.JumpJet);
-        var damaged = new CombatUnit("jets", spec, DraftCatalog.Warriors[0], CombatSide.Friendly,
+        var damaged = new CombatUnit("jets", spec, TestPilots.Warriors[0], CombatSide.Friendly,
             spec.Locations.Select(l => new LocationCondition(l.Location, l.Armor, l.RearArmor, l.Structure)),
             spec.Weapons.Select(w => w.Id).Concat(spec.Components.Select(c => c.Id)).Concat(spec.Ammo.Select(a => a.Id))
                 .Select(id => new EquipmentCondition(id, id == jet.Id ? ComponentCondition.Destroyed : ComponentCondition.Operational)),

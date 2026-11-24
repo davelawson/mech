@@ -119,7 +119,7 @@ public partial class SmokeTests
             ("jenner-srm-cover", Refit("jenner", weapon => weapon.Id == srm.Id ? null : weapon)),
         };
         // Owned mechs keep catalog loadouts until refitting exists, so each refit's mount map drives the preview.
-        var roster = ForceRoster.Create("Weapon mount review", [.. review.Select(item => DraftCatalog.Mech(item.Spec.Id))], DraftCatalog.Warriors.Take(1));
+        var roster = ForceRoster.Create("Weapon mount review", [.. review.Select(item => DraftCatalog.Mech(item.Spec.Id))], TestPilots.Warriors.Take(1));
         var screen = new Control(); AddChild(screen); screen.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         var hangar = new HangarScreen(); screen.AddChild(hangar); hangar.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         hangar.Open(roster); hangar.Board.Visible = false; await Frames();
