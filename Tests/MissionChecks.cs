@@ -91,8 +91,13 @@ internal static class MissionChecks
         var first = good.Offers[0];
         Reject(() => MissionBoard.Restore(good with { Offers = [.. good.Offers, first with { Id = "offer-9999" }] }, campaign.Date), check, "more than ten offers are rejected");
         Reject(() => MissionBoard.Restore(good with { Offers = [first with { SystemId = "nowhere" }, .. good.Offers[1..]] }, campaign.Date), check, "unknown locations are rejected");
-        Reject(() => MissionBoard.Restore(good with { Offers = [first with { Opposition = [new("missing", EnemyPilotRank.Regular), .. first.Opposition[1..]] }, .. good.Offers[1..]] }, campaign.Date),
+        Reject(() => MissionBoard.Restore(good with { Offers = [first with { Opposition = [new("missing", EnemyPilotRank.Sergeant), .. first.Opposition[1..]] }, .. good.Offers[1..]] }, campaign.Date),
             check, "unknown enemy mechs are rejected");
+        var formerRanks = System.Text.Json.JsonSerializer.Serialize(good, CampaignStore.JsonOptions).Replace("\"Rank\": \"Corporal\"", "\"Rank\": \"Green\"")
+            .Replace("\"Rank\": \"Sergeant\"", "\"Rank\": \"Regular\"").Replace("\"Rank\": \"Lieutenant\"", "\"Rank\": \"Veteran\"").Replace("\"Rank\": \"Captain\"", "\"Rank\": \"Elite\"");
+        check(formerRanks.Contains("\"Rank\": \"") && System.Text.Json.JsonSerializer.Deserialize<MissionSnapshot>(formerRanks, CampaignStore.JsonOptions)!.Offers
+                .SelectMany(offer => offer.Opposition).Select(item => item.Rank).SequenceEqual(good.Offers.SelectMany(offer => offer.Opposition).Select(item => item.Rank)),
+            "enemy ranks saved under their former names (Green, Regular, Veteran, Elite) load as Corporal, Sergeant, Lieutenant and Captain");
         Reject(() => MissionBoard.Restore(good with { Offers = [first with { Opposition = [] }, .. good.Offers[1..]] }, campaign.Date), check, "an empty opposition is rejected");
         Reject(() => MissionBoard.Restore(good with { Offers = [first with { Kind = MissionKind.Patrol, PatrolLocations = 3 }, .. good.Offers[1..]] }, campaign.Date),
             check, "a patrol whose opposition is not grouped by leg is rejected");
@@ -366,6 +371,17 @@ internal static class MissionChecks
         var success = winner.SettleMission(new(MissionOutcome.Success, [new(mech.Id, mech.Locations.ToArray(), mech.Equipment.ToArray(), false, 0, 2)], won.Opposition.Length));
         var victor = winner.Roster.Pilot(mech)!;
         check(victor.Deployments == 1 && victor.Kills == 2, "settlement adds the reported kills to the pilot's record");
+        var learner = CampaignChecks.NewCompany(); learner.AcceptMission(learner.Missions.Available[1].Id);
+        var trained = learner.Roster!.Mechs[0]; var student = learner.Roster.Pilot(trained)!; var before = student.Spec;
+        var growing = SkillGrowth.Skills.Where(skill => !SkillGrowth.Maxed(SkillGrowth.Rating(before, skill))).ToArray();
+        DeployedMechReport Learned(WarriorSkill[] gains) => new(trained.Id, trained.Locations.ToArray(), trained.Equipment.ToArray(), false, 0, SkillGains: gains);
+        Reject(() => learner.SettleMission(new(MissionOutcome.Failure, [Learned([growing[0], growing[0]])], 0)), check, "a skill gains at most once in a mission");
+        if (SkillGrowth.Skills.FirstOrDefault(skill => SkillGrowth.Maxed(SkillGrowth.Rating(before, skill))) is var maxed && SkillGrowth.Maxed(SkillGrowth.Rating(before, maxed)))
+            Reject(() => learner.SettleMission(new(MissionOutcome.Failure, [Learned([maxed])], 0)), check, "a Legendary skill cannot gain");
+        learner.SettleMission(new(MissionOutcome.Failure, [Learned(growing)], 0));
+        check(student.Spec == before && growing.All(skill => student.Progress[skill] == 1),
+            "settlement banks each reported skill gain on the pilot, even after a failed mission");
+        check(Campaign.Restore(learner.Snapshot()).Roster!.Warriors.Single(item => item.Id == student.Id).Progress == student.Progress, "banked skill gains are saved");
         check(success.Payment == won.Payment && winner.Cash == cash + won.Payment && success.Killed.Length == 0
             && (won.Employer.Faction is not { } employer || winner.Reputation.Tenths(employer) > 0), "a successful mission pays and pleases the employer");
         var hurt = CampaignChecks.NewCompany(); var raid = hurt.Missions.Available[0]; hurt.AcceptMission(raid.Id);

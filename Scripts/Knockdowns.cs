@@ -107,6 +107,7 @@ public sealed partial class CombatSimulation
         var number = target.Piloting + penalty + modifier;
         var roll = PilotingRollOverride?.Invoke() ?? _pilotingRandom.Next(1, 7) + _pilotingRandom.Next(1, 7);
         var fell = roll < number;
+        target.Use = target.Use with { PilotingChecks = target.Use.PilotingChecks + 1, FootingKept = target.Use.FootingKept + (fell ? 0 : 1) };
         if (fell) { if (target.Airborne) target.KnockdownPending = true; else target.FallProne(Elapsed); }
         return new(total, number, roll, fell, penalty, text);
     }

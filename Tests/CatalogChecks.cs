@@ -278,8 +278,8 @@ internal static class CatalogChecks
             // Saves from before lances form one lance from their first four mechs.
             expected["Roster"]!["Lances"] = 1;
             foreach (var (saved, i) in expected["Roster"]!["Mechs"]!.AsArray().Select((item, i) => (item, i))) saved!["Lance"] = i < ForceRoster.LanceSize ? 0 : null;
-            // Saves from before career records give every warrior none.
-            foreach (var record in expected["Roster"]!["Warriors"]!.AsArray()) { record!["Deployments"] = 0; record["Kills"] = 0; }
+            // Saves from before career records give every warrior none, and saves from before skill growth no progress.
+            foreach (var record in expected["Roster"]!["Warriors"]!.AsArray()) { record!["Deployments"] = 0; record["Kills"] = 0; record["Progress"] = null; }
             // Saves from before markets have none stocked, and gain a market seed.
             expected["Markets"] = null; expected["MarketSeed"] = resaved["MarketSeed"]!.DeepClone();
             // Saves from before repairs have no repair orders.

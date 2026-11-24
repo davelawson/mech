@@ -179,6 +179,11 @@ public sealed partial class CombatSimulation
         if (result <= CombatRules.CalmingResult && before > StressLevel.Calm) unit.Stress = before - 1;
         else if (result >= CombatRules.StressingResult && before < StressLevel.Panicked
             && (before != StressLevel.Excited || unit.DamagedThisBattle)) unit.Stress = before + 1;
+        unit.Use = unit.Use with
+        {
+            PressuredNerveChecks = unit.Use.PressuredNerveChecks + (result >= SkillGrowth.PressuredNerveResult ? 1 : 0),
+            HeldOn = unit.Use.HeldOn + (pushed && !broke ? 1 : 0), Stressed = unit.Use.Stressed || unit.Stress >= StressLevel.Stressed,
+        };
         unit.NerveDamage = 0; unit.ShotAtSinceCheck = unit.KnockedDownSinceCheck = unit.HeadDamagedSinceCheck = false;
         unit.InjuriesAtLastCheck = unit.Injuries; unit.AlliesDefeatedAtLastCheck = AlliesDefeated(unit);
         var check = new CombatNerveCheck(roll, unit.Warrior.Grit, modifier, text, before, unit.Stress, broke, pushed && !broke);

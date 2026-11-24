@@ -455,7 +455,8 @@ public sealed class Campaign
     }
 
     /// <summary>Settles the current mission from its battle: deployed mechs keep their damage and refill their ammunition,
-    /// MechWarriors whose head was destroyed or cockpit struck die, injured ones recover after their injury days, success pays,
+    /// MechWarriors whose head was destroyed or cockpit struck die, injured ones recover after their injury days, survivors bank their
+    /// successful skill gain checks (a skill rises at its threshold, and rank and salary with it), success pays,
     /// insurance pays for the battle's damage up to its limit, a victory's chosen salvage joins the company, reputation changes,
     /// and the mission's day passes.</summary>
     public MissionSettlement SettleMission(MissionReport report)
@@ -469,6 +470,10 @@ public sealed class Campaign
         if (report.Enemies.Length > 0 && (report.Enemies.Select(item => item.UnitId).Distinct(StringComparer.Ordinal).Count() != report.Enemies.Length
             || !report.Enemies.Select(item => item.MechId).Order(StringComparer.Ordinal).SequenceEqual(offer.Opposition.Select(item => item.MechId).Order(StringComparer.Ordinal))))
             throw new ArgumentException("The report's enemies are not the mission's opposition.", nameof(report));
+        if (report.Mechs.Any(item => item.SkillGains is { } gains && (gains.Distinct().Count() != gains.Length || gains.Any(skill => !Enum.IsDefined(skill))
+            || (item.WarriorKilled && gains.Length > 0) || (Roster.Pilot(Roster.Mechs.Single(mech => mech.Id == item.MechId)) is { } warrior
+                ? gains.Any(skill => SkillGrowth.Maxed(SkillGrowth.Rating(warrior.Spec, skill))) : gains.Length > 0))))
+            throw new ArgumentException("The report's skill gains do not fit its MechWarriors.", nameof(report));
         if (report.Outcome != MissionOutcome.Success && report.Salvage.Length > 0) throw new ArgumentException("Only a victory takes salvage.", nameof(report));
         var pool = Salvage.Pool(report);
         var picks = Salvage.Validate(pool, report.Salvage, offer.SalvagePicks);
@@ -480,7 +485,11 @@ public sealed class Campaign
             var before = Insurance.RepairValue(mech);
             mech.ApplyBattle(item.Locations, item.Equipment);
             claim += Math.Max(0, Insurance.RepairValue(mech) - before);
-            if (pilot is not null) { pilot.Deployments++; pilot.Kills += Math.Max(0, item.Kills); }
+            if (pilot is not null)
+            {
+                pilot.Deployments++; pilot.Kills += Math.Max(0, item.Kills);
+                foreach (var skill in item.SkillGains ?? []) pilot.GainSkill(skill);
+            }
             if (item.WarriorKilled && pilot is not null) { Roster.SetHealth(pilot.Id, WarriorHealth.Dead, null, Date); killed.Add(pilot.Id); }
             else if (item.InjuryDays > 0 && pilot is not null) Roster.SetHealth(pilot.Id, WarriorHealth.Injured, Date.AddDays(item.InjuryDays), Date);
         }

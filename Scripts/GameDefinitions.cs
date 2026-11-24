@@ -9,7 +9,7 @@ public enum ComponentCondition { Operational, Damaged, Destroyed }
 public enum MechWeightClass { Light, Medium, Heavy, Assault }
 public enum HeatSinkKind { Single, Double }
 /// <summary>A MechWarrior's rank, worked out from the skill points spent (see <see cref="WarriorSkills.RankFor"/>).</summary>
-public enum WarriorExperience { Green, Regular, Veteran, Elite, Legendary }
+public enum WarriorExperience { Private, PrivateFirstClass, Corporal, Sergeant, Lieutenant, Captain }
 public enum DamageKind { Direct, Missile }
 public enum WeaponKind { MediumLaser, SmallLaser, LargeLaser, PPC, Flamer, MachineGun, AC2, ERLargeLaser,
     AC5, AC10, AC20, LRM5, LRM10, LRM15, LRM20, SRM2, SRM4, SRM6 }

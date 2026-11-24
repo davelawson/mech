@@ -116,6 +116,8 @@ public partial class HangarScreen : Control
     private Label _mechClass = null!;
     private Label _mechStatus = null!;
     private Label _pilot = null!;
+    /// <summary>The assigned pilot's skills with their progress bars.</summary>
+    public SkillBars PilotSkills { get; private set; } = null!;
     private TextureRect _portrait = null!;
     private Control _boardContent = null!;
     private HBoxContainer _rosterButtons = null!;
@@ -174,7 +176,9 @@ public partial class HangarScreen : Control
         summary.AddThemeConstantOverride("separation", 6);
         var pilotRow = new HBoxContainer(); pilotRow.AddThemeConstantOverride("separation", 8); summary.AddChild(pilotRow);
         _portrait = RosterUi.Picture(pilotRow, "", new Vector2(72, 72));
-        _pilot = RosterUi.Text(pilotRow, "", 13); _pilot.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        var pilotText = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; pilotText.AddThemeConstantOverride("separation", 2); pilotRow.AddChild(pilotText);
+        _pilot = RosterUi.Text(pilotText, "", 13); _pilot.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        PilotSkills = new SkillBars { FontSize = 13 }; pilotText.AddChild(PilotSkills);
         PilotPicker = new OptionButton { ClipText = true, FitToLongestItem = false }; summary.AddChild(PilotPicker);
         PilotPicker.ItemSelected += _ => UpdateAssignmentAction();
         var actions = new HBoxContainer(); actions.AddThemeConstantOverride("separation", 6); summary.AddChild(actions);
@@ -572,7 +576,8 @@ public partial class HangarScreen : Control
         CoolingBar.SetRatio(sunk / generated, CoolingText(sunk / generated),
             $"Heat generated {Rate(generated)}/s\nHeat sunk {Rate(sunk)}/s\nEvery weapon firing as soon as it is ready, while running");
         _portrait.Texture = warrior is null ? null : Ui.LoadTexture(warrior.Spec.Artwork);
-        _pilot.Text = warrior is null ? "No pilot assigned" : $"“{warrior.Spec.Callsign}”\n{warrior.Spec.Name}\n{RosterUi.SkillLines(warrior.Spec)}";
+        _pilot.Text = warrior is null ? "No pilot assigned" : $"“{warrior.Spec.Callsign}”\n{warrior.Spec.Name}";
+        PilotSkills.Visible = warrior is not null; if (warrior is not null) PilotSkills.Show(warrior.Spec, warrior.Progress);
         _pilot.TooltipText = warrior is null ? "" : warrior.Spec.Experience;
         UnassignButton.Disabled = warrior is null;
         PilotPicker.Clear(); _pilotIds.Clear();

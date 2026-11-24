@@ -1,6 +1,6 @@
 namespace Mech.Tests;
 
-internal static class RosterChecks
+internal static partial class RosterChecks
 {
     public static void Run(Action<bool, string> check)
     {
@@ -13,6 +13,7 @@ internal static class RosterChecks
         check(DraftCatalog.AllMechs.Length == 49 && DraftCatalog.Mech("atlas") is { Variant: "AS7-D", Tonnage: 100 }, "all 49 chassis are catalogued");
         check(DraftCatalog.Mech("atlas").Weapons.Count(weapon => weapon.Rear && weapon.Location == MechLocation.CenterTorso) == 2, "Atlas retains both stock rear-facing lasers");
         CheckGeneration(check, Reject);
+        CheckSkillGrowth(check, Reject);
         var seeded = InitialDraft.CreateRandom(new Random(3025));
         var replay = InitialDraft.CreateRandom(new Random(3025));
         check(seeded.ForceName == replay.ForceName && Enumerable.Range(0, 8).All(pool => seeded.Choice(pool) == replay.Choice(pool))
@@ -39,7 +40,7 @@ internal static class RosterChecks
             check(candidates.Select(m => m.Id).Distinct().Count() == 12 && pilots.Select(w => w.Id).Distinct().Count() == 12
                 && pilots.Select(w => w.Portrait).Distinct().Count() == 12 && pilots.Select(w => w.Callsign).Distinct().Count() == 12
                 && Enumerable.Range(0,4).All(p => Enumerable.Range(0,3).All(c => { var t = generated.MechCandidate(p,c).Tonnage; return p == (t <= 35 ? 0 : t <= 55 ? 1 : t <= 75 ? 2 : 3); }))
-                && pilots.Take(9).All(w => InPool(w, WarriorExperience.Regular)) && pilots.Skip(9).All(w => InPool(w, WarriorExperience.Veteran)),
+                && pilots.Take(9).All(w => InPool(w, WarriorExperience.Corporal)) && pilots.Skip(9).All(w => InPool(w, WarriorExperience.Sergeant)),
                 "draft candidates are distinct and generated for their intended pools");
             foreach (var candidate in candidates) seenMechs.Add(candidate.Id);
             foreach (var pilot in pilots) seenWarriors.Add(pilot.Id);
@@ -130,7 +131,7 @@ internal static class RosterChecks
         finally { if (System.IO.File.Exists(storePath)) System.IO.File.Delete(storePath); }
     }
 
-    /// <summary>The Just Starting Out draft: two light mechs over a Regular and a Green MechWarrior, on 500,000 C-bills.</summary>
+    /// <summary>The Just Starting Out draft: two light mechs over a Corporal and a Private First Class MechWarrior, on 500,000 C-bills.</summary>
     /// <summary>A draft candidate's points are capped at the top of its pool's bracket and start at its bottom, so it is the pool's
     /// rank or, when buying stopped short, lower.</summary>
     private static bool InPool(WarriorSpec warrior, WarriorExperience pool) =>
@@ -143,14 +144,17 @@ internal static class RosterChecks
         reject(() => WarriorSkills.RaiseCost(2), "a Legendary skill cannot be raised");
         reject(() => WarriorSkills.RaiseCost(8), "ratings worse than Untrained cannot be raised");
         check(WarriorSkills.Descriptor(7) == "Untrained" && WarriorSkills.Descriptor(9) == "Untrained" && WarriorSkills.Descriptor(6) == "Green", "skills read as words");
-        check(new[] { 0, 7, 8, 17, 18, 31, 32, 49, 50, 60 }.Select(WarriorSkills.RankFor).SequenceEqual([WarriorExperience.Green, WarriorExperience.Green,
-            WarriorExperience.Regular, WarriorExperience.Regular, WarriorExperience.Veteran, WarriorExperience.Veteran, WarriorExperience.Elite,
-            WarriorExperience.Elite, WarriorExperience.Legendary, WarriorExperience.Legendary]), "rank follows the skill points spent");
+        check(new[] { 0, 3, 4, 7, 8, 17, 18, 31, 32, 49, 50, 60 }.Select(WarriorSkills.RankFor).SequenceEqual([WarriorExperience.Private, WarriorExperience.Private,
+            WarriorExperience.PrivateFirstClass, WarriorExperience.PrivateFirstClass, WarriorExperience.Corporal, WarriorExperience.Corporal,
+            WarriorExperience.Sergeant, WarriorExperience.Sergeant, WarriorExperience.Lieutenant, WarriorExperience.Lieutenant,
+            WarriorExperience.Captain, WarriorExperience.Captain]), "rank follows the skill points spent");
+        check(Enum.GetValues<WarriorExperience>().Select(WarriorSkills.RankName).SequenceEqual(["Private", "Private First Class", "Corporal", "Sergeant",
+            "Lieutenant", "Captain"]), "pilot ranks have names of their own, apart from the skill words");
         check(Enum.GetValues<WarriorExperience>().All(rank => WarriorSkills.RankFor(WarriorSkills.Bracket(rank).Min) == rank && WarriorSkills.RankFor(WarriorSkills.Bracket(rank).Max) == rank),
             "each rank's bracket matches its rank");
         check(PilotTuning.Salary(1) == 2_000 && PilotTuning.Salary(2) == 4_400 && PilotTuning.Salary(4) == 10_400 && PilotTuning.Salary(12) == 50_400
             && PilotTuning.Salary(24) == 158_400 && PilotTuning.Salary(0) == 0, "each skill point adds 400 C-bills a quarter more than the last");
-        check(TestPilots.Warrior("mara-vale").Salary == PilotTuning.Salary(24) && TestPilots.Warrior("mara-vale").Rank == WarriorExperience.Veteran,
+        check(TestPilots.Warrior("mara-vale").Salary == PilotTuning.Salary(24) && TestPilots.Warrior("mara-vale").Rank == WarriorExperience.Sergeant,
             "a MechWarrior's salary and rank come from their skills");
 
         var data = PilotData.Instance;
@@ -169,16 +173,18 @@ internal static class RosterChecks
             "a skill at 2 is no longer picked, and buying stops when every skill is Legendary");
         check(PilotGenerator.BuySkills(random, 0).All(rating => rating == 7), "a MechWarrior with no points is Untrained at everything");
 
-        // Generated hires: about 64% Green, 31% Regular, 5% Veteran and a few Elite.
+        // Generated hires: about 64% Privates and Privates First Class, 31% Corporals, 5% Sergeants and a few Lieutenants.
         var inUse = new PilotsInUse();
         var hires = Enumerable.Range(0, 20_000).Select(_ => PilotGenerator.Generate(random, inUse)).ToArray();
         double Share(WarriorExperience rank) => hires.Count(item => item.Rank == rank) / (double)hires.Length;
-        check(Math.Abs(Share(WarriorExperience.Green) - .64) < .03 && Math.Abs(Share(WarriorExperience.Regular) - .31) < .03
-            && Math.Abs(Share(WarriorExperience.Veteran) - .05) < .015 && Share(WarriorExperience.Elite) < .015,
-            $"generated ranks are about 64% Green, 31% Regular and 5% Veteran ({Share(WarriorExperience.Green):P1}, {Share(WarriorExperience.Regular):P1}, {Share(WarriorExperience.Veteran):P1})");
+        var junior = Share(WarriorExperience.Private) + Share(WarriorExperience.PrivateFirstClass);
+        check(Math.Abs(junior - .64) < .03 && Math.Abs(Share(WarriorExperience.Corporal) - .31) < .03
+            && Math.Abs(Share(WarriorExperience.Sergeant) - .05) < .015 && Share(WarriorExperience.Lieutenant) < .015,
+            $"generated ranks are about 64% Private or Private First Class, 31% Corporal and 5% Sergeant ({junior:P1}, {Share(WarriorExperience.Corporal):P1}, {Share(WarriorExperience.Sergeant):P1})");
+        check(Math.Abs(Share(WarriorExperience.Private) - .2) < .03, $"about a fifth of generated MechWarriors are Privates ({Share(WarriorExperience.Private):P1})");
         check(hires.All(item => PilotGenerator.Valid(item) && item.SkillPoints <= PilotTuning.PointCap) && hires.Select(item => item.Id).Distinct().Count() == hires.Length,
             "generated MechWarriors are valid, with ids of their own");
-        check(hires.Any(item => new[] { item.Gunnery, item.Piloting, item.Sensors, item.Grit }.Contains(WarriorSkills.Untrained) && item.Rank == WarriorExperience.Regular),
+        check(hires.Any(item => new[] { item.Gunnery, item.Piloting, item.Sensors, item.Grit }.Contains(WarriorSkills.Untrained) && item.Rank == WarriorExperience.Corporal),
             "any rank can have an Untrained skill");
         var skilled = hires.Where(item => item.SkillPoints >= 18).ToArray();
         check(skilled.Count(item => new[] { item.Gunnery, item.Piloting, item.Sensors, item.Grit }.All(rating => rating <= 5)) > skilled.Length / 2,
@@ -199,7 +205,7 @@ internal static class RosterChecks
         check(last.Portrait == TestPilots.Warriors[119].Portrait, "a MechWarrior takes the one portrait not in use");
 
         // Draft pools: from the bottom of the bracket, capped at its top; buying may stop short.
-        foreach (var rank in new[] { WarriorExperience.Green, WarriorExperience.Regular, WarriorExperience.Veteran })
+        foreach (var rank in new[] { WarriorExperience.PrivateFirstClass, WarriorExperience.Corporal, WarriorExperience.Sergeant })
         {
             var pool = Enumerable.Range(0, 4000).Select(_ => PilotGenerator.Generate(random, new PilotsInUse(), rank)).ToArray();
             var exact = pool.Count(item => item.Rank == rank) / (double)pool.Length;
@@ -224,12 +230,12 @@ internal static class RosterChecks
             var mechs = Enumerable.Range(0, 2).SelectMany(p => Enumerable.Range(0, 3).Select(c => draft.MechCandidate(p, c))).ToArray();
             check(draft.Complete && draft.Columns == 2 && draft.SelectedCount == 4 && draft.ActivePools.SequenceEqual([0, 1, 4, 5])
                 && mechs.All(m => m.WeightClass == MechWeightClass.Light) && mechs.Select(m => m.Id).Distinct().Count() == 6
-                && Enumerable.Range(0, 3).All(c => InPool(draft.WarriorCandidate(4, c), WarriorExperience.Regular) && InPool(draft.WarriorCandidate(5, c), WarriorExperience.Green)),
-                "a starting-out draft offers six different light mechs, three Regulars and three Greens");
+                && Enumerable.Range(0, 3).All(c => InPool(draft.WarriorCandidate(4, c), WarriorExperience.Corporal) && InPool(draft.WarriorCandidate(5, c), WarriorExperience.PrivateFirstClass)),
+                "a starting-out draft offers six different light mechs, three Corporals and three Privates First Class");
             var roster = draft.Establish();
             check(roster.Mechs.Count == 2 && roster.Warriors.Count == 2 && roster.Mechs.All(m => m.Lance == 0)
                 && roster.Mechs.Zip(roster.Warriors).All(pair => pair.First.WarriorId == pair.Second.Id)
-                && roster.Warriors[1].Spec.Rank == WarriorExperience.Green, "a starting-out company has two piloted light mechs in one lance");
+                && roster.Warriors[1].Spec.Rank <= WarriorExperience.PrivateFirstClass, "a starting-out company has two piloted light mechs in one lance");
             var offered = InitialDraft.FromOffer(draft.Offer());
             check(offered.Scenario == StartingScenario.StartingOut && offered.ActivePools.All(pool => offered.Choice(pool) == draft.Choice(pool))
                 && offered.MechCandidate(1, 2).Id == draft.MechCandidate(1, 2).Id && offered.WarriorCandidate(5, 2) == draft.WarriorCandidate(5, 2),

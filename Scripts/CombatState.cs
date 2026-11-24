@@ -15,7 +15,7 @@ public sealed record CombatUnitState(string Id, Vector2 Position, Vector2 Destin
     int[] Ammo, int Kills = 0, bool Extracted = false, EquipmentCondition[]? Equipment = null, int Injuries = 0, bool LifeSupportInjury = false,
     bool Prone = false, double StandUpRemaining = 0, double? FellAt = null, double? StoodAt = null, bool KnockdownPending = false,
     bool MaintainRange = true, int AmmoEconomy = 0, StressLevel Stress = StressLevel.Calm, bool Ejected = false, bool Surrendered = false,
-    bool SurrenderOffered = false, bool Fleeing = false, bool Fled = false, WeaponTally[]? Tallies = null);
+    bool SurrenderOffered = false, bool Fleeing = false, bool Fled = false, WeaponTally[]? Tallies = null, SkillUse? Use = null);
 
 public sealed record CombatContactState(CombatSide Side, string UnitId, ContactLevel Level, Vector2 LastKnownPosition, double LastSeenAt);
 
@@ -35,7 +35,7 @@ public sealed partial class CombatUnit
         Locations.Values.Select(item => new CombatLocationState(item.Location, item.Armor, item.RearArmor, item.Structure)).ToArray(),
         Weapons.Select(item => item.Enabled).ToArray(), Weapons.Select(item => item.Remaining).ToArray(), _ammo.Select(item => item.Shots).ToArray(), Kills, Extracted,
         EquipmentState(), Injuries, LifeSupportInjury, Prone, StandUpRemaining, FellAt, StoodAt, KnockdownPending, MaintainRange, AmmoEconomy,
-        Stress, Ejected, Surrendered, SurrenderOffered, Fleeing, Fled, Weapons.Select(item => item.Tally).ToArray());
+        Stress, Ejected, Surrendered, SurrenderOffered, Fleeing, Fled, Weapons.Select(item => item.Tally).ToArray(), Use);
 
     /// <summary>Takes on the leader's state, except the pose, which <see cref="CombatSimulation"/> blends toward it.</summary>
     internal void Apply(CombatUnitState state)
@@ -66,7 +66,7 @@ public sealed partial class CombatUnit
         if (state.Equipment is { } equipment) ApplyEquipment(equipment);
         Injuries = state.Injuries; LifeSupportInjury = state.LifeSupportInjury;
         Stress = state.Stress; Ejected = state.Ejected; Surrendered = state.Surrendered; SurrenderOffered = state.SurrenderOffered;
-        Fleeing = state.Fleeing; Fled = state.Fled;
+        Fleeing = state.Fleeing; Fled = state.Fled; Use = state.Use ?? SkillUse.None;
         Prone = state.Prone; StandUpRemaining = state.StandUpRemaining; FellAt = state.FellAt; StoodAt = state.StoodAt; KnockdownPending = state.KnockdownPending;
     }
 }

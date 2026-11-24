@@ -263,7 +263,7 @@ internal static partial class CombatChecks
                 report.EnemyWarriorsSpared, 1, 0, 0);
             check(!won || result.Reputation.OrderBy(pair => pair.Key).SequenceEqual(Reputation.MissionChanges(offer, conduct).OrderBy(pair => pair.Key)),
                 "a fled enemy mech counts toward reputation");
-            check(report.EnemyWarriorsSpared >= 2 && SalvageTuning.RansomFor(EnemyPilotRank.Elite) == 150_000, "hostages and fled pilots count as spared");
+            check(report.EnemyWarriorsSpared >= 2 && SalvageTuning.RansomFor(EnemyPilotRank.Captain) == 150_000, "hostages and fled pilots count as spared");
         }
     }
 }

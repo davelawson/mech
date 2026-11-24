@@ -24,6 +24,8 @@ public partial class RolodexPanel : Control
     private VBoxContainer _card = null!;
     private TextureRect _portrait = null!;
     private Label _record = null!;
+    /// <summary>An active MechWarrior's skills with their progress bars; hidden on other cards, whose record lists the skills.</summary>
+    public SkillBars Skills { get; private set; } = null!;
     private Label _position = null!;
     private int _selected;
     private sealed record Entry(WarriorSpec Spec, RosterWarrior? Warrior);
@@ -50,6 +52,7 @@ public partial class RolodexPanel : Control
         _portrait = RosterUi.Picture(record, "", new Vector2(185, 160)); _portrait.SizeFlagsVertical = SizeFlags.ExpandFill;
         var details = RosterUi.Scroll(record);
         CardName = RosterUi.Text(details, "", 23, Ui.Gold);
+        Skills = new SkillBars { CustomMinimumSize = new Vector2(220, 0), SizeFlagsHorizontal = SizeFlags.ShrinkBegin }; details.AddChild(Skills);
         _record = RosterUi.Text(details, "", 16);
         var actions = new HBoxContainer(); details.AddChild(actions);
         ActionButton = Ui.Button(actions, "Recruit"); ActionButton.CustomMinimumSize = new Vector2(190, 38);
@@ -104,7 +107,7 @@ public partial class RolodexPanel : Control
         PreviousButton.Disabled = NextButton.Disabled = _visible.Length < 2;
         if (_visible.Length == 0)
         {
-            ActionButton.Hide(); _portrait.Texture = null; _position.Text = "0 / 0";
+            ActionButton.Hide(); Skills.Hide(); _portrait.Texture = null; _position.Text = "0 / 0";
             (CardName.Text, _record.Text) = Section.Selected switch
             {
                 MemorialSection => ("No memorial records", "No MechWarriors have been lost."),
@@ -120,6 +123,7 @@ public partial class RolodexPanel : Control
         var salary = $"Salary: {RosterUi.Money(spec.Salary)} a quarter";
         if (entry.Warrior is not { } warrior)
         {
+            Skills.Hide();
             _record.Text = $"FOR HIRE · {spec.Experience}\n{salary}\n\n{RosterUi.SkillLines(spec)}";
             var cost = _campaign.HireCost(spec); var problem = _campaign.HireProblem(spec);
             ActionButton.Text = $"Recruit · {RosterUi.Money(cost.Total)}"; ActionButton.Disabled = problem is not null;
@@ -130,7 +134,9 @@ public partial class RolodexPanel : Control
         else
         {
             var assignment = Roster.Assignment(warrior.Id);
-            _record.Text = $"{RosterUi.SkillLines(spec)}\n\n{warrior.Status}\n\nPiloting: {assignment?.Spec.DisplayName ?? "Unassigned"}\nDeployments: {warrior.Deployments}\nKills: {warrior.Kills}"
+            var living = warrior.Health != WarriorHealth.Dead;
+            Skills.Visible = living; if (living) Skills.Show(spec, warrior.Progress);
+            _record.Text = $"{(living ? "" : RosterUi.SkillLines(spec) + "\n\n")}{spec.Experience}\n{warrior.Status}\n\nPiloting: {assignment?.Spec.DisplayName ?? "Unassigned"}\nDeployments: {warrior.Deployments}\nKills: {warrior.Kills}"
                 + (warrior.Health == WarriorHealth.Dead ? "" : $"\n{salary}");
             ActionButton.Visible = warrior.Health != WarriorHealth.Dead;
             ActionButton.Text = "Dismiss";

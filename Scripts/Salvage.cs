@@ -3,7 +3,7 @@ namespace Mech;
 /// <summary>Numbers for salvage, recorded in docs/design.md.</summary>
 public static class SalvageTuning
 {
-    /// <summary>C-bills paid for each hostage when a won mission settles, by EnemyPilotRank order: Green, Regular, Veteran, Elite.</summary>
+    /// <summary>C-bills paid for each hostage when a won mission settles, by EnemyPilotRank order: Corporal, Sergeant, Lieutenant, Captain.</summary>
     public static readonly long[] Ransom = [20_000, 40_000, 80_000, 150_000];
     public static long RansomFor(EnemyPilotRank rank) => Ransom[(int)rank];
     /// <summary>Picks a player may take beyond the contract's allotment, each at a reputation cost.</summary>

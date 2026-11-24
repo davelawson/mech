@@ -55,13 +55,21 @@ One quarter's salary, paid on hiring a MechWarrior on top of the rest of the cur
 A MechWarrior leaving the company for good: not kept in memoriam and gone from the game.
 
 **Starting scenario**:
-How a new company begins: *Just starting out* (two light mechs, a Regular and a Green MechWarrior) or *Established* (the full draft).
+How a new company begins: *Just starting out* (two light mechs, a Corporal and a Private First Class MechWarrior) or *Established* (the full draft).
 
 **Untrained**:
 A skill rating of 7, one step worse than Green, where every skill of a newly generated MechWarrior starts.
 
 **Skill points**:
-The points a MechWarrior spent buying their skills when generated, each level costing one more than the last. They set the MechWarrior's rank and salary.
+The points a MechWarrior's skills are worth, each level costing one more than the last: bought when they are generated, and growing as their skills rise. They set the MechWarrior's rank and salary.
+
+**Rank**:
+A MechWarrior's standing, worked out from their skill points: Private, Private First Class, Corporal, Sergeant, Lieutenant or Captain.
+_Avoid_: Green, Regular, Veteran, Elite or Legendary for a pilot; those words name skill levels.
+
+**Skill gain check**:
+A 1d6 roll after a mission for a surviving MechWarrior's skill, succeeding below the skill's rating. Successes are banked toward the skill's next level.
+_Avoid_: experience points
 
 **Industrial Capacity**:
 A star system's rating from Backwater to Factory World, setting how many items its market holds.

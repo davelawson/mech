@@ -2,11 +2,27 @@ using System.Text.Json.Serialization;
 
 namespace Mech;
 
-public enum EnemyPilotRank { Green, Regular, Veteran, Elite }
+/// <summary>An enemy pilot's rank, the rank its uniform skills make (see <see cref="MissionTuning.EnemySkill"/>).</summary>
+public enum EnemyPilotRank { Corporal, Sergeant, Lieutenant, Captain }
 
 /// <summary>One BattleMech of a mission's opposition and the rank of its unnamed pilot. On a patrol, Group is the patrol leg it
 /// guards: group 0 stands between the first and second locations.</summary>
-public sealed record EnemyMech(string MechId, EnemyPilotRank Rank, int? Group = null);
+public sealed record EnemyMech(string MechId, [property: JsonConverter(typeof(EnemyPilotRankConverter))] EnemyPilotRank Rank, int? Group = null);
+
+/// <summary>Reads enemy ranks by name, including the names saves used before November 24, 2026 (Green, Regular, Veteran, Elite).</summary>
+public sealed class EnemyPilotRankConverter : JsonConverter<EnemyPilotRank>
+{
+    private static readonly string[] Former = ["Green", "Regular", "Veteran", "Elite"];
+    public override EnemyPilotRank Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
+    {
+        var name = reader.TokenType == System.Text.Json.JsonTokenType.String ? reader.GetString() : throw new System.Text.Json.JsonException("An enemy rank must be a name.");
+        if (Enum.TryParse<EnemyPilotRank>(name, out var rank) && Enum.IsDefined(rank) && !int.TryParse(name, out _)) return rank;
+        var former = Array.IndexOf(Former, name);
+        return former >= 0 ? (EnemyPilotRank)former : throw new System.Text.Json.JsonException($"Unknown enemy rank \"{name}\".");
+    }
+    public override void Write(System.Text.Json.Utf8JsonWriter writer, EnemyPilotRank value, System.Text.Json.JsonSerializerOptions options) =>
+        writer.WriteStringValue(value.ToString());
+}
 
 /// <summary>A contract kind. Zero is left undefined so an offer saved before kinds existed can be recognised.</summary>
 public enum MissionKind { Raid = 1, Defense, Patrol }

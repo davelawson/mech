@@ -258,6 +258,7 @@ public partial class SmokeTests
         Check(TacticalText().Contains("YOUR FORCE") && sim.Units.Where(unit => unit.Side == CombatSide.Friendly).All(unit => TacticalText()
             .Any(text => text.StartsWith($"{unit.Spec.DisplayName} · “{unit.Warrior.Callsign}”") && text.Contains($": {BattleSummary.Condition(unit)} · "))),
             "the Outcome tab lists each company mech with its condition and its pilot's");
+        Check(tactical.SkillGainLines.Count == 0, "a simulated battle rolls no skill gain checks");
         tabs.CurrentTab = 1; await Frames();
         Check(tactical.ResultRows.Count == sim.Units.Count && TacticalText().Contains("LANCE 1") && TacticalText().Contains("OPPOSITION")
             && TacticalText().Contains("DAMAGE TAKEN") && TacticalText().Contains("DAMAGE DEALT"),
@@ -380,6 +381,18 @@ public partial class SmokeTests
             && TacticalText().Any(text => text.Contains("No payment") && text.Contains("Insurance") && text.Contains(state.DateText)),
             "withdrawing fails the mission and shows its settlement");
         Check(tactical.SalvagePool.Count == 0 && tactical.SalvageChoices.Count == 0, "a failed mission offers no salvage");
+        var growth = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).SelectMany(unit => sim.SkillGains(unit)
+            .Select(skill => $"      {SkillGrowth.Describe(unit.Warrior, unit.Progress, skill)}")).ToArray();
+        Check(tactical.SkillGainLines.Select(label => label.Text).SequenceEqual(growth)
+            && tactical.SkillGainLines.All(label => label.IsVisibleInTree() && label.GetParent() == tactical.SkillGainLines[0].GetParent()),
+            $"the Outcome tab lists each successful skill gain check under its pilot ({string.Join(" / ", growth).Trim()})");
+        Check(sim.Units.Where(unit => unit.Side == CombatSide.Friendly).All(unit =>
+            {
+                var (spec, progress) = (unit.Warrior, unit.Progress);
+                foreach (var skill in sim.SkillGains(unit)) (spec, progress, _) = SkillGrowth.Gain(spec, progress, skill);
+                var pilot = state.Roster!.Warriors.Single(item => item.Id == unit.Warrior.Id);
+                return pilot.Spec == spec && pilot.Progress == progress;
+            }), "even a failed mission banks its pilots' skill gains");
         Check(state.Missions.Current is null && state.Date == date.AddDays(1) && state.Cash >= cash && state.Cash - cash <= offer.InsuranceLimit
             && state.Roster!.Mechs.Single(mech => mech.Id == friend.Id).Damaged, "the settlement keeps damage, pays only insurance and takes a day");
         await Capture("mission-results");

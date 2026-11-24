@@ -107,6 +107,7 @@ internal static partial class CombatChecks
         check(JsonSerializer.Serialize(damagedRoster.Snapshot()) == damagedBefore, "neither simulation mode repairs or damages the campaign roster");
         CheckRandomizedOpposition(check);
         CheckMissionDeployment(check);
+        CheckSkillUse(check);
         CheckDropPhase(check);
         var nonoperational = ForceRoster.Restore(saved with { Mechs = [stock with { Locations = stock.Locations.Select(loc => loc.Location == MechLocation.LeftLeg ? loc with { Structure = 0 } : loc).ToArray() }] }, Campaign.StartDate);
         check(CombatSimulation.UnavailableReason(nonoperational, nonoperational.Mechs[0])!.Contains("not operational"), "nonoperational mech explains exclusion");
@@ -337,7 +338,7 @@ internal static partial class CombatChecks
                     && unit.Locations.Values.All(loc => loc.Armor == unit.Spec.Locations.Single(stock => stock.Location == loc.Location).Armor)
                     && unit.Ammo.All(bin => bin.Shots == unit.Spec.Ammo.Single(stock => stock.Id == bin.Id).Shots)
                     && PilotGenerator.Valid(unit.Warrior)
-                    && unit.Warrior.SkillPoints <= WarriorSkills.Bracket(unit.Spec.WeightClass == MechWeightClass.Assault ? WarriorExperience.Veteran : WarriorExperience.Regular).Max),
+                    && unit.Warrior.SkillPoints <= WarriorSkills.Bracket(unit.Spec.WeightClass == MechWeightClass.Assault ? WarriorExperience.Sergeant : WarriorExperience.Corporal).Max),
                     "drafted enemies are pristine with legal pilots assigned by draft column");
                 signatures.Add(string.Join(",", enemies.Select(unit => $"{unit.Spec.Id}/{unit.Warrior.Id}")));
                 foreach (var unit in sim.Units) unit.ApplyDamage(MechLocation.CenterTorso, 10000);
@@ -358,7 +359,7 @@ internal static partial class CombatChecks
         var chart = StarChart.Instance;
         var system = chart.Systems.First(item => item.Biome is not null && item.Biome != Biome.Valley);
         var offer = new MissionOffer("offer-1", "Checks", "Briefing", "Objective", system.Id, new DateOnly(3025, 1, 1),
-            [new("locust", EnemyPilotRank.Green), new("atlas", EnemyPilotRank.Regular), new("jenner", EnemyPilotRank.Veteran), new("awesome", EnemyPilotRank.Elite)],
+            [new("locust", EnemyPilotRank.Corporal), new("atlas", EnemyPilotRank.Sergeant), new("jenner", EnemyPilotRank.Lieutenant), new("awesome", EnemyPilotRank.Captain)],
             100_000, 0, 0, Party.Pirates, new(PartyKind.LocalForces, null, "Checks Guard"), MissionKind.Raid);
         var roster = Roster(1);
         var sim = CombatSimulation.DeployMission(roster, [roster.Mechs[0].Id], offer, 5, 183);
@@ -369,7 +370,7 @@ internal static partial class CombatChecks
             "a mission deploys the selected force against its exact opposition");
         check(enemies.Zip(offer.Opposition).All(pair => pair.First.Warrior.Gunnery == MissionTuning.EnemySkill[(int)pair.Second.Rank]
                 && pair.First.Warrior.Piloting == pair.First.Warrior.Gunnery && pair.First.Warrior.Sensors == pair.First.Warrior.Gunnery)
-            && MissionTuning.EnemySkill.SequenceEqual([5, 4, 3, 2]), "enemy pilots are skilled by rank: Green 5, Regular 4, Veteran 3, Elite 2");
+            && MissionTuning.EnemySkill.SequenceEqual([5, 4, 3, 2]), "enemy pilots are skilled by rank: Corporal 5, Sergeant 4, Lieutenant 3, Captain 2");
         check(enemies.All(unit => unit.ArmorLost == 0 && unit.StructureLost == 0 && unit.Equipment.Values.All(item => item == ComponentCondition.Operational)
             && unit.Ammo.All(bin => bin.Shots == unit.Spec.Ammo.Single(stock => stock.Id == bin.Id).Shots)), "mission opposition starts pristine");
         check(sim.Terrain.Biome == system.Biome && sim.Terrain.Seed == 183, "a mission is fought on its system's biome");

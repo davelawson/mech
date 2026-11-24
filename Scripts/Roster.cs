@@ -14,15 +14,21 @@ public static class WarriorSkills
     /// <summary>The points spent to reach a rating: Untrained 0, Green 1, Regular 3, Veteran 6, Elite 10, Legendary 15. Ratings
     /// outside 2–7 (test-only units) count as the nearest.</summary>
     public static int Spent(int rating) { var levels = Untrained - Math.Clamp(rating, Expert, Untrained); return levels * (levels + 1) / 2; }
-    /// <summary>The skill points spent on all four skills that make each rank: about the points of four skills at that level.</summary>
+    /// <summary>The skill points spent on all four skills that make each rank: about the points of four skills at a level, with the
+    /// lowest bracket split at 3 points.</summary>
     public static (int Min, int Max) Bracket(WarriorExperience rank) => rank switch
     {
-        WarriorExperience.Green => (0, 7), WarriorExperience.Regular => (8, 17), WarriorExperience.Veteran => (18, 31),
-        WarriorExperience.Elite => (32, 49), WarriorExperience.Legendary => (50, 4 * Spent(Expert)),
+        WarriorExperience.Private => (0, 3), WarriorExperience.PrivateFirstClass => (4, 7), WarriorExperience.Corporal => (8, 17),
+        WarriorExperience.Sergeant => (18, 31), WarriorExperience.Lieutenant => (32, 49), WarriorExperience.Captain => (50, 4 * Spent(Expert)),
         _ => throw new ArgumentOutOfRangeException(nameof(rank)),
     };
     public static WarriorExperience RankFor(int points) => points switch
-    { <= 7 => WarriorExperience.Green, <= 17 => WarriorExperience.Regular, <= 31 => WarriorExperience.Veteran, <= 49 => WarriorExperience.Elite, _ => WarriorExperience.Legendary };
+    {
+        <= 3 => WarriorExperience.Private, <= 7 => WarriorExperience.PrivateFirstClass, <= 17 => WarriorExperience.Corporal,
+        <= 31 => WarriorExperience.Sergeant, <= 49 => WarriorExperience.Lieutenant, _ => WarriorExperience.Captain,
+    };
+    /// <summary>A rank as shown: "Private First Class" rather than its enum name.</summary>
+    public static string RankName(WarriorExperience rank) => rank == WarriorExperience.PrivateFirstClass ? "Private First Class" : rank.ToString();
     /// <summary>The word shown for a skill rating: 7 Untrained, 6 Green through 2 Legendary. Ratings outside 2–7 (test-only units) take the nearest word.</summary>
     public static string Descriptor(int rating) => Math.Clamp(rating, Expert, Untrained) switch
     {
@@ -42,7 +48,7 @@ public static class DraftCatalog
         "catapult", "crusader", "thunderbolt", "awesome", "victor", "zeus"
     }.Select(id => AllMechs.Single(mech => mech.Id == id)).ToImmutableArray();
     public static readonly ImmutableArray<string> PoolNames = ["Light", "Medium", "Heavy", "Assault",
-        "MechWarriors · I", "MechWarriors · II", "MechWarriors · III", "MechWarriors · Veterans"];
+        "MechWarriors · I", "MechWarriors · II", "MechWarriors · III", "MechWarriors · Sergeants"];
 
     private static GameCatalog LoadMechs()
     {
@@ -72,16 +78,16 @@ public static class Scenarios
     public static readonly StartingScenario[] All = [StartingScenario.StartingOut, StartingScenario.Established];
     public static string Name(StartingScenario scenario) => scenario == StartingScenario.StartingOut ? "Just starting out" : "Established";
     public static string Description(StartingScenario scenario) => scenario == StartingScenario.StartingOut
-        ? "Two light BattleMechs, a Regular and a Green MechWarrior, and ₡ 500,000."
-        : "One BattleMech of each weight class, three Regular MechWarriors and a Veteran, and ₡ 2,500,000.";
+        ? "Two light BattleMechs, a Corporal and a Private First Class MechWarrior, and ₡ 500,000."
+        : "One BattleMech of each weight class, three Corporal MechWarriors and a Sergeant, and ₡ 2,500,000.";
     public static long StartingCash(StartingScenario scenario) => scenario == StartingScenario.StartingOut ? 500_000 : Campaign.StartingCash;
     /// <summary>The weight class of each mech pool, in column order.</summary>
     public static MechWeightClass[] MechPools(StartingScenario scenario) => scenario == StartingScenario.StartingOut
         ? [MechWeightClass.Light, MechWeightClass.Light] : [MechWeightClass.Light, MechWeightClass.Medium, MechWeightClass.Heavy, MechWeightClass.Assault];
     /// <summary>The rank of each MechWarrior pool, in column order; the warrior in a column pilots that column's mech.</summary>
     public static WarriorExperience[] WarriorPools(StartingScenario scenario) => scenario == StartingScenario.StartingOut
-        ? [WarriorExperience.Regular, WarriorExperience.Green]
-        : [WarriorExperience.Regular, WarriorExperience.Regular, WarriorExperience.Regular, WarriorExperience.Veteran];
+        ? [WarriorExperience.Corporal, WarriorExperience.PrivateFirstClass]
+        : [WarriorExperience.Corporal, WarriorExperience.Corporal, WarriorExperience.Corporal, WarriorExperience.Sergeant];
 }
 
 /// <summary>A draft as sent to the player who makes it: candidate ids pool by pool (active pools only), the current choices, whether
@@ -117,7 +123,7 @@ public sealed class InitialDraft
     public MechWeightClass MechClass(int pool) => Scenarios.MechPools(Scenario)[pool];
     public WarriorExperience WarriorRank(int pool) => Scenarios.WarriorPools(Scenario)[pool - 4];
     public string PoolName(int pool) => Scenario == StartingScenario.Established ? DraftCatalog.PoolNames[pool]
-        : pool < 4 ? $"{MechClass(pool)} · {(pool == 0 ? "I" : "II")}" : $"MechWarriors · {WarriorRank(pool)}";
+        : pool < 4 ? $"{MechClass(pool)} · {(pool == 0 ? "I" : "II")}" : $"MechWarriors · {WarriorSkills.RankName(WarriorRank(pool))}";
     public MechSpec MechCandidate(int pool, int choice) => _mechs[pool, choice] ?? throw new ArgumentOutOfRangeException(nameof(pool), "That pool is not in this draft.");
     public WarriorSpec WarriorCandidate(int pool, int choice) => _warriors[pool - 4, choice] ?? throw new ArgumentOutOfRangeException(nameof(pool), "That pool is not in this draft.");
     private static T[] Shuffle<T>(IEnumerable<T> source, Random random)
@@ -255,8 +261,10 @@ public sealed record AmmoCondition(string Id, int Shots);
 public sealed record MechSnapshot(string Id, string DefinitionId, string? WarriorId, LocationCondition[] Locations,
     EquipmentCondition[] Equipment, AmmoCondition[] Ammo, string[]? Removed = null, InstalledItem[]? Installed = null, ArmorFit[]? Armor = null,
     int? Lance = null, RepairOrder? Repair = null);
-/// <summary>Deployments and Kills are the warrior's career record; saves from before it have none.</summary>
-public sealed record WarriorSnapshot(WarriorSpec Spec, WarriorHealth Health, DateOnly? RecoveryDate, int Deployments = 0, int Kills = 0);
+/// <summary>Deployments and Kills are the warrior's career record; saves from before it have none. Progress is the skill gain checks
+/// banked toward each skill's next level, none in saves from before skill growth.</summary>
+public sealed record WarriorSnapshot(WarriorSpec Spec, WarriorHealth Health, DateOnly? RecoveryDate, int Deployments = 0, int Kills = 0,
+    SkillProgress? Progress = null);
 /// <summary>Lances is the company's lance count; saves from before lances have none.</summary>
 public sealed record RosterSnapshot(string ForceName, MechSnapshot[] Mechs, WarriorSnapshot[] Warriors, StorageEntry[]? Storage = null, int? Lances = null);
 
@@ -414,8 +422,11 @@ public sealed class OwnedMech
 
 public sealed class RosterWarrior
 {
-    public WarriorSpec Spec { get; }
+    /// <summary>The MechWarrior as they stand now: skills rise as they <see cref="SkillGrowth">grow</see>.</summary>
+    public WarriorSpec Spec { get; private set; }
     public string Id => Spec.Id;
+    /// <summary>Successful skill gain checks toward each skill's next level.</summary>
+    public SkillProgress Progress { get; private set; }
     public WarriorHealth Health { get; internal set; }
     public DateOnly? RecoveryDate { get; internal set; }
     /// <summary>Settled missions this warrior fought in, won or lost.</summary>
@@ -424,12 +435,18 @@ public sealed class RosterWarrior
     public int Kills { get; internal set; }
     internal RosterWarrior(WarriorSnapshot save)
     {
-        Spec = save.Spec; Health = save.Health; RecoveryDate = save.RecoveryDate;
+        Spec = save.Spec; Health = save.Health; RecoveryDate = save.RecoveryDate; Progress = save.Progress ?? SkillProgress.None;
         Deployments = Math.Max(0, save.Deployments); Kills = Math.Max(0, save.Kills);
+    }
+    /// <summary>Banks a successful skill gain check; returns whether the skill rose a level.</summary>
+    internal bool GainSkill(WarriorSkill skill)
+    {
+        var (spec, progress, advanced) = SkillGrowth.Gain(Spec, Progress, skill);
+        Spec = spec; Progress = progress; return advanced;
     }
     public bool Ready => Health == WarriorHealth.Healthy;
     public string Status => Health switch { WarriorHealth.Healthy => "Healthy · ready for deployment", WarriorHealth.Injured => $"Injured · recovers {RecoveryDate:dd MMM yyyy}", _ => "In memoriam" };
-    internal WarriorSnapshot Snapshot() => new(Spec, Health, RecoveryDate, Deployments, Kills);
+    internal WarriorSnapshot Snapshot() => new(Spec, Health, RecoveryDate, Deployments, Kills, Progress == SkillProgress.None ? null : Progress);
 }
 
 /// <summary>Owned assets and personnel; assignments are independent of any future mission deployment.</summary>
@@ -607,6 +624,7 @@ public sealed class ForceRoster
         foreach (var warrior in save.Warriors)
         {
             if (warrior is null || !PilotGenerator.Valid(warrior.Spec) || !warriorIds.Add(warrior.Spec.Id) || !Enum.IsDefined(warrior.Health)
+                || (warrior.Progress is { } progress && !SkillGrowth.ValidProgress(warrior.Spec, progress))
                 || (warrior.Health == WarriorHealth.Injured ? warrior.RecoveryDate is null || warrior.RecoveryDate <= date : warrior.RecoveryDate is not null))
                 throw new ArgumentException("Invalid MechWarrior state.");
         }

@@ -192,7 +192,7 @@ public sealed partial class CombatSimulation
         var random = new Random(terrainSeed ^ 0x51ED270B);
         var inward = PatrolLayout.Inward(layout.StartEdge);
         var units = friendly.Select((mech, i) => new CombatUnit(mech.Id, mech.Spec, mech.Pilot, CombatSide.Friendly, mech.Locations, mech.Equipment,
-            mech.Ammo, layout.Starts[i], mech.Lance) { Facing = inward }).ToList();
+            mech.Ammo, layout.Starts[i], mech.Lance) { Facing = inward, Progress = mech.Progress ?? SkillProgress.None }).ToList();
         var placed = new List<Vector2>();
         for (var i = 0; i < enemy.Count; i++)
         {

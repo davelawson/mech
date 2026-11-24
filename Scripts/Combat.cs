@@ -16,9 +16,9 @@ public enum CombatStatus { Active, Shutdown, Disabled, Destroyed, Extracted, Sur
 public enum ContactLevel { Lost, Identified, Detailed }
 
 /// <summary>A deployed mech's condition after a mission battle, keyed by its owned id. Armor lost is front plus rear. InjuryDays is the
-/// MechWarrior's recovery time from the battle's injuries, 0 when unhurt.</summary>
+/// MechWarrior's recovery time from the battle's injuries, 0 when unhurt. SkillGains are the skills whose gain checks succeeded.</summary>
 public sealed record DeployedMechReport(string MechId, LocationCondition[] Locations, EquipmentCondition[] Equipment, bool WarriorKilled, int ArmorLost,
-    int Kills = 0, int InjuryDays = 0);
+    int Kills = 0, int InjuryDays = 0, WarriorSkill[]? SkillGains = null);
 /// <summary>An enemy mech's condition when a mission battle ends, keyed by its battlefield id; salvage is drawn from it.</summary>
 public sealed record EnemyWreckReport(string UnitId, string MechId, CombatStatus Status, LocationCondition[] Locations, EquipmentCondition[] Equipment);
 /// <summary>A salvage pick: one item from an enemy mech, or the whole mech when ItemId is null.</summary>
@@ -250,6 +250,12 @@ public sealed partial class CombatUnit
     public int DamageDealt { get; internal set; }
     /// <summary>Enemies this unit's hits left disabled or destroyed.</summary>
     public int Kills { get; internal set; }
+    /// <summary>The pilot's banked skill gain checks as the battle began; none outside missions.</summary>
+    public SkillProgress Progress { get; init; } = SkillProgress.None;
+    /// <summary>How the pilot used their skills this battle, for the skill gain checks after it.</summary>
+    public SkillUse Use { get; internal set; } = SkillUse.None;
+    /// <summary>Where the unit stood when movement was last counted toward Piloting use.</summary>
+    internal Vector2? CountedPosition { get; set; }
     /// <summary>Seconds of electro-interference left from the last PPC hit.</summary>
     public double InterferenceRemaining { get; internal set; }
     public int InterferenceAimModifier => InterferenceRemaining > 0 ? CombatRules.InterferenceModifier : 0;
@@ -532,7 +538,7 @@ public sealed partial class CombatSimulation
         Biome? biome = null, bool dropPhase = false)
     {
         var force = DeployedForce(roster, selected);
-        var friendly = force.Select(source => Deployed(source, roster.Pilot(source)!.Spec, pristine: false)).ToArray();
+        var friendly = force.Select(source => Deployed(source, roster.Pilot(source)!.Spec, pristine: false) with { Progress = roster.Pilot(source)!.Progress }).ToArray();
         var enemy = offer.Opposition.Select((item, i) => Stock(DraftCatalog.Mech(item.MechId), MissionTuning.EnemyPilot(item.Rank, i + 1)) with { Group = item.Group }).ToArray();
         var world = biome ?? StarChart.Instance[offer.SystemId].Biome ?? Biome.Valley;
         var combatSeed = seed ?? Random.Shared.Next(); var fieldSeed = terrainSeed ?? Random.Shared.Next();
@@ -560,8 +566,9 @@ public sealed partial class CombatSimulation
     }
 
     /// <summary>A mech ready to deploy, keyed by its owned id; enemies are renumbered on deployment.</summary>
+    /// <summary>Progress is the pilot's banked skill gain checks, carried only into missions, where skills can grow.</summary>
     private sealed record DeployedMech(string Id, MechSpec Spec, WarriorSpec Pilot, IEnumerable<LocationCondition> Locations,
-        IEnumerable<EquipmentCondition> Equipment, IEnumerable<AmmoCondition> Ammo, int? Lance = null, int? Group = null);
+        IEnumerable<EquipmentCondition> Equipment, IEnumerable<AmmoCondition> Ammo, int? Lance = null, int? Group = null, SkillProgress? Progress = null);
 
     private static DeployedMech Deployed(OwnedMech source, WarriorSpec pilot, bool pristine) => pristine
         ? Stock(source.Spec, pilot) with { Id = source.Id, Lance = source.Lance }
@@ -587,7 +594,7 @@ public sealed partial class CombatSimulation
         simulation.LandAll(DropZone.Standard(edge), DropZone.Standard(DropZone.Opposite(edge)), dropPhase);
         return simulation;
         static CombatUnit Unit(DeployedMech mech, string id, CombatSide side) =>
-            new(id, mech.Spec, mech.Pilot, side, mech.Locations, mech.Equipment, mech.Ammo, Vector2.Zero, mech.Lance);
+            new(id, mech.Spec, mech.Pilot, side, mech.Locations, mech.Equipment, mech.Ammo, Vector2.Zero, mech.Lance) { Progress = mech.Progress ?? SkillProgress.None };
     }
 
     /// <summary>The battlefield facts of a fought mission. Only victory succeeds; defeat, a draw or withdrawing fails.</summary>
@@ -597,7 +604,7 @@ public sealed partial class CombatSimulation
         return new(Outcome == CombatOutcome.Victory ? MissionOutcome.Success : MissionOutcome.Failure,
             Units.Where(unit => unit.Side == CombatSide.Friendly).Select(unit => new DeployedMechReport(unit.Id,
                 unit.Locations.Values.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)).ToArray(),
-                unit.ReportedEquipment(), unit.WarriorKilled, unit.ArmorLost, unit.Kills, InjuryDays(unit))).ToArray(),
+                unit.ReportedEquipment(), unit.WarriorKilled, unit.ArmorLost, unit.Kills, InjuryDays(unit), SkillGains(unit))).ToArray(),
             Units.Count(unit => unit.Side == CombatSide.Enemy && !unit.WarriorKilled))
         {
             Enemies = Units.Where(unit => unit.Side == CombatSide.Enemy).Select(unit => new EnemyWreckReport(unit.Id, unit.Spec.Id, unit.Status,
@@ -914,6 +921,7 @@ public sealed partial class CombatSimulation
         // A burn lands in the step it comes due even if its shooter dies in that step; later destruction cuts it off.
         _burns.RemoveAll(burn => Unit(burn.Discharge.AttackerId).Status == CombatStatus.Destroyed);
         RefreshDetection();
+        RecordSkillUse();
         if (Patrol is not null) { UpdatePatrolObjectives(); return; }
         // A side with only unarmed mechs left is beaten: they can walk off, but no longer fight.
         var friendly = Units.Any(item => item.Side == CombatSide.Friendly && item.Fighting);

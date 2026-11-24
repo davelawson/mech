@@ -100,14 +100,14 @@ Systems of 4,000,000,000 people or more (116) are also Urban.
 
 ## Mission opposition
 
-A mission's enemy pilots are unnamed, called by rank and number ("Veteran 2"), with the same rating in Gunnery, Piloting and Sensors by rank (`MissionTuning.EnemySkill`):
+A mission's enemy pilots are unnamed, called by rank and number ("Lieutenant 2"), with the same rating in every skill by rank (`MissionTuning.EnemySkill`). The ranks are the ones those uniform skills make, so they match a MechWarrior's (renamed November 24, 2026 from Green, Regular, Veteran and Elite; saves with the former names still load):
 
 | Rank | Skill |
 | --- | --- |
-| Green | 5 |
-| Regular | 4 |
-| Veteran | 3 |
-| Elite | 2 |
+| Corporal | 5 (Regular) |
+| Sergeant | 4 (Veteran) |
+| Lieutenant | 3 (Elite) |
+| Captain | 2 (Legendary) |
 
 Their mechs are stock designs, undamaged with full ammunition.
 
@@ -302,9 +302,24 @@ The rules are in [combat design](combat-design.md#stress-surrender-and-ejection-
 | Side strength | Σ tonnage × structure left ÷ stock structure, over fighting mechs (own) and detected fighting enemies |
 | Fleeing | clear of each known enemy's longest weapon range + 60 m, then to the arena edge; fled within 30 m of it |
 | Ejection injury | 1 injury (10–20 days) |
-| Ransom (`SalvageTuning.Ransom`) | Green 20,000 · Regular 40,000 · Veteran 80,000 · Elite 150,000 C-bills |
+| Ransom (`SalvageTuning.Ransom`) | Corporal 20,000 · Sergeant 40,000 · Lieutenant 80,000 · Captain 150,000 C-bills |
 
 A Regular-Grit (5) pilot with nothing happening rolls 2d6 + 4 and calms on 10 or less; under fire at heat 12 (+2) they hold on 8–10 and grow stressed on 11 or more, about one check in twelve.
+
+## Skill gain lottery
+
+After a mission each surviving MechWarrior gets one [skill gain check](design.md#skill-growth-confirmed-november-24-2026) on a skill drawn by lottery. A skill's score is the sum of its uses, each times its weight; the weight is 1 ÷ the use's average per pilot in a mission battle (½ ÷ the average where a skill has two kinds of use), so each skill averages a score of about 1 (`SkillGrowth`):
+
+| Skill | Use | Average per pilot | Weight |
+| --- | --- | --- | --- |
+| Gunnery | Hit landed (an LRM salvo once) | 17 | 1/17 |
+| Piloting | Piloting check made | 0.28 | 0.5/0.28 |
+| Piloting | 100 m moved while the side identifies an enemy | 24.5 | 0.5/24.5 |
+| Sensors | Enemy first identified for the side | 1.0 | 0.5/1.0 |
+| Sensors | 10 s as the only friendly identifying an enemy a friendly aims at | 4.0 | 0.5/4.0 |
+| Grit | Nerve check of 12 or more | 61 | 1/61 |
+
+The averages were measured on November 24, 2026 over 30 simulated lance battles (three mixed lances of four against randomized opposition on varied biomes, each friendly attacking the nearest enemy it can see; about 12 minutes of battle time on average). In the same battles a pilot averaged 0.18 kills, 0.18 Piloting checks passed, 0.9 defeated enemies they had first identified, and 3.2 extra Grit checks; most of those come from Panicked pilots holding on, check after check, so a pilot who panics usually banks a Grit success. Re-measure with `dotnet test --project Tests.Unit --filter "FullyQualifiedName~SkillUseRates" --explicit only --output Detailed` (`Tests/SkillUseMeasure.cs`, about ten minutes), and **revisit the weights whenever a new kind of skill check is added**.
 
 ## Calculation reuse
 
@@ -330,7 +345,7 @@ The terrain and heat checks cover stable route/firing choices, concurrent search
 - Escape suspends combat. Resume restores the preceding running/paused state. End Simulation shows an ended damage summary; results return to the original hangar selection and tab.
 - Enemy inspection at full range reveals only the chassis model. Within half range it also shows exact armor, rear armor, internals and effective equipment condition/availability. The side shares its best current observation; live details disappear when all close observers lose them. Physical damage remains visible.
 - Inspection retains the friendly command selection and draws separate unions of target-specific identification (blue) and detailed-status (gold) ranges for all selected active mechs. Otherwise show the union of 100-ton identification ranges and label the 20–100-ton detection span. Only exposed outlines are drawn: no fill or internal overlap arcs; separated regions and uncovered holes remain. Disabled/destroyed mechs contribute no ranges. Multiple active contributors use “Selected mechs” with minimum–maximum ranges for each displayed tier; one active contributor keeps the single-mech readout. Terrain can block contacts within these boundaries; detection remains shared by the entire side independently of selection.
-- Pilot skills are rated 2–7, from Legendary to Untrained. Since November 24, 2026 MechWarriors are generated, buying skills from Untrained with rolled points (see [Generated MechWarriors](design.md#generated-mechwarriors-confirmed-november-24-2026)), so any MechWarrior may have Untrained skills. Every formula takes a 7 as one step worse than 6; detection radius extends past 6 up to Untrained plus the panic penalty. No allocation screen or progression is added.
+- Pilot skills are rated 2–7, from Legendary to Untrained. Since November 24, 2026 MechWarriors are generated, buying skills from Untrained with rolled points (see [Generated MechWarriors](design.md#generated-mechwarriors-confirmed-november-24-2026)), so any MechWarrior may have Untrained skills. Every formula takes a 7 as one step worse than 6; detection radius extends past 6 up to Untrained plus the panic penalty. No allocation screen is added; skills [grow with use](design.md#skill-growth-confirmed-november-24-2026) after missions.
 - Procedural 3D mech stand-ins have faction colors, facing indicators, selection/priority rings, order lines and shot/hit effects. Team-colored ground lines show leg facing; longer gold lines with tip dots show torso facing. Weapon arcs and incoming torso armor use those simulation headings.
 
 ## Validation

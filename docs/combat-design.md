@@ -591,3 +591,15 @@ The results fill 90% of the screen in three tabs, opening on **Outcome**. The ac
 - fleeing the field, and extracting
 
 Restarts, standing up and lesser stress changes are left out. Co-op states carry each weapon's tally and the highlights added since the last state sent, so every player sees the leader's figures.
+
+## Skill use (confirmed November 24, 2026)
+
+A mission battle counts how each friendly MechWarrior uses their skills, for the [skill gain checks](design.md#skill-growth-confirmed-november-24-2026) made once it is over. Counting changes nothing in the battle itself, and enemies count nothing.
+
+- **Gunnery:** the unit's hits (an LRM salvo once) and kills, as its results already tally them.
+- **Piloting:** each [Piloting check](#knockdowns-confirmed-november-15-2026) made and each one passed, and the metres moved while the side identifies a fighting enemy.
+- **Sensors:** for each enemy, the first friendly pilot to identify it (the nearest, when several do so at once), and the seconds a pilot spends as the only friendly identifying an enemy that a friendly is aiming at. Both use the pilot's own detection radius and sight, not the side's shared contacts.
+- **Grit:** each [nerve check](#stress-surrender-and-ejection-confirmed-november-20-2026) with a result of 12 or more, each time a Panicked pilot holds on, and whether the pilot was ever Stressed or worse.
+
+The checks are drawn from the battle's seed, the unit and these counts, so asking again gives the same results. The mission report carries the successful skills to the campaign. Co-op states carry each pilot's counts, so a joined player's summary rolls the same checks.
+

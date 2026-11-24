@@ -877,8 +877,10 @@ public partial class SmokeTests : Node
         Check(shown.SequenceEqual([0, 1, 4, 5]), $"only the two mech and two MechWarrior pools are shown ({string.Join(",", shown)})");
         var mechs = Enumerable.Range(0, 2).SelectMany(p => Enumerable.Range(0, 3).Select(c => draft.MechCandidate(p, c))).ToArray();
         Check(mechs.All(m => m.WeightClass == MechWeightClass.Light) && mechs.Select(m => m.Id).Distinct().Count() == 6
-            && Enumerable.Range(0, 3).All(c => draft.WarriorCandidate(4, c).Rank == WarriorExperience.Regular && draft.WarriorCandidate(5, c).Rank == WarriorExperience.Green),
-            "both mech pools offer different light mechs, over a Regular and a Green pool");
+            && Enumerable.Range(0, 3).All(c => draft.WarriorCandidate(4, c).Rank <= WarriorExperience.Corporal && draft.WarriorCandidate(5, c).Rank <= WarriorExperience.PrivateFirstClass
+                && draft.WarriorCandidate(4, c).SkillPoints <= WarriorSkills.Bracket(WarriorExperience.Corporal).Max
+                && draft.WarriorCandidate(5, c).SkillPoints <= WarriorSkills.Bracket(WarriorExperience.PrivateFirstClass).Max),
+            "both mech pools offer different light mechs, over a Corporal and a Private First Class pool");
         Check(_app.Drafting.Choices[1, 0].GetGlobalRect().Position.X > _app.Drafting.Choices[0, 0].GetGlobalRect().End.X
             && _app.Drafting.Choices[1, 0].GetGlobalRect().End.X < GetViewport().GetVisibleRect().End.X, "the two columns share the screen width");
         await Capture("draft-starting-out");
@@ -976,6 +978,9 @@ public partial class SmokeTests : Node
 
     private async Task TestRosterUi()
     {
+        // One banked success each for the first two cards, short of any threshold, so their bars show progress.
+        foreach (var learner in _app.State.Roster!.Warriors.Take(2))
+            learner.GainSkill(SkillGrowth.Skills.Last(skill => !SkillGrowth.Maxed(SkillGrowth.Rating(learner.Spec, skill))));
         await Click(_app.Office.RolodexButton);
         Check(_app.Rolodex.Visible && _app.Office.Visible && !_app.Hangar.Visible, "rolodex overlays the office");
         _app.StartAdvancing(false); Check(!_app.IsAdvancing, "rolodex pauses company time");
@@ -986,6 +991,13 @@ public partial class SmokeTests : Node
         var pilot = _app.State.Roster!.Warriors[0];
         Check(record.Contains($"Piloting: {_app.State.Roster.Assignment(pilot.Id)!.Spec.DisplayName}\nDeployments: 0\nKills: 0") && !record.Contains("Skill points"),
             "personnel card shows the piloted mech, deployments and kills without skill points");
+        var bars = _app.Rolodex.Skills;
+        Check(bars.Visible && bars.GetChildCount() == 4 && SkillGrowth.Skills.All(skill => SkillGrowth.Maxed(SkillGrowth.Rating(pilot.Spec, skill))
+                ? !bars.Bars.ContainsKey(skill)
+                : bars.Bars[skill].MaxValue == SkillGrowth.Threshold(SkillGrowth.Rating(pilot.Spec, skill)) && bars.Bars[skill].Value == pilot.Progress[skill]
+                    && bars.Bars[skill].GetParent<Control>().TooltipText == $"{pilot.Progress[skill]} of {bars.Bars[skill].MaxValue} toward {WarriorSkills.Descriptor(SkillGrowth.Rating(pilot.Spec, skill) - 1)}"),
+            "an active MechWarrior's card shows a progress bar under each skill short of Legendary, with the count on hover");
+        Check(record.StartsWith(pilot.Spec.Experience + "\n"), "the personnel card shows the MechWarrior's rank");
         var first = _app.Rolodex.CardName.Text; await Click(_app.Rolodex.NextButton);
         Check(first != _app.Rolodex.CardName.Text, "rolodex flips between personnel cards");
         await Capture("rolodex");
@@ -1020,9 +1032,9 @@ public partial class SmokeTests : Node
     {
         var state = _app.State; var roster = state.Roster!;
         Check(PilotTuning.Slots(StarChart.Instance[state.Travel.OrbitSystemId]) >= 2, "the starting system lists MechWarriors for hire");
-        // A newly generated Green and Regular.
+        // A newly generated Private First Class and Corporal.
         var inUse = new PilotsInUse(roster.Warriors.Select(item => item.Spec)); var rolls = new Random(3025);
-        state.PlaceRecruits([.. new[] { WarriorExperience.Green, WarriorExperience.Regular }.Select(rank => PilotGenerator.Generate(rolls, inUse, rank))]);
+        state.PlaceRecruits([.. new[] { WarriorExperience.PrivateFirstClass, WarriorExperience.Corporal }.Select(rank => PilotGenerator.Generate(rolls, inUse, rank))]);
         await Click(_app.Office.RolodexButton);
         _app.Rolodex.Section.Select(RolodexPanel.HireSection); _app.Rolodex.Section.EmitSignal(OptionButton.SignalName.ItemSelected, (long)RolodexPanel.HireSection); await Frames();
         var recruit = state.OrbitRecruits.Single(item => item.Id == _app.Rolodex.SelectedId); var cost = state.HireCost(recruit);
@@ -1094,6 +1106,10 @@ public partial class SmokeTests : Node
         Check(_app.Hangar.Visible && !_app.Office.Visible && _app.Hangar.ArtworkLoaded, "porthole opens separate illustrated hangar");
         await Click(_app.Hangar.AssignButton);
         Check(_app.State.Roster!.Mechs[0].WarriorId is not null, "hangar assigns an unassigned warrior");
+        var seated = _app.State.Roster.Pilot(_app.State.Roster.Mechs[0])!;
+        Check(_app.Hangar.PilotSkills.Visible && _app.Hangar.PilotSkills.GetChildCount() == 4
+            && _app.Hangar.PilotSkills.Bars.Count == SkillGrowth.Skills.Count(skill => !SkillGrowth.Maxed(SkillGrowth.Rating(seated.Spec, skill))),
+            "the hangar shows the assigned pilot's skills with their progress bars");
         await Click(_app.Hangar.RosterButtons[1]); await Click(_app.Hangar.AssignButton);
         var roster = _app.State.Roster!;
         Check(roster.Mechs[1].WarriorId is not null && roster.Mechs[0].WarriorId != roster.Mechs[1].WarriorId, "second mech gets a different available warrior");

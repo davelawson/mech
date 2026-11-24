@@ -17,7 +17,7 @@ internal static class PatrolChecks
     {
         var opposition = Enumerable.Range(0, locations - 1).SelectMany(group => new[]
         {
-            new EnemyMech("locust", EnemyPilotRank.Green, group), new EnemyMech("jenner", EnemyPilotRank.Green, group),
+            new EnemyMech("locust", EnemyPilotRank.Corporal, group), new EnemyMech("jenner", EnemyPilotRank.Corporal, group),
         }).ToArray();
         return new("offer-1", "Patrol of Checks", "Briefing.", MissionTuning.PatrolObjective, StarChart.Instance.StartingSystemId,
             Campaign.StartDate, opposition, 100_000, 0, 0, Party.Of(Faction.Steiner), Party.Pirates, MissionKind.Patrol, locations);

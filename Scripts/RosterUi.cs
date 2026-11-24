@@ -72,6 +72,37 @@ internal static class RosterUi
     }
 }
 
+/// <summary>A MechWarrior's four skills as words, each over a thin bar of the successful skill gain checks banked toward its next level.
+/// A skill at Legendary has no bar; without progress (a memorial record) there are no bars at all. Hovering a skill gives the count.</summary>
+public partial class SkillBars : VBoxContainer
+{
+    public int FontSize { get; set; } = 16;
+    private static readonly Color Fill = new("8fb87a");
+    /// <summary>The bars shown, by skill; a skill at Legendary has none.</summary>
+    public IReadOnlyDictionary<WarriorSkill, ProgressBar> Bars => _bars;
+    private readonly Dictionary<WarriorSkill, ProgressBar> _bars = [];
+    public override void _Ready() => AddThemeConstantOverride("separation", 2);
+    public void Show(WarriorSpec warrior, SkillProgress? progress)
+    {
+        RosterUi.Clear(this); _bars.Clear();
+        foreach (var skill in SkillGrowth.Skills)
+        {
+            var rating = SkillGrowth.Rating(warrior, skill);
+            var row = new VBoxContainer { MouseFilter = MouseFilterEnum.Pass }; row.AddThemeConstantOverride("separation", 1); AddChild(row);
+            Ui.Label(row, $"{skill}: {WarriorSkills.Descriptor(rating)}", FontSize).MouseFilter = MouseFilterEnum.Ignore;
+            if (progress is null || SkillGrowth.Maxed(rating)) continue;
+            var threshold = SkillGrowth.Threshold(rating);
+            var bar = new ProgressBar { MinValue = 0, MaxValue = threshold, Value = progress[skill], ShowPercentage = false, Step = 1,
+                CustomMinimumSize = new Vector2(0, 4), MouseFilter = MouseFilterEnum.Ignore };
+            // Plain boxes without content margins, which would thicken the bar.
+            bar.AddThemeStyleboxOverride("background", new StyleBoxFlat { BgColor = Ui.Line });
+            bar.AddThemeStyleboxOverride("fill", new StyleBoxFlat { BgColor = Fill });
+            row.AddChild(bar); _bars[skill] = bar;
+            row.TooltipText = $"{progress[skill]} of {threshold} toward {WarriorSkills.Descriptor(rating - 1)}";
+        }
+    }
+}
+
 /// <summary>A location map drawn from the selected unit's real armor/structure, rather than decorative image labels.</summary>
 public partial class ArmorDiagram : Control
 {

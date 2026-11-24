@@ -302,7 +302,7 @@ internal static class NetworkChecks
 
     private static readonly HashSet<string> LeaderOnlyState = ["Route", "RouteIndex", "BlockedSeconds", "RouteGoal", "FiringPosition", "NextFiringSearch", "Spec", "Warrior", "Climate",
         "NerveRemaining", "NerveDamage", "ShotAtSinceCheck", "KnockedDownSinceCheck", "HeadDamagedSinceCheck", "InjuriesAtLastCheck", "AlliesDefeatedAtLastCheck",
-        "AbsorbedArmor", "AbsorbedStructure", "ShutdownHighlighted", "PanicHighlighted"];
+        "AbsorbedArmor", "AbsorbedStructure", "ShutdownHighlighted", "PanicHighlighted", "CountedPosition"];
     private static IEnumerable<string> Differences(CombatSimulation a, CombatSimulation b)
     {
         foreach (var name in new[] { nameof(CombatSimulation.Elapsed), nameof(CombatSimulation.Outcome), nameof(CombatSimulation.WindDownEnds), nameof(CombatSimulation.Paused) })

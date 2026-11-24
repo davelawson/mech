@@ -34,9 +34,14 @@ public partial class CombatScreen
         return BattleSummary.Text(condition) + (days > 0 && condition is PilotCondition.Injured or PilotCondition.Ejected ? $" ({days} days)" : "");
     }
 
-    /// <summary>One line per company mech under its lance, coloured by the mech's condition.</summary>
+    /// <summary>The Outcome tab's skill growth lines, under their pilots.</summary>
+    public List<Label> SkillGainLines { get; } = [];
+
+    /// <summary>One line per company mech under its lance, coloured by the mech's condition, and after a mission a line for each
+    /// skill whose gain check succeeded.</summary>
     private void ShowCompanyStatus(VBoxContainer body)
     {
+        SkillGainLines.Clear();
         RosterUi.Text(body, Coop ? "THE COMPANY" : "YOUR FORCE", 16, Ui.Gold);
         foreach (var lance in Simulation!.Units.Where(unit => unit.Side == CombatSide.Friendly).GroupBy(unit => unit.Lance ?? 0).OrderBy(group => group.Key))
         {
@@ -46,6 +51,10 @@ public partial class CombatScreen
                 var condition = BattleSummary.Condition(unit);
                 RosterUi.Text(body, $"{unit.Spec.DisplayName} · “{unit.Warrior.Callsign}” {unit.Warrior.Name}: {condition} · {PilotText(unit)}",
                     14, ConditionColor(condition));
+                // Skill gain checks are rolled only after a mission, and only successes are shown.
+                if (_mission is not null)
+                    foreach (var skill in Simulation.SkillGains(unit))
+                        SkillGainLines.Add(RosterUi.Text(body, $"      {SkillGrowth.Describe(unit.Warrior, unit.Progress, skill)}", 13, Ui.Gold));
             }
         }
     }
