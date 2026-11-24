@@ -30,6 +30,17 @@ public partial class SmokeTests
         Check(drop is not null && tactical.DropBanner.Visible && tactical.Battlefield.DropPlacing && tactical.DropText.Text.Contains("DROP PHASE")
             && tactical.DropReadyButton.Disabled && !tactical.ForceDropButton.Visible && sim.Units.Where(unit => unit.Side == CombatSide.Friendly).All(sim.AwaitingDrop),
             "a launched battle opens in its drop phase, with Ready unavailable until a site is chosen and no Force Start alone");
+        // The drop camera keeps north up whichever edge the zone is on.
+        var stage = new CombatViewport { Size = new(800, 600) }; AddChild(stage);
+        foreach (var edge in Enum.GetValues<ArenaEdge>())
+        {
+            var terrainSeed = Enumerable.Range(0, 400).First(candidate => DropZone.StandardEdge(candidate) == edge);
+            stage.Display(CombatSimulation.Deploy(tactical.Roster, tactical.Roster.Mechs.Where(mech => sim.Units.Any(unit => unit.Id == mech.Id)).Select(mech => mech.Id),
+                seed: 5, terrainSeed: terrainSeed, dropPhase: true));
+            var forward = -stage.Camera.GlobalBasis.Z;
+            Check(Math.Abs(forward.X) < 1e-3f && forward.Z < 0, $"the drop camera looks north over a zone on the {edge} edge");
+        }
+        stage.QueueFree();
         tactical.TogglePause(); await PressKey(Key.Period);
         Check(sim.Paused && sim.Drop is not null, "the battle cannot be started during the drop phase");
         tactical.ChooseDropSite(PatrolLayout.EdgePoint(drop!.Zone.Edge, 0, 100)); await Frames();

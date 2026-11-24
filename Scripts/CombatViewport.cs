@@ -352,9 +352,9 @@ public partial class CombatViewport : Control
         }
         if (simulation.Drop is { Zone: var zone })
         {
-            // The drop phase opens over the whole drop zone, looking into the arena.
+            // The drop phase opens over the whole drop zone with north up, whichever edge the zone is on.
             var focus = PatrolLayout.EdgePoint(zone.Edge, 0, CombatRules.DropZoneDepth + 400);
-            _focus = new Vector3(focus.X, 0, focus.Y); _yaw = Mathf.Atan2(-zone.Inward.X, -zone.Inward.Y); Camera.Size = 5400;
+            _focus = new Vector3(focus.X, 0, focus.Y); _yaw = 0; Camera.Size = 5400;
         }
         UpdateCamera();
         foreach (var unit in simulation.Units) CreateMech(unit);
