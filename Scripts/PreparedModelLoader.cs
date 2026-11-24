@@ -49,6 +49,7 @@ public partial class MechModel
 
     private Material Outlined(Material original, Dictionary<Material, Material> cache)
     {
+        if (_outline is null) return original;
         if (cache.TryGetValue(original, out var outlined)) return outlined;
         outlined = (Material)original.Duplicate();
         outlined.NextPass = _outline;

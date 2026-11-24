@@ -310,6 +310,7 @@ public partial class CombatViewport : Control
         _audio = new CombatAudio(() => Sound, _world);
         Camera = new Camera3D { Projection = Camera3D.ProjectionType.Orthogonal, Size = 1500, Far = 24000, Current = true };
         _world.AddChild(Camera);
+        CreateOutline();
         ApplyLighting(null);
         Resized += QueueRedraw;
         FocusExited += CancelDrag;
@@ -871,8 +872,9 @@ public partial class CombatViewport : Control
     private float Age(ShotEffect effect) => (float)((Simulation?.Clock ?? effect.Start) - effect.Start);
     private void CreateMech(CombatUnit unit)
     {
-        var model = MechModel.Create(unit.Spec, unit.Side, lance: unit.Lance);
+        var model = MechModel.Create(unit.Spec, unit.Side, lance: unit.Lance, hullOutline: false);
         _world.AddChild(model); _models[unit.Id] = model;
+        AddOutline(unit, model);
     }
     private void SyncModels(float animationDelta = 0)
     {
@@ -882,6 +884,8 @@ public partial class CombatViewport : Control
         {
             var model = _models[unit.Id];
             model.Visible = !unit.OffField && !Simulation.AwaitingDrop(unit) && (unit.Side == CombatSide.Friendly || Simulation.Detected(CombatSide.Friendly, unit.Id));
+            // A mech out of the fight loses its outline.
+            model.SetSilhouetteEnabled(!unit.Defeated);
             var ground = World(unit.Position, Simulation.Terrain.HeightAt(unit.Position) + unit.Altitude);
             var yaw = Mathf.Atan2(-unit.Facing.X, -unit.Facing.Y);
             model.SetCondition(unit.Intact);
@@ -1109,6 +1113,7 @@ public partial class CombatViewport : Control
             OrbitRadius * Mathf.Sin(_pitch), Mathf.Cos(_yaw) * horizontal);
         Camera.LookAt(_focus); QueueRedraw();
         _audio?.Listen(Camera, _focus);
+        if (_maskViewport is not null) SyncOutline();
     }
     public void ResetToSelection()
     {
@@ -1174,6 +1179,7 @@ public partial class CombatViewport : Control
             && GetViewport().GuiGetHoveredControl() == this;
         SetHovered(hovering ? PickMech(GetLocalMousePosition())?.Id : null);
         _pings.RemoveAll(ping => Now - ping.Placed >= PingSeconds);
+        SyncOutline();
         QueueRedraw();
     }
     /// <summary>Carries the camera's pivot to a battlefield point over <see cref="FocusSeconds"/>, easing in and out.
@@ -1362,6 +1368,7 @@ public partial class CombatViewport : Control
         if (HoveredMech is { } previous && _models.TryGetValue(previous, out var old)) old.SetHovered(false);
         HoveredMech = id;
         if (id is not null && _models.TryGetValue(id, out var model)) model.SetHovered(true);
+        SyncOutline();
     }
     public IReadOnlyList<(CombatUnit Friendly, CombatUnit Enemy, float Distance)> HoverRanges => Simulation is not null
         && CommandsEnabled && HoveredMech is { } id && Simulation.Unit(id) is { Side: CombatSide.Enemy } enemy

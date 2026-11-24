@@ -16,7 +16,8 @@ public partial class MechModel : Node3D
     private readonly Dictionary<Color, StandardMaterial3D> _materials = [];
     private readonly Dictionary<string, Node3D[]> _firingMarkers = [];
     private readonly Dictionary<string, int> _firingCounts = [];
-    private ShaderMaterial _outline = null!;
+    // The hangar's inverted-hull outline; battle models have none and are outlined by the battlefield's silhouette pass.
+    private ShaderMaterial? _outline;
     private Color _teamColor;
     private float _outlineWidth = 1.15f;
     public bool Hovered { get; private set; }
@@ -32,17 +33,9 @@ public partial class MechModel : Node3D
     public static Color TeamColor(CombatSide side, int? lance = null) =>
         side == CombatSide.Friendly ? LanceColors[Math.Clamp(lance ?? 0, 0, LanceColors.Length - 1)] : EnemyColor;
 
-    /// <summary>World metres per authored model unit; prepared models stand roughly 36–55 metres tall.</summary>
-    public const float MetresPerModelUnit = 15;
-
-    /// <summary>Builds the chassis with its weapons' visuals, resolved from the spec unless a mount map is given.</summary>
-    public static MechModel Create(MechSpec spec, CombatSide side, MountMap? mounts = null, int? lance = null)
-    {
-        var model = new MechModel { Name = "MechModel", ChassisId = spec.Id };
-        model.Mounts = mounts ?? WeaponMounts.Resolve(spec);
-        model.Scale = Vector3.One * (.9f + spec.Tonnage / 200f) * MetresPerModelUnit;
-        // A pixel-sized inverted hull remains legible at combat zoom without tinting the armor.
-        model._outline = new ShaderMaterial { Shader = new Shader { Code = """
+    // Built on first use: engine-free unit suites touch this class's statics (TeamColor) without the engine.
+    private static Shader? _hullOutlineShader;
+    private static Shader HullOutlineShader => _hullOutlineShader ??= new() { Code = """
             shader_type spatial;
             render_mode unshaded, cull_front, shadows_disabled;
             uniform vec4 team_color : source_color;
@@ -56,12 +49,28 @@ public partial class MechModel : Node3D
                 POSITION = clip;
             }
             void fragment() { ALBEDO = team_color.rgb; }
-            """ } };
+            """ };
+
+    /// <summary>World metres per authored model unit; prepared models stand roughly 36–55 metres tall.</summary>
+    public const float MetresPerModelUnit = 15;
+
+    /// <summary>Builds the chassis with its weapons' visuals, resolved from the spec unless a mount map is given. Without
+    /// <paramref name="hullOutline"/> the armor carries no outline pass; the battlefield draws its silhouette instead.</summary>
+    public static MechModel Create(MechSpec spec, CombatSide side, MountMap? mounts = null, int? lance = null, bool hullOutline = true)
+    {
+        var model = new MechModel { Name = "MechModel", ChassisId = spec.Id };
+        model.Mounts = mounts ?? WeaponMounts.Resolve(spec);
+        model.Scale = Vector3.One * (.9f + spec.Tonnage / 200f) * MetresPerModelUnit;
         model._teamColor = TeamColor(side, lance);
-        model._outline.SetShaderParameter("team_color", model._teamColor);
         PreparedMechModels.Models.TryGetValue(spec.Id, out var prepared);
-        if (prepared is not null) model._outlineWidth = .65f;
-        model._outline.SetShaderParameter("outline_width", model._outlineWidth);
+        if (hullOutline)
+        {
+            // A pixel-sized inverted hull remains legible at hangar zoom without tinting the armor.
+            model._outline = new ShaderMaterial { Shader = HullOutlineShader };
+            model._outline.SetShaderParameter("team_color", model._teamColor);
+            if (prepared is not null) model._outlineWidth = .65f;
+            model._outline.SetShaderParameter("outline_width", model._outlineWidth);
+        }
         foreach (var location in Enum.GetValues<MechLocation>())
         {
             var root = new Node3D { Name = location.ToString() };
@@ -104,8 +113,8 @@ public partial class MechModel : Node3D
     {
         if (Hovered == hovered) return;
         Hovered = hovered;
-        _outline.SetShaderParameter("team_color", hovered ? _teamColor.Lerp(Colors.White, .5f) : _teamColor);
-        _outline.SetShaderParameter("outline_width", hovered ? _outlineWidth + 1.3f : _outlineWidth);
+        _outline?.SetShaderParameter("team_color", hovered ? _teamColor.Lerp(Colors.White, .5f) : _teamColor);
+        _outline?.SetShaderParameter("outline_width", hovered ? _outlineWidth + 1.3f : _outlineWidth);
     }
 
     public void SetCondition(Func<MechLocation, bool> intact)
