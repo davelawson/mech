@@ -896,9 +896,10 @@ public partial class SmokeTests : Node
     {
         Check(_app.Drafting.Visible && _app.State.RequiresDraft && !_app.State.CanAdvance, "new company must draft before operations");
         var initialDraft = _app.Drafting.Draft;
-        Check(DraftCatalog.Warriors.Take(24).All(warrior => ResourceLoader.Exists(warrior.Artwork)), "all painted pilot portraits are imported");
-        Check(DraftCatalog.Warriors.Skip(24).All(warrior => !ResourceLoader.Exists(warrior.Artwork) && RosterUi.Portrait(warrior) == RosterUi.PlaceholderPortrait)
-            && RosterUi.Portrait(DraftCatalog.Warriors[0]) != RosterUi.PlaceholderPortrait, "unpainted pilots show the placeholder portrait");
+        foreach (var warrior in DraftCatalog.Warriors)
+            Check(Ui.LoadTexture(warrior.Artwork) is not null, $"portrait is imported for {warrior.Id}");
+        var missingPortrait = DraftCatalog.Warriors[0] with { Id = "test-missing-portrait" };
+        Check(RosterUi.Portrait(missingPortrait) == RosterUi.PlaceholderPortrait, "a missing pilot texture shows the placeholder portrait");
         var initialChoices = Enumerable.Range(0, 8).Select(initialDraft.Choice).ToArray();
         for (var pool = 0; pool < 4; pool++) for (var choice = 0; choice < 3; choice++)
         {

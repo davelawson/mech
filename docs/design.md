@@ -131,7 +131,7 @@ The user confirmed shared understanding of this design on October 24, 2026. The 
 
 - Select specific starting systems and catalog entries appropriate to the setting.
 - Tune prices, salaries, future detailed overhead, repair costs and durations, travel fares, and contract rewards. The current slice fixes starting cash at 2,500,000 C-bills (500,000 when just starting out), the quarterly charge at 100,000 C-bills and salaries at 5,000 C-bills a quarter per skill point.
-- Generated MechWarriors for when the catalog's hiring pool runs dry (deferred: dismissals and deaths slowly use it up), and painted portraits for the 24 entry-level MechWarriors, who show a placeholder silhouette.
+- Generate additional MechWarriors when the catalog's hiring pool runs dry after dismissals and deaths.
 - Author route data, market inventory, mission templates, and outcome examples. The first draft configuration is authored in the roster slice.
 
 
@@ -247,7 +247,7 @@ In co-op, the leader picks the scenario on the hosting form, beside the player c
 
 **Dismissal.** Active personnel cards offer **Dismiss**, memorial cards neither button. Dismiss asks first (*Dismiss MechWarrior?*), then unassigns the MechWarrior and removes them from the company entirely: they are not kept in memoriam and are never listed for hire again. Injured MechWarriors can be dismissed; the deceased cannot. In co-op, a MechWarrior piloting a mech in another player's lance cannot be dismissed (the button says why).
 
-**Catalog.** Hiring draws on the whole catalog of 48 MechWarriors. The 24 entry-level ones added for it (12 Green, six of them with one Untrained skill paired with a strength, and 12 Regular) show a placeholder silhouette until their portraits are painted.
+**Catalog.** Hiring draws on the whole catalog of 120 MechWarriors. The catalog has 24 Green, 72 Regular, and 24 Veteran pilots, each with an individual painted portrait. Six Green pilots have one Untrained skill paired with a strength.
 
 ## Equipment markets (confirmed November 13, 2026)
 

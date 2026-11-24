@@ -94,12 +94,12 @@ A built-in `image_gen.imagegen` edit was tried first. The full-resolution input 
 
 ## Roster artwork
 
-The roster implementation adds 26 project-local raster assets generated with the built-in `image_gen.imagegen` tool on October 24, 2026. The exact prompt for every asset is recorded in [roster-art-prompts.json](roster-art-prompts.json).
+The original roster artwork was generated with the built-in `image_gen.imagegen` tool on October 24, 2026. The prompt manifest includes all 96 portraits added to complete the roster. [Roster art prompts](roster-art-prompts.json)
 
 - The former `dropship-office-rosters.png` was an edit of the integrated office that added a physical rolodex and an enclosed repair-bay view beyond the porthole. The active missions office retains those additions; the intermediate office images were removed during cleanup.
 - `Assets/Roster/hangar-background.png` is an empty maintenance bay with matching olive steel, amber lamps and painted industrial textures.
 - `Assets/Roster/{firestarter,jenner,panther,griffin,shadow-hawk,wolverine,catapult,crusader,thunderbolt,awesome,victor,zeus}.png` are individually generated transparent mech illustrations. They are visual interpretations of the chassis, not technical record sheets; the adjacent classic specifications are authoritative.
-- The 24 personnel PNGs in `Assets/Roster/` are individually generated original portraits, named by the warrior IDs in `DraftCatalog`. The other MechWarriors, including the 72 added on November 23, 2026 for eight-player companies, have no portrait yet.
+- All 120 catalog MechWarriors have individually generated original portraits in `Assets/Roster/`, named by their IDs in `DraftCatalog`. The original 24 are 1254 × 1254 PNGs. The other 96 are opaque 512 × 512 PNGs made with the same built-in tool.
 
 All new textures are imported losslessly with mipmaps. Cutout transparency is preserved. No project asset depends on an image remaining in the generator's output directory.
 

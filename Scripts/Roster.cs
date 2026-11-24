@@ -55,7 +55,7 @@ public static class DraftCatalog
         new("vera-holt", "Vera Holt", "Bulwark", 4, 5, 2, 3, WarriorExperience.Veteran, WarriorSpecialty.Sensors),
         new("anton-mercer", "Anton Mercer", "Longshot", 2, 3, 4, 5, WarriorExperience.Veteran, WarriorSpecialty.Gunnery),
         new("zara-okoro", "Zara Okoro", "Dancer", 3, 2, 5, 4, WarriorExperience.Veteran, WarriorSpecialty.Piloting),
-        // Entry-level MechWarriors, added for hiring and the Just Starting Out draft; their portraits are still placeholders.
+        // Entry-level MechWarriors, added for hiring and the Just Starting Out draft.
         new("pell-avery", "Pell Avery", "Sprout", 5, 5, 5, 5, WarriorExperience.Green, WarriorSpecialty.None),
         new("juno-marsh", "Juno Marsh", "Tinder", 4, 5, 5, 6, WarriorExperience.Green, WarriorSpecialty.Gunnery),
         new("coby-vance", "Coby Vance", "Skitter", 5, 4, 5, 6, WarriorExperience.Green, WarriorSpecialty.Piloting),
@@ -80,7 +80,7 @@ public static class DraftCatalog
         new("greta-sorensen", "Greta Sorensen", "Trail", 5, 3, 5, 3, WarriorExperience.Regular, WarriorSpecialty.Piloting),
         new("obi-mensah", "Obi Mensah", "Halo", 4, 5, 3, 4, WarriorExperience.Regular, WarriorSpecialty.Sensors),
         new("dmitri-volkov", "Dmitri Volkov", "Granite", 4, 5, 5, 2, WarriorExperience.Regular, WarriorSpecialty.None),
-        // Added so eight players can each draft MechWarriors of their own in either scenario; no portraits yet.
+        // Added so eight players can each draft MechWarriors of their own in either scenario.
         new("tobias-wren", "Tobias Wren", "Ratchet", 4, 4, 4, 4, WarriorExperience.Regular, WarriorSpecialty.None),
         new("ingrid-falk", "Ingrid Falk", "Vane", 2, 5, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Gunnery),
         new("samir-qureshi", "Samir Qureshi", "Tether", 5, 2, 4, 5, WarriorExperience.Regular, WarriorSpecialty.Piloting),
