@@ -243,13 +243,27 @@ public partial class SmokeTests
         Check(tactical.Selected.Count == 0, "the leader cannot select another player's mechs");
         tactical.TogglePause(); await Frames();
         Check(battle.Paused && tactical.TimeMode != "Pause", "the leader's toggle is off while the other player's holds the battle");
+        Check(tactical.PauseFlashing && tactical.PauseButton.TooltipText.Contains("Selected by Sam"),
+            "the pause button flashes and names the other player holding the battle");
         sam.Send(new PauseCommand(false));
         await Exchange(() => !battle.Paused, "the battle runs once both toggles are off", client: sam);
         await Exchange(() => sam.Battle!.Elapsed > 0, "the running battle reaches the other player", client: sam);
         tactical.Battlefield.GrabFocus(); await PressKey(Key.Period);
-        await Exchange(() => battle.TimeScale == 4 && sam.Battle!.TimeScale == 4, "the leader's fast-forward reaches the other player", client: sam);
+        Check(battle.TimeScale == 1 && battle.FastPicks.SetEquals([0]) && tactical.TimeMode == "4x" && tactical.FastForwardFlashing,
+            "the leader's fast-forward waits for the other player, flashing");
+        await Exchange(() => sam.Battle!.FastPicks.Contains(0), "the leader's 4x pick reaches the other player", client: sam);
+        sam.Send(new TimeScaleCommand(CombatSimulation.FastTimeScale));
+        await Exchange(() => battle.TimeScale == 4 && sam.Battle!.TimeScale == 4, "the battle runs at 4x once both players pick it", client: sam);
+        await Frames();
+        Check(!tactical.FastForwardFlashing && tactical.FastForwardButton.TooltipText.Contains("Selected by Sam"),
+            "a fast-forwarding battle's button stops flashing and names the other player");
         await PressKey(Key.Comma);
-        await Exchange(() => sam.Battle!.TimeScale == 1, "the leader's 1x reaches the other player", client: sam);
+        await Exchange(() => battle.TimeScale == 1 && sam.Battle!.TimeScale == 1, "the leader's 1x slows the battle for every player", client: sam);
+        await Frames();
+        Check(tactical.FastForwardFlashing && !tactical.PlayButton.TooltipText.Contains("Selected by"),
+            "fast-forward flashes while the other player still picks 4x");
+        sam.Send(new TimeScaleCommand(1));
+        await Exchange(() => battle.FastPicks.Count == 0, "the other player returns to 1x", client: sam);
         sam.Ping(new Vector2(0, 100));
         await Exchange(() => tactical.Battlefield.Pings.Any(ping => ping.Label == "Sam"), "the other player's ping appears on the leader's battlefield", client: sam);
         int? pinged = null; sam.Pinged += (slot, _) => pinged = slot;
@@ -306,10 +320,18 @@ public partial class SmokeTests
         tactical.TogglePause();
         await Exchange(() => !battle.PauseHolds.Contains(1), "the joined player's pause toggle reaches the leader", host);
         await Frames();
-        Check(tactical.PlayButton.Disabled && tactical.FastForwardButton.Disabled && !tactical.PauseButton.Disabled
-            && tactical.FastForwardButton.TooltipText.Contains("Only the leader"), "only the leader sets the battle speed");
-        tactical.Battlefield.GrabFocus(); await PressKey(Key.Period); tactical.SetSpeed(CombatSimulation.FastTimeScale);
-        Check(tactical.Simulation!.TimeScale == 1 && battle.TimeScale == 1, "the joined player's speed keys and buttons do nothing");
+        Check(!tactical.PlayButton.Disabled && !tactical.FastForwardButton.Disabled && !tactical.PauseButton.Disabled
+            && tactical.PauseButton.TooltipText.Contains("Selected by"), "every player sets their own speed; the pause tooltip names the leader holding the battle");
+        battle.Execute(new PauseCommand(false));
+        await Click(tactical.FastForwardButton);
+        await Exchange(() => battle.FastPicks.SetEquals([1]) && battle.TimeScale == 1, "the joined player's fast-forward button reaches the leader", host);
+        await Exchange(() => tactical.FastForwardFlashing && tactical.TimeMode == "4x", "the joined player's fast-forward flashes while the leader runs at 1x", host);
+        battle.Execute(new TimeScaleCommand(CombatSimulation.FastTimeScale));
+        await Exchange(() => tactical.Simulation!.TimeScale == 4 && !tactical.FastForwardFlashing && tactical.FastForwardButton.TooltipText.Contains("Selected by"),
+            "the battle runs at 4x for the joined player once the leader picks it too", host);
+        tactical.Battlefield.GrabFocus(); await PressKey(Key.Comma);
+        await Exchange(() => battle.FastPicks.SetEquals([0]) && battle.TimeScale == 1, "the joined player's , key reaches the leader", host);
+        battle.Execute(new TimeScaleCommand(1)); battle.Execute(new PauseCommand(true));
         tactical.IssueCommand(new Vector2(0, 0), null);
         await Exchange(() => mine.All(id => battle.Unit(id).Order == CombatOrder.Move), "the joined player's orders reach the leader's battle", host);
         await Exchange(() => tactical.Simulation!.Units.Where(unit => mine.Contains(unit.Id)).All(unit => unit.Order == CombatOrder.Move), "the joined player sees their orders carried out", host);

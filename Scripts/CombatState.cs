@@ -22,7 +22,7 @@ public sealed record CombatContactState(CombatSide Side, string UnitId, ContactL
 /// <summary>A battle as the leader's machine last stepped it, with the log entries from <see cref="HistoryStart"/> on and the
 /// battle events from <see cref="EventsStart"/> on and the highlights from <see cref="HighlightsStart"/> on.</summary>
 public sealed record CombatState(double Elapsed, CombatOutcome Outcome, double? WindDownEnds, int[] PauseHolds, CombatUnitState[] Units,
-    CombatContactState[] Contacts, int HistoryStart, CombatLogEntry[] History, PatrolProgress? Patrol = null, double TimeScale = 1,
+    CombatContactState[] Contacts, int HistoryStart, CombatLogEntry[] History, PatrolProgress? Patrol = null, int[]? FastPicks = null,
     string[]? SurrenderOffers = null, CombatEvent[]? Events = null, int EventsStart = 0, CombatHighlight[]? Highlights = null, int HighlightsStart = 0,
     DropSiteState[]? Drop = null);
 
@@ -106,7 +106,7 @@ public sealed partial class CombatSimulation
         return new(Elapsed, Outcome, WindDownEnds, [.. _pauseHolds.Order()], Units.Select(unit => unit.State()).ToArray(),
             _contacts.SelectMany(side => side.Value.Values.Select(contact => new CombatContactState(side.Key, contact.UnitId, contact.Level,
                 contact.LastKnownPosition, contact.LastSeenAt))).ToArray(),
-            historyStart, _history.Skip(historyStart).ToArray(), Patrol?.Progress(), TimeScale, [.. _surrenderOffers], [.. _events.Skip(eventsStart)], eventsStart,
+            historyStart, _history.Skip(historyStart).ToArray(), Patrol?.Progress(), [.. _fastPicks.Order()], [.. _surrenderOffers], [.. _events.Skip(eventsStart)], eventsStart,
             [.. _highlights.Skip(highlightsStart)], highlightsStart, Drop?.State());
     }
 
@@ -123,7 +123,7 @@ public sealed partial class CombatSimulation
         ApplyDrop(state.Drop);
         var clock = Clock;
         Elapsed = state.Elapsed; Outcome = state.Outcome; WindDownEnds = state.WindDownEnds;
-        TimeScale = state.TimeScale;
+        _fastPicks.Clear(); _fastPicks.UnionWith(state.FastPicks ?? []);
         _accumulator = Math.Clamp(clock - Elapsed, 0, ReplicaLead * TimeScale);
         _pauseHolds.Clear(); _pauseHolds.UnionWith(state.PauseHolds);
         _surrenderOffers.Clear(); _surrenderOffers.AddRange(state.SurrenderOffers ?? []);

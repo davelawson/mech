@@ -42,7 +42,7 @@ public partial class CombatScreen : Control
     public Button FastForwardButton { get; private set; } = null!;
     /// <summary>The mission's elapsed time, at the top of the time panel.</summary>
     public Label TimeLabel { get; private set; } = null!;
-    /// <summary>The highlighted time button: "Pause" while this player's own toggle holds the battle, otherwise "1x" or "4x".</summary>
+    /// <summary>The highlighted time button, this player's own pick: "Pause" while their toggle holds the battle, otherwise "1x" or "4x".</summary>
     public string TimeMode { get; private set; } = "Pause";
     public Button MenuButton { get; private set; } = null!;
     public Button ResumeButton { get; private set; } = null!;
@@ -131,6 +131,8 @@ public partial class CombatScreen : Control
     private PanelContainer _modalPanel = null!;
     private VBoxContainer _modalContent = null!;
     private Label _status = null!;
+    /// <summary>The status line beneath the title: contacts, the patrol objective and notices.</summary>
+    public string StatusText => _status.Text;
     private Label _selectionTitle = null!;
     private Label _unitInfo = null!;
     private Label _targetInfo = null!;
@@ -695,16 +697,15 @@ public partial class CombatScreen : Control
         if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing || Simulation.Drop is not null) return;
         Send(new PauseCommand(!Simulation.PauseHolds.Contains(Slot)));
     }
-    /// <summary>Play and Fast-forward: the battle runs at <paramref name="scale"/>, releasing this player's pause.
-    /// In co-op only the leader sets the speed.</summary>
+    /// <summary>Play and Fast-forward: this player picks <paramref name="scale"/> and releases their pause. In co-op the battle
+    /// runs at the slowest pick.</summary>
     public void SetSpeed(double scale)
     {
-        if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing || !SetsSpeed || Simulation.Drop is not null) return;
-        Simulation.TimeScale = scale;
-        if (Simulation.PauseHolds.Contains(Slot)) Send(new PauseCommand(false));
+        if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing || Simulation.Drop is not null) return;
+        Order(new TimeScaleCommand(scale));
+        if (Simulation.PauseHolds.Contains(Slot)) Order(new PauseCommand(false));
         RefreshDetails();
     }
-    private bool SetsSpeed => !Coop || Leading;
     private Button TimeButton(Node parent, TimeControlIcon.Glyph glyph, string tooltip)
     {
         var button = Ui.Button(parent, ""); button.CustomMinimumSize = new Vector2(40, 28); button.TooltipText = tooltip;
@@ -715,15 +716,33 @@ public partial class CombatScreen : Control
     {
         var elapsed = TimeSpan.FromSeconds(Simulation!.Elapsed);
         TimeLabel.Text = elapsed.TotalHours >= 1 ? elapsed.ToString(@"h\:mm\:ss") : elapsed.ToString(@"mm\:ss");
-        TimeMode = Simulation.PauseHolds.Contains(Slot) ? "Pause" : Simulation.TimeScale == CombatSimulation.FastTimeScale ? "4x" : "1x";
-        _timeIcons[PauseButton].Color = TimeMode == "Pause" ? Ui.Gold : Ui.Muted;
-        _timeIcons[PlayButton].Color = TimeMode == "1x" ? Ui.Gold : Ui.Muted;
-        _timeIcons[FastForwardButton].Color = TimeMode == "4x" ? Ui.Gold : Ui.Muted;
-        const string leaderOnly = " · Only the leader sets the battle speed.";
-        PlayButton.Disabled = FastForwardButton.Disabled = !SetsSpeed;
-        PlayButton.TooltipText = "1x  [,]" + (SetsSpeed ? "" : leaderOnly);
-        FastForwardButton.TooltipText = "4x  [.]" + (SetsSpeed ? "" : leaderOnly);
+        TimeMode = Pick(Slot);
+        var flashOn = _flashClock % (2 * FlashHalfSeconds) < FlashHalfSeconds;
+        PaintTimeButton(PauseButton, "Pause", "Pause  [Space]", PauseFlashing && flashOn);
+        PaintTimeButton(PlayButton, "1x", "1x  [,]", false);
+        PaintTimeButton(FastForwardButton, "4x", "4x  [.]", FastForwardFlashing && flashOn);
     }
+    /// <summary>A player slot's pick: "Pause" while their toggle is on, otherwise the speed underneath.</summary>
+    private string Pick(int slot) => Simulation!.PauseHolds.Contains(slot) ? "Pause" : Simulation.SpeedPick(slot) == CombatSimulation.FastTimeScale ? "4x" : "1x";
+    private void PaintTimeButton(Button button, string mode, string tooltip, bool yellow)
+    {
+        _timeIcons[button].Color = yellow ? Ui.Background : TimeMode == mode ? Ui.Gold : Ui.Muted;
+        foreach (var state in FlashStates)
+            if (yellow) button.AddThemeStyleboxOverride(state, _flashBox); else button.RemoveThemeStyleboxOverride(state);
+        var others = Coop ? Simulation!.Players.Where(slot => slot != Slot && Pick(slot) == mode).Select(PlayerName).ToArray() : [];
+        button.TooltipText = tooltip + (others.Length > 0 ? $"\nSelected by {string.Join(", ", others)}" : "");
+    }
+    /// <summary>Whether the pause button is flashing: the battle stands paused, outside the drop phase, the outcome and modals.</summary>
+    public bool PauseFlashing => FlashesTime && Simulation!.Paused;
+    /// <summary>Whether the fast-forward button is flashing: the battle runs at 1x while at least one player has picked 4x.</summary>
+    public bool FastForwardFlashing => FlashesTime && !Simulation!.Paused && Simulation.TimeScale == 1 && Simulation.FastPicks.Count > 0;
+    private bool FlashesTime => Simulation is { Outcome: CombatOutcome.Ongoing, Drop: null } && Modal == CombatModal.None;
+    /// <summary>Seconds each half of a time button's flash lasts.</summary>
+    public const double FlashHalfSeconds = .4;
+    public static readonly Color FlashYellow = new("ffe000");
+    private static readonly string[] FlashStates = ["normal", "hover", "pressed", "focus"];
+    private readonly StyleBoxFlat _flashBox = Ui.Box(FlashYellow, FlashYellow);
+    private double _flashClock;
     public void OpenMenu()
     {
         if (Simulation is null || Modal != CombatModal.None || Simulation.Outcome != CombatOutcome.Ongoing) return;
@@ -1019,7 +1038,7 @@ public partial class CombatScreen : Control
         if (Modal == CombatModal.None) Simulation.Advance(delta);
         if (Simulation.Outcome != CombatOutcome.Ongoing) { ShowResults(); return; }
         SoundHeatAlarm(delta);
-        _uiElapsed += delta;
+        _uiElapsed += delta; _flashClock += delta;
         if (_ejectArmed > 0 && (_ejectArmed -= delta) <= 0) { _ejectArmed = 0; RefreshDetails(); }
         if (_jumpNoticeSeconds > 0) _jumpNoticeSeconds = Math.Max(0, _jumpNoticeSeconds - delta);
         if (_dropNoticeSeconds > 0) _dropNoticeSeconds = Math.Max(0, _dropNoticeSeconds - delta);
@@ -1041,10 +1060,10 @@ public partial class CombatScreen : Control
         if (Simulation is null) return;
         RefreshSurrender(); RefreshDrop();
         _status.Text = (Simulation.Drop is not null ? "DROP PHASE · the battle begins, paused, once every lance has landed"
-                : $"{(Simulation.Paused ? $"PAUSED{PauseHolders} · orders available" : "LIVE")}  |  Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}")
+                : $"Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}")
             + (Simulation.PatrolObjectiveText() is { } objective ? $"  |  {objective}" : "")
             + (JumpNotice is { } notice ? $"  |  {notice}" : "");
-        // The time panel shows the local player's own toggle; the battle stays paused while any player holds one.
+        // The time panel shows the local player's own pick and flashes for the battle's state and other players' picks.
         RefreshTimePanel();
         // Jump targeting lapses once no selected unit can still jump.
         if (SettingJump && JumpUnavailable() is { } lapsed) { SettingJump = false; RefuseJump(lapsed); }
@@ -1174,8 +1193,6 @@ public partial class CombatScreen : Control
     internal static string StressReadout(CombatUnit unit) => unit.Side != CombatSide.Friendly || unit.Defeated ? ""
         : $" · Stress: {unit.Stress}" + (unit.StressPenalty > 0 ? $" (skills −{unit.StressPenalty})" : "");
     internal static string PilotText(WarriorSpec warrior) => $"“{warrior.Callsign}”\n{warrior.Name}\n{RosterUi.SkillLines(warrior)}";
-    /// <summary>In co-op, who is holding the battle paused.</summary>
-    private string PauseHolders => !Coop || Simulation is null ? "" : $" by {string.Join(", ", Simulation.PauseHolds.Select(PlayerName))}";
     internal static string BiomeText(CombatSimulation simulation) => simulation.Terrain.Biome is { } biome ? Biomes.Spec(biome).Name : "Test terrain";
     internal static string HeatReadout(CombatUnit unit) =>
         $"Heat {unit.Heat:0.0} · {unit.HeatBand}{(unit.Side == CombatSide.Friendly ? $" · Heat limit {unit.HeatLimit}" : "")}\n"

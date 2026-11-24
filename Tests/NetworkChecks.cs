@@ -94,8 +94,10 @@ internal static class NetworkChecks
         var clock = replica.Clock; replica.Advance(CombatSimulation.StateInterval / 2);
         check(replica.TimeScale == 4 && Math.Abs(replica.Clock - clock - 2 * CombatSimulation.StateInterval) < 1e-6,
             $"a replica runs at the leader's 4x between states (clock +{replica.Clock - clock:0.000}s)");
-        battle.TimeScale = 1; replica.Apply(battle.State());
-        check(replica.TimeScale == 1, "a replica returns to 1x with the leader");
+        battle.Execute(new TimeScaleCommand(1)); replica.Apply(battle.State());
+        check(replica.TimeScale == 1 && replica.FastPicks.Count == 0, "a replica returns to 1x with the leader's pick");
+        battle.Execute(new TimeScaleCommand(2));
+        check(battle.TimeScale == 1 && battle.FastPicks.Count == 0, "a speed pick other than 1x or 4x is ignored");
     }
 
     private static void CheckHostAddress(Action<bool, string> check)

@@ -300,14 +300,14 @@ internal static partial class CombatChecks
             return sim;
         }
         var normal = Moving(); var fast = Moving();
-        check(fast.TimeScale == 1 && fast.State().TimeScale == 1, "a battle starts at 1x");
+        check(fast.TimeScale == 1 && fast.State().FastPicks is [], "a battle starts at 1x");
         fast.TimeScale = CombatSimulation.FastTimeScale;
         for (var i = 0; i < 4; i++) normal.Advance(1);
         fast.Advance(1);
         check(Math.Abs(fast.Elapsed - 4) < 1e-6 && Math.Abs(normal.Elapsed - fast.Elapsed) < 1e-6
             && normal.Units.Zip(fast.Units).All(pair => pair.First.Position.DistanceTo(pair.Second.Position) < 1e-3),
             "one second at 4x is the same battle as four seconds at 1x");
-        check(fast.State().TimeScale == 4, "the battle state carries the speed");
+        check(fast.State().FastPicks is [Campaign.LeaderSlot], "the battle state carries every player's speed pick");
         reject(() => fast.TimeScale = 2, "only 1x and 4x are battle speeds");
         fast.Paused = true; fast.Advance(1);
         check(Math.Abs(fast.Elapsed - 4) < 1e-6, "a paused battle stays still at 4x");

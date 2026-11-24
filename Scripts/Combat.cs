@@ -447,13 +447,22 @@ public sealed partial class CombatSimulation
         get => _pauseHolds.Count > 0 || _surrenderOffers.Count > 0 || Drop is not null;
         set { _pauseHolds.Clear(); if (value) _pauseHolds.UnionWith(Players); }
     }
-    /// <summary>Simulation seconds per real second: 1 or 4. The leader sets it in co-op, and replicas take it from the leader's state.</summary>
+    /// <summary>Simulation seconds per real second: 1 or 4. Each player picks a speed and the battle runs at the slowest pick, so
+    /// 4x only while every player has picked it. Setting it picks that speed for every player at once, as single-player play does.</summary>
     public double TimeScale
     {
-        get => _timeScale;
-        set => _timeScale = value is 1 or FastTimeScale ? value : throw new ArgumentOutOfRangeException(nameof(value), "The battle runs at 1x or 4x.");
+        get => Players.All(_fastPicks.Contains) ? FastTimeScale : 1;
+        set
+        {
+            if (value is not (1 or FastTimeScale)) throw new ArgumentOutOfRangeException(nameof(value), "The battle runs at 1x or 4x.");
+            _fastPicks.Clear(); if (value == FastTimeScale) _fastPicks.UnionWith(Players);
+        }
     }
-    private double _timeScale = 1;
+    /// <summary>The player slots that have picked 4x; the rest have picked 1x. A paused player keeps their pick underneath.</summary>
+    public IReadOnlySet<int> FastPicks => _fastPicks;
+    private readonly HashSet<int> _fastPicks = [];
+    /// <summary>The speed a player slot has picked: 1 or 4.</summary>
+    public double SpeedPick(int slot) => _fastPicks.Contains(slot) ? FastTimeScale : 1;
     /// <summary>The fast-forward speed.</summary>
     public const double FastTimeScale = 4;
     /// <summary>The player slots commanding friendly lances in this battle.</summary>

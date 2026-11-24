@@ -69,7 +69,7 @@ public partial class CombatControlsPanel : PanelContainer
             ("Maintain Range", "Tick the box to keep the slider's distance from the priority target when there is no Move or "
                 + "Follow order. The slider sets that distance, applied when you let go."),
             ("Space", coop ? "Pause or resume (your own pause; the battle waits while any player holds one)" : "Pause or resume"),
-            (", / .", "Run at 1x / fast-forward at 4x" + (coop ? " (the leader only)" : "")),
+            (", / .", "Run at 1x / fast-forward at 4x" + (coop ? " (your own pick; the battle runs at 4x only once every player picks it)" : "")),
             ("", "Orders can be given while paused."));
         Section("STRESS AND EJECTION",
             ("Stress", "Each MechWarrior is Calm, Steady, Excited, Stressed or Panicked, shown on the unit card and above the paperdoll. "

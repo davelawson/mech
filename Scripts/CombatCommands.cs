@@ -20,6 +20,7 @@ namespace Mech;
 [JsonDerivedType(typeof(MaintainRangeCommand), "maintain-range")]
 [JsonDerivedType(typeof(WeaponCommand), "weapon")]
 [JsonDerivedType(typeof(PauseCommand), "pause")]
+[JsonDerivedType(typeof(TimeScaleCommand), "time-scale")]
 [JsonDerivedType(typeof(EjectCommand), "eject")]
 [JsonDerivedType(typeof(SurrenderAnswerCommand), "surrender-answer")]
 [JsonDerivedType(typeof(DropSiteCommand), "drop-site")]
@@ -128,6 +129,13 @@ public sealed record PauseCommand(bool Paused) : CombatCommand
     internal override void Apply(CombatSimulation simulation, int slot) => simulation.HoldPause(slot, Paused);
 }
 
+/// <summary>Picks the sending player's battle speed, 1x or 4x. The battle runs at 4x only while every player has picked it;
+/// any other speed is ignored.</summary>
+public sealed record TimeScaleCommand(double Scale) : CombatCommand
+{
+    internal override void Apply(CombatSimulation simulation, int slot) => simulation.PickSpeed(slot, Scale);
+}
+
 /// <summary>Orders the MechWarriors of the given mechs to eject: the pilot survives, injured, and the mech is left disabled.</summary>
 public sealed record EjectCommand(string[] Units) : UnitCommand(Units)
 {
@@ -178,5 +186,10 @@ public sealed partial class CombatSimulation
     {
         if (Outcome != CombatOutcome.Ongoing) return;
         if (paused) _pauseHolds.Add(slot); else _pauseHolds.Remove(slot);
+    }
+    internal void PickSpeed(int slot, double scale)
+    {
+        if (Outcome != CombatOutcome.Ongoing || scale is not (1 or FastTimeScale)) return;
+        if (scale == FastTimeScale) _fastPicks.Add(slot); else _fastPicks.Remove(slot);
     }
 }

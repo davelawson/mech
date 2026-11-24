@@ -17,6 +17,16 @@ public partial class SmokeTests
         Check(tactical.PauseButton.TooltipText == "Pause  [Space]" && tactical.PlayButton.TooltipText == "1x  [,]"
             && tactical.FastForwardButton.TooltipText == "4x  [.]", "time button tooltips name their speeds and hotkeys");
         Check(sim.Paused && tactical.TimeMode == "Pause" && sim.TimeScale == 1, "the time panel shows the paused battle at 1x");
+        Check(tactical.PauseFlashing && !tactical.FastForwardFlashing, "the pause button flashes while the battle is paused");
+        var flashed = false; var steady = false;
+        for (var i = 0; i < 20 && !(flashed && steady); i++)
+        {
+            await Delay(.1);
+            var yellow = tactical.PauseButton.HasThemeStyleboxOverride("normal");
+            flashed |= yellow; steady |= !yellow;
+        }
+        Check(flashed && steady, "the paused pause button alternates between its own colour and yellow");
+        Check(!tactical.StatusText.Contains("PAUSED") && !tactical.StatusText.Contains("LIVE"), $"the status line says nothing of pausing ({tactical.StatusText})");
         await Frames();
         var elapsed = TimeSpan.FromSeconds(sim.Elapsed);
         Check(tactical.TimeLabel.Text == elapsed.ToString(@"mm\:ss"), $"the time panel shows the elapsed time ({tactical.TimeLabel.Text})");
@@ -24,12 +34,14 @@ public partial class SmokeTests
 
         await Click(tactical.PauseButton);
         Check(!sim.Paused && tactical.TimeMode == "1x", "the pause button resumes a paused battle, as Space does");
+        Check(!tactical.PauseFlashing && !tactical.PauseButton.HasThemeStyleboxOverride("normal"), "a running battle's pause button does not flash");
         await Click(tactical.PauseButton);
         Check(sim.Paused && tactical.TimeMode == "Pause", "the pause button pauses, as Space does");
 
         tactical.OpenMenu();
         await PressKey(Key.Period);
         Check(sim.Paused && sim.TimeScale == 1, "speed hotkeys do nothing while a modal is open");
+        Check(!tactical.PauseFlashing, "the pause button does not flash while a modal is open");
         await PressKey(Key.Escape);
         // Clicking a time button leaves no control holding the keyboard: the hotkeys still reach the battle.
         await Click(tactical.PlayButton); await Click(tactical.PauseButton);
@@ -45,7 +57,8 @@ public partial class SmokeTests
         await PressKey(Key.Comma);
         Check(!sim.Paused && sim.TimeScale == 1 && tactical.TimeMode == "1x", ", resumes the battle at 1x");
         await Click(tactical.FastForwardButton);
-        Check(!sim.Paused && sim.TimeScale == 4 && !tactical.FastForwardButton.HasFocus(), "the fast-forward button sets 4x without taking focus");
+        Check(!sim.Paused && sim.TimeScale == 4 && !tactical.FastForwardButton.HasFocus() && !tactical.FastForwardFlashing,
+            "the fast-forward button sets 4x without taking focus");
         await Click(tactical.PlayButton);
         Check(sim.TimeScale == 1, "the play button sets 1x");
         await PressKey(Key.Space);
