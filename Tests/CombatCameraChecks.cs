@@ -26,10 +26,10 @@ public partial class SmokeTests
                 CameraMotion(at + new Vector2(2, 0), new Vector2(2, 0)); await Frames();
                 CameraMotion(at, new Vector2(-2, 0)); await Frames();
             }
-            var release = at + new Vector2(3, 4);
-            CameraMotion(release, new Vector2(3, 4)); await Frames();
+            var release = at + new Vector2(0, CombatViewport.RightDragThreshold);
+            CameraMotion(release, new Vector2(0, CombatViewport.RightDragThreshold)); await Frames();
             Check(commands == 0 && field.Camera.Transform.IsEqualApprox(original) && Input.MouseMode == previousMode,
-                "jitter and exactly five pixels of displacement leave rotation pending");
+                "jitter and displacement of exactly the drag threshold leave rotation pending");
             var releaseGround = field.GroundPoint(release - field.GlobalPosition);
             MouseButton(release, Godot.MouseButton.Right, false); await Frames();
             Check(commands == 1 && lastGround.DistanceTo(releaseGround) < .3f,
@@ -174,7 +174,7 @@ public partial class SmokeTests
     {
         MouseMotion(at, Vector2.Zero);
         MouseButton(at, Godot.MouseButton.Right, true);
-        CameraMotion(at + new Vector2(6, 0), new Vector2(6, 0));
+        CameraMotion(at + new Vector2(CombatViewport.RightDragThreshold + 1, 0), new Vector2(CombatViewport.RightDragThreshold + 1, 0));
         await Frames();
     }
     private static void CameraMotion(Vector2 at, Vector2 delta) => Input.ParseInputEvent(new InputEventMouseMotion

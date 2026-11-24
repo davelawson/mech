@@ -281,7 +281,7 @@ public partial class CombatViewport : Control
     public Vector2 FocusPoint => new(_focus.X, _focus.Z);
     private static readonly float DefaultPitch = Mathf.Atan2(80, 70);
     private static readonly float OrbitRadius = new Vector2(4200, 4800).Length();
-    private const float RightDragThreshold = 5;
+    internal const float RightDragThreshold = 12;
     private static readonly float OrbitSensitivity = Mathf.DegToRad(.25f);
     private float _yaw;
     private float _pitch = DefaultPitch;

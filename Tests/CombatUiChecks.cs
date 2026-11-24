@@ -158,7 +158,7 @@ public partial class SmokeTests
         var enemyAt = field.GlobalPosition + field.ScreenPoint(enemy.Position, 15);
         var scroll = tactical.SidebarScroll;
         MouseButton(enemyAt, Godot.MouseButton.Right, true);
-        CameraMotion(enemyAt + new Vector2(6, 0), new Vector2(6, 0));
+        CameraMotion(enemyAt + new Vector2(CombatViewport.RightDragThreshold + 1, 0), new Vector2(CombatViewport.RightDragThreshold + 1, 0));
         MouseButton(enemyAt, Godot.MouseButton.Right, false); await Frames();
         Check(tactical.Selected.Select(sim.Unit).All(item => item.PriorityTarget is null), "right-drag over an enemy orbits without choosing a priority target");
         var ordersBefore = tactical.Selected.Select(sim.Unit).Select(item => item.Order).ToArray();
