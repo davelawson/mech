@@ -343,18 +343,18 @@ public partial class CombatViewport : Control
         if (_terrainView is not null) { _world.RemoveChild(_terrainView); _terrainView.QueueFree(); }
         _terrainView = BattlefieldTerrainView.Create(simulation.Terrain); _world.AddChild(_terrainView);
         ApplyLighting(simulation.Terrain.Biome);
-        _focus = new Vector3(0, 0, CombatRules.DeploymentDepth - 600); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 1500;
+        FocusOn(new Vector2(0, CombatRules.DeploymentDepth - 600)); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 1500;
         if (simulation.Patrol is { Layout: var layout })
         {
             // Open behind the company's start, looking into the arena.
             var inward = PatrolLayout.Inward(layout.StartEdge); var focus = layout.StartCenter + inward * 600;
-            _focus = new Vector3(focus.X, 0, focus.Y); _yaw = Mathf.Atan2(-inward.X, -inward.Y);
+            FocusOn(focus); _yaw = Mathf.Atan2(-inward.X, -inward.Y);
         }
         if (simulation.Drop is { Zone: var zone })
         {
             // The drop phase opens over the whole drop zone with north up, whichever edge the zone is on.
             var focus = PatrolLayout.EdgePoint(zone.Edge, 0, CombatRules.DropZoneDepth + 400);
-            _focus = new Vector3(focus.X, 0, focus.Y); _yaw = 0; Camera.Size = 5400;
+            FocusOn(focus); _yaw = 0; Camera.Size = 5400;
         }
         UpdateCamera();
         foreach (var unit in simulation.Units) CreateMech(unit);
@@ -1096,7 +1096,6 @@ public partial class CombatViewport : Control
     }
     private void UpdateCamera()
     {
-        _focus.Y = Simulation?.Terrain.HeightAt(new Vector2(_focus.X, _focus.Z)) ?? 0;
         var horizontal = OrbitRadius * Mathf.Cos(_pitch);
         Camera.Position = _focus + new Vector3(Mathf.Sin(_yaw) * horizontal,
             OrbitRadius * Mathf.Sin(_pitch), Mathf.Cos(_yaw) * horizontal);
@@ -1110,7 +1109,7 @@ public partial class CombatViewport : Control
         var group = Simulation.Units.Where(unit => unit.Side == CombatSide.Friendly && Selection.Contains(unit.Id)).ToArray();
         if (group.Length == 0) group = Simulation.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
         if (group.Length == 0) return;
-        _focus = World(new Vector2((group.Min(unit => unit.Position.X) + group.Max(unit => unit.Position.X)) / 2,
+        FocusOn(new Vector2((group.Min(unit => unit.Position.X) + group.Max(unit => unit.Position.X)) / 2,
             (group.Min(unit => unit.Position.Y) + group.Max(unit => unit.Position.Y)) / 2));
         _yaw = 0; _pitch = DefaultPitch; Camera.Size = 1500; UpdateCamera();
         // Fit the complete visible models, including hills and projecting weapons, in camera space.
@@ -1168,11 +1167,25 @@ public partial class CombatViewport : Control
         _pings.RemoveAll(ping => Now - ping.Placed >= PingSeconds);
         QueueRedraw();
     }
+    /// <summary>Pivots the camera on the ground at a battlefield point.</summary>
+    private void FocusOn(Vector2 point) => _focus = World(point, Simulation?.Terrain.HeightAt(point) ?? 0);
+    // Panning moves the camera across a level plane, so the view keeps a steady pace over slopes.
+    // The pivot then slides along the view axis onto the ground under the view's centre; with an
+    // orthographic camera that slide leaves the picture unchanged.
     private void Pan(Vector2 amount)
     {
         var rotated = amount.Rotated(-_yaw);
-        _focus.X = Math.Clamp(_focus.X + rotated.X, -CombatRules.ArenaHalfSize, CombatRules.ArenaHalfSize);
-        _focus.Z = Math.Clamp(_focus.Z + rotated.Y, -CombatRules.ArenaHalfSize, CombatRules.ArenaHalfSize); UpdateCamera();
+        var half = CombatRules.ArenaHalfSize;
+        var moved = new Vector3(_focus.X + rotated.X, _focus.Y, _focus.Z + rotated.Y);
+        var clamped = new Vector2(Math.Clamp(moved.X, -half, half), Math.Clamp(moved.Z, -half, half));
+        var horizontal = Mathf.Cos(_pitch);
+        var view = -new Vector3(Mathf.Sin(_yaw) * horizontal, Mathf.Sin(_pitch), Mathf.Cos(_yaw) * horizontal);
+        var origin = moved - view * OrbitRadius;
+        if (clamped == new Vector2(moved.X, moved.Z) && Simulation?.Terrain.RayDistance(origin, view, Camera.Far) is { } distance
+            && origin + view * distance is var hit && Math.Abs(hit.X) <= half && Math.Abs(hit.Z) <= half)
+            _focus = hit;
+        else FocusOn(clamped);
+        UpdateCamera();
     }
     // Shots leave the weapon's source muzzle (or its location's center) and end at the rolled hit location.
     // Misses pass beside and beyond that location. A laser hit sweeps linearly from its first location to
@@ -1384,7 +1397,7 @@ public partial class CombatViewport : Control
         if (input is InputEventKey { Pressed: true, Keycode: Key.Up or Key.Down or Key.Left or Key.Right }) AcceptEvent();
     }
     /// <summary>Home: frame the whole arena from the default angle.</summary>
-    public void ResetToArena() { CancelDrag(); _focus = Vector3.Zero; _yaw = 0; _pitch = DefaultPitch; Camera.Size = 6600; UpdateCamera(); }
+    public void ResetToArena() { CancelDrag(); FocusOn(Vector2.Zero); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 6600; UpdateCamera(); }
     private CombatUnit? RangeTarget => Simulation is not null && InspectedEnemy is { } id && Simulation.Detected(CombatSide.Friendly, id) ? Simulation.Unit(id) : null;
     public IReadOnlyList<(CombatUnit Observer, float Identification, float? Detail)> DetectionRanges
     {

@@ -65,9 +65,9 @@ public partial class SmokeTests
             var viewForward = -field.Camera.Basis.Z;
             var expectedForward = new Vector2(viewForward.X, viewForward.Z).Normalized();
             CameraStep(field, .1, Key.W);
-            var actualPan = field.Camera.Position - beforePan;
-            Check(new Vector2(actualPan.X, actualPan.Z).Normalized().DistanceTo(expectedForward) < .01f
-                && Math.Abs(actualPan.Y - (tactical.Simulation!.Terrain.HeightAt(field.GroundPoint(field.Size / 2)) - tactical.Simulation.Terrain.HeightAt(pivot))) < .6f, $"W translates orbit pivot on ground relative to camera facing during rotation: actual {actualPan}, expected direction {expectedForward}, focus {field.HasFocus()}");
+            var actualPan = PanShift(field.Camera.Position - beforePan, viewForward);
+            Check(actualPan.Normalized().DistanceTo(expectedForward) < .01f && PivotOnGround(field),
+                $"W translates orbit pivot on ground relative to camera facing during rotation: actual {actualPan}, expected direction {expectedForward}, focus {field.HasFocus()}");
             MouseButton(new Vector2(-20, -20), Godot.MouseButton.Right, false); await Frames();
             Check(commands == 1 && Input.MouseMode == previousMode, "release outside battlefield ends orbit without an order");
             original = field.Camera.Transform;
@@ -78,17 +78,17 @@ public partial class SmokeTests
             Near(field.Camera.Size, 6600, "Home restores expanded overview zoom");
             Near(-Mathf.RadToDeg(field.Camera.Rotation.X), Mathf.RadToDeg(Mathf.Atan2(80, 70)), "Home restores default elevation");
             Check(field.GroundPoint(field.Size / 2).Length() < .3f, "Home restores arena center");
+            var view = -field.Camera.Basis.Z;
             var start = field.Camera.Position;
             CameraStep(field, .1, Key.W);
-            var cardinalDelta = field.Camera.Position - start;
-            var cardinalDistance = new Vector2(cardinalDelta.X, cardinalDelta.Z).Length();
+            var cardinalDistance = PanShift(field.Camera.Position - start, view).Length();
             Near(cardinalDistance, field.Camera.Size * .05f, "WASD speed scales with zoom without acceleration");
             start = field.Camera.Position;
             CameraStep(field, .1, Key.W, Key.D);
-            Near(new Vector2(field.Camera.Position.X - start.X, field.Camera.Position.Z - start.Z).Length(), cardinalDistance, "diagonal WASD speed matches cardinal speed");
+            Near(PanShift(field.Camera.Position - start, view).Length(), cardinalDistance, "diagonal WASD speed matches cardinal speed");
             start = field.Camera.Position;
             CameraStep(field, .1, Key.Shift, Key.S);
-            Near(new Vector2(field.Camera.Position.X - start.X, field.Camera.Position.Z - start.Z).Length(),
+            Near(PanShift(field.Camera.Position - start, view).Length(),
                 cardinalDistance * CombatViewport.FastPanMultiplier, "Shift pans five times faster");
             start = field.Camera.Position;
             field._Process(.1);
@@ -97,7 +97,32 @@ public partial class SmokeTests
             MouseButton(at, Godot.MouseButton.WheelUp, false);
             start = field.Camera.Position;
             CameraStep(field, .1, Key.Up);
-            Near(new Vector2(field.Camera.Position.X - start.X, field.Camera.Position.Z - start.Z).Length(), field.Camera.Size * .05f, "arrow movement retains zoom-scaled speed");
+            Near(PanShift(field.Camera.Position - start, view).Length(), field.Camera.Size * .05f, "arrow movement retains zoom-scaled speed");
+            await PressKey(Key.Home);
+            field.Camera.Size = 1500;
+            // Pan W (toward -Z) along the hilliest line from the arena centre, so the view crosses slopes.
+            var terrain = tactical.Simulation!.Terrain;
+            float Relief(float x)
+            {
+                var heights = Enumerable.Range(0, 21).Select(i => terrain.HeightAt(new Vector2(x, -i * 75))).ToArray();
+                return heights.Max() - heights.Min();
+            }
+            var line = Enumerable.Range(-8, 17).Select(i => i * 250f).MaxBy(Relief);
+            if (line != 0) CameraStep(field, Math.Abs(line) / (field.Camera.Size * .5f), line > 0 ? Key.D : Key.A);
+            var marker = field.Camera.Position - field.Camera.Basis.Z * new Vector2(4200, 4800).Length();
+            var previous = field.Unproject(marker);
+            var steps = new List<Vector2>(); var reliefs = new List<float>();
+            for (var i = 0; i < 20; i++)
+            {
+                CameraStep(field, .1, Key.W);
+                var now = field.Unproject(marker); steps.Add(now - previous); previous = now;
+                reliefs.Add(terrain.HeightAt(field.GroundPoint(field.Size / 2)));
+                if (!PivotOnGround(field)) { Check(false, $"pan keeps orbit pivot on the ground at step {i}"); break; }
+            }
+            Check(reliefs.Max() - reliefs.Min() > 10, $"slope pan test crosses changing terrain: relief {reliefs.Max() - reliefs.Min():0.0} m on line x={line}");
+            Check(steps.All(step => step.DistanceTo(steps[0]) < .1f),
+                $"WASD pans at a steady screen pace over slopes: steps {string.Join(", ", steps.Select(step => step.ToString("0.00")))}");
+            await PressKey(Key.Home);
             CameraStep(field, 100, Key.W, Key.D);
             var groundFocus = field.GroundPoint(field.Size / 2);
             Check(groundFocus.DistanceTo(new Vector2(2870.25f, -2870.25f)) < .3f, "camera pivot clamps to expanded battlefield edges");
@@ -157,6 +182,19 @@ public partial class SmokeTests
         Position = ToWindow(at), GlobalPosition = ToWindow(at), Relative = ToWindowDelta(delta), ScreenRelative = ToWindowDelta(delta),
         ButtonMask = Input.IsMouseButtonPressed(Godot.MouseButton.Right) ? MouseButtonMask.Right : 0
     });
+    // The camera's horizontal shift with any slide along its view axis removed; such a slide leaves the orthographic picture unchanged.
+    private static Vector2 PanShift(Vector3 delta, Vector3 view)
+    {
+        var level = delta - view * (delta.Y / view.Y);
+        return new Vector2(level.X, level.Z);
+    }
+    private static bool PivotOnGround(CombatViewport field)
+    {
+        // The camera orbits a pivot OrbitRadius ahead along its view axis; that pivot is the ground under the view's centre.
+        var ground = field.GroundPoint(field.Size / 2);
+        var pivot = field.Camera.Position - field.Camera.Basis.Z * new Vector2(4200, 4800).Length();
+        return new Vector2(pivot.X, pivot.Z).DistanceTo(ground) < .5f && Math.Abs(pivot.Y - field.Simulation!.Terrain.HeightAt(ground)) < .5f;
+    }
     private static void CameraStep(CombatViewport field, double delta, params Key[] keys)
     {
         foreach (var key in keys) Input.ParseInputEvent(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = true });
