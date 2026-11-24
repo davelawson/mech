@@ -44,7 +44,6 @@ public partial class CombatScreen : Control
     public Label TimeLabel { get; private set; } = null!;
     /// <summary>The highlighted time button, this player's own pick: "Pause" while their toggle holds the battle, otherwise "1x" or "4x".</summary>
     public string TimeMode { get; private set; } = "Pause";
-    public Button MenuButton { get; private set; } = null!;
     public Button ResumeButton { get; private set; } = null!;
     public Button EndButton { get; private set; } = null!;
     public Button AudioButton { get; private set; } = null!;
@@ -119,7 +118,6 @@ public partial class CombatScreen : Control
     public Label SalvageCount { get; private set; } = null!;
     public Button ClaimSalvageButton { get; private set; } = null!;
     public Button TakeNothingButton { get; private set; } = null!;
-    private Label _title = null!;
     /// <summary>Deployed to the current mission, whose result is settled into the campaign, rather than a simulation.</summary>
     public bool MissionMode => _mission is not null;
     /// <summary>The roster this deployment was opened with: pending hangar loadouts included.</summary>
@@ -127,7 +125,6 @@ public partial class CombatScreen : Control
     private readonly List<string> _selected = [];
     private readonly List<string> _forceIds = [];
     private readonly List<(CombatWeapon Weapon, CheckButton Control)> _weaponControls = [];
-    private Control _top = null!;
     private PanelContainer _timePanel = null!;
     private readonly Dictionary<Button, TimeControlIcon> _timeIcons = [];
     private PanelContainer _sidebar = null!;
@@ -135,9 +132,41 @@ public partial class CombatScreen : Control
     private Control _shade = null!;
     private PanelContainer _modalPanel = null!;
     private VBoxContainer _modalContent = null!;
-    private Label _status = null!;
-    /// <summary>The status line beneath the title: contacts, the patrol objective and notices.</summary>
-    public string StatusText => _status.Text;
+    /// <summary>The overlays' translucent fill, which darkens the battlefield beneath without hiding it.</summary>
+    public static readonly Color HudFill = new(0, 0, 0, .55f);
+    private static readonly StyleBoxFlat HudBox = Ui.Box(HudFill, new Color(Ui.Line, .8f));
+    private static readonly StyleBoxFlat HudHoverBox = Ui.Box(new Color(.1f, .14f, .1f, .65f), Ui.Gold);
+    private static readonly StyleBoxFlat HudSelectedBox = Ui.Box(new Color(.2f, .27f, .19f, .6f), Ui.Gold);
+    /// <summary>A button drawn as a translucent overlay in every state but focus.</summary>
+    private static void HudButton(Button button)
+    {
+        button.AddThemeStyleboxOverride("normal", HudBox); button.AddThemeStyleboxOverride("disabled", HudBox);
+        button.AddThemeStyleboxOverride("hover", HudHoverBox); button.AddThemeStyleboxOverride("pressed", HudSelectedBox);
+        button.AddThemeStyleboxOverride("hover_pressed", HudSelectedBox);
+    }
+    private static readonly Dictionary<string, StyleBoxFlat> HudStates = new() { ["normal"] = HudBox, ["hover"] = HudHoverBox, ["pressed"] = HudSelectedBox };
+    /// <summary>One card per enemy contact, in the order they were first detected, at the top left of the battlefield.</summary>
+    public List<Button> ContactButtons { get; } = [];
+    /// <summary>The enemy each contact card stands for, in card order.</summary>
+    public IReadOnlyList<string> ContactIds => _contactIds;
+    private readonly List<string> _contactIds = [];
+    private readonly List<CombatPaperdoll> _contactDolls = [];
+    private readonly List<TextureRect> _contactIcons = [];
+    private Control _contactBar = null!;
+    public static readonly Vector2 ContactCardSize = new(64, 74);
+    private const float ContactCardGap = 4;
+    /// <summary>The mission's objective, floating at the top left below the contact cards.</summary>
+    public Label ObjectiveLabel { get; private set; } = null!;
+    /// <summary>A notice for the local player, such as a refused jump, in red below the time panel; it fades after a few seconds.</summary>
+    public PanelContainer NoticeStrip { get; private set; } = null!;
+    public Label NoticeLabel { get; private set; } = null!;
+    /// <summary>The notice on show, or null once it has faded.</summary>
+    public string? Notice => _noticeSeconds > 0 ? _notice : null;
+    private string? _notice;
+    private double _noticeSeconds;
+    public const double NoticeSeconds = 3, NoticeFadeSeconds = .5;
+    /// <summary>The details panel shows only while a friendly is selected or an enemy inspected.</summary>
+    public PanelContainer Sidebar => _sidebar;
     private Label _selectionTitle = null!;
     private Label _unitInfo = null!;
     private Label _targetInfo = null!;
@@ -174,11 +203,9 @@ public partial class CombatScreen : Control
         BattleLog.CloseRequested += ToggleBattleLog;
         ControlsPanel = new CombatControlsPanel { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; AddChild(ControlsPanel);
         ControlsPanel.CloseRequested += ToggleControls;
-        _top = new Control { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; AddChild(_top);
-        _title = Ui.Label(_top, "SIMULATED DEPLOYMENT", 20, Ui.Gold); _title.Position = new Vector2(20, 9);
-        _status = Ui.Label(_top, "Select your force", 13, Ui.Muted); _status.Position = new Vector2(20, 36); _status.ClipText = true;
-        _timePanel = new PanelContainer(); _top.AddChild(_timePanel);
-        var panelBox = Ui.Box(Ui.Panel, Ui.Line); panelBox.ContentMarginTop = panelBox.ContentMarginBottom = 3;
+        // The time panel, contacts, objective and notices float over the battlefield, which fills the window.
+        _timePanel = new PanelContainer { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; AddChild(_timePanel);
+        var panelBox = (StyleBoxFlat)HudBox.Duplicate(); panelBox.ContentMarginTop = panelBox.ContentMarginBottom = 3;
         _timePanel.AddThemeStyleboxOverride("panel", panelBox);
         var timeBody = new VBoxContainer(); timeBody.AddThemeConstantOverride("separation", 0); _timePanel.AddChild(timeBody);
         TimeLabel = Ui.Label(timeBody, "00:00", 20); TimeLabel.HorizontalAlignment = HorizontalAlignment.Center;
@@ -188,7 +215,11 @@ public partial class CombatScreen : Control
         PlayButton = TimeButton(timeButtons, TimeControlIcon.Glyph.Play, "1x  [,]"); PlayButton.Pressed += () => SetSpeed(1);
         FastForwardButton = TimeButton(timeButtons, TimeControlIcon.Glyph.FastForward, "4x  [.]");
         FastForwardButton.Pressed += () => SetSpeed(CombatSimulation.FastTimeScale);
-        MenuButton = Ui.Button(_top, "Combat menu  [Esc]"); MenuButton.Pressed += OpenMenu;
+        _contactBar = new Control { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled, MouseFilter = MouseFilterEnum.Ignore }; AddChild(_contactBar);
+        ObjectiveLabel = Ui.Label(this, "", 14, Ui.Gold); ObjectiveLabel.Visible = false;
+        ObjectiveLabel.AddThemeConstantOverride("outline_size", 5); ObjectiveLabel.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, .85f));
+        NoticeStrip = new PanelContainer { Visible = false, MouseFilter = MouseFilterEnum.Ignore }; NoticeStrip.AddThemeStyleboxOverride("panel", HudBox); AddChild(NoticeStrip);
+        NoticeLabel = Ui.Label(NoticeStrip, "", 14, new Color("ec5a4a"));
         _sidebar = new PanelContainer { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; _sidebar.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Line)); AddChild(_sidebar);
         // The title and paperdoll stay pinned at the top; only the details below them scroll.
         var column = new VBoxContainer(); column.AddThemeConstantOverride("separation", 6); _sidebar.AddChild(column);
@@ -318,7 +349,7 @@ public partial class CombatScreen : Control
         ForceDropButton.Visible = Leading && drop.Sites.Count > 1;
         DropBanner.Size = Vector2.Zero;
         var size = DropBanner.GetCombinedMinimumSize();
-        Ui.Place(DropBanner, (Size.X - size.X) / 2, Math.Max(72, _timePanel.Position.Y + _timePanel.Size.Y + 6) + (WaitingBanner.Visible ? WaitingBanner.Size.Y + 6 : 0),
+        Ui.Place(DropBanner, (Size.X - size.X) / 2, BannerTop + (WaitingBanner.Visible ? WaitingBanner.Size.Y + 6 : 0),
             size.X, size.Y);
     }
     /// <summary>Chooses the local player's drop site, as a left-click on the battlefield does.</summary>
@@ -351,7 +382,7 @@ public partial class CombatScreen : Control
         AcceptSurrenderButton.Visible = RefuseSurrenderButton.Visible = Leading;
         SurrenderBanner.Size = Vector2.Zero;
         var size = SurrenderBanner.GetCombinedMinimumSize();
-        Ui.Place(SurrenderBanner, (Size.X - size.X) / 2, Math.Max(72, _timePanel.Position.Y + _timePanel.Size.Y + 6) + (WaitingBanner.Visible ? WaitingBanner.Size.Y + 6 : 0),
+        Ui.Place(SurrenderBanner, (Size.X - size.X) / 2, BannerTop + (WaitingBanner.Visible ? WaitingBanner.Size.Y + 6 : 0),
             size.X, size.Y);
     }
     private void AnswerSurrender(bool accept)
@@ -369,42 +400,75 @@ public partial class CombatScreen : Control
     }
     private const double EjectConfirmSeconds = 4;
     private double _ejectArmed;
+    /// <summary>Where banners begin: below the time panel and any notice beneath it.</summary>
+    private float BannerTop => _timePanel.Position.Y + _timePanel.Size.Y + 6 + (NoticeStrip.Visible ? NoticeStrip.Size.Y + 6 : 0);
     private void PlaceBanner()
     {
         WaitingBanner.Size = Vector2.Zero;
         var banner = WaitingBanner.GetCombinedMinimumSize();
-        Ui.Place(WaitingBanner, (Size.X - banner.X) / 2, Math.Max(72, _timePanel.Position.Y + _timePanel.Size.Y + 6), banner.X, banner.Y);
+        Ui.Place(WaitingBanner, (Size.X - banner.X) / 2, BannerTop, banner.X, banner.Y);
     }
     private void Layout()
     {
-        if (_top is null) return;
+        if (_timePanel is null) return;
         var sidebar = Size.X < 1100 ? 280 : 330;
-        Ui.Place(_top, 0, 0, Size.X, 66);
-        Ui.Place(MenuButton, Size.X - 190, 14, 174, 38);
+        Ui.Place(Battlefield, 0, 0, Size.X, Size.Y);
         _timePanel.Size = Vector2.Zero;
         var timePanel = _timePanel.GetCombinedMinimumSize();
-        Ui.Place(_timePanel, Mathf.Round((Size.X - timePanel.X) / 2), 2, timePanel.X, timePanel.Y);
-        // The status line stops short of the time panel so a long objective never runs under it.
-        Ui.Place(_status, 20, 36, Math.Max(0, _timePanel.Position.X - 36), 22);
-        var logWidth = BattleLog.Visible ? Math.Clamp(Size.X * .29f, 290, 420) : 0;
+        Ui.Place(_timePanel, Mathf.Round((Size.X - timePanel.X) / 2), 8, timePanel.X, timePanel.Y);
         // Unit cards shrink on short windows so the battlefield keeps its height.
         var unitBar = _unitBarHeight = Math.Clamp(Size.Y * .13f, 78, 124);
-        var field = Size.Y - 82 - unitBar;
-        Ui.Place(BattleLog, 0, 66, logWidth, Math.Min(field, 12 * 56 + 56));
-        Ui.Place(Battlefield, logWidth, 66, Size.X - sidebar - 8 - logWidth, field);
-        Ui.Place(_sidebar, Size.X - sidebar, 66, sidebar - 12, field);
-        // The controls lie over the battlefield's right edge, beside the sidebar, without resizing the field.
+        var cardsTop = Size.Y - 8 - unitBar;
+        // Contact cards fill rows from the top left, stopping short of the time panel.
+        var contactWidth = Math.Max(ContactCardSize.X, _timePanel.Position.X - 16);
+        var perRow = Math.Max(1, (int)((contactWidth + ContactCardGap) / (ContactCardSize.X + ContactCardGap)));
+        for (var i = 0; i < ContactButtons.Count; i++)
+            Ui.Place(ContactButtons[i], i % perRow * (ContactCardSize.X + ContactCardGap), i / perRow * (ContactCardSize.Y + ContactCardGap),
+                ContactCardSize.X, ContactCardSize.Y);
+        var rows = (ContactButtons.Count + perRow - 1) / perRow;
+        var contactHeight = rows == 0 ? 0 : rows * ContactCardSize.Y + (rows - 1) * ContactCardGap;
+        Ui.Place(_contactBar, 8, 8, contactWidth, contactHeight);
+        var top = 8 + (rows > 0 ? contactHeight + 8 : 0);
+        ObjectiveLabel.Size = Vector2.Zero;
+        var objective = ObjectiveLabel.GetCombinedMinimumSize();
+        Ui.Place(ObjectiveLabel, 12, top, objective.X, objective.Y);
+        if (ObjectiveLabel.Visible) top += objective.Y + 8;
+        var logWidth = BattleLog.Visible ? Math.Clamp(Size.X * .29f, 290, 420) : 0;
+        Ui.Place(BattleLog, 8, top, logWidth, Math.Max(0, Math.Min(cardsTop - 8 - top, 12 * 56 + 56)));
+        // The details panel floats over the battlefield's right edge, above the cards.
+        Ui.Place(_sidebar, Size.X - sidebar, 8, sidebar - 12, cardsTop - 16);
+        // The controls lie beside the details panel, or at the right edge while it is hidden.
         var controls = Math.Clamp(Size.X * .3f, 300, 440);
-        Ui.Place(ControlsPanel, Size.X - sidebar - 8 - controls, 66, controls, field);
+        Ui.Place(ControlsPanel, (_sidebar.Visible ? Size.X - sidebar - 8 : Size.X - 12) - controls, 8, controls, cardsTop - 16);
         // Shrink the cards first: a container never sizes below its children's current minimum.
         LayoutUnitCards();
-        Ui.Place(_unitBar, 16, Size.Y - 8 - unitBar, Size.X - 32, unitBar);
+        Ui.Place(_unitBar, 16, cardsTop, Size.X - 32, unitBar);
+        PlaceNotice();
         if (WaitingBanner is not null) PlaceBanner();
         // The results' tables need nearly the whole screen.
         var results = Modal == CombatModal.Results;
         var width = results ? Mathf.Round(Size.X * .9f) : Math.Min(760, Size.X - 48);
         var height = results ? Mathf.Round(Size.Y * .9f) : Math.Min(650, Size.Y - 48);
         Ui.Place(_modalPanel, (Size.X - width) / 2, (Size.Y - height) / 2, width, height);
+    }
+    private void PlaceNotice()
+    {
+        NoticeStrip.Size = Vector2.Zero;
+        var notice = NoticeStrip.GetCombinedMinimumSize();
+        Ui.Place(NoticeStrip, Mathf.Round((Size.X - notice.X) / 2), _timePanel.Position.Y + _timePanel.Size.Y + 6, notice.X, notice.Y);
+    }
+    /// <summary>Shows a notice to the local player in red below the time panel, fading after a few seconds.</summary>
+    public void Notify(string text)
+    {
+        _notice = text; _noticeSeconds = NoticeSeconds; NoticeLabel.Text = text;
+        NoticeStrip.Modulate = Colors.White; NoticeStrip.Show(); PlaceNotice();
+    }
+    private void FadeNotice(double delta)
+    {
+        if (_noticeSeconds <= 0) return;
+        _noticeSeconds = Math.Max(0, _noticeSeconds - delta);
+        NoticeStrip.Modulate = new Color(1, 1, 1, (float)Math.Min(1, _noticeSeconds / NoticeFadeSeconds));
+        if (_noticeSeconds == 0) NoticeStrip.Hide();
     }
     public void Open(ForceRoster roster, string selectedMechId)
     {
@@ -426,8 +490,8 @@ public partial class CombatScreen : Control
         _roster = roster; _mission = mission; _settle = settle; _settlement = null; SalvagePool = []; SalvageChoices.Clear(); _resultsTab = 0; ExpandedResults.Clear();
         WaitingBanner.Hide();
         Coop = false; Leading = true; ForceReady = false; _othersReady = false; Orders = null;
-        Simulation = null; _primary = null; _selected.Clear(); SettingJump = false; _jumpNoticeSeconds = 0;
-        _title.Text = mission is null ? "SIMULATED DEPLOYMENT" : $"MISSION · {mission.Name.ToUpperInvariant()}";
+        Simulation = null; _primary = null; _selected.Clear(); SettingJump = false;
+        _noticeSeconds = 0; NoticeStrip.Hide(); ObjectiveLabel.Hide(); ObjectiveLabel.Text = ""; _sidebar.Hide();
         BattleLog.Hide(); ControlsPanel.Hide(); Layout();
         Show();
     }
@@ -575,10 +639,11 @@ public partial class CombatScreen : Control
         BattleLog.Hide(); BattleLog.Display(Simulation); Layout();
         Battlefield.MouseFilter = MouseFilterEnum.Stop;
         RosterUi.Clear(_unitBar); UnitButtons.Clear(); UnitDolls.Clear(); UnitFaces.Clear(); UnitStatusIcons.Clear();
+        RosterUi.Clear(_contactBar); ContactButtons.Clear(); _contactIds.Clear(); _contactDolls.Clear(); _contactIcons.Clear();
         foreach (var unit in OwnUnits)
         {
             var button = Ui.Button(_unitBar, CardText(unit));
-            button.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
+            button.SizeFlagsHorizontal = SizeFlags.ShrinkBegin; HudButton(button);
             button.ClipText = true; button.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
             // The stress face sits in the top right corner, clear of the names; clicks pass through it.
             var face = new TextureRect { ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
@@ -599,13 +664,71 @@ public partial class CombatScreen : Control
             button.AddChild(doll);
             doll.SetAnchorsAndOffsetsPreset(LayoutPreset.BottomWide);
             UnitButtons.Add(button); UnitDolls.Add(doll);
-            button.Pressed += () => { Battlefield.InspectedEnemy = null; SelectUnits([unit.Id], Input.IsKeyPressed(Key.Shift)); };
+            button.Pressed += () => PressUnitCard(unit.Id, Input.IsKeyPressed(Key.Shift));
         }
         LayoutUnitCards();
         SelectUnits([OwnUnits.First().Id], false);
         _dropBounced = simulation.Drop?.Site(Slot).Bounced ?? 0; _dropNoticeSeconds = 0; _dropping = simulation.Drop is not null;
         Battlefield.GrabFocus(); RefreshDetails();
     }
+    /// <summary>A unit card: selects its mech, or, when that mech alone is already selected, carries the camera to it.</summary>
+    public void PressUnitCard(string id, bool additive)
+    {
+        if (Simulation is null) return;
+        if (!additive && Battlefield.InspectedEnemy is null && _selected.Count == 1 && _selected[0] == id) { Battlefield.GlideTo(Simulation.Unit(id).Position); return; }
+        Battlefield.InspectedEnemy = null; SelectUnits([id], additive);
+    }
+    /// <summary>A contact card: carries the camera to the enemy, or where it was last seen, and inspects it while it is detected.</summary>
+    public void PressContactCard(string id)
+    {
+        if (Simulation is null || !Simulation.Contacts(CombatSide.Friendly).TryGetValue(id, out var contact)) return;
+        Battlefield.GlideTo(contact.Detected ? Simulation.Unit(id).Position : contact.LastKnownPosition);
+        if (contact.Detected) Battlefield.InspectedEnemy = id;
+        RefreshDetails();
+    }
+    private void AddContactCard(CombatUnit enemy)
+    {
+        var card = new Button { FocusMode = FocusModeEnum.None, ClipText = true }; HudButton(card);
+        _contactBar.AddChild(card);
+        var doll = new CombatPaperdoll { Silhouette = true }; card.AddChild(doll);
+        doll.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        doll.OffsetLeft = 6; doll.OffsetRight = -6; doll.OffsetTop = 5; doll.OffsetBottom = -20;
+        var name = Ui.Label(card, enemy.Spec.Chassis, 11); name.HorizontalAlignment = HorizontalAlignment.Center;
+        name.ClipText = true; name.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+        name.SetAnchorsAndOffsetsPreset(LayoutPreset.BottomWide); name.OffsetTop = -19; name.OffsetBottom = -3; name.OffsetLeft = 2; name.OffsetRight = -2;
+        var icon = new TextureRect { ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+            MouseFilter = MouseFilterEnum.Ignore, Visible = false };
+        card.AddChild(icon); icon.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
+        icon.OffsetLeft = 3; icon.OffsetTop = 3; icon.OffsetRight = 3 + 16; icon.OffsetBottom = 3 + 16;
+        var id = enemy.Id; card.Pressed += () => PressContactCard(id);
+        ContactButtons.Add(card); _contactIds.Add(id); _contactDolls.Add(doll); _contactIcons.Add(icon);
+    }
+    /// <summary>Adds a card for each new contact and shows each card's state: dimmed while lost, with its status once defeated.</summary>
+    private bool RefreshContacts()
+    {
+        var contacts = Simulation!.Contacts(CombatSide.Friendly);
+        var added = false;
+        foreach (var id in contacts.Keys.Where(id => !_contactIds.Contains(id))) { AddContactCard(Simulation.Unit(id)); added = true; }
+        for (var i = 0; i < _contactIds.Count; i++)
+        {
+            var enemy = Simulation.Unit(_contactIds[i]);
+            var detected = contacts.TryGetValue(enemy.Id, out var contact) && contact.Detected;
+            var detailed = Simulation.DetailsVisible(CombatSide.Friendly, enemy.Id);
+            _contactDolls[i].DisplaySilhouette(enemy, detailed);
+            var status = enemy.Defeated ? CombatPaperdoll.StatusIcon(enemy) : null;
+            _contactIcons[i].Visible = status is not null;
+            if (status is { } shown) { _contactIcons[i].Texture = shown.Icon; _contactIcons[i].SelfModulate = shown.Tint; }
+            var card = ContactButtons[i];
+            card.Modulate = new Color(1, 1, 1, detected ? 1 : .45f);
+            var inspected = Battlefield.InspectedEnemy == enemy.Id;
+            card.AddThemeStyleboxOverride("normal", inspected ? HudSelectedBox : HudBox);
+            card.TooltipText = (detailed ? enemy.Spec.DisplayName : enemy.Spec.Chassis) + (enemy.Defeated ? $" · {enemy.Status}" : "")
+                + (detected ? "" : " · Contact lost: last known position");
+        }
+        return added;
+    }
+    private string ObjectiveText() => Simulation!.PatrolObjectiveText() is { } patrol ? patrol
+        : _mission?.Objective ?? "Defeat the opposing force.";
     public void SelectUnits(IReadOnlyList<string> ids, bool additive)
     {
         if (!additive) _selected.Clear();
@@ -702,14 +825,11 @@ public partial class CombatScreen : Control
         if (blocked is not null) RefuseJump(blocked);
         RefreshDetails();
     }
-    /// <summary>Why the last jump was refused or lapsed, shown on the status line for a moment; null otherwise.</summary>
-    public string? JumpNotice => _jumpNoticeSeconds > 0 ? _jumpNotice : null;
-    private string? _jumpNotice;
-    private double _jumpNoticeSeconds;
-    private const double JumpNoticeSeconds = 3;
+    /// <summary>Why the last jump was refused or lapsed, shown as a notice for a moment; null otherwise.</summary>
+    public string? JumpNotice => Notice is { } notice && notice.StartsWith("Cannot jump", StringComparison.Ordinal) ? notice : null;
     private void RefuseJump(string reason)
     {
-        _jumpNotice = $"Cannot jump: {reason}"; _jumpNoticeSeconds = JumpNoticeSeconds;
+        Notify($"Cannot jump: {reason}");
         SoundPlayer.For(this)?.Play(Cue.UiError);
     }
     private void StopUnits() => Send(new HoldCommand([.. _selected]));
@@ -729,7 +849,7 @@ public partial class CombatScreen : Control
     }
     private Button TimeButton(Node parent, TimeControlIcon.Glyph glyph, string tooltip)
     {
-        var button = Ui.Button(parent, ""); button.CustomMinimumSize = new Vector2(40, 28); button.TooltipText = tooltip;
+        var button = Ui.Button(parent, ""); button.CustomMinimumSize = new Vector2(40, 28); button.TooltipText = tooltip; HudButton(button);
         var icon = new TimeControlIcon(glyph); button.AddChild(icon); _timeIcons[button] = icon;
         return button;
     }
@@ -749,7 +869,8 @@ public partial class CombatScreen : Control
     {
         _timeIcons[button].Color = yellow ? Ui.Background : TimeMode == mode ? Ui.Gold : Ui.Muted;
         foreach (var state in FlashStates)
-            if (yellow) button.AddThemeStyleboxOverride(state, _flashBox); else button.RemoveThemeStyleboxOverride(state);
+            if (yellow) button.AddThemeStyleboxOverride(state, _flashBox);
+            else if (HudStates.TryGetValue(state, out var hud)) button.AddThemeStyleboxOverride(state, hud); else button.RemoveThemeStyleboxOverride(state);
         var others = Coop ? Simulation!.Players.Where(slot => slot != Slot && Pick(slot) == mode).Select(PlayerName).ToArray() : [];
         button.TooltipText = tooltip + (others.Length > 0 ? $"\nSelected by {string.Join(", ", others)}" : "");
     }
@@ -1061,7 +1182,7 @@ public partial class CombatScreen : Control
         SoundHeatAlarm(delta);
         _uiElapsed += delta; _flashClock += delta;
         if (_ejectArmed > 0 && (_ejectArmed -= delta) <= 0) { _ejectArmed = 0; RefreshDetails(); }
-        if (_jumpNoticeSeconds > 0) _jumpNoticeSeconds = Math.Max(0, _jumpNoticeSeconds - delta);
+        FadeNotice(delta);
         if (_dropNoticeSeconds > 0) _dropNoticeSeconds = Math.Max(0, _dropNoticeSeconds - delta);
         if (_uiElapsed >= .1) { _uiElapsed = 0; RefreshDetails(); }
     }
@@ -1080,10 +1201,11 @@ public partial class CombatScreen : Control
     {
         if (Simulation is null) return;
         RefreshSurrender(); RefreshDrop();
-        _status.Text = (Simulation.Drop is not null ? "DROP PHASE · the battle begins, paused, once every lance has landed"
-                : $"Contacts {Simulation.Contacts(CombatSide.Friendly).Values.Count(item => item.Detected)}")
-            + (Simulation.PatrolObjectiveText() is { } objective ? $"  |  {objective}" : "")
-            + (JumpNotice is { } notice ? $"  |  {notice}" : "");
+        // Overlays that change size or appear move what lies below them.
+        var relayout = RefreshContacts();
+        var objective = ObjectiveText();
+        if (ObjectiveLabel.Text != objective || ObjectiveLabel.Visible != (objective != ""))
+        { ObjectiveLabel.Text = objective; ObjectiveLabel.Visible = objective != ""; relayout = true; }
         // The time panel shows the local player's own pick and flashes for the battle's state and other players' picks.
         RefreshTimePanel();
         // Jump targeting lapses once no selected unit can still jump.
@@ -1099,7 +1221,7 @@ public partial class CombatScreen : Control
             var status = CombatPaperdoll.StatusIcon(friend);
             UnitStatusIcons[i].Visible = status is not null;
             if (status is { } shown) { UnitStatusIcons[i].Texture = shown.Icon; UnitStatusIcons[i].SelfModulate = shown.Tint; }
-            button.AddThemeStyleboxOverride("normal", CardBox(Ui.Box(_selected.Contains(friend.Id) ? new Color("344431") : Ui.Panel, _selected.Contains(friend.Id) ? Ui.Gold : Ui.Line)));
+            button.AddThemeStyleboxOverride("normal", CardBox(_selected.Contains(friend.Id) ? HudSelectedBox : HudBox));
             // A friendly card shows its MechWarrior's stress as a tinted face beside the callsign.
             UnitFaces[i].Visible = !friend.Defeated; UnitFaces[i].Texture = CombatPaperdoll.StressIcon(friend.Stress);
             UnitFaces[i].SelfModulate = CombatPaperdoll.StressColor(friend.Stress);
@@ -1110,6 +1232,10 @@ public partial class CombatScreen : Control
         var inspected = Battlefield.InspectedEnemy;
         if (inspected is not null && !Simulation.Detected(CombatSide.Friendly, inspected))
             Battlefield.InspectedEnemy = inspected = null;
+        // With nothing selected or inspected, the details panel is hidden.
+        var details = unit is not null || inspected is not null;
+        if (_sidebar.Visible != details) { _sidebar.Visible = details; relayout = true; }
+        if (relayout) Layout();
         _settings.Visible = active.Length > 0 && inspected is null;
         _weapons.Visible = inspected is null;
         _weaponsTitle.Visible = unit is not null && inspected is null;
@@ -1144,13 +1270,7 @@ public partial class CombatScreen : Control
             _targetInfo.Text = "";
             return;
         }
-        if (unit is null)
-        {
-            _selectionTitle.Text = "Select a BattleMech";
-            _unitInfo.Text = "Click a friendly unit or its card below. Drag across the field to select a group.";
-            _targetInfo.Text = "";
-            return;
-        }
+        if (unit is null) return;
         _selectionTitle.Text = _selected.Count > 1 ? $"{_selected.Count} selected · {unit.Warrior.Callsign}" : $"{unit.Warrior.Callsign} · {unit.Spec.Chassis}";
         // Heat, cooling, jump and order state are left to the dolls, cards, controls and battlefield.
         _unitInfo.Text = $"{unit.Spec.DisplayName} · {unit.Status}{unit.StanceText()}{StressReadout(unit)}";

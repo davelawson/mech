@@ -211,7 +211,7 @@ public partial class SmokeTests
         foreach (var size in new[] { new Vector2I(1440, 900), new Vector2I(900, 500) })
         {
             GetWindow().Size = size; await Frames();
-            Check(tactical.GetGlobalRect().Encloses(tactical.MenuButton.GetGlobalRect()) && field.Size.X > 500 && field.Size.Y > 300, $"combat field and menu survive {size}");
+            Check(tactical.GetGlobalRect().Encloses(tactical.FastForwardButton.GetGlobalRect()) && field.Size.X > 500 && field.Size.Y > 300, $"combat field and time controls survive {size}");
             await Capture($"combat-{size.X}x{size.Y}");
         }
         GetWindow().Size = new Vector2I(1440, 900); await Frames();

@@ -21,6 +21,10 @@ public partial class CombatPaperdoll : Control
 {
     public CombatUnit? Unit { get; private set; }
     public bool Compact { get; init; }
+    /// <summary>A contact card's doll: only the front view, each location filled with its front armour's condition, and no gauges.</summary>
+    public bool Silhouette { get; init; }
+    /// <summary>A silhouette whose armour is known; an unidentified contact is drawn as a plain grey outline of a mech.</summary>
+    public bool Detailed { get; private set; } = true;
     /// <summary>Raised with the whole heat limit 0–30 while the player clicks or drags the heat bar.</summary>
     public event Action<int>? HeatLimitChanged;
     /// <summary>Only the sidebar doll of a friendly mech still in the battle offers the heat-limit handle.</summary>
@@ -130,17 +134,25 @@ public partial class CombatPaperdoll : Control
     // The compact doll tucks the rear strip beside the front view.
     private static readonly Vector2 CompactRearShift = new(-26, 0);
     private static readonly Rect2 CompactBounds = new(4, 22, 262, 188);
+    /// <summary>The front view's extent, which a silhouette fills.</summary>
+    private static readonly Rect2 FrontBounds = new(7, 25, 164, 183);
     private MechLocation? _tooltipLocation;
     public override void _Ready()
     {
         // Pass keeps wheel scrolling in the sidebar while the doll shows tooltips.
-        CustomMinimumSize = Compact ? Vector2.Zero : new(0, FullMinimumHeight);
-        MouseFilter = Compact ? MouseFilterEnum.Ignore : MouseFilterEnum.Pass;
+        CustomMinimumSize = Compact || Silhouette ? Vector2.Zero : new(0, FullMinimumHeight);
+        MouseFilter = Compact || Silhouette ? MouseFilterEnum.Ignore : MouseFilterEnum.Pass;
         // A width-dependent minimum height can oscillate with an automatic scrollbar.
         // Keep layout stable and fit the drawing to the allocated size instead.
         Resized += QueueRedraw;
     }
     public void Display(CombatUnit? unit, CombatUnit? ammoUnit = null) { Unit = unit; AmmoUnit = ammoUnit ?? unit; Visible = unit is not null; QueueRedraw(); }
+    /// <summary>Shows a contact on a silhouette doll, its armour only when <paramref name="detailed"/>.</summary>
+    public void DisplaySilhouette(CombatUnit unit, bool detailed)
+    {
+        if (Unit == unit && Detailed == detailed) { QueueRedraw(); return; }
+        Unit = unit; AmmoUnit = unit; Detailed = detailed; Visible = true; QueueRedraw();
+    }
     /// <summary>Weapons, components and ammunition in one location, grouped by name and condition in mount order.</summary>
     public static IReadOnlyList<SystemGroup> LocationSystems(CombatUnit unit, MechLocation location)
     {
@@ -308,7 +320,7 @@ public partial class CombatPaperdoll : Control
     public override string _GetTooltip(Vector2 atPosition)
     {
         // Card dolls only display: the card's own tooltip covers them.
-        if (Compact) return "";
+        if (Compact || Silhouette) return "";
         if (DisplayedHeatLimit is { } limit && HeatGrabArea.HasPoint(atPosition)) { _tooltipLocation = null; return $"Heat limit {limit}"; }
         if (ShowsSpeed && SpeedStrip.HasPoint(atPosition)) { _tooltipLocation = null; return SpeedTooltip(Unit!, DisplayedDesiredSpeed); }
         if (ShowsAmmo && AmmoStrip.HasPoint(atPosition)) { _tooltipLocation = null; return AmmoTooltip(AmmoUnit!, DisplayedAmmoEconomy); }
@@ -352,6 +364,7 @@ public partial class CombatPaperdoll : Control
     public override void _Draw()
     {
         if (Unit is null) return;
+        if (Silhouette) { DrawSilhouette(Unit); return; }
         var scale = DrawScale; var origin = Origin;
         Vector2 At(Vector2 point) => origin + point * scale;
         void Region(MechLocation location, Vector2[] shape, bool rear)
@@ -384,6 +397,20 @@ public partial class CombatPaperdoll : Control
         if (ShowsSpeed) SpeedGauge(Unit);
         if (ShowsAmmo) AmmoGauge(AmmoUnit!);
         if (ShowsStress) StressFace(Unit);
+    }
+    private void DrawSilhouette(CombatUnit unit)
+    {
+        var scale = Math.Min(Size.X / FrontBounds.Size.X, Size.Y / FrontBounds.Size.Y);
+        var origin = (Size - FrontBounds.Size * scale) / 2 - FrontBounds.Position * scale;
+        foreach (var (location, shape) in Shapes)
+        {
+            var outer = shape.Select(point => origin + point * scale).ToArray();
+            var spec = unit.Spec.Locations.Single(item => item.Location == location); var state = unit.Locations[location];
+            // A lost location or stripped armour leaves only the dark backing.
+            var fill = !Detailed ? new Color("7c8480") : state.Structure > 0 && state.Armor > 0 ? ConditionColor(state.Armor, spec.Armor) : new Color("26312f");
+            DrawColoredPolygon(outer, fill);
+            DrawPolyline(outer.Append(outer[0]).ToArray(), new Color("101916"), 1, true);
+        }
     }
     /// <summary>A friendly MechWarrior's stress level, centered above the schematic. Enemy stress is never shown.</summary>
     public bool ShowsStress => !Compact && Unit is { Side: CombatSide.Friendly, Defeated: false };

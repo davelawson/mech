@@ -132,7 +132,7 @@ public partial class SmokeTests
         tactical.SelectUnits([grounded.Id], false); field.GrabFocus(); await PressKey(Key.J);
         Check(!tactical.SettingJump && tactical.JumpBlockedReason?.Contains("No jump jets") == true,
             $"mechs without jump jets cannot arm a jump and say why: {tactical.JumpBlockedReason}");
-        Check(tactical.JumpNotice?.Contains("No jump jets") == true, $"a refused J shows why on the status line: {tactical.JumpNotice}");
+        Check(tactical.JumpNotice?.Contains("No jump jets") == true, $"a refused J shows why in the notice strip: {tactical.JumpNotice}");
         Check(!tactical.FindChildren("*", "Label", true, false).OfType<Label>().Any(label => label.Text.Contains("Jump: no jump jets")),
             "selected details leave jump availability to the Jump button");
         Check(tactical.UnitDolls.Single(doll => doll.Unit == jumper).ShowsFuel && !tactical.UnitDolls.Single(doll => doll.Unit == grounded).ShowsFuel

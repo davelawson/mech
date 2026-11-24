@@ -5,13 +5,16 @@ namespace Mech.Tests;
 public partial class SmokeTests
 {
     /// <summary>The time panel: elapsed time, cassette icon buttons, their tooltips and hotkeys, and fast-forward. Starts and ends paused at 1x.</summary>
+    /// <summary>A time button drawn in the flash yellow rather than its translucent overlay box.</summary>
+    private static bool Flashing(Button button) => button.GetThemeStylebox("normal") is StyleBoxFlat box && box.BgColor == CombatScreen.FlashYellow;
     private async Task TestTimePanel()
     {
         var tactical = _app.Tactical; var field = tactical.Battlefield; var sim = tactical.Simulation!;
         var panel = tactical.PauseButton.GetParent().GetParent().GetParent<Control>();
         var rect = panel.GetGlobalRect(); var screen = tactical.GetGlobalRect();
-        Check(Math.Abs(rect.GetCenter().X - screen.GetCenter().X) <= 1 && rect.Position.Y - screen.Position.Y < 8 && rect.End.Y - screen.Position.Y <= 66,
-            $"the time panel sits at the top center ({rect})");
+        Check(Math.Abs(rect.GetCenter().X - screen.GetCenter().X) <= 1 && rect.Position.Y - screen.Position.Y <= 8 && rect.End.Y - screen.Position.Y <= 80
+            && field.GetGlobalRect().Encloses(rect) && panel.GetThemeStylebox("panel") is StyleBoxFlat { BgColor.A: < 1 },
+            $"the time panel floats, translucent, at the top center of the battlefield ({rect})");
         Check(new[] { tactical.PauseButton, tactical.PlayButton, tactical.FastForwardButton }.All(button => button.Text == ""
             && button.GetChildren().OfType<TimeControlIcon>().Any()), "the time buttons show icons rather than text");
         Check(tactical.PauseButton.TooltipText == "Pause  [Space]" && tactical.PlayButton.TooltipText == "1x  [,]"
@@ -22,11 +25,11 @@ public partial class SmokeTests
         for (var i = 0; i < 20 && !(flashed && steady); i++)
         {
             await Delay(.1);
-            var yellow = tactical.PauseButton.HasThemeStyleboxOverride("normal");
+            var yellow = Flashing(tactical.PauseButton);
             flashed |= yellow; steady |= !yellow;
         }
         Check(flashed && steady, "the paused pause button alternates between its own colour and yellow");
-        Check(!tactical.StatusText.Contains("PAUSED") && !tactical.StatusText.Contains("LIVE"), $"the status line says nothing of pausing ({tactical.StatusText})");
+        Check(tactical.Notice is null && !tactical.ObjectiveLabel.Text.Contains("PAUSED"), $"no overlay text speaks of pausing ({tactical.ObjectiveLabel.Text})");
         await Frames();
         var elapsed = TimeSpan.FromSeconds(sim.Elapsed);
         Check(tactical.TimeLabel.Text == elapsed.ToString(@"mm\:ss"), $"the time panel shows the elapsed time ({tactical.TimeLabel.Text})");
@@ -34,7 +37,7 @@ public partial class SmokeTests
 
         await Click(tactical.PauseButton);
         Check(!sim.Paused && tactical.TimeMode == "1x", "the pause button resumes a paused battle, as Space does");
-        Check(!tactical.PauseFlashing && !tactical.PauseButton.HasThemeStyleboxOverride("normal"), "a running battle's pause button does not flash");
+        Check(!tactical.PauseFlashing && !Flashing(tactical.PauseButton), "a running battle's pause button does not flash");
         await Click(tactical.PauseButton);
         Check(sim.Paused && tactical.TimeMode == "Pause", "the pause button pauses, as Space does");
 

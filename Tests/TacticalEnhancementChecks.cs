@@ -55,17 +55,17 @@ public partial class SmokeTests
 
             var width = field.Size.X; var camera = field.Camera.Transform;
             KeyPress(Key.Asciitilde, true, Key.Quoteleft); await Frames();
-            Check(screen.BattleLog.Visible && field.Size.X < width && field.Position.X == screen.BattleLog.Size.X
-                && field.Camera.Transform.IsEqualApprox(camera), "tilde docks the log beside the battlefield without triggering camera reset");
+            Check(screen.BattleLog.Visible && field.Size.X == width && field.GetGlobalRect().Encloses(screen.BattleLog.GetGlobalRect())
+                && field.Camera.Transform.IsEqualApprox(camera), "tilde floats the log over the battlefield without resizing it or resetting the camera");
             foreach (var size in new[] { new Vector2I(900, 500), new Vector2I(1440, 900) })
             {
                 window.Size = size; screen.Size = size; await Frames();
-                Check(screen.GetGlobalRect().Encloses(screen.BattleLog.GetGlobalRect()) && field.Size.X > 250
-                    && !field.GetGlobalRect().Intersects(screen.BattleLog.GetGlobalRect()),
-                    $"log docking preserves a usable unobscured battlefield at {size}");
+                Check(screen.GetGlobalRect().Encloses(screen.BattleLog.GetGlobalRect()) && field.GetGlobalRect().IsEqualApprox(screen.GetGlobalRect())
+                    && screen.BattleLog.Size.X > 250 && screen.BattleLog.GetGlobalRect().End.Y <= screen.UnitButtons[0].GetGlobalRect().Position.Y,
+                    $"the log floats above the cards and the battlefield keeps the window at {size}");
                 KeyPress(Key.Quoteleft);
                 Check(friends.Take(2).All(unit => new Rect2(Vector2.One * 16, field.Size - Vector2.One * 32)
-                    .HasPoint(field.ScreenPoint(unit.Position, 15))), $"group framing accounts for docked viewport aspect at {size}");
+                    .HasPoint(field.ScreenPoint(unit.Position, 15))), $"group framing fits the full-window view at {size}");
             }
             field.ReleaseFocus();
             Check(KeyPress(Key.Key3) && screen.Selected.SequenceEqual([friends[2].Id]), "selection shortcuts work without battlefield focus");

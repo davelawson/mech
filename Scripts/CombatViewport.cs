@@ -271,6 +271,14 @@ public partial class CombatViewport : Control
         WeaponKind.SmallLaser => .3f, WeaponKind.MediumLaser => .6f, _ => .9f
     };
     private Vector3 _focus = new(0, 0, CombatRules.DeploymentDepth - 600);
+    /// <summary>Seconds a <see cref="GlideTo"/> takes to carry the camera to its point.</summary>
+    public const double FocusSeconds = .4;
+    private Vector3 _glideFrom, _glideTo;
+    private double _glideTime = -1;
+    /// <summary>The camera is gliding to a point chosen from a card.</summary>
+    public bool Gliding => _glideTime >= 0;
+    /// <summary>Where the camera pivots on the ground, as a battlefield point.</summary>
+    public Vector2 FocusPoint => new(_focus.X, _focus.Z);
     private static readonly float DefaultPitch = Mathf.Atan2(80, 70);
     private static readonly float OrbitRadius = new Vector2(4200, 4800).Length();
     private const float RightDragThreshold = 5;
@@ -339,7 +347,7 @@ public partial class CombatViewport : Control
         foreach (var seat in _seats) { seat.Seat.QueueFree(); foreach (var puff in seat.Puffs) puff.Mesh.QueueFree(); }
         _seats.Clear(); _ejected.Clear(); _surrendered.Clear();
         _models.Clear(); _pickBounds.Clear();
-        Simulation = simulation; Simulation.ShotFired += OnShot; InspectedEnemy = null; Selection = Array.Empty<string>();
+        Simulation = simulation; Simulation.ShotFired += OnShot; InspectedEnemy = null; _glideTime = -1; Selection = Array.Empty<string>();
         if (_terrainView is not null) { _world.RemoveChild(_terrainView); _terrainView.QueueFree(); }
         _terrainView = BattlefieldTerrainView.Create(simulation.Terrain); _world.AddChild(_terrainView);
         ApplyLighting(simulation.Terrain.Biome);
@@ -1105,7 +1113,7 @@ public partial class CombatViewport : Control
     public void ResetToSelection()
     {
         if (Simulation is null) return;
-        CancelDrag(); SyncModels();
+        CancelDrag(); SyncModels(); _glideTime = -1;
         var group = Simulation.Units.Where(unit => unit.Side == CombatSide.Friendly && Selection.Contains(unit.Id)).ToArray();
         if (group.Length == 0) group = Simulation.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();
         if (group.Length == 0) return;
@@ -1146,6 +1154,7 @@ public partial class CombatViewport : Control
             if (Input.IsPhysicalKeyPressed(Key.Q)) { _yaw -= (float)delta; UpdateCamera(); }
             if (Input.IsPhysicalKeyPressed(Key.E)) { _yaw += (float)delta; UpdateCamera(); }
         }
+        AdvanceGlide(delta);
         // Walk cycles keep pace with the battle speed.
         SyncModels(!Simulation.Paused && Simulation.Outcome == CombatOutcome.Ongoing ? (float)(delta * Simulation.TimeScale) : 0);
         _audio.Listen(Camera, _focus);
@@ -1167,6 +1176,24 @@ public partial class CombatViewport : Control
         _pings.RemoveAll(ping => Now - ping.Placed >= PingSeconds);
         QueueRedraw();
     }
+    /// <summary>Carries the camera's pivot to a battlefield point over <see cref="FocusSeconds"/>, easing in and out.
+    /// Zoom and angle stay as they are; any manual camera move stops the glide.</summary>
+    public void GlideTo(Vector2 point)
+    {
+        if (Simulation is null) return;
+        var half = CombatRules.ArenaHalfSize;
+        var clamped = new Vector2(Math.Clamp(point.X, -half, half), Math.Clamp(point.Y, -half, half));
+        _glideFrom = _focus; _glideTo = World(clamped, Simulation.Terrain.HeightAt(clamped)); _glideTime = 0;
+    }
+    private void AdvanceGlide(double delta)
+    {
+        if (_glideTime < 0) return;
+        _glideTime += delta;
+        var t = (float)Math.Min(1, _glideTime / FocusSeconds);
+        _focus = _glideFrom.Lerp(_glideTo, t * t * (3 - 2 * t));
+        if (t >= 1) _glideTime = -1;
+        UpdateCamera();
+    }
     /// <summary>Pivots the camera on the ground at a battlefield point.</summary>
     private void FocusOn(Vector2 point) => _focus = World(point, Simulation?.Terrain.HeightAt(point) ?? 0);
     // Panning moves the camera across a level plane, so the view keeps a steady pace over slopes.
@@ -1174,6 +1201,7 @@ public partial class CombatViewport : Control
     // orthographic camera that slide leaves the picture unchanged.
     private void Pan(Vector2 amount)
     {
+        _glideTime = -1;
         var rotated = amount.Rotated(-_yaw);
         var half = CombatRules.ArenaHalfSize;
         var moved = new Vector3(_focus.X + rotated.X, _focus.Y, _focus.Z + rotated.Y);
@@ -1397,7 +1425,7 @@ public partial class CombatViewport : Control
         if (input is InputEventKey { Pressed: true, Keycode: Key.Up or Key.Down or Key.Left or Key.Right }) AcceptEvent();
     }
     /// <summary>Home: frame the whole arena from the default angle.</summary>
-    public void ResetToArena() { CancelDrag(); FocusOn(Vector2.Zero); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 6600; UpdateCamera(); }
+    public void ResetToArena() { CancelDrag(); _glideTime = -1; FocusOn(Vector2.Zero); _yaw = 0; _pitch = DefaultPitch; Camera.Size = 6600; UpdateCamera(); }
     private CombatUnit? RangeTarget => Simulation is not null && InspectedEnemy is { } id && Simulation.Detected(CombatSide.Friendly, id) ? Simulation.Unit(id) : null;
     public IReadOnlyList<(CombatUnit Observer, float Identification, float? Detail)> DetectionRanges
     {
