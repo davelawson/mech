@@ -54,7 +54,12 @@ public partial class CombatScreen : Control
     public List<CombatPaperdoll> UnitDolls { get; } = [];
     /// <summary>Each friendly card's stress face, tinted with the level's colour; hidden once the mech is defeated.</summary>
     public List<TextureRect> UnitFaces { get; } = [];
+    /// <summary>Each card's status glyph in its top left corner; hidden while the mech is active and on its feet.</summary>
+    public List<TextureRect> UnitStatusIcons { get; } = [];
+    /// <summary>Cards stop growing at this width; the spare width of the bar goes into the gaps between them.</summary>
+    public const float MaxUnitCardWidth = 260;
     private const float StressFaceSize = 18;
+    private const float UnitCardGap = 6;
     private float _unitBarHeight;
     public IReadOnlyList<string> Selected => _selected;
     /// <summary>The local player's slot: force selection offers its lance, and its orders go to that lance's mechs.</summary>
@@ -237,7 +242,7 @@ public partial class CombatScreen : Control
         EjectButton.Pressed += PressEject;
         _weaponsTitle = RosterUi.Text(body, "WEAPONS · PRIMARY SELECTION", 12, Ui.Gold);
         _weapons = new VBoxContainer(); body.AddChild(_weapons);
-        _unitBar = new HBoxContainer { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; _unitBar.AddThemeConstantOverride("separation", 6); AddChild(_unitBar);
+        _unitBar = new HBoxContainer { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; _unitBar.AddThemeConstantOverride("separation", (int)UnitCardGap); AddChild(_unitBar);
         WaitingBanner = new PanelContainer { Visible = false }; WaitingBanner.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Gold, 2));
         var waiting = new HBoxContainer(); waiting.AddThemeConstantOverride("separation", 14); WaitingBanner.AddChild(waiting);
         WaitingText = Ui.Label(waiting, "", 15, Ui.Gold); WaitingText.VerticalAlignment = VerticalAlignment.Center;
@@ -569,13 +574,11 @@ public partial class CombatScreen : Control
         Battlefield.Slot = Slot; Battlefield.Display(Simulation); _shade.Hide(); Modal = CombatModal.None; Battlefield.CommandsEnabled = true;
         BattleLog.Hide(); BattleLog.Display(Simulation); Layout();
         Battlefield.MouseFilter = MouseFilterEnum.Stop;
-        RosterUi.Clear(_unitBar); UnitButtons.Clear(); UnitDolls.Clear(); UnitFaces.Clear();
-        var number = 0;
+        RosterUi.Clear(_unitBar); UnitButtons.Clear(); UnitDolls.Clear(); UnitFaces.Clear(); UnitStatusIcons.Clear();
         foreach (var unit in OwnUnits)
         {
-            number++;
-            var button = Ui.Button(_unitBar, $"{number} · {unit.Warrior.Callsign}\n{unit.Spec.DisplayName}");
-            button.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+            var button = Ui.Button(_unitBar, CardText(unit));
+            button.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
             button.ClipText = true; button.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
             // The stress face sits in the top right corner, clear of the names; clicks pass through it.
             var face = new TextureRect { ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
@@ -584,6 +587,13 @@ public partial class CombatScreen : Control
             face.SetAnchorsAndOffsetsPreset(LayoutPreset.TopRight);
             face.OffsetLeft = -6 - StressFaceSize; face.OffsetRight = -6; face.OffsetTop = 6; face.OffsetBottom = 6 + StressFaceSize;
             UnitFaces.Add(face);
+            // The status glyph mirrors it in the top left corner.
+            var status = new TextureRect { ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+                MouseFilter = MouseFilterEnum.Ignore, Visible = false };
+            button.AddChild(status);
+            status.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
+            status.OffsetLeft = 6; status.OffsetRight = 6 + StressFaceSize; status.OffsetTop = 6; status.OffsetBottom = 6 + StressFaceSize;
+            UnitStatusIcons.Add(status);
             // The doll sits below the names; clicks pass through it to the card.
             var doll = new CombatPaperdoll { Compact = true };
             button.AddChild(doll);
@@ -636,13 +646,23 @@ public partial class CombatScreen : Control
     {
         if (Orders is { } send) send(command); else Simulation!.Execute(command, Slot);
     }
-    /// <summary>Two text lines at the card font, with the margins above and below them.</summary>
+    /// <summary>A card's single line: the pilot's callsign and the mech's chassis, without its model.</summary>
+    private static string CardText(CombatUnit unit) => $"{unit.Warrior.Callsign} · {unit.Spec.Chassis}";
+    /// <summary>One text line at the card font, with the margins above and below it; the glyphs beside it are no taller.</summary>
     private float UnitCardTextHeight => UnitButtons.Count == 0 ? 0
-        : UnitButtons[0].GetThemeFont("font").GetHeight(UnitButtons[0].GetThemeFontSize("font_size")) * 2 + 10;
+        : Math.Max(StressFaceSize, UnitButtons[0].GetThemeFont("font").GetHeight(UnitButtons[0].GetThemeFontSize("font_size"))) + 10;
     /// <summary>The compact paperdoll's height: whatever the card leaves beneath its names.</summary>
     private float UnitDollHeight => Math.Max(16, _unitBarHeight - UnitCardTextHeight - 4);
     private void LayoutUnitCards()
     {
+        // Cards share the bar up to their maximum width; the rest becomes even gaps between them, the outer cards flush with its edges.
+        var bar = Size.X - 32; var count = UnitButtons.Count;
+        if (count > 0)
+        {
+            var width = Mathf.Floor(Math.Min(MaxUnitCardWidth, (bar - UnitCardGap * (count - 1)) / count));
+            foreach (var button in UnitButtons) button.CustomMinimumSize = new Vector2(width, 0);
+            _unitBar.AddThemeConstantOverride("separation", count > 1 ? (int)((bar - width * count) / (count - 1)) : 0);
+        }
         foreach (var doll in UnitDolls) { doll.OffsetTop = -UnitDollHeight - 4; doll.OffsetBottom = -4; doll.OffsetLeft = 6; doll.OffsetRight = -6; }
         foreach (var button in UnitButtons)
             foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed", "disabled" })
@@ -652,7 +672,8 @@ public partial class CombatScreen : Control
     private StyleBox CardBox(StyleBox style)
     {
         var box = (StyleBox)style.Duplicate();
-        box.ContentMarginTop = 6; box.ContentMarginBottom = UnitDollHeight + 4; box.ContentMarginRight = StressFaceSize + 10;
+        box.ContentMarginTop = 6; box.ContentMarginBottom = UnitDollHeight + 4;
+        box.ContentMarginLeft = StressFaceSize + 10; box.ContentMarginRight = StressFaceSize + 10;
         return box;
     }
     /// <summary>Why no selected unit can jump now, or null when at least one can.</summary>
@@ -1072,8 +1093,12 @@ public partial class CombatScreen : Control
         for (var i = 0; i < UnitButtons.Count; i++)
         {
             var friend = friends[i]; var button = UnitButtons[i];
-            button.Text = $"{i + 1} · {friend.Warrior.Callsign} · {friend.Status}{(friend.Prone ? " · Prone" : "")}{friend.ConductText()}\n{friend.Spec.DisplayName}";
-            button.TooltipText = $"{friend.Spec.DisplayName} · {friend.Status}{friend.StanceText()}{StressReadout(friend)}\n{HeatReadout(friend)}";
+            button.Text = CardText(friend);
+            // The tooltip keeps the full model and state the glyphs stand for.
+            button.TooltipText = $"{friend.Spec.DisplayName} · {friend.Status}{friend.StanceText()}{friend.ConductText()}{StressReadout(friend)}\n{HeatReadout(friend)}";
+            var status = CombatPaperdoll.StatusIcon(friend);
+            UnitStatusIcons[i].Visible = status is not null;
+            if (status is { } shown) { UnitStatusIcons[i].Texture = shown.Icon; UnitStatusIcons[i].SelfModulate = shown.Tint; }
             button.AddThemeStyleboxOverride("normal", CardBox(Ui.Box(_selected.Contains(friend.Id) ? new Color("344431") : Ui.Panel, _selected.Contains(friend.Id) ? Ui.Gold : Ui.Line)));
             // A friendly card shows its MechWarrior's stress as a tinted face beside the callsign.
             UnitFaces[i].Visible = !friend.Defeated; UnitFaces[i].Texture = CombatPaperdoll.StressIcon(friend.Stress);

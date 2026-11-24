@@ -48,7 +48,7 @@ public partial class SmokeTests : Node
         new("combat-ui", Setup.Drafted, async () =>
         {
             await TestCombatLayouts(); await TestBattlefieldPicking(); await TestDetectionOverlay(); await TestShotEffects();
-            await TestCombatUi(); await TestQuickLaunchUi(); await TestSalvageUi(); await TestCombatJumping(); await TestPatrolUi(); await TestStressUi();
+            await TestCombatUi(); await TestQuickLaunchUi(); await TestSalvageUi(); await TestCombatJumping(); await TestPatrolUi(); await TestStressUi(); await TestUnitCardsUi();
         }),
         new("mech-visuals", Setup.None, async () =>
         {

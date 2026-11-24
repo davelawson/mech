@@ -392,10 +392,27 @@ public partial class CombatPaperdoll : Control
         StressLevel.Calm => new Color("b8e6c0"), StressLevel.Steady => new Color("4fbf5a"), StressLevel.Excited => new Color("f1d34c"),
         StressLevel.Stressed => new Color("f0973c"), _ => new Color("ec5a4a")
     };
-    private static readonly Dictionary<StressLevel, Texture2D> _stressIcons = [];
-    /// <summary>The face for a stress level: a white glyph in <c>Assets/Icons/</c>, tinted with <see cref="StressColor"/> when drawn.</summary>
-    public static Texture2D StressIcon(StressLevel level) => _stressIcons.TryGetValue(level, out var icon) ? icon
-        : _stressIcons[level] = GD.Load<Texture2D>($"res://Assets/Icons/stress-{level.ToString().ToLowerInvariant()}.svg");
+    private static readonly Dictionary<string, Texture2D> _icons = [];
+    /// <summary>A white glyph in <c>Assets/Icons/</c>, loaded once and tinted when drawn.</summary>
+    private static Texture2D Icon(string name) => _icons.TryGetValue(name, out var icon) ? icon
+        : _icons[name] = GD.Load<Texture2D>($"res://Assets/Icons/{name}.svg");
+    /// <summary>The face for a stress level, tinted with <see cref="StressColor"/> when drawn.</summary>
+    public static Texture2D StressIcon(StressLevel level) => Icon($"stress-{level.ToString().ToLowerInvariant()}");
+    /// <summary>A unit card's status glyph and tint: the mech's most pressing state, or null for an active mech on its feet.</summary>
+    public static (Texture2D Icon, Color Tint)? StatusIcon(CombatUnit unit)
+    {
+        (string Name, string Tint)? status = unit.Status switch
+        {
+            CombatStatus.Destroyed => ("destroyed", "ec5a4a"), CombatStatus.Disabled => ("disabled", "f0973c"),
+            CombatStatus.Surrendered => ("surrendered", "d8dcd6"), CombatStatus.Fled => ("fled", "aab2ad"),
+            CombatStatus.Extracted => ("extracted", "4fbf5a"),
+            _ when unit.Fleeing => ("fleeing", "f1d34c"),
+            CombatStatus.Shutdown => ("shutdown", "8fb0d8"),
+            _ when unit.Prone => ("prone", "f1d34c"),
+            _ => null
+        };
+        return status is { } found ? (Icon($"status-{found.Name}"), new Color(found.Tint)) : null;
+    }
     private const float StressIconSize = 20;
     public Rect2 StressRect => new((Size.X - StressIconSize) / 2, 1, StressIconSize, StressIconSize);
     private void StressFace(CombatUnit unit) => DrawTextureRect(StressIcon(unit.Stress), StressRect, false, StressColor(unit.Stress));
