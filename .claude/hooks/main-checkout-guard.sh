@@ -1,14 +1,32 @@
 #!/usr/bin/env bash
 # PreToolUse hook enforcing the working modes in AI.md.
 # Main checkout: agents may edit files but must not commit, push or open/merge
-# pull requests. Worktree: full git control, except committing on or pushing to
-# main/master, and merging pull requests.
+# pull requests. Worktree: full git control, including merging pull requests,
+# except committing on or pushing to main/master.
 # Only Claude Code runs this; git on the command line is unaffected.
 
 input=$(cat)
 tool=$(jq -r '.tool_name // ""' <<<"$input")
 cmd=$(jq -r '.tool_input.command // ""' <<<"$input")
-dir=${CLAUDE_PROJECT_DIR:-$(jq -r '.cwd // ""' <<<"$input")}
+cwd=$(jq -r '.cwd // ""' <<<"$input")
+dir=${cwd:-$CLAUDE_PROJECT_DIR}
+
+# Judge a command by the directory its git runs in: the last `cd <dir>` or
+# `git -C <dir>` in it, else the session's current directory. A session that
+# moved into a worktree keeps CLAUDE_PROJECT_DIR pointing at the main checkout,
+# so that is only a fallback.
+if [ -n "$cmd" ]; then
+  target=$(grep -oE "(^|[;&|(]|[[:space:]])(cd|git[[:space:]]+-C)[[:space:]]+(\"[^\"]+\"|'[^']+'|[^;&|[:space:]]+)" <<<"$cmd" \
+    | tail -1 | sed -E "s/^.*(cd|-C)[[:space:]]+//; s/^[\"']//; s/[\"']\$//")
+  if [ -n "$target" ]; then
+    case $target in
+      "~"*) target=$HOME${target#"~"} ;;
+      /*) ;;
+      *) target=$dir/$target ;;
+    esac
+    [ -d "$target" ] && dir=$target
+  fi
+fi
 
 paths=$(git -C "$dir" rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null) || exit 0
 git_dir=$(sed -n 1p <<<"$paths")
@@ -37,13 +55,10 @@ if [ "$git_dir" = "$common_dir" ]; then
   exit 0
 fi
 
-# Worktree.
-merge_reason="Agents never merge pull requests; the user reviews and merges (see Working mode in AI.md)."
+# Worktree. Merging pull requests is allowed; AI.md says when.
 main_reason="Agents never commit on or push to main or master (see Working mode in AI.md). Work on another branch and open a pull request."
 case "$tool" in
-  mcp__t3-code__pull_request_merge) deny "$merge_reason" ;;
   Bash)
-    gh_pr 'merge' && deny "$merge_reason"
     branch=$(git -C "$dir" branch --show-current 2>/dev/null)
     on_main=false; [[ $branch == main || $branch == master ]] && on_main=true
     $on_main && git_sub 'commit' && deny "$main_reason"
