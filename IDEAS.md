@@ -10,7 +10,6 @@ This file serves as a repository for ideas that await implementation or further 
 - While in the briefing, give access to view the battlefield in the actual 3d view, so the player can explore it and come up with ideas and strategies.  Some missions might prohibit this, and sometimes the map could be wrong.
 
 ### Hangar Interface
-- always show current funds
 - Horizontally center the location names within their component panels.
 - Add control for selling systems from inventory
 - swapping pilot from the mech hangar view shouldn't require a confirmation
