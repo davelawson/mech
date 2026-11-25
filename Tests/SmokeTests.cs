@@ -40,7 +40,7 @@ public partial class SmokeTests : Node
             await TestStarMapUi(); await TestShipLocatorUi(); await TestTravelUi();
         }),
         new("roster", Setup.Drafted, TestRosterUi),
-        new("hangar", Setup.Drafted, async () => { await TestHangarAssignmentsUi(); await TestHangarScreen(); await TestHangarLoadout(); await TestHangarInstall(); await TestHangarArmor(); await TestHangarMarket(); await TestHangarRepair(); }),
+        new("hangar", Setup.Drafted, async () => { await TestHangarAssignmentsUi(); await TestHangarScreen(); await TestHangarFunds(); await TestHangarLoadout(); await TestHangarInstall(); await TestHangarArmor(); await TestHangarMarket(); await TestHangarRepair(); }),
         new("missions", Setup.Menu, TestMissionsUi),
         new("finance", Setup.Menu, TestCampaignUi),
         new("combat-layout", Setup.None, TestCombatLayouts, InFullRun: false),
