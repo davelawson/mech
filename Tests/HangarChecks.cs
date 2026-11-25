@@ -659,6 +659,7 @@ public partial class SmokeTests
         await RightClick(Line(sink)!.GetGlobalRect().GetCenter());
         Check(roster.Stored(sink) == sinks + 1 && state.Cash == cash - EquipmentMarket.Price(sink) && Line(sink)!.Count == 2 && hangar.Visible,
             "right-clicking a market line buys one into Inventory");
+        Check(hangar.FundsText.Text == HangarScreen.Money(state.Cash), "the funds panel shows the cash left after buying");
         Check(hangar.BuyToStorage(sink, bulk: true) && roster.Stored(sink) == sinks + 3 && Line(sink) is null, "Shift buys as many as are left, up to five");
         Check(!hangar.BuyToStorage(sink), "nothing is bought once the market has none");
 
@@ -751,6 +752,48 @@ public partial class SmokeTests
         await Capture("hangar-armor-edit");
         await Click(hangar.ResetButton);
         Check(!hangar.HasPendingChanges && Front(MechLocation.CenterTorso) == torsoStock.Armor, "Reset restores the armor");
+    }
+
+    /// <summary>The funds panel at the top of the hangar: its place, its colour against the next quarterly payment and its tooltip.</summary>
+    private async Task TestHangarFunds()
+    {
+        var hangar = _app.Hangar; var state = _app.State;
+        foreach (var size in new[] { new Vector2I(1440, 900), new Vector2I(900, 500) })
+        {
+            GetWindow().Size = size; await Frames();
+            var funds = hangar.FundsPanel.GetGlobalRect(); var board = hangar.Board.GetGlobalRect();
+            Control[] others = [hangar.StoragePanel, hangar.SummaryPanel, hangar.Board, hangar.OverTonnageText];
+            Check(hangar.FundsPanel.IsVisibleInTree() && hangar.GetGlobalRect().Encloses(funds) && funds.End.Y <= board.Position.Y
+                && funds.Position.X >= board.Position.X - 1 && funds.End.X <= board.End.X + 1
+                && others.All(other => !other.GetGlobalRect().Grow(-1).Intersects(funds.Grow(-1))),
+                $"the funds panel sits above the blueprint, clear of the other panels, at {size}");
+        }
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        Color Shown() => hangar.FundsText.GetThemeColor("font_color");
+        var bill = state.ProjectedBill;
+        Check(!state.PaymentPending && state.Cash >= bill && hangar.FundsText.Text == HangarScreen.Money(state.Cash) && Shown() == HangarScreen.FundsCovered,
+            "the funds panel shows the company's cash in green when it covers the next quarterly payment");
+        Check(hangar.FundsPanel.TooltipText == $"Next quarterly payment: {HangarScreen.Money(bill)} · due in {state.DaysUntilQuarter} days",
+            "hovering the funds shows the next quarterly payment and the days until it is due");
+        hangar.Cash = bill - 1; await Frames();
+        Check(hangar.FundsInsufficient && Shown() == HangarScreen.FundsShort && hangar.FundsText.Text == HangarScreen.Money(bill - 1),
+            "funds short of the next quarterly payment show in red");
+        hangar.Cash = bill; await Frames();
+        Check(!hangar.FundsInsufficient && Shown() == HangarScreen.FundsCovered, "funds exactly covering the payment show in green");
+        // With a bill pending, the amount due now is the next payment.
+        var due = state.NextQuarter;
+        var salaries = state.Roster!.Salaries;
+        var pending = Campaign.Restore(state.Snapshot() with
+        {
+            Date = due, NextQuarter = due.AddMonths(3), PaymentDue = Campaign.QuarterlyCharge + salaries, BilledSalaries = salaries,
+            AccruedTransitDays = 0, BilledTransitDays = 0, DeferredDebt = 0, Bankrupt = false
+        });
+        hangar.Campaign = pending; hangar.Cash = pending.PaymentDue - 1; await Frames();
+        Check(hangar.FundsPanel.TooltipText == $"Quarterly payment: {HangarScreen.Money(pending.PaymentDue)} · due now" && Shown() == HangarScreen.FundsShort,
+            "a pending bill is the next payment, due now");
+        hangar.Campaign = state; hangar.Cash = state.Cash; await Frames();
+        Check(!hangar.MarketText.Text.Contains("Cash", StringComparison.Ordinal) && hangar.MarketText.Text.Contains("Pending purchases", StringComparison.Ordinal),
+            "the Market tab no longer shows the company's cash");
     }
 
     /// <summary>Hangar layout, location panels, storage list and the blueprint's right-drag spin.</summary>

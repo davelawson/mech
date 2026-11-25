@@ -72,7 +72,20 @@ public partial class HangarScreen : Control
     public LoadoutPlan SelectedPlan => _pending.GetValueOrDefault(SelectedMech.Id) ?? SelectedMech.Plan;
     public bool SelectedOverTonnage => DisplayedMech.OverTonnage;
     /// <summary>Company cash, against which pending purchases are checked; nothing is paid until a loadout is applied.</summary>
-    public long Cash { get; set; }
+    public long Cash { get => _cash; set { _cash = value; ShowFunds(); } }
+    private long _cash;
+    /// <summary>The small panel at the top of the hangar showing the company's cash.</summary>
+    public PanelContainer FundsPanel { get; private set; } = null!;
+    public Label FundsText { get; private set; } = null!;
+    public static readonly Color FundsCovered = new("8fc77e"), FundsShort = new("ff6c63");
+    /// <summary>The next quarterly payment: the bill due now while one is pending, otherwise the projected bill; 0 without a campaign.</summary>
+    public long NextPayment => Campaign is not { } campaign ? 0 : campaign.PaymentPending ? campaign.PaymentDue : campaign.ProjectedBill;
+    /// <summary>Whether cash falls short of the next quarterly payment.</summary>
+    public bool FundsInsufficient => Cash < NextPayment;
+    /// <summary>"Next quarterly payment: 312,000 C-bills · due in 47 days", or "… · due now" while the bill is pending.</summary>
+    public string FundsTooltip => Campaign is not { } campaign ? ""
+        : campaign.PaymentPending ? $"Quarterly payment: {Money(campaign.PaymentDue)} · due now"
+        : $"Next quarterly payment: {Money(campaign.ProjectedBill)} · due in {campaign.DaysUntilQuarter} day{(campaign.DaysUntilQuarter == 1 ? "" : "s")}";
     /// <summary>The system whose market is open, or null while the DropShip is in transit.</summary>
     public string? MarketSystemId { get; private set; }
     /// <summary>Storage ids of the items the selected mech's pending loadout buys from the market.</summary>
@@ -95,7 +108,7 @@ public partial class HangarScreen : Control
     /// <summary>The left column's Inventory and Market tabs.</summary>
     public TabContainer StorageTabs { get; private set; } = null!;
     public VBoxContainer MarketList { get; private set; } = null!;
-    /// <summary>Cash and pending purchases, above the market lines.</summary>
+    /// <summary>The market's name and ratings and the pending purchases' total, above the market lines.</summary>
     public Label MarketText { get; private set; } = null!;
     public PanelContainer SummaryPanel { get; private set; } = null!;
     public ScrollContainer Board { get; private set; } = null!;
@@ -156,6 +169,9 @@ public partial class HangarScreen : Control
         OverTonnageText = new Label { Text = "⚠ Over Tonnage", HorizontalAlignment = HorizontalAlignment.Center, Visible = false, MouseFilter = MouseFilterEnum.Ignore };
         OverTonnageText.AddThemeColorOverride("font_color", HangarLocationPanel.Warning); OverTonnageText.AddThemeFontSizeOverride("font_size", 16);
         AddChild(OverTonnageText);
+        FundsPanel = Panel(); FundsPanel.Name = "Funds";
+        FundsText = Ui.Label(FundsPanel, "", 14); FundsText.HorizontalAlignment = HorizontalAlignment.Center;
+        FundsText.MouseFilter = MouseFilterEnum.Ignore;
         BackButton = Ui.Sound(Ui.Button(this, "Back to office"), Cue.UiCancel); BackButton.Pressed += () => BackRequested?.Invoke();
 
         StoragePanel = Panel();
@@ -309,7 +325,7 @@ public partial class HangarScreen : Control
         if (roster.Mechs[_selected].Lance != shown) _selected = roster.Mechs.ToList().FindIndex(mech => mech.Lance == shown);
         ShownLance = shown;
         BuildRosterButtons();
-        ShowStorage(); ShowMarket();
+        ShowStorage(); ShowMarket(); ShowFunds();
         Select(_selected); Layout(); BackButton.CallDeferred(Control.MethodName.GrabFocus);
         if (StorageTabs.CurrentTab == MarketTab) MarketViewed?.Invoke();
     }
@@ -465,7 +481,7 @@ public partial class HangarScreen : Control
         if (_roster is null) return;
         // Salvage can add mechs to the roster while the hangar is open behind a battle.
         if (RosterButtons.Count != _roster.Mechs.Count) BuildRosterButtons();
-        ShowStorage(); ShowMarket(); Select(_selected);
+        ShowStorage(); ShowMarket(); ShowFunds(); Select(_selected);
     }
     /// <summary>Space shows or hides the location panels over the mech preview; Tab cycles the preview
     /// gait still → walking → running → standing up.</summary>
@@ -658,10 +674,17 @@ public partial class HangarScreen : Control
         if (lines.Length == 0) RosterUi.Text(StorageList, "No spare equipment", 12, Ui.Muted);
         ShowGrouped(StorageList, lines);
     }
+    private void ShowFunds()
+    {
+        if (FundsText is null) return;
+        FundsText.Text = Money(Cash);
+        FundsText.AddThemeColorOverride("font_color", FundsInsufficient ? FundsShort : FundsCovered);
+        FundsPanel.TooltipText = FundsTooltip;
+    }
     private void ShowMarket()
     {
         RosterUi.Clear(MarketList);
-        var money = $"Cash {Money(Cash)}\nPending purchases {Money(PendingPurchaseCost)}";
+        var money = $"Pending purchases {Money(PendingPurchaseCost)}";
         if (MarketSystemId is not { } system) { MarketText.Text = money; RosterUi.Text(MarketList, "No market while in transit", 12, Ui.Muted); return; }
         var star = StarChart.Instance[system];
         if (!SystemRatings.HasMarket(star)) { MarketText.Text = money; RosterUi.Text(MarketList, "No market on this world", 12, Ui.Muted); return; }
@@ -703,8 +726,12 @@ public partial class HangarScreen : Control
         Ui.Place(_background, 0, 0, Size.X, Size.Y);
         var compact = Compact;
         var leftWidth = compact ? 190 : 280; var rightWidth = compact ? 230 : 310;
-        var top = 24f; var bottom = Size.Y - 78; var gap = compact ? 10 : 16;
-        Ui.Place(OverTonnageText, 24 + leftWidth + gap, 0, Size.X - 48 - leftWidth - rightWidth - gap * 2, top);
+        var top = 40f; var bottom = Size.Y - 78; var gap = compact ? 10 : 16;
+        // The funds panel takes the right of the strip above the blueprint; the over-tonnage warning is centred in the rest.
+        var stripLeft = 24 + leftWidth + gap; var stripWidth = Size.X - 48 - leftWidth - rightWidth - gap * 2;
+        var fundsWidth = compact ? 170f : 200f;
+        Ui.Place(FundsPanel, stripLeft + stripWidth - fundsWidth, 6, fundsWidth, top - 12);
+        Ui.Place(OverTonnageText, stripLeft, 0, stripWidth - fundsWidth - gap, top);
         // Compact windows lack room beside the roster strip, so the lance drop list takes the foot of the left column instead.
         const float pickerHeight = 34;
         Ui.Place(StoragePanel, 24, top, leftWidth, bottom - top - 8 - (compact ? pickerHeight + 6 : 0));
