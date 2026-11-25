@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|mcp__t3-code__pull_request_create|mcp__t3-code__pull_request_merge",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/main-checkout-guard.sh",
+            "statusMessage": "Checking working mode"
+          }
+        ]
+      }
+    ]
+  }
+}
