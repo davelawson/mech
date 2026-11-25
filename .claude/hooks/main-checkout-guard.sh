@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# PreToolUse hook: in the main checkout, agents may edit files but must not
-# commit, push or open/merge pull requests. Worktree sessions are allowed.
+# PreToolUse hook enforcing the working modes in AI.md.
+# Main checkout: agents may edit files but must not commit, push or open/merge
+# pull requests. Worktree: full git control, except committing on or pushing to
+# main/master, and merging pull requests.
 # Only Claude Code runs this; git on the command line is unaffected.
 
 input=$(cat)
 tool=$(jq -r '.tool_name // ""' <<<"$input")
+cmd=$(jq -r '.tool_input.command // ""' <<<"$input")
 dir=${CLAUDE_PROJECT_DIR:-$(jq -r '.cwd // ""' <<<"$input")}
 
 paths=$(git -C "$dir" rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null) || exit 0
 git_dir=$(sed -n 1p <<<"$paths")
 common_dir=$(sed -n 2p <<<"$paths")
-[ "$git_dir" = "$common_dir" ] || exit 0   # worktree: allowed
 
 deny() {
   jq -n --arg r "$1" '{hookSpecificOutput: {hookEventName: "PreToolUse",
@@ -18,15 +20,38 @@ deny() {
   exit 0
 }
 
-reason="This session runs in the main checkout, where agents edit files only: no commits, pushes or pull requests (see Working mode in AI.md). Leave the changes for the user to commit, or do the work in a worktree thread."
+# A git invocation running the given subcommand (options such as -C may come first).
+git_sub() {
+  grep -Eq "(^|[^[:alnum:]_-])git([[:space:]]+[^;&|[:space:]]+)*[[:space:]]+($1)([[:space:]]|\$|[;&|)])" <<<"$cmd"
+}
+gh_pr() {
+  grep -Eq "(^|[^[:alnum:]_-])gh[[:space:]]+pr[[:space:]]+($1)" <<<"$cmd"
+}
 
+if [ "$git_dir" = "$common_dir" ]; then
+  reason="This session runs in the main checkout, where agents edit files only: no commits, pushes or pull requests (see Working mode in AI.md). Leave the changes for the user to commit, or do the work in a worktree thread."
+  case "$tool" in
+    mcp__t3-code__pull_request_create|mcp__t3-code__pull_request_merge) deny "$reason" ;;
+    Bash) { git_sub 'commit|push' || gh_pr 'create|merge'; } && deny "$reason" ;;
+  esac
+  exit 0
+fi
+
+# Worktree.
+merge_reason="Agents never merge pull requests; the user reviews and merges (see Working mode in AI.md)."
+main_reason="Agents never commit on or push to main or master (see Working mode in AI.md). Work on another branch and open a pull request."
 case "$tool" in
-  mcp__t3-code__pull_request_create|mcp__t3-code__pull_request_merge) deny "$reason" ;;
+  mcp__t3-code__pull_request_merge) deny "$merge_reason" ;;
   Bash)
-    cmd=$(jq -r '.tool_input.command // ""' <<<"$input")
-    if grep -Eq '(^|[^[:alnum:]_-])git([[:space:]]+[^;&|[:space:]]+)*[[:space:]]+(commit|push)([[:space:]]|$|[;&|)])' <<<"$cmd" \
-      || grep -Eq '(^|[^[:alnum:]_-])gh[[:space:]]+pr[[:space:]]+(create|merge)' <<<"$cmd"; then
-      deny "$reason"
+    gh_pr 'merge' && deny "$merge_reason"
+    branch=$(git -C "$dir" branch --show-current 2>/dev/null)
+    on_main=false; [[ $branch == main || $branch == master ]] && on_main=true
+    $on_main && git_sub 'commit' && deny "$main_reason"
+    if git_sub 'push'; then
+      $on_main && deny "$main_reason"
+      push=$(grep -oE 'git([[:space:]]+[^;&|[:space:]]+)*[[:space:]]+push[^;&|]*' <<<"$cmd")
+      grep -Eq '(^|[[:space:]:+])(refs/heads/)?(main|master)([[:space:]]|$)|[[:space:]]--(all|mirror)([[:space:]]|$)' <<<"$push" \
+        && deny "$main_reason"
     fi
     ;;
 esac
