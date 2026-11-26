@@ -15,7 +15,7 @@ This file serves as a repository for ideas that await implementation or further 
 - swapping pilot from the mech hangar view shouldn't require a confirmation
 - mouse over on weapons should give weapon specifics (ie. tonnage, heat, damage, range) both in components and in storage
 - buying and selling mechs
-- Add a per-mech history
+- Add a per-mech history, like the MechWarriors' service history (pilots, kills, damage taken, battles fought)
 - repair at the same time as refitting.  Maybe clicking on repair armour sets armour to be repaired, but still requires 'Apply'
 - manually making and undoing a change on a mech still triggers a refitting job
 - allow mechs to be over/under tonnage.
@@ -36,7 +36,9 @@ This file serves as a repository for ideas that await implementation or further 
   - Laser/Ballistics/Missile specialist: somehow improves those weapons
   - Engine enthusiast: Mech move a bit faster
   - etc.
-- add a per pilot history
+- Show recent service history entries outside the rolodex, e.g. on the hangar pilot card or in the battle results
+- More service history events: top damage dealer in a mission, holding their nerve while Panicked, forcing an enemy surrender, kill milestones beyond the fifth
+- Name enemy MechWarriors so histories (and rivalries) can say who was killed
 - add pilot abilities that help their lance
 
 ### Mission Screen
@@ -84,3 +86,7 @@ This file serves as a repository for ideas that await implementation or further 
 
 ## File Menu
 - Display wealth, funds, date, and company name for each save
+
+## Testing
+- The missions check `a patrol whose opposition is not grouped by leg is rejected` sometimes passes by chance, since it builds the patrol from a randomly generated offer; seed it
+- The multiplayer check `a fast-forwarding battle's button stops flashing and names the other player` failed once under the full suite's parallel load; make it robust to timing

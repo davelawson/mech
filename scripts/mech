@@ -120,7 +120,7 @@ test_args() {
 unit_classes() {
   case "$1" in
     map) echo Travel ;;
-    roster) echo Roster ;;
+    roster) echo Roster ServiceHistory ;;
     hangar) echo Hangar ;;
     missions) echo Missions Reputation SalvageAndInsurance ;;
     finance) echo Campaign ;;

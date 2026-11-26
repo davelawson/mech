@@ -100,6 +100,7 @@ public sealed class Campaign
         if (!RequiresDraft) throw new InvalidOperationException("The initial draft is already complete.");
         Roster = draft.Establish();
         StartWith(draft.Scenario);
+        RecordFounding();
     }
     /// <summary>Forms a co-op company from each player's draft, one lance per player, under the players' names.</summary>
     public void EstablishCompany(IReadOnlyList<InitialDraft> drafts, IReadOnlyList<string> names)
@@ -108,9 +109,15 @@ public sealed class Campaign
         if (names.Count != drafts.Count || names.Any(name => !ValidPlayerName(name))) throw new ArgumentException("Every player needs a name.");
         Roster = InitialDraft.EstablishCompany(drafts);
         StartWith(drafts[0].Scenario);
+        RecordFounding();
         PlayerNames = [.. names];
         // The offers so far were for one lance; the company's board is made for all of them.
         Missions = MissionBoard.Create(NewSeed(), Date, MissionOrigin, Reputation, lances: Players);
+    }
+    /// <summary>Every drafted MechWarrior's history begins as a founding member of the company.</summary>
+    private void RecordFounding()
+    {
+        foreach (var warrior in RequireRoster().Warriors) warrior.Record(new(Date, ServiceEventKind.Founded) { Place = Roster!.ForceName });
     }
     /// <summary>A scenario starting with less than the standard cash takes the difference from the company's cash.</summary>
     private void StartWith(StartingScenario scenario) => Cash = Math.Max(0, Cash + Scenarios.StartingCash(scenario) - StartingCash);
@@ -224,8 +231,13 @@ public sealed class Campaign
         if (!CanAdvance) return new(false, false, Array.Empty<CampaignEvent>());
         Date = Date.AddDays(1);
         foreach (var warrior in Roster?.Recover(Date) ?? [])
+        {
+            // The recovery counts from the battle whose injury or ejection set it.
+            var injury = warrior.History.LastOrDefault(item => item.Kind is ServiceEventKind.Injured or ServiceEventKind.Ejected && item.Days > 0);
+            warrior.Record(new(Date, ServiceEventKind.Recovered) { Days = injury is null ? 0 : Date.DayNumber - injury.Date.DayNumber });
             _events.Add(new($"healed-{warrior.Id}-{Date.DayNumber}", Date, CampaignEventKind.InjuryHealed,
                 $"Injury healed · {WarriorName(warrior)} · back on the active roster"));
+        }
         CompleteRepairs();
         if (Travel.HasJourney)
         {
@@ -375,7 +387,7 @@ public sealed class Campaign
         if (HireProblem(warrior) is { } problem) throw new InvalidOperationException(problem);
         var cost = HireCost(warrior).Total;
         Recruits.Hire(Travel.OrbitSystemId, warriorId);
-        RequireRoster().Hire(warrior);
+        RequireRoster().Hire(warrior).Record(new(Date, ServiceEventKind.Hired) { Place = StarChart.Instance[Travel.OrbitSystemId].Name });
         Cash -= cost;
     }
     /// <summary>Dismisses a MechWarrior for good: no refund, and they are gone from the game.</summary>
@@ -474,21 +486,35 @@ public sealed class Campaign
             || (item.WarriorKilled && gains.Length > 0) || (Roster.Pilot(Roster.Mechs.Single(mech => mech.Id == item.MechId)) is { } warrior
                 ? gains.Any(skill => SkillGrowth.Maxed(SkillGrowth.Rating(warrior.Spec, skill))) : gains.Length > 0))))
             throw new ArgumentException("The report's skill gains do not fit its MechWarriors.", nameof(report));
+        if (report.Mechs.Any(item => item.KillLog is null || item.InjuryCauses is null || item.KillLog.Any(kill => kill is null
+            || string.IsNullOrWhiteSpace(kill.Enemy) || !Enum.IsDefined(kill.Manner)) || item.KillLog.Length > item.Kills
+            || item.InjuryCauses.Any(cause => !Enum.IsDefined(cause)) || item.Death is { Manner: { } manner } && !Enum.IsDefined(manner)))
+            throw new ArgumentException("The report's service records do not fit its MechWarriors.", nameof(report));
         if (report.Outcome != MissionOutcome.Success && report.Salvage.Length > 0) throw new ArgumentException("Only a victory takes salvage.", nameof(report));
         var pool = Salvage.Pool(report);
         var picks = Salvage.Validate(pool, report.Salvage, offer.SalvagePicks);
         var killed = new List<string>(); long claim = 0;
-        foreach (var item in report.Mechs)
+        // Each deployed mech's MechWarrior, found before the fallen are unassigned, and those who died with when they fell.
+        var pilots = report.Mechs.Select(item => Roster.Pilot(Roster.Mechs.Single(mech => mech.Id == item.MechId))).ToArray();
+        var fallen = report.Mechs.Zip(pilots).Where(pair => pair.First.WarriorKilled && pair.Second is not null)
+            .Select(pair => (Warrior: pair.Second!, Time: pair.First.Death?.Time ?? double.MaxValue)).ToArray();
+        for (var i = 0; i < report.Mechs.Length; i++)
         {
+            var item = report.Mechs[i];
             var mech = Roster.Mechs.Single(owned => owned.Id == item.MechId);
-            var pilot = Roster.Pilot(mech);
+            var pilot = pilots[i];
             var before = Insurance.RepairValue(mech);
             mech.ApplyBattle(item.Locations, item.Equipment);
             claim += Math.Max(0, Insurance.RepairValue(mech) - before);
             if (pilot is not null)
             {
+                RecordBattle(pilot, item, mech, offer.Name, fallen);
                 pilot.Deployments++; pilot.Kills += Math.Max(0, item.Kills);
-                foreach (var skill in item.SkillGains ?? []) pilot.GainSkill(skill);
+                var rank = pilot.Spec.Rank;
+                foreach (var skill in item.SkillGains ?? [])
+                    if (pilot.GainSkill(skill))
+                        pilot.Record(new(Date, ServiceEventKind.SkillAdvanced) { Skill = skill, Rating = SkillGrowth.Rating(pilot.Spec, skill) });
+                if (pilot.Spec.Rank > rank) pilot.Record(new(Date, ServiceEventKind.Promoted) { Rank = pilot.Spec.Rank });
             }
             if (item.WarriorKilled && pilot is not null) { Roster.SetHealth(pilot.Id, WarriorHealth.Dead, null, Date); killed.Add(pilot.Id); }
             else if (item.InjuryDays > 0 && pilot is not null) Roster.SetHealth(pilot.Id, WarriorHealth.Injured, Date.AddDays(item.InjuryDays), Date);
@@ -517,6 +543,46 @@ public sealed class Campaign
             Insurance = insurance, InsuranceClaim = claim, SalvagedItems = [.. items], SalvagedMechs = [.. mechs], SalvagePicks = picks,
             Hostages = hostages, Ransom = ransom
         };
+    }
+    /// <summary>Writes a mission into a deployed MechWarrior's service history, in the order things happened: the mech or lance they
+    /// took into it when either differs from their previous deployment, then their kills (the ace's fifth among them) and the comrades
+    /// they saw fall, by battle time, then how they died, ejected, lost their mech or were injured.</summary>
+    private void RecordBattle(RosterWarrior pilot, DeployedMechReport item, OwnedMech mech, string mission, (RosterWarrior Warrior, double Time)[] fallen)
+    {
+        ServiceEvent At(ServiceEventKind kind) => new(Date, kind) { Place = mission };
+        var newMech = pilot.LastMech != mech.Id;
+        var newLance = mech.Lance is { } lance && pilot.LastLance != lance;
+        if (newMech || newLance)
+            pilot.Record(At(ServiceEventKind.Deployed) with
+            {
+                Mech = newMech ? mech.Spec.DisplayName : null, Lance = newLance ? mech.Lance : null,
+                Rejoined = newLance && pilot.History.Any(entry => entry.Kind == ServiceEventKind.Deployed && entry.Lance == mech.Lance)
+            });
+        pilot.LastMech = mech.Id; pilot.LastLance = mech.Lance ?? pilot.LastLance;
+        var moments = new List<(double Time, ServiceEvent Event)>();
+        var kills = pilot.Kills; var ace = false;
+        foreach (var kill in item.KillLog)
+        {
+            moments.Add((kill.Time, At(ServiceEventKind.Kill) with { Enemy = kill.Enemy, Weapon = kill.Weapon, Manner = kill.Manner }));
+            if (++kills == ServiceRecord.AceKills) { moments.Add((kill.Time, At(ServiceEventKind.Ace))); ace = true; }
+        }
+        if (!ace && pilot.Kills < ServiceRecord.AceKills && pilot.Kills + item.Kills >= ServiceRecord.AceKills) moments.Add((double.MaxValue, At(ServiceEventKind.Ace)));
+        if (!item.WarriorKilled)
+            foreach (var (comrade, time) in fallen)
+                if (comrade != pilot) moments.Add((time, At(ServiceEventKind.ComradeKilled) with { Comrade = WarriorName(comrade) }));
+        foreach (var (_, moment) in moments.OrderBy(entry => entry.Time)) pilot.Record(moment);
+        if (item.WarriorKilled)
+        {
+            pilot.Record(At(ServiceEventKind.Killed) with { Enemy = item.Death?.Enemy, Weapon = item.Death?.Weapon, Manner = item.Death?.Manner, Exploded = item.Death?.Exploded });
+            return;
+        }
+        // An ejection carries the battle's whole recovery time; other injuries then only name their causes.
+        if (item.Ejected)
+            pilot.Record(At(ServiceEventKind.Ejected) with
+            { Mech = mech.Spec.DisplayName, Days = item.InjuryDays, Destroyed = item.MechDestroyed, AsDestroyed = item.MechDestroyed && item.AutoEjected });
+        else if (item.MechDestroyed) pilot.Record(At(ServiceEventKind.MechLost) with { Mech = mech.Spec.DisplayName });
+        if (item.InjuryCauses.Length > 0 || !item.Ejected && item.InjuryDays > 0)
+            pilot.Record(At(ServiceEventKind.Injured) with { Causes = item.InjuryCauses.Length > 0 ? [.. item.InjuryCauses] : null, Days = item.Ejected ? 0 : item.InjuryDays });
     }
     /// <summary>The rank of the pilot of enemy "enemy-N", the Nth mech of the opposition.</summary>
     private static EnemyPilotRank Hostage(MissionOffer offer, string unitId) =>

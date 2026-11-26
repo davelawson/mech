@@ -69,6 +69,8 @@ public sealed partial class CombatUnit
     /// <summary>Injuries from this battle: each ammunition explosion, and a damaged Life Support at high heat once.</summary>
     public int Injuries { get; internal set; }
     public bool LifeSupportInjury { get; internal set; }
+    /// <summary>What caused each injury other than ejecting, in order, for the MechWarrior's service history.</summary>
+    internal List<InjuryCause> InjuryCauses { get; } = [];
 
     /// <summary>Hits an item has taken: critical slots for weapons, bins, heat sinks and jump jets, damage levels for critical systems.</summary>
     public int ItemHits(string id) => _hits[id];
@@ -116,7 +118,7 @@ public sealed partial class CombatUnit
     internal void CheckLifeSupport()
     {
         if (LifeSupportInjury || Heat < CombatRules.LifeSupportInjuryHeat || !LifeSupportDamaged) return;
-        LifeSupportInjury = true; Injuries++;
+        LifeSupportInjury = true; Injuries++; InjuryCauses.Add(InjuryCause.LifeSupport);
     }
 
     /// <summary>The critical slots of a location not yet struck this battle, each with the block that fills it.</summary>
@@ -238,7 +240,7 @@ public sealed partial class CombatSimulation
             if (shots <= 0 || _criticalRandom.NextDouble() >= CombatRules.AmmoExplosionChance) continue;
             var kind = target.Spec.Ammo.Single(item => item.Id == id).AmmoKind;
             var damage = CombatRules.AmmoExplosionDamage(kind, shots);
-            target.Injuries++;
+            target.Injuries++; target.InjuryCauses.Add(InjuryCause.AmmoExplosion);
             log.Add(new(location, id, $"Ammo explosion · {DraftCatalog.Abbreviation(location)} {target.Spec.Ammo.Single(item => item.Id == id).Name} · {damage} damage", damage));
             // An explosion's damage is the victim's own: it is kept apart from the shot's credited damage. Explosions it sets off are
             // counted with it, once.

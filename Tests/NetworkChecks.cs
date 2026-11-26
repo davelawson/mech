@@ -302,7 +302,9 @@ internal static class NetworkChecks
 
     private static readonly HashSet<string> LeaderOnlyState = ["Route", "RouteIndex", "BlockedSeconds", "RouteGoal", "FiringPosition", "NextFiringSearch", "Spec", "Warrior", "Climate",
         "NerveRemaining", "NerveDamage", "ShotAtSinceCheck", "KnockedDownSinceCheck", "HeadDamagedSinceCheck", "InjuriesAtLastCheck", "AlliesDefeatedAtLastCheck",
-        "AbsorbedArmor", "AbsorbedStructure", "ShutdownHighlighted", "PanicHighlighted", "CountedPosition"];
+        "AbsorbedArmor", "AbsorbedStructure", "ShutdownHighlighted", "PanicHighlighted", "CountedPosition",
+        // Service-history notes go only into the leader's mission report.
+        "AutoEjected", "KillLog", "Death", "InjuryCauses"];
     private static IEnumerable<string> Differences(CombatSimulation a, CombatSimulation b)
     {
         foreach (var name in new[] { nameof(CombatSimulation.Elapsed), nameof(CombatSimulation.Outcome), nameof(CombatSimulation.WindDownEnds), nameof(CombatSimulation.Paused) })
@@ -397,6 +399,11 @@ internal static class NetworkChecks
         battle.End(); campaign.SettleMission(battle.MissionReport()); host.MarkDirty(); host.FinishBattle("Mission failed"); Pump();
         check(replica.Outcome == CombatOutcome.Ended && sam.Settlement == "Mission failed" && sam.Campaign!.Missions.Current is null,
             "every player sees the battle's end and the leader's settlement");
+        var samPilot = campaign.Roster!.Pilot(campaign.Roster.Mechs.Single(mech => mech.Id == samMechs[0]))!;
+        check(samPilot.History.Any(item => item is { Kind: ServiceEventKind.Deployed, Lance: 1 } && item.Place == offer.Name)
+            && sam.Campaign!.Roster!.Warriors.Select(warrior => string.Join("|", warrior.History.Select(ServiceRecord.Describe)))
+                .SequenceEqual(campaign.Roster.Warriors.Select(warrior => string.Join("|", warrior.History.Select(ServiceRecord.Describe)))),
+            "the leader records the battle in each MechWarrior's history, and every player sees the same histories");
         var closed = false; sam.BattleClosed += () => closed = true;
         host.CloseBattle(); Pump();
         check(closed && sam.Battle is null && host.Battle is null, "the leader leaving the results closes the battle for everyone");

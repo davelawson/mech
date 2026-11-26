@@ -632,6 +632,29 @@ internal static partial class CombatChecks
         check(simultaneous.Outcome == CombatOutcome.Draw && lethal.All(item => item.ShotsFired == 1), "same-instant lethal return shots resolve before outcome");
         check(lethal.All(item => item.Kills == 1) && simultaneous.MissionReport().Mechs.All(item => item.Kills == 1),
             "the hit that defeats an enemy credits its shooter with the kill, and the mission report carries it");
+        var shooter = lethal.First(unit => unit.Side == CombatSide.Friendly); var victim = lethal.First(unit => unit.Side == CombatSide.Enemy);
+        var record = simultaneous.MissionReport().Mechs.First(item => item.MechId == shooter.Id);
+        check(record.KillLog is [{ Manner: KillManner.Destroyed } kill] && kill.Enemy == victim.Spec.DisplayName && kill.Weapon == shooter.Weapons[0].Spec.Name
+            && record is { Ejected: true, AutoEjected: true, MechDestroyed: true, Death: null, WarriorKilled: false },
+            "the report names each kill's enemy and weapon, and a pilot thrown clear as the center torso was destroyed");
+        // Only the friendly's head can fall; the enemy fires until it does.
+        var duel = Battle().Units.Select((unit, i) => new CombatUnit(unit.Id, unit.Spec, unit.Warrior with { Gunnery = -10 }, unit.Side,
+            unit.Locations.Values.Select(loc => new LocationCondition(loc.Location, 0, 0, unit.Side == CombatSide.Friendly && loc.Location == MechLocation.Head ? 1 : 100000)),
+            unit.Equipment.Select(item => new EquipmentCondition(item.Key, item.Value)), unit.Ammo, new Vector2(i * 60, 0))).ToArray();
+        foreach (var unit in duel)
+        {
+            unit.Facing = unit.Side == CombatSide.Friendly ? Vector2.Right : Vector2.Left;
+            foreach (var weapon in unit.Weapons) weapon.Enabled = unit.Side == CombatSide.Enemy && weapon == unit.Weapons[0];
+        }
+        var headshot = new CombatSimulation(duel, 7) { EnemyAiEnabled = false, Paused = false };
+        var fallen = duel.First(unit => unit.Side == CombatSide.Friendly); var killer = duel.First(unit => unit.Side == CombatSide.Enemy);
+        headshot.Attack([killer.Id], fallen.Id);
+        for (var second = 0; second < 2000 && !fallen.WarriorKilled; second++) headshot.Advance(1);
+        headshot.End();
+        var death = headshot.MissionReport().Mechs.First(item => item.MechId == fallen.Id);
+        check(death is { WarriorKilled: true, Death: { Manner: KillManner.Head } cause } && cause.Enemy == killer.Spec.DisplayName && cause.Weapon == killer.Weapons[0].Spec.Name
+            && killer.KillLog is [{ Manner: KillManner.Head }],
+            "a MechWarrior killed in battle is reported with the enemy and weapon that killed them, and the shooter with the kill");
         var ended = Battle(); ended.End(); ended.Advance(2);
         check(ended.Outcome == CombatOutcome.Ended && ended.Elapsed == 0, "End Simulation works before any combat and freezes state");
     }
