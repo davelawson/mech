@@ -56,10 +56,11 @@ public partial class CombatScreen : Control
     public List<TextureRect> UnitFaces { get; } = [];
     /// <summary>Each card's status glyph in its top left corner; hidden while the mech is active and on its feet.</summary>
     public List<TextureRect> UnitStatusIcons { get; } = [];
-    /// <summary>Cards stop growing at this width; the spare width of the bar goes into the gaps between them.</summary>
+    /// <summary>Cards stop growing at this width; the row stays left-justified.</summary>
     public const float MaxUnitCardWidth = 260;
     private const float StressFaceSize = 18;
-    private const float UnitCardGap = 6;
+    /// <summary>The gap between unit cards, and between the first card and the window's left edge, as a share of the window width.</summary>
+    public const float UnitCardGapShare = .02f;
     private float _unitBarHeight;
     public IReadOnlyList<string> Selected => _selected;
     /// <summary>The local player's slot: force selection offers its lance, and its orders go to that lance's mechs.</summary>
@@ -283,7 +284,7 @@ public partial class CombatScreen : Control
         EjectButton.Pressed += PressEject;
         _weaponsTitle = RosterUi.Text(body, "WEAPONS · PRIMARY SELECTION", 12, Ui.Gold);
         _weapons = new VBoxContainer(); body.AddChild(_weapons);
-        _unitBar = new HBoxContainer { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; _unitBar.AddThemeConstantOverride("separation", (int)UnitCardGap); AddChild(_unitBar);
+        _unitBar = new HBoxContainer { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; AddChild(_unitBar);
         WaitingBanner = new PanelContainer { Visible = false }; WaitingBanner.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Gold, 2));
         var waiting = new HBoxContainer(); waiting.AddThemeConstantOverride("separation", 14); WaitingBanner.AddChild(waiting);
         WaitingText = Ui.Label(waiting, "", 15, Ui.Gold); WaitingText.VerticalAlignment = VerticalAlignment.Center;
@@ -421,7 +422,7 @@ public partial class CombatScreen : Control
     private void Layout()
     {
         if (_timePanel is null) return;
-        var sidebar = Size.X < 1100 ? 280 : 330;
+        var sidebar = SidebarWidth;
         Ui.Place(Battlefield, 0, 0, Size.X, Size.Y);
         _timePanel.Size = Vector2.Zero;
         var timePanel = _timePanel.GetCombinedMinimumSize();
@@ -449,14 +450,14 @@ public partial class CombatScreen : Control
         if (ZonePanel.Visible) top += zones.Y + 8;
         var logWidth = BattleLog.Visible ? Math.Clamp(Size.X * .29f, 290, 420) : 0;
         Ui.Place(BattleLog, 8, top, logWidth, Math.Max(0, Math.Min(cardsTop - 8 - top, 12 * 56 + 56)));
-        // The details panel floats over the battlefield's right edge, above the cards.
-        Ui.Place(_sidebar, Size.X - sidebar, 8, sidebar - 12, cardsTop - 16);
+        // The details panel floats over the battlefield's right edge, down to the window's foot.
+        Ui.Place(_sidebar, Size.X - sidebar, 8, sidebar - 12, Size.Y - 8);
         // The controls lie beside the details panel, or at the right edge while it is hidden.
         var controls = Math.Clamp(Size.X * .3f, 300, 440);
         Ui.Place(ControlsPanel, (_sidebar.Visible ? Size.X - sidebar - 8 : Size.X - 12) - controls, 8, controls, cardsTop - 16);
         // Shrink the cards first: a container never sizes below its children's current minimum.
         LayoutUnitCards();
-        Ui.Place(_unitBar, 16, cardsTop, Size.X - 32, unitBar);
+        Ui.Place(_unitBar, UnitCardGap, cardsTop, UnitBarWidth, unitBar);
         PlaceNotice();
         if (WaitingBanner is not null) PlaceBanner();
         // The results' tables need nearly the whole screen.
@@ -815,17 +816,21 @@ public partial class CombatScreen : Control
     /// <summary>One text line at the card font, with the margins above and below it; the glyphs beside it are no taller.</summary>
     private float UnitCardTextHeight => UnitButtons.Count == 0 ? 0
         : Math.Max(StressFaceSize, UnitButtons[0].GetThemeFont("font").GetHeight(UnitButtons[0].GetThemeFontSize("font_size"))) + 10;
+    private float UnitCardGap => Mathf.Round(Size.X * UnitCardGapShare);
+    /// <summary>The bar starts one gap in from the left and ends one gap short of the details panel's column, shown or not.</summary>
+    private float UnitBarWidth => Math.Max(0, Size.X - SidebarWidth - 2 * UnitCardGap);
+    private float SidebarWidth => Size.X < 1100 ? 280 : 330;
     /// <summary>The compact paperdoll's height: whatever the card leaves beneath its names.</summary>
     private float UnitDollHeight => Math.Max(16, _unitBarHeight - UnitCardTextHeight - 4);
     private void LayoutUnitCards()
     {
-        // Cards share the bar up to their maximum width; the rest becomes even gaps between them, the outer cards flush with its edges.
-        var bar = Size.X - 32; var count = UnitButtons.Count;
+        // Cards share the bar up to their maximum width, a fixed gap apart, from its left end.
+        var bar = UnitBarWidth; var count = UnitButtons.Count; var gap = UnitCardGap;
+        _unitBar.AddThemeConstantOverride("separation", (int)gap);
         if (count > 0)
         {
-            var width = Mathf.Floor(Math.Min(MaxUnitCardWidth, (bar - UnitCardGap * (count - 1)) / count));
+            var width = Mathf.Floor(Math.Min(MaxUnitCardWidth, (bar - gap * (count - 1)) / count));
             foreach (var button in UnitButtons) button.CustomMinimumSize = new Vector2(width, 0);
-            _unitBar.AddThemeConstantOverride("separation", count > 1 ? (int)((bar - width * count) / (count - 1)) : 0);
         }
         foreach (var doll in UnitDolls) { doll.OffsetTop = -UnitDollHeight - 4; doll.OffsetBottom = -4; doll.OffsetLeft = 6; doll.OffsetRight = -6; }
         foreach (var button in UnitButtons)

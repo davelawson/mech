@@ -36,7 +36,6 @@ This file serves as a repository for ideas that await implementation or further 
   - Laser/Ballistics/Missile specialist: somehow improves those weapons
   - Engine enthusiast: Mech move a bit faster
   - etc.
-- Show recent service history entries outside the rolodex, e.g. on the hangar pilot card or in the battle results
 - More service history events: top damage dealer in a mission, holding their nerve while Panicked, forcing an enemy surrender, kill milestones beyond the fifth
 - Name enemy MechWarriors so histories (and rivalries) can say who was killed
 - add pilot abilities that help their lance
@@ -57,10 +56,6 @@ This file serves as a repository for ideas that await implementation or further 
 - Sometimes, due to map features, mechs find themselves unable to path where they want to go.  In this situation, the game suffers a massive slowdown.  I expect this is due to continuous pathing attempts.  Limit the number of attempts per second.
 
 ### Mech Cards
-- Paper dolls look too crowded and aren't spaced as I'd like.
-  - keep the paper dolls centred with constant spacing between them.
-  - add the spacing left and right
-
 
 ### Main Tactical View
 - improved the mech details panel for selections

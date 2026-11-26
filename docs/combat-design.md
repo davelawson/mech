@@ -358,7 +358,8 @@ Hovering a location of the sidebar paperdoll lists every weapon, component and a
 
 Each friendly unit card carries a compact paperdoll of its mech's current armor and structure, with no labels or tooltip, beneath a single line naming the pilot's callsign and the mech's chassis without its model ("Kestrel · Locust"). Destroyed and disabled mechs keep theirs.
 
-- **Card layout (confirmed November 24, 2026).** Cards grow with the bar only up to 260 pixels wide; past that the spare width becomes even gaps between them, with the outer cards flush with the bar's ends. A narrow window shrinks them below that, keeping a 6-pixel gap.
+- **Card layout (confirmed November 26, 2026).** Unit cards sit a fixed gap apart: 2% of the window width, rounded to whole pixels. The row is left-justified, with the same gap between the window's left edge and the first card. Cards grow only up to 260 pixels wide, and the row ends at least one gap short of the details panel's column, whether or not the panel is shown, so selecting never resizes the cards. A narrow window shrinks them below 260 pixels, keeping the same gap.
+- **Details panel height.** The details panel runs from 8 pixels below the window's top edge down to its bottom edge, beside the unit cards.
 - **Status glyph (confirmed November 24, 2026).** The card's top left corner shows the mech's most pressing state as a tinted glyph, mirroring the stress face in the top right corner: Destroyed, then Disabled, Surrendered, Fled, Extracted, Fleeing, Shutdown and Prone. An active mech on its feet shows none. The card's tooltip keeps the full model, status, prone countdown and Fleeing text, with stress and heat.
 
 ### Heat and jump-fuel bars (confirmed November 17, 2026)
