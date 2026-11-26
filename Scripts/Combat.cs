@@ -633,16 +633,16 @@ public sealed partial class CombatSimulation
             EnemyHoldsField = EnemyHoldsField
         };
     }
-    /// <summary>Notes for the service histories what a resolved hit did: the kill it earned its shooter, or the MechWarrior it killed,
-    /// and how that MechWarrior died.</summary>
+    /// <summary>Notes for the service histories what a resolved hit did: the kill it earned its shooter, and how a MechWarrior it
+    /// killed died.</summary>
     private void RecordDeeds(CombatShot shot, CombatUnit target, bool kill, bool pilotKilled)
     {
         var attacker = Unit(shot.AttackerId);
         var enemy = attacker.Side != target.Side;
         var pilot = target.Intact(MechLocation.Head) ? KillManner.Cockpit : KillManner.Head;
-        if (enemy && (kill || pilotKilled))
+        if (kill)
             attacker.KillLog.Add(new(Elapsed, target.Spec.DisplayName, shot.Weapon,
-                pilotKilled ? pilot : target.Status == CombatStatus.Destroyed ? KillManner.Destroyed : KillManner.Disabled, kill));
+                pilotKilled ? pilot : target.Status == CombatStatus.Destroyed ? KillManner.Destroyed : KillManner.Disabled));
         if (pilotKilled)
             target.Death = !enemy ? new(Elapsed, null, null, pilot) : new(Elapsed, attacker.Spec.DisplayName, shot.Weapon, pilot,
                 _fatalExplosion is { } fatal ? target.Spec.Ammo.Single(item => item.Id == fatal.BinId).Name : null);

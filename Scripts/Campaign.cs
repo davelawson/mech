@@ -487,7 +487,7 @@ public sealed class Campaign
                 ? gains.Any(skill => SkillGrowth.Maxed(SkillGrowth.Rating(warrior.Spec, skill))) : gains.Length > 0))))
             throw new ArgumentException("The report's skill gains do not fit its MechWarriors.", nameof(report));
         if (report.Mechs.Any(item => item.KillLog is null || item.InjuryCauses is null || item.KillLog.Any(kill => kill is null
-            || string.IsNullOrWhiteSpace(kill.Enemy) || !Enum.IsDefined(kill.Manner)) || item.KillLog.Count(kill => kill.Credited) > item.Kills
+            || string.IsNullOrWhiteSpace(kill.Enemy) || !Enum.IsDefined(kill.Manner)) || item.KillLog.Length > item.Kills
             || item.InjuryCauses.Any(cause => !Enum.IsDefined(cause)) || item.Death is { Manner: { } manner } && !Enum.IsDefined(manner)))
             throw new ArgumentException("The report's service records do not fit its MechWarriors.", nameof(report));
         if (report.Outcome != MissionOutcome.Success && report.Salvage.Length > 0) throw new ArgumentException("Only a victory takes salvage.", nameof(report));
@@ -564,7 +564,7 @@ public sealed class Campaign
         foreach (var kill in item.KillLog)
         {
             moments.Add((kill.Time, At(ServiceEventKind.Kill) with { Enemy = kill.Enemy, Weapon = kill.Weapon, Manner = kill.Manner }));
-            if (kill.Credited && ++kills == ServiceRecord.AceKills) { moments.Add((kill.Time, At(ServiceEventKind.Ace))); ace = true; }
+            if (++kills == ServiceRecord.AceKills) { moments.Add((kill.Time, At(ServiceEventKind.Ace))); ace = true; }
         }
         if (!ace && pilot.Kills < ServiceRecord.AceKills && pilot.Kills + item.Kills >= ServiceRecord.AceKills) moments.Add((double.MaxValue, At(ServiceEventKind.Ace)));
         if (!item.WarriorKilled)

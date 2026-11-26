@@ -118,12 +118,12 @@ internal static class ServiceRecordChecks
         var mechs = roster.Mechs.Take(4).ToArray(); var pilots = mechs.Select(mech => roster.Pilot(mech)!).ToArray();
         var report = new MissionReport(MissionOutcome.Failure,
         [
-            Report(mechs[0], kills: 1) with { KillLog = [new(10, "Atlas AS7-D", "PPC", KillManner.Destroyed), new(30, "Jenner JR7-D", "Medium Laser", KillManner.Cockpit, false)] },
+            Report(mechs[0], kills: 2) with { KillLog = [new(10, "Atlas AS7-D", "PPC", KillManner.Destroyed), new(30, "Jenner JR7-D", "Medium Laser", KillManner.Cockpit)] },
             Report(mechs[1], killed: true) with { Death = new(20, "Jenner JR7-D", "Medium Laser", KillManner.Cockpit) },
             Report(mechs[2], days: 30) with { Ejected = true, AutoEjected = true, MechDestroyed = true, InjuryCauses = [InjuryCause.AmmoExplosion] },
             Report(mechs[3], days: 14) with { InjuryCauses = [InjuryCause.AmmoExplosion] },
         ], 0);
-        Rejects(() => campaign.SettleMission(report with { Mechs = [report.Mechs[0] with { Kills = 0 }] }), check, "a report cannot credit more kills than it counts");
+        Rejects(() => campaign.SettleMission(report with { Mechs = [report.Mechs[0] with { Kills = 1 }] }), check, "a report cannot list more kills than it counts");
         campaign.SettleMission(report);
         var comrade = $"“{pilots[1].Spec.Callsign}” {pilots[1].Spec.Name}";
         check(pilots.All(pilot => pilot.History.Skip(1).All(item => item.Date == day)), "a mission's entries are dated its settlement day");

@@ -37,9 +37,9 @@ public sealed record ServiceEvent(DateOnly Date, ServiceEventKind Kind)
     public WarriorExperience? Rank { get; init; }
 }
 
-/// <summary>An enemy BattleMech a MechWarrior's hit took out of the fight, or whose MechWarrior it killed. Credited kills are the ones
-/// the Kills record counts; killing the MechWarrior of a mech already out of the fight is not credited.</summary>
-public sealed record BattleKill(double Time, string Enemy, string Weapon, KillManner Manner, bool Credited = true);
+/// <summary>An enemy BattleMech a MechWarrior's hit took out of the fight, as the Kills record counts it: destroyed, disabled, or its
+/// MechWarrior killed.</summary>
+public sealed record BattleKill(double Time, string Enemy, string Weapon, KillManner Manner);
 /// <summary>How a friendly MechWarrior died: the enemy mech and weapon whose hit killed them, by cockpit or head, or the ammunition that
 /// exploded after it. Enemy and Weapon are null when no enemy hit is to blame.</summary>
 public sealed record BattleDeath(double Time, string? Enemy, string? Weapon, KillManner? Manner, string? Exploded = null);

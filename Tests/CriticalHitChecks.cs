@@ -100,6 +100,9 @@ internal static partial class CombatChecks
         check(unit.Injuries == 0, "a damaged Life Support does not injure below 15 heat");
         unit.AddHeat(2); unit.AddHeat(-5); unit.AddHeat(5);
         check(unit.Injuries == 1 && unit.LifeSupportInjury, "reaching 15 heat with Life Support damaged injures the MechWarrior once per battle");
+        sim.End();
+        check(sim.MissionReport().Mechs.Single() is { Ejected: false } overheated && overheated.InjuryCauses.SequenceEqual([InjuryCause.LifeSupport]),
+            "the mission report names a Life Support injury's cause");
 
         // Slots: each is struck once, and an exhausted location takes no more.
         sim = Battle(1, "griffin"); Arrange(sim); unit = Friendly(sim);
@@ -138,7 +141,7 @@ internal static partial class CombatChecks
                 exploded++;
                 var blast = log.First(item => item.Explosion > 0);
                 check(blast.Explosion == CombatRules.AmmoExplosionDamage(store.AmmoKind, store.Shots) && blast.Explosion == 600
-                    && blast.Text == $"Ammo explosion · RT {store.Name} · 600 damage" && target.Injuries >= 1 && !target.Intact(store.Location),
+                    && blast.Text == $"Ammo explosion · RT {store.Name} · 600 damage" && target.Injuries >= 1 && target.InjuryCauses.Contains(InjuryCause.AmmoExplosion) && !target.Intact(store.Location),
                     "an explosion deals half the stock damage of its remaining shots, wrecks its location and injures the MechWarrior");
             }
             else held++;

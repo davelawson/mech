@@ -634,7 +634,7 @@ internal static partial class CombatChecks
             "the hit that defeats an enemy credits its shooter with the kill, and the mission report carries it");
         var shooter = lethal.First(unit => unit.Side == CombatSide.Friendly); var victim = lethal.First(unit => unit.Side == CombatSide.Enemy);
         var record = simultaneous.MissionReport().Mechs.First(item => item.MechId == shooter.Id);
-        check(record.KillLog is [{ Credited: true, Manner: KillManner.Destroyed } kill] && kill.Enemy == victim.Spec.DisplayName && kill.Weapon == shooter.Weapons[0].Spec.Name
+        check(record.KillLog is [{ Manner: KillManner.Destroyed } kill] && kill.Enemy == victim.Spec.DisplayName && kill.Weapon == shooter.Weapons[0].Spec.Name
             && record is { Ejected: true, AutoEjected: true, MechDestroyed: true, Death: null, WarriorKilled: false },
             "the report names each kill's enemy and weapon, and a pilot thrown clear as the center torso was destroyed");
         // Only the friendly's head can fall; the enemy fires until it does.
@@ -653,7 +653,7 @@ internal static partial class CombatChecks
         headshot.End();
         var death = headshot.MissionReport().Mechs.First(item => item.MechId == fallen.Id);
         check(death is { WarriorKilled: true, Death: { Manner: KillManner.Head } cause } && cause.Enemy == killer.Spec.DisplayName && cause.Weapon == killer.Weapons[0].Spec.Name
-            && killer.KillLog is [{ Manner: KillManner.Head, Credited: true }],
+            && killer.KillLog is [{ Manner: KillManner.Head }],
             "a MechWarrior killed in battle is reported with the enemy and weapon that killed them, and the shooter with the kill");
         var ended = Battle(); ended.End(); ended.Advance(2);
         check(ended.Outcome == CombatOutcome.Ended && ended.Elapsed == 0, "End Simulation works before any combat and freezes state");
