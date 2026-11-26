@@ -167,7 +167,7 @@ An individual operational assignment within a contract.
 A single-mission contract on the mission offer board, with fixed terms: location, exact expected opposition, deadline, payment, salvage picks and an insurance limit.
 
 **Contract kind**:
-What a mission offer asks of the force: a raid, a defense or a patrol.
+What a mission offer asks of the force: a raid, a defense, a patrol or a Take and Hold. A raid or a Take and Hold attacks the opponent's ground; a defense or a patrol guards the employer's.
 
 **Challenge rating**:
 The opposition tonnage a mission offer is filled to, rolled when it is posted from the force's summed positive reputation, per company lance.
@@ -183,6 +183,28 @@ The circle on a battlefield edge through which a patrol's mechs leave the battle
 
 **Enemy group**:
 The opposition guarding one leg of a patrol. It is passive, unaware of the force, until it detects a company mech or is fired upon, and active from then on.
+
+**Take and Hold**:
+A contract kind in which the force takes the objective settlement from its garrison, then holds it against reinforcement waves.
+
+**Control zone**:
+A circle of ground the two sides fight to control, set up by a mission. Fighting units inside count; the side whose units lead nearest the centre moves its control.
+_Avoid_: capture point
+
+**Control**:
+How far a control zone is in the company's hands, from 0 (the opposition's) to 1 (the company's). The owner changes only at the ends; in between the zone is contested.
+
+**Objective settlement**:
+The settlement a Take and Hold is fought over, at the centre of its control zone.
+
+**Garrison**:
+The opposition holding a Take and Hold's objective when the battle begins.
+
+**Reinforcement wave**:
+One of the groups of enemy mechs that arrive after a Take and Hold's objective is taken, to retake it. Until it arrives it is inbound: off the field and out of the fight.
+
+**Leading the advance**:
+Being the first company mech into a Take and Hold's control zone and staying in it until the objective is taken.
 
 **Mission offer board**:
 The ten mission offers available at a time, oldest first. Each day the oldest may be taken off and the board is refilled.

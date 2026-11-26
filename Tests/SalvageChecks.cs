@@ -17,7 +17,7 @@ internal static class SalvageChecks
     {
         var campaign = CampaignChecks.NewCompany(7);
         var save = campaign.Snapshot();
-        var offer = save.Missions!.Offers.First(item => item.Opposition.Length >= 2 && item.Kind != MissionKind.Patrol
+        var offer = save.Missions!.Offers.First(item => item.Opposition.Length >= 2 && item.Kind is MissionKind.Raid or MissionKind.Defense
             && item.Employer.Faction is { } faction && faction != Faction.ComStar);
         var changed = offer with { SalvagePicks = picks, InsuranceLimit = insuranceLimit };
         campaign = Campaign.Restore(save with { Missions = save.Missions with { Offers = [.. save.Missions.Offers.Select(item => item.Id == offer.Id ? changed : item)] } });

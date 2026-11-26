@@ -26,6 +26,7 @@ public partial class CombatScreen : Control
     public Button RandomizedEnemyButton { get; private set; } = null!;
     public Button MirrorMatchButton { get; private set; } = null!;
     public Button PatrolButton { get; private set; } = null!;
+    public Button TakeAndHoldButton { get; private set; } = null!;
     /// <summary>The company's standing, which sets a simulated patrol's opposition as it would an offer's.</summary>
     public Reputation Reputation { get; set; } = new();
     public SimulationOpponent Opponent { get; private set; }
@@ -157,6 +158,11 @@ public partial class CombatScreen : Control
     private const float ContactCardGap = 4;
     /// <summary>The mission's objective, floating at the top left below the contact cards.</summary>
     public Label ObjectiveLabel { get; private set; } = null!;
+    /// <summary>One bar per control zone, directly under the objective, and the mission's line on what is coming below them.</summary>
+    public VBoxContainer ZonePanel { get; private set; } = null!;
+    public IReadOnlyList<ControlZoneBar> ZoneBars => _zoneBars;
+    private readonly List<ControlZoneBar> _zoneBars = [];
+    public Label ReinforcementLabel { get; private set; } = null!;
     /// <summary>A notice for the local player, such as a refused jump, in red below the time panel; it fades after a few seconds.</summary>
     public PanelContainer NoticeStrip { get; private set; } = null!;
     public Label NoticeLabel { get; private set; } = null!;
@@ -218,6 +224,10 @@ public partial class CombatScreen : Control
         _contactBar = new Control { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled, MouseFilter = MouseFilterEnum.Ignore }; AddChild(_contactBar);
         ObjectiveLabel = Ui.Label(this, "", 14, Ui.Gold); ObjectiveLabel.Visible = false;
         ObjectiveLabel.AddThemeConstantOverride("outline_size", 5); ObjectiveLabel.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, .85f));
+        ZonePanel = new VBoxContainer { Visible = false, MouseFilter = MouseFilterEnum.Ignore, FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled };
+        ZonePanel.AddThemeConstantOverride("separation", 4); AddChild(ZonePanel);
+        ReinforcementLabel = Ui.Label(ZonePanel, "", 13, Ui.Text); ReinforcementLabel.Visible = false;
+        ReinforcementLabel.AddThemeConstantOverride("outline_size", 4); ReinforcementLabel.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, .85f));
         NoticeStrip = new PanelContainer { Visible = false, MouseFilter = MouseFilterEnum.Ignore }; NoticeStrip.AddThemeStyleboxOverride("panel", HudBox); AddChild(NoticeStrip);
         NoticeLabel = Ui.Label(NoticeStrip, "", 14, new Color("ec5a4a"));
         _sidebar = new PanelContainer { FocusBehaviorRecursive = FocusBehaviorRecursiveEnum.Disabled }; _sidebar.AddThemeStyleboxOverride("panel", Ui.Box(Ui.Panel, Ui.Line)); AddChild(_sidebar);
@@ -433,6 +443,10 @@ public partial class CombatScreen : Control
         var objective = ObjectiveLabel.GetCombinedMinimumSize();
         Ui.Place(ObjectiveLabel, 12, top, objective.X, objective.Y);
         if (ObjectiveLabel.Visible) top += objective.Y + 8;
+        ZonePanel.Size = Vector2.Zero;
+        var zones = ZonePanel.GetCombinedMinimumSize();
+        Ui.Place(ZonePanel, 12, top, zones.X, zones.Y);
+        if (ZonePanel.Visible) top += zones.Y + 8;
         var logWidth = BattleLog.Visible ? Math.Clamp(Size.X * .29f, 290, 420) : 0;
         Ui.Place(BattleLog, 8, top, logWidth, Math.Max(0, Math.Min(cardsTop - 8 - top, 12 * 56 + 56)));
         // The details panel floats over the battlefield's right edge, above the cards.
@@ -492,6 +506,7 @@ public partial class CombatScreen : Control
         Coop = false; Leading = true; ForceReady = false; _othersReady = false; Orders = null;
         Simulation = null; _primary = null; _selected.Clear(); SettingJump = false;
         _noticeSeconds = 0; NoticeStrip.Hide(); ObjectiveLabel.Hide(); ObjectiveLabel.Text = ""; _sidebar.Hide();
+        ShowZones(null);
         BattleLog.Hide(); ControlsPanel.Hide(); Layout();
         Show();
     }
@@ -511,16 +526,23 @@ public partial class CombatScreen : Control
     private void ShowOpponentSelection(string selectedMechId)
     {
         BeginModal(CombatModal.OpponentSelection, "Choose your opponent");
-        RosterUi.Text(_modalContent, "Choose an opponent, then select your force and terrain. Your campaign will be preserved.", 14);
-        RandomizedEnemyButton = Ui.Button(_modalContent, "Randomized enemy");
-        RosterUi.Text(_modalContent, "A fresh enemy draft matches your deployed count and weight categories. Your units keep their current condition.", 14, Ui.Muted);
-        RandomizedEnemyButton.Pressed += () => { Opponent = SimulationOpponent.Randomized; ShowForceSelection(selectedMechId); };
-        MirrorMatchButton = Ui.Button(_modalContent, "Mirror match");
-        RosterUi.Text(_modalContent, "Face the same mechs and pilot skills. Both sides start fully repaired and supplied.", 14, Ui.Muted);
-        MirrorMatchButton.Pressed += () => { Opponent = SimulationOpponent.Mirror; ShowForceSelection(selectedMechId); };
-        PatrolButton = Ui.Button(_modalContent, "Patrol");
-        RosterUi.Text(_modalContent, "Visit each patrol point, then reach the extraction zone, past enemy groups that wake on contact. The opposition is rolled from your reputation, as an offer's would be. Your units keep their current condition.", 14, Ui.Muted);
-        PatrolButton.Pressed += () => { Opponent = SimulationOpponent.Patrol; ShowForceSelection(selectedMechId); };
+        RosterUi.Text(_modalContent, "Choose an opponent, then select your force and terrain. A patrol's or a Take and Hold's opposition is rolled from your reputation, as an offer's would be. Your campaign will be preserved.", 14);
+        // Each choice sits beside its description, so all of them fit the minimum window.
+        Button Choice(string name, string text, SimulationOpponent opponent)
+        {
+            var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 14); _modalContent.AddChild(row);
+            var button = Ui.Button(row, name); button.CustomMinimumSize = new Vector2(170, 0); button.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+            RosterUi.Text(row, text, 14, Ui.Muted).SizeFlagsHorizontal = SizeFlags.ExpandFill;
+            button.Pressed += () => { Opponent = opponent; ShowForceSelection(selectedMechId); };
+            return button;
+        }
+        RandomizedEnemyButton = Choice("Randomized enemy", "A fresh enemy draft matches your deployed count and weight categories. Your units keep their current condition.",
+            SimulationOpponent.Randomized);
+        MirrorMatchButton = Choice("Mirror match", "Face the same mechs and pilot skills. Both sides start fully repaired and supplied.", SimulationOpponent.Mirror);
+        PatrolButton = Choice("Patrol", "Visit each patrol point, then reach the extraction zone, past enemy groups that wake on contact. Your units keep their current condition.",
+            SimulationOpponent.Patrol);
+        TakeAndHoldButton = Choice("Take and Hold", "Take the objective settlement from its garrison, then hold it against reinforcement waves. Your units keep their current condition.",
+            SimulationOpponent.TakeAndHold);
         BackButton = Ui.Sound(Ui.Button(ModalActions(), "Back to hangar"), Cue.UiCancel); BackButton.Pressed += Exit;
         RandomizedEnemyButton.GrabFocus(); RosterUi.TrapFocus(_shade);
     }
@@ -530,10 +552,13 @@ public partial class CombatScreen : Control
         if (_mission is not null)
             RosterUi.Text(_modalContent, $"Choose 1–4 BattleMechs. They deploy as they stand, and the battle's damage, losses and result are settled into your campaign.\n"
                 + (_mission.Kind == MissionKind.Patrol ? $"Patrol: {MissionsPanel.PatrolText(_mission)}.\n" : "")
+                + (_mission.Kind == MissionKind.TakeAndHold ? $"Take and Hold: {MissionsPanel.TakeAndHoldText(_mission)}.\n" : "")
                 + $"Opposition ({_mission.OppositionTonnage} t): "
                 + string.Join(", ", _mission.Opposition.Select(item => $"{DraftCatalog.Mech(item.MechId).DisplayName} ({item.Rank})")), 14);
         else if (Opponent == SimulationOpponent.Patrol)
             RosterUi.Text(_modalContent, "Choose 1–4 BattleMechs. They keep their current condition. The patrol's points, groups and opposition are rolled at launch from your reputation. Your campaign will be preserved.", 14);
+        else if (Opponent == SimulationOpponent.TakeAndHold)
+            RosterUi.Text(_modalContent, "Choose 1–4 BattleMechs. They keep their current condition. The garrison and reinforcement waves are rolled at launch from your reputation. Your campaign will be preserved.", 14);
         else RosterUi.Text(_modalContent, Opponent == SimulationOpponent.Mirror
             ? "Choose 1–4 BattleMechs. Opposition mirrors your mechs and pilot skills. Both sides start fully repaired and supplied. Your campaign will be preserved."
             : "Choose 1–4 BattleMechs. A fresh enemy draft matches your count and weight categories. Your units keep their current condition. Your campaign will be preserved.", 14);
@@ -613,6 +638,9 @@ public partial class CombatScreen : Control
             : Opponent == SimulationOpponent.Patrol ? CombatSimulation.DeployMission(_roster, force,
                 MissionGenerator.SimulatedPatrol(new MissionRandom((ulong)Random.Shared.NextInt64()), Reputation), terrainSeed: terrainSeed, biome: biome,
                 dropPhase: true)
+            : Opponent == SimulationOpponent.TakeAndHold ? CombatSimulation.DeployMission(_roster, force,
+                MissionGenerator.SimulatedTakeAndHold(new MissionRandom((ulong)Random.Shared.NextInt64()), Reputation), terrainSeed: terrainSeed, biome: biome,
+                dropPhase: true)
             : CombatSimulation.Deploy(_roster, force, terrainSeed: terrainSeed, opponent: Opponent, biome: biome, dropPhase: true));
     }
     /// <summary>Shows every player's force selection. The leader may launch once every other player is ready.</summary>
@@ -640,6 +668,7 @@ public partial class CombatScreen : Control
         Battlefield.MouseFilter = MouseFilterEnum.Stop;
         RosterUi.Clear(_unitBar); UnitButtons.Clear(); UnitDolls.Clear(); UnitFaces.Clear(); UnitStatusIcons.Clear();
         RosterUi.Clear(_contactBar); ContactButtons.Clear(); _contactIds.Clear(); _contactDolls.Clear(); _contactIcons.Clear();
+        ShowZones(simulation);
         foreach (var unit in OwnUnits)
         {
             var button = Ui.Button(_unitBar, CardText(unit));
@@ -727,8 +756,20 @@ public partial class CombatScreen : Control
         }
         return added;
     }
-    private string ObjectiveText() => Simulation!.PatrolObjectiveText() is { } patrol ? patrol
-        : _mission?.Objective ?? "Defeat the opposing force.";
+    private string ObjectiveText() => Simulation!.PatrolObjectiveText() ?? Simulation.TakeAndHoldObjectiveText()
+        ?? _mission?.Objective ?? "Defeat the opposing force.";
+    /// <summary>One bar per control zone of the battle, or none.</summary>
+    private void ShowZones(CombatSimulation? simulation)
+    {
+        foreach (var bar in _zoneBars) { ZonePanel.RemoveChild(bar); bar.QueueFree(); }
+        _zoneBars.Clear();
+        foreach (var zone in simulation?.ControlZones ?? [])
+        {
+            var bar = new ControlZoneBar { Zone = zone }; ZonePanel.AddChild(bar); _zoneBars.Add(bar);
+            ZonePanel.MoveChild(bar, _zoneBars.Count - 1);
+        }
+        ZonePanel.Visible = _zoneBars.Count > 0; ReinforcementLabel.Text = ""; ReinforcementLabel.Visible = false;
+    }
     public void SelectUnits(IReadOnlyList<string> ids, bool additive)
     {
         if (!additive) _selected.Clear();
@@ -932,7 +973,8 @@ public partial class CombatScreen : Control
     }
     private static string OpponentName(SimulationOpponent opponent) => opponent switch
     {
-        SimulationOpponent.Mirror => "Mirror match", SimulationOpponent.Randomized => "Randomized enemy", _ => "Patrol",
+        SimulationOpponent.Mirror => "Mirror match", SimulationOpponent.Randomized => "Randomized enemy",
+        SimulationOpponent.TakeAndHold => "Take and Hold", _ => "Patrol",
     };
     private string MissionText()
     {
@@ -943,6 +985,7 @@ public partial class CombatScreen : Control
         {
             SimulationOpponent.Mirror => "A simulated battle against a mirror of your force and pilot skills.",
             SimulationOpponent.Randomized => "A simulated battle against a fresh enemy draft matching your count and weight categories.",
+            SimulationOpponent.TakeAndHold => "A simulated Take and Hold, rolled from your reputation.",
             _ => "A simulated patrol, rolled from your reputation.",
         } + " It has no campaign consequences.";
     }
@@ -966,6 +1009,8 @@ public partial class CombatScreen : Control
         if (terrain.Buildings.Count > 0) features.Add(Count(terrain.Buildings.Count, "building", "buildings"));
         lines.Add($"TERRAIN  {string.Join(" · ", features)}");
         if (simulation.Patrol is { } patrol) lines.Add($"PATROL  {patrol.Visited} of {patrol.Layout.PatrolPoints} points visited");
+        if (simulation.TakeAndHold is { } hold)
+            lines.Add($"OBJECTIVE  {Math.Floor(simulation.Objective!.Control * 100):0}% held · {hold.Arrived} of {hold.Waves} reinforcement {(hold.Waves == 1 ? "wave" : "waves")} arrived");
         lines.Add($"COMBAT TIME  {TimeSpan.FromSeconds(simulation.Elapsed):mm\\:ss}");
         return string.Join("\n", lines);
     }
@@ -1011,6 +1056,7 @@ public partial class CombatScreen : Control
         ResultsTabs = new TabContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; _modalContent.AddChild(ResultsTabs);
         var outcome = new VBoxContainer { Name = "Outcome" }; outcome.AddThemeConstantOverride("separation", 12); ResultsTabs.AddChild(outcome);
         RosterUi.Text(outcome, $"Combat time {TimeSpan.FromSeconds(Simulation.Elapsed):mm\\:ss}{(_mission is null ? " · Campaign preserved" : "")}", 15, Ui.Gold);
+        if (Simulation.TakeAndHoldResultText() is { } held) RosterUi.Text(outcome, held, 14);
         if (_mission is not null && Simulation.Outcome == CombatOutcome.Victory && Simulation.EnemyHoldsField)
             RosterUi.Text(outcome, "No salvage: the opposition still holds the field.", 14, Ui.Muted);
         if (_settlement is not null) RosterUi.Text(outcome, _settlement, 14);
@@ -1206,6 +1252,13 @@ public partial class CombatScreen : Control
         var objective = ObjectiveText();
         if (ObjectiveLabel.Text != objective || ObjectiveLabel.Visible != (objective != ""))
         { ObjectiveLabel.Text = objective; ObjectiveLabel.Visible = objective != ""; relayout = true; }
+        foreach (var bar in _zoneBars) bar.QueueRedraw();
+        var reinforcements = Simulation.ReinforcementText() ?? "";
+        if (ReinforcementLabel.Text != reinforcements)
+        {
+            relayout |= ReinforcementLabel.Visible != (reinforcements != "") || ReinforcementLabel.Text.Length != reinforcements.Length;
+            ReinforcementLabel.Text = reinforcements; ReinforcementLabel.Visible = reinforcements != "";
+        }
         // The time panel shows the local player's own pick and flashes for the battle's state and other players' picks.
         RefreshTimePanel();
         // Jump targeting lapses once no selected unit can still jump.
@@ -1305,7 +1358,8 @@ public partial class CombatScreen : Control
         var firingTarget = Simulation.SelectAimTarget(unit);
         var target = firingTarget ?? Simulation.Units.Where(item => item.Side != unit.Side && !item.Defeated && Simulation.Detected(unit.Side, item.Id))
             .OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
-        _targetInfo.Text = (target is null ? (Simulation.Patrol is null ? "No contact · move toward arena center" : "No contact · continue the patrol") : $"{(firingTarget is null ? "Aim preview" : "Target")}: {target.Spec.Chassis} · {unit.Position.DistanceTo(target.Position):0} m");
+        _targetInfo.Text = (target is null ? (Simulation.Patrol is not null ? "No contact · continue the patrol"
+            : Simulation.TakeAndHold is not null ? $"No contact · {Simulation.TakeAndHoldObjectiveText()!.ToLowerInvariant()}" : "No contact · move toward arena center") : $"{(firingTarget is null ? "Aim preview" : "Target")}: {target.Spec.Chassis} · {unit.Position.DistanceTo(target.Position):0} m");
         if (target is not null)
         {
             var clear = Simulation.Sight(unit, target);

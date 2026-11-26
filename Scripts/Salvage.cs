@@ -31,7 +31,7 @@ public static class Salvage
     {
         var pool = new List<SalvageOption>();
         if (report.EnemyHoldsField) return pool;
-        foreach (var enemy in report.Enemies.Where(item => item.Status is not (CombatStatus.Surrendered or CombatStatus.Fled or CombatStatus.Extracted)))
+        foreach (var enemy in report.Enemies.Where(item => item.Status is not (CombatStatus.Surrendered or CombatStatus.Fled or CombatStatus.Extracted or CombatStatus.Inbound)))
         {
             var spec = DraftCatalog.Mech(enemy.MechId);
             if (enemy.Status != CombatStatus.Destroyed)

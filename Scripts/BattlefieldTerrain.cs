@@ -192,10 +192,20 @@ public sealed class BattlefieldTerrain
 
     /// <summary>A circle of ground that generation keeps clear and connected, such as a patrol point.</summary>
     public readonly record struct Clearing(Vector2 Center, float Radius);
+    /// <summary>A settlement generation must build, centred here with this many buildings, such as a Take and Hold's objective. It is
+    /// cluster 0, on its own levelled pad, and the streets around it stay connected to the rest of the battlefield.</summary>
+    public readonly record struct ObjectiveSettlement(Vector2 Center, int Buildings);
+    /// <summary>The radius a settlement of this many buildings covers: half its street grid's diagonal and a margin.</summary>
+    public static float SettlementRadius(int buildings)
+    {
+        var columns = (int)MathF.Ceiling(MathF.Sqrt(buildings)); var rows = (int)MathF.Ceiling(buildings / (float)columns);
+        return (new Vector2(columns, rows) * (StreetWidth + BuildingLot) / 2).Length() + 60;
+    }
 
-    /// <summary>Generates a battlefield whose drop zones lie on <paramref name="dropEdge"/> and the edge opposite.</summary>
+    /// <summary>Generates a battlefield whose drop zones lie on <paramref name="dropEdge"/> and the edge opposite. With
+    /// <paramref name="objective"/> the central rendezvous gives way to that settlement.</summary>
     public static BattlefieldTerrain Generate(int seed, Biome biome = Mech.Biome.Valley, IReadOnlyList<Clearing>? clearings = null,
-        ArenaEdge dropEdge = ArenaEdge.South)
+        ArenaEdge dropEdge = ArenaEdge.South, ObjectiveSettlement? objective = null)
     {
         var random = new Random(seed);
         // Coordinates turned so the drop zones lie south and north.
@@ -203,7 +213,7 @@ public sealed class BattlefieldTerrain
         Vector2 Turned(Vector2 point) => across ? new(point.Y, point.X) : point;
         // A clear band across the middle of each drop zone and a central rendezvous remain clear for every force size, and so do
         // any requested clearings.
-        float Standard(Vector2 point) => Math.Min(point.Length() - 60, new[] { CombatRules.DeploymentDepth, -CombatRules.DeploymentDepth }
+        float Standard(Vector2 point) => Math.Min(objective is null ? point.Length() - 60 : float.MaxValue, new[] { CombatRules.DeploymentDepth, -CombatRules.DeploymentDepth }
             .Min(z => new Vector2(Math.Max(0, Math.Abs(Turned(point).X) - CombatRules.DeploymentSpacing * 1.5f - 90),
                 Math.Max(0, Math.Abs(Turned(point).Y - z) - 150)).Length()));
         // Lakes, ice and lava keep out of both drop zones.
@@ -229,7 +239,8 @@ public sealed class BattlefieldTerrain
             for (var index = 0; index < relief.Length; index++)
                 relief[index] *= Mathf.SmoothStep(0, 1, Math.Clamp(ClearDistance(Point(index)) / 400, 0, 1));
             var clusters = new List<(Vector2 Center, float Radius)>();
-            var buildings = Settlements(biome, random, relief, clusters, Place, Between);
+            var streets = new List<Vector2>();
+            var buildings = Settlements(biome, random, relief, clusters, Place, Between, objective, streets);
             if (buildings is null) continue;
             var patches = new List<TerrainPatch>();
             // Lakes and frozen lakes keep to the lowest ground, so levelling them leaves gentle banks.
@@ -263,9 +274,10 @@ public sealed class BattlefieldTerrain
             var terrain = new BattlefieldTerrain(seed, patches, [], buildings, biome, relief);
             var starts = Enumerable.Range(-3, 7).Select(index => index * CombatRules.DeploymentSpacing / 2)
                 .SelectMany(x => new[] { Turned(new Vector2(x, CombatRules.DeploymentDepth)), Turned(new Vector2(x, -CombatRules.DeploymentDepth)) })
-                .Append(Vector2.Zero).Concat(clearings?.Select(clearing => clearing.Center) ?? []).ToArray();
+                .Concat(objective is null ? new[] { Vector2.Zero } : Array.Empty<Vector2>()).Concat(clearings?.Select(clearing => clearing.Center) ?? []).ToArray();
             var component = terrain.Component(starts[0]);
             if (component != 0 && starts.All(point => terrain.Passable(point) && terrain.Component(point) == component)
+                && (objective is null || streets.Any(point => terrain.Passable(point) && terrain.Component(point) == component))
                 && PatchRules(biome).All(rule => patches.Any(patch => patch.Kind == rule.Kind))) return terrain;
         }
         throw new InvalidOperationException("Could not generate a connected battlefield.");
@@ -330,9 +342,10 @@ public sealed class BattlefieldTerrain
         return relief;
     }
 
-    /// <summary>Building clusters on levelled pads; null when the clusters do not fit.</summary>
+    /// <summary>Building clusters on levelled pads, the objective settlement first when there is one; null when the clusters do not
+    /// fit. Points on the street around the objective settlement are added to <paramref name="streets"/>.</summary>
     private static List<TerrainBuilding>? Settlements(Biome biome, Random random, float[] relief, List<(Vector2 Center, float Radius)> placed,
-        Func<float, Vector2> place, Func<float, float, float> between)
+        Func<float, Vector2> place, Func<float, float, float> between, ObjectiveSettlement? objective, List<Vector2> streets)
     {
         var clusterCount = MinClusters + random.Next(MaxClusters - MinClusters + 1);
         var total = MinBuildings + random.Next(MaxBuildings - MinBuildings + 1);
@@ -342,13 +355,16 @@ public sealed class BattlefieldTerrain
         for (var i = 0; sizes.Sum() > total; i = (i + 1) % clusterCount) if (sizes[i] > 1) sizes[i]--;
         const float pitch = StreetWidth + BuildingLot;
         var buildings = new List<TerrainBuilding>();
-        for (var cluster = 0; cluster < clusterCount; cluster++)
+        var fixedClusters = objective is null ? 0 : 1;
+        for (var cluster = 0; cluster < clusterCount + fixedClusters; cluster++)
         {
-            var count = sizes[cluster];
+            var objectiveCluster = cluster < fixedClusters;
+            var count = objectiveCluster ? objective!.Value.Buildings : sizes[cluster - fixedClusters];
             var columns = (int)MathF.Ceiling(MathF.Sqrt(count)); var rows = (int)MathF.Ceiling(count / (float)columns);
             var half = new Vector2(columns, rows) * pitch / 2;
             var radius = half.Length() + 60;
             Vector2 center = default; var fits = false;
+            if (objectiveCluster) { center = objective!.Value.Center; fits = true; }
             for (var tries = 0; tries < 200 && !fits; tries++)
             {
                 center = place(radius + 120);
@@ -360,6 +376,9 @@ public sealed class BattlefieldTerrain
             var rotation = random.NextSingle() * MathF.PI;
             var cos = MathF.Cos(rotation); var sin = MathF.Sin(rotation);
             Vector2 World(Vector2 local) => center + new Vector2(local.X * cos - local.Y * sin, local.X * sin + local.Y * cos);
+            // The objective's outer street, on all four sides of its pad.
+            if (objectiveCluster)
+                streets.AddRange(new[] { new Vector2(-half.X - 30, 0), new Vector2(half.X + 30, 0), new Vector2(0, -half.Y - 30), new Vector2(0, half.Y + 30) }.Select(World));
             // Level the pad to its centre's height, blending back into the surrounding relief.
             var level = relief[Node(center)];
             for (var index = 0; index < relief.Length; index++)

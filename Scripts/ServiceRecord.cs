@@ -3,7 +3,8 @@ using System.Globalization;
 namespace Mech;
 
 /// <summary>The kinds of moment a MechWarrior's service history records (see docs/design.md, "Service history").</summary>
-public enum ServiceEventKind { Founded, Hired, Deployed, Kill, Ace, Ejected, MechLost, Injured, Recovered, ComradeKilled, SkillAdvanced, Promoted, Killed }
+public enum ServiceEventKind { Founded, Hired, Deployed, Kill, Ace, Ejected, MechLost, Injured, Recovered, ComradeKilled, SkillAdvanced, Promoted, Killed,
+    LedAdvance }
 /// <summary>How a hit took an enemy out of the fight, or killed a MechWarrior: the mech destroyed or disabled, or the pilot killed by
 /// a strike to the cockpit or the loss of the head.</summary>
 public enum KillManner { Destroyed, Disabled, Cockpit, Head }
@@ -75,6 +76,7 @@ public static class ServiceRecord
                 _ => $"Destroyed an enemy {item.Enemy} with {Article(item.Weapon)} during {place}.",
             },
             ServiceEventKind.Ace => "Became an ace with their fifth kill.",
+            ServiceEventKind.LedAdvance => $"Led the advance on the objective during {place}.",
             ServiceEventKind.Ejected => item.AsDestroyed ? $"Ejected as their {item.Mech} was destroyed during {place}{recover}."
                 : item.Destroyed ? $"Ejected from their {item.Mech} during {place}, and it was later destroyed{recover}."
                 : $"Ejected from their {item.Mech} during {place}{recover}.",

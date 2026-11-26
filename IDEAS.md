@@ -58,6 +58,9 @@ This file serves as a repository for ideas that await implementation or further 
 
 ### Mech Cards
 - Paper dolls look too crowded and aren't spaced as I'd like.
+  - keep the paper dolls centred with constant spacing between them.
+  - add the spacing left and right
+
 
 ### Main Tactical View
 - improved the mech details panel for selections
@@ -66,6 +69,7 @@ This file serves as a repository for ideas that await implementation or further 
 - destroyed components should remain, but with a shitty texture
 - animation for mech falling over
 - Improve terrain features
+- make it more visible while capturing objectives
 
 ### Mech Details Panel
 

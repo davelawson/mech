@@ -15,7 +15,7 @@ public sealed record CombatUnitState(string Id, Vector2 Position, Vector2 Destin
     int[] Ammo, int Kills = 0, bool Extracted = false, EquipmentCondition[]? Equipment = null, int Injuries = 0, bool LifeSupportInjury = false,
     bool Prone = false, double StandUpRemaining = 0, double? FellAt = null, double? StoodAt = null, bool KnockdownPending = false,
     bool MaintainRange = true, int AmmoEconomy = 0, StressLevel Stress = StressLevel.Calm, bool Ejected = false, bool Surrendered = false,
-    bool SurrenderOffered = false, bool Fleeing = false, bool Fled = false, WeaponTally[]? Tallies = null, SkillUse? Use = null);
+    bool SurrenderOffered = false, bool Fleeing = false, bool Fled = false, WeaponTally[]? Tallies = null, SkillUse? Use = null, bool Inbound = false);
 
 public sealed record CombatContactState(CombatSide Side, string UnitId, ContactLevel Level, Vector2 LastKnownPosition, double LastSeenAt);
 
@@ -24,7 +24,7 @@ public sealed record CombatContactState(CombatSide Side, string UnitId, ContactL
 public sealed record CombatState(double Elapsed, CombatOutcome Outcome, double? WindDownEnds, int[] PauseHolds, CombatUnitState[] Units,
     CombatContactState[] Contacts, int HistoryStart, CombatLogEntry[] History, PatrolProgress? Patrol = null, int[]? FastPicks = null,
     string[]? SurrenderOffers = null, CombatEvent[]? Events = null, int EventsStart = 0, CombatHighlight[]? Highlights = null, int HighlightsStart = 0,
-    DropSiteState[]? Drop = null);
+    DropSiteState[]? Drop = null, TakeAndHoldProgress? Hold = null, ControlZoneState[]? Zones = null);
 
 public sealed partial class CombatUnit
 {
@@ -35,7 +35,7 @@ public sealed partial class CombatUnit
         Locations.Values.Select(item => new CombatLocationState(item.Location, item.Armor, item.RearArmor, item.Structure)).ToArray(),
         Weapons.Select(item => item.Enabled).ToArray(), Weapons.Select(item => item.Remaining).ToArray(), _ammo.Select(item => item.Shots).ToArray(), Kills, Extracted,
         EquipmentState(), Injuries, LifeSupportInjury, Prone, StandUpRemaining, FellAt, StoodAt, KnockdownPending, MaintainRange, AmmoEconomy,
-        Stress, Ejected, Surrendered, SurrenderOffered, Fleeing, Fled, Weapons.Select(item => item.Tally).ToArray(), Use);
+        Stress, Ejected, Surrendered, SurrenderOffered, Fleeing, Fled, Weapons.Select(item => item.Tally).ToArray(), Use, Inbound);
 
     /// <summary>Takes on the leader's state, except the pose, which <see cref="CombatSimulation"/> blends toward it.</summary>
     internal void Apply(CombatUnitState state)
@@ -66,7 +66,7 @@ public sealed partial class CombatUnit
         if (state.Equipment is { } equipment) ApplyEquipment(equipment);
         Injuries = state.Injuries; LifeSupportInjury = state.LifeSupportInjury;
         Stress = state.Stress; Ejected = state.Ejected; Surrendered = state.Surrendered; SurrenderOffered = state.SurrenderOffered;
-        Fleeing = state.Fleeing; Fled = state.Fled; Use = state.Use ?? SkillUse.None;
+        Fleeing = state.Fleeing; Fled = state.Fled; Use = state.Use ?? SkillUse.None; Inbound = state.Inbound;
         Prone = state.Prone; StandUpRemaining = state.StandUpRemaining; FellAt = state.FellAt; StoodAt = state.StoodAt; KnockdownPending = state.KnockdownPending;
     }
 }
@@ -107,7 +107,7 @@ public sealed partial class CombatSimulation
             _contacts.SelectMany(side => side.Value.Values.Select(contact => new CombatContactState(side.Key, contact.UnitId, contact.Level,
                 contact.LastKnownPosition, contact.LastSeenAt))).ToArray(),
             historyStart, _history.Skip(historyStart).ToArray(), Patrol?.Progress(), [.. _fastPicks.Order()], [.. _surrenderOffers], [.. _events.Skip(eventsStart)], eventsStart,
-            [.. _highlights.Skip(highlightsStart)], highlightsStart, Drop?.State());
+            [.. _highlights.Skip(highlightsStart)], highlightsStart, Drop?.State(), TakeAndHold?.Progress(), ZoneStates());
     }
 
     /// <summary>A replica takes on the leader's battle: log entries it lacks are added and their shots fired, in order.</summary>
@@ -117,9 +117,11 @@ public sealed partial class CombatSimulation
         if (!Replica) throw new InvalidOperationException("Only a replica takes on another battle's state.");
         if (state.Units.Length != Units.Count || state.Units.Any(item => !Units.Any(unit => unit.Id == item.Id))
             || state.HistoryStart > _history.Count || state.EventsStart > _events.Count || state.HighlightsStart > _highlights.Count || state.Contacts.Any(item => !Units.Any(unit => unit.Id == item.UnitId))
-            || (state.Patrol is null) != (Patrol is null))
+            || (state.Patrol is null) != (Patrol is null) || (state.Hold is null) != (TakeAndHold is null))
             throw new ArgumentException("The battle state does not match this battle.", nameof(state));
         if (state.Patrol is { } progress) Patrol!.Apply(progress);
+        if (state.Hold is { } hold) TakeAndHold!.Apply(hold);
+        ApplyZones(state.Zones);
         ApplyDrop(state.Drop);
         var clock = Clock;
         Elapsed = state.Elapsed; Outcome = state.Outcome; WindDownEnds = state.WindDownEnds;

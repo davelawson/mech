@@ -314,7 +314,7 @@ public partial class SmokeTests
     {
         var campaign = host.Campaign!;
         // A patrol ends by extraction, not by beating the opposition, so this mission is fought to a victory.
-        campaign.AcceptMission(campaign.Missions.Available.First(item => campaign.DeadlineDays(item) is not null && item.Kind != MissionKind.Patrol).Id); host.MarkDirty();
+        campaign.AcceptMission(campaign.Missions.Available.First(item => campaign.DeadlineDays(item) is not null && item.Kind is MissionKind.Raid or MissionKind.Defense).Id); host.MarkDirty();
         await Exchange(() => _app.State.Missions.Current is not null, "the joined player sees the accepted mission", host);
         Check(_app.Hangar.QuickLaunchBlock == "Only the leader launches missions.", "only the leader launches missions");
         host.OpenDeployment();

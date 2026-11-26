@@ -20,6 +20,7 @@ internal static class MissionChecks
         CheckLances(check);
         CheckChallenge(check);
         CheckPatrols(chart, check);
+        CheckTakeAndHold(chart, check);
 
         var unseen = Campaign.Restore(campaign.Snapshot());
         check(unseen.Missions.HasUnseenOffers && Json(unseen) == Json(campaign), "offers and unseen state survive save restoration");
@@ -99,7 +100,8 @@ internal static class MissionChecks
                 .SelectMany(offer => offer.Opposition).Select(item => item.Rank).SequenceEqual(good.Offers.SelectMany(offer => offer.Opposition).Select(item => item.Rank)),
             "enemy ranks saved under their former names (Green, Regular, Veteran, Elite) load as Corporal, Sergeant, Lieutenant and Captain");
         Reject(() => MissionBoard.Restore(good with { Offers = [first with { Opposition = [] }, .. good.Offers[1..]] }, campaign.Date), check, "an empty opposition is rejected");
-        Reject(() => MissionBoard.Restore(good with { Offers = [first with { Kind = MissionKind.Patrol, PatrolLocations = 3 }, .. good.Offers[1..]] }, campaign.Date),
+        Reject(() => MissionBoard.Restore(good with { Offers = [first with { Kind = MissionKind.Patrol, PatrolLocations = 3, Opposition = [.. first.Opposition.Select(item => item with { Group = null, Wave = null })] },
+            .. good.Offers[1..]] }, campaign.Date),
             check, "a patrol whose opposition is not grouped by leg is rejected");
         Reject(() => MissionBoard.Restore(good with { Offers = [first with { Kind = 0 }, .. good.Offers[1..]] }, campaign.Date), check, "an offer without a contract kind is rejected");
         Reject(() => MissionBoard.Restore(good with { Offers = [first with { Posted = campaign.Date.AddDays(1) }, .. good.Offers[1..]] }, campaign.Date), check, "future offers are rejected");
@@ -143,13 +145,18 @@ internal static class MissionChecks
             var high = MissionGenerator.Difficulty(offer.Opposition) * MissionTuning.CBillsPerDifficulty * (1 + MissionTuning.RewardVariation);
             var objective = offer.Kind switch
             {
-                MissionKind.Raid => MissionTuning.RaidObjective, MissionKind.Defense => MissionTuning.DefenseObjective, _ => MissionTuning.PatrolObjective,
+                MissionKind.Raid => MissionTuning.RaidObjective, MissionKind.Defense => MissionTuning.DefenseObjective,
+                MissionKind.TakeAndHold => MissionTuning.TakeAndHoldObjective(offer.ReinforcementWaves), _ => MissionTuning.PatrolObjective,
             };
             var grouped = offer.Kind == MissionKind.Patrol
                 ? offer.PatrolLocations is >= MissionTuning.MinPatrolLocations and <= MissionTuning.MaxPatrolLocations
                     && Enumerable.Range(0, offer.PatrolGroups).All(group => offer.Opposition.Any(item => item.Group == group))
-                    && offer.Opposition.All(item => item.Group is { } group && group < offer.PatrolGroups)
-                : offer.PatrolLocations == 0 && offer.Opposition.All(item => item.Group is null);
+                    && offer.Opposition.All(item => item.Group is { } group && group < offer.PatrolGroups && item.Wave is null)
+                : offer.Kind == MissionKind.TakeAndHold
+                ? offer.PatrolLocations == 0 && offer.ReinforcementWaves is >= MissionTuning.MinWaves and <= MissionTuning.MaxWaves
+                    && Enumerable.Range(0, offer.ReinforcementWaves + 1).All(wave => offer.Opposition.Any(item => item.Wave == wave))
+                    && offer.Opposition.All(item => item.Group is null && item.Wave is not null)
+                : offer.PatrolLocations == 0 && offer.Opposition.All(item => item.Group is null && item.Wave is null);
             var valid = offer.Opposition.Length > 0 && grouped
                 && offer.Objective == objective && !string.IsNullOrWhiteSpace(offer.Briefing)
                 && offer.Payment >= low * MissionTuning.MinPaymentShare - MissionTuning.RewardRounding
@@ -169,8 +176,8 @@ internal static class MissionChecks
             "a one-lance offer is generated as before");
         var offers = Enumerable.Range(0, 300).Select(i => MissionGenerator.Generate(new MissionRandom((ulong)i), 1, Campaign.StartDate, chart.StartingSystemId, chart, lances: 3)).ToArray();
         var singleTons = Enumerable.Range(0, 300).Select(i => MissionGenerator.Generate(new MissionRandom((ulong)i), 1, Campaign.StartDate, chart.StartingSystemId, chart))
-            .Average(offer => offer.OppositionTonnage / (offer.Kind == MissionKind.Patrol ? MissionTuning.PatrolTonnageMultiplier : 1));
-        var tripleTons = offers.Average(offer => offer.OppositionTonnage / (offer.Kind == MissionKind.Patrol ? MissionTuning.PatrolTonnageMultiplier : 1));
+            .Average(offer => offer.OppositionTonnage / offer.ChallengeShare);
+        var tripleTons = offers.Average(offer => offer.OppositionTonnage / offer.ChallengeShare);
         check(tripleTons / singleTons is > 2.7 and < 3.3, $"each lance adds its own share of opposition tonnage ({singleTons:0} t for one lance, {tripleTons:0} t for three)");
         var board = MissionBoard.Create(5, Campaign.StartDate, chart.StartingSystemId, new Reputation(), lances: 2);
         var restored = MissionBoard.Restore(board.Snapshot(), Campaign.StartDate);
@@ -219,9 +226,9 @@ internal static class MissionChecks
         var patrols = Enumerable.Range(0, 3000).Select(i => MissionGenerator.Generate(new MissionRandom((ulong)i), 1, Campaign.StartDate, chart.StartingSystemId, chart))
             .Where(offer => offer.Kind == MissionKind.Patrol).ToArray();
         var others = Enumerable.Range(0, 3000).Select(i => MissionGenerator.Generate(new MissionRandom((ulong)i), 1, Campaign.StartDate, chart.StartingSystemId, chart))
-            .Where(offer => offer.Kind != MissionKind.Patrol).ToArray();
+            .Where(offer => offer.Kind is MissionKind.Raid or MissionKind.Defense).ToArray();
         var ratio = patrols.Average(offer => offer.OppositionTonnage) / others.Average(offer => offer.OppositionTonnage);
-        check(ratio is > 1.35 and < 1.65, $"patrols field half as much tonnage again as other contracts ({ratio:0.00}×)");
+        check(ratio is > 1.35 and < 1.65, $"patrols field half as much tonnage again as raids and defenses ({ratio:0.00}×)");
         var light = patrols.SelectMany(offer => offer.Opposition).Average(item => DraftCatalog.Mech(item.MechId).Tonnage);
         var usual = others.SelectMany(offer => offer.Opposition).Average(item => DraftCatalog.Mech(item.MechId).Tonnage);
         check(light < usual - 5, $"patrol mechs are lighter on average ({light:0} t against {usual:0} t)");
@@ -247,6 +254,54 @@ internal static class MissionChecks
             && !JsonSerializer.Serialize(old, CampaignStore.JsonOptions).Contains("\"Raid\""), "an offer saved with a raid flag loads as a raid or a defense");
     }
 
+    private static void CheckTakeAndHold(StarChart chart, Action<bool, string> check)
+    {
+        var offers = Enumerable.Range(0, 3000).Select(i => MissionGenerator.Generate(new MissionRandom((ulong)i), 1, Campaign.StartDate, chart.StartingSystemId, chart)).ToArray();
+        var holds = offers.Where(offer => offer.Kind == MissionKind.TakeAndHold).ToArray();
+        var standard = offers.Where(offer => offer.Kind is MissionKind.Raid or MissionKind.Defense).Average(offer => offer.OppositionTonnage);
+        var waves = holds.GroupBy(offer => offer.ReinforcementWaves).ToDictionary(group => group.Key, group => group.Count() * 100.0 / holds.Length);
+        check(waves.Keys.Order().SequenceEqual([1, 2, 3]) && waves.Values.All(share => share is > 26 and < 40),
+            $"a Take and Hold has 1, 2 or 3 reinforcement waves, about equally often ({string.Join(", ", waves.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}: {pair.Value:0}%"))})");
+        double Share(int wave) => holds.Where(offer => offer.ReinforcementWaves >= wave)
+            .Average(offer => offer.Opposition.Where(item => item.Wave == wave).Sum(item => DraftCatalog.Mech(item.MechId).Tonnage)) / standard;
+        var shares = Enumerable.Range(0, MissionTuning.MaxWaves + 1).Select(Share).ToArray();
+        check(shares.All(share => share is > .4 and < .62),
+            $"the garrison and each wave carry about half of a raid's tonnage ({string.Join(", ", shares.Select(share => $"{share:0.00}×"))})");
+        check(holds.All(offer => offer.Opposition.Select(item => item.Wave ?? -1).SequenceEqual(offer.Opposition.Select(item => item.Wave ?? -1).Order())
+                && offer.GarrisonSize > 0 && Math.Abs(offer.ChallengeShare - .5 * (1 + offer.ReinforcementWaves)) < 1e-9),
+            "a Take and Hold lists its garrison first, then each wave in order");
+        var names = new[] { "Take and Hold at", "Seizure of", "Securing" };
+        check(holds.All(offer => names.Any(name => offer.Name.StartsWith(name, StringComparison.Ordinal)) && offer.Name.EndsWith(chart[offer.SystemId].Name)
+                && offer.Objective == MissionTuning.TakeAndHoldObjective(offer.ReinforcementWaves) && offer.Briefing.Contains("held against")),
+            "a Take and Hold is named for its location and asks to take the objective, then hold it against its waves");
+        check(MissionTuning.TakeAndHoldObjective(1) == "Take the objective, then hold it against 1 reinforcement wave."
+            && MissionTuning.TakeAndHoldObjective(2) == "Take the objective, then hold it against 2 reinforcement waves.", "the objective counts its waves");
+        var hold = holds[0];
+        check(MissionsPanel.TakeAndHoldText(hold).StartsWith($"A garrison of {hold.GarrisonSize} mech", StringComparison.Ordinal)
+            && MissionsPanel.OppositionLines(hold).Contains("Garrison: ") && MissionsPanel.OppositionLines(hold).Contains("Wave 1: ")
+            && MissionsPanel.ContractTerms(hold).Contains("CONTRACT  Take and Hold") && MissionsPanel.ContractTerms(hold).Contains("TAKE AND HOLD  A garrison of"),
+            "the offer's terms give the garrison and its waves");
+        var simulated = MissionGenerator.SimulatedTakeAndHold(new MissionRandom(3), new Reputation());
+        check(simulated.Kind == MissionKind.TakeAndHold && simulated.ReinforcementWaves is >= 1 and <= 3 && simulated.GarrisonSize > 0,
+            "a simulated Take and Hold rolls a garrison and waves");
+
+        var campaign = CampaignChecks.NewCompany();
+        var good = campaign.Snapshot().Missions!;
+        var first = good.Offers[0];
+        MissionBoard? Restore(MissionOffer offer)
+        {
+            try { return MissionBoard.Restore(good with { Offers = [offer, .. good.Offers[1..]] }, campaign.Date); } catch (ArgumentException) { return null; }
+        }
+        var garrisonOnly = hold.Opposition.Where(item => item.Wave == 0).ToArray();
+        var plain = good.Offers.First(offer => offer.Kind != MissionKind.TakeAndHold);
+        check(Restore(hold with { Id = first.Id, Posted = first.Posted }) is not null, "a saved Take and Hold loads");
+        check(Restore(hold with { Id = first.Id, Posted = first.Posted, Opposition = garrisonOnly }) is null
+            && Restore(hold with { Id = first.Id, Posted = first.Posted, Opposition = [.. hold.Opposition.Select(item => item with { Wave = null })] }) is null
+            && Restore(plain with { Id = first.Id, Posted = first.Posted, Opposition = [.. plain.Opposition.Select(item => item with { Wave = 1 })] }) is null,
+            "a Take and Hold without waves, or waves outside a Take and Hold, are rejected");
+        check(!JsonSerializer.Serialize(plain.Opposition[0], CampaignStore.JsonOptions).Contains("Wave"), "an enemy outside a Take and Hold saves no wave");
+    }
+
     private static void CheckSides(StarChart chart, Action<bool, string> check)
     {
         StarSystem Named(string name) => chart.Systems.Single(system => system.Name == name);
@@ -262,8 +317,9 @@ internal static class MissionChecks
         {
             var (employer, opponent, place) = (offer.Employer, offer.Opponent, chart[offer.SystemId]);
             if (employer.Kind == PartyKind.LocalForces) return "local forces never hire";
+            var attacking = MissionGenerator.Attacking(offer.Kind);
             if (employer.Kind == PartyKind.Pirates)
-                return offer.Kind != MissionKind.Raid ? "pirates always raid"
+                return !attacking ? "pirates only attack"
                     : opponent.Kind == PartyKind.Faction && opponent.Faction != place.Faction ? "pirates only fight the House holding the target"
                     : opponent.Kind == PartyKind.Pirates ? "pirates never fight pirates" : "";
             if (employer.Faction == Faction.ComStar)
@@ -273,13 +329,13 @@ internal static class MissionChecks
             var own = employer.Faction!.Value;
             return opponent.Kind switch
             {
-                PartyKind.Pirates when offer.Kind == MissionKind.Raid || place.Faction != own => "Houses defend their own worlds against pirates",
-                PartyKind.LocalForces when offer.Kind != MissionKind.Raid || place.Faction == own => "Houses raid local forces away from their own worlds",
-                PartyKind.Faction when opponent.Faction == Faction.ComStar && (offer.Kind != MissionKind.Raid || place.Faction != own) => "Houses remove ComStar from their own worlds",
-                PartyKind.Faction when IsHouse(opponent.Faction) && offer.Kind == MissionKind.Raid && (place.Faction != opponent.Faction || !Borders(offer.SystemId, own))
-                    => "a House raid targets a bordering rival's world",
-                PartyKind.Faction when IsHouse(opponent.Faction) && offer.Kind != MissionKind.Raid && (place.Faction != own || !Borders(offer.SystemId, opponent.Faction!.Value))
-                    => "a House defends its own world against a bordering rival",
+                PartyKind.Pirates when attacking || place.Faction != own => "Houses guard their own worlds against pirates",
+                PartyKind.LocalForces when !attacking || place.Faction == own => "Houses attack local forces away from their own worlds",
+                PartyKind.Faction when opponent.Faction == Faction.ComStar && (!attacking || place.Faction != own) => "Houses remove ComStar from their own worlds",
+                PartyKind.Faction when IsHouse(opponent.Faction) && attacking && (place.Faction != opponent.Faction || !Borders(offer.SystemId, own))
+                    => "a House attack targets a bordering rival's world",
+                PartyKind.Faction when IsHouse(opponent.Faction) && !attacking && (place.Faction != own || !Borders(offer.SystemId, opponent.Faction!.Value))
+                    => "a House guards its own world against a bordering rival",
                 PartyKind.Faction when opponent.Faction == own => "a House never fights itself",
                 _ => "",
             };
@@ -289,17 +345,23 @@ internal static class MissionChecks
             : $"{broken.offer.Name}: {broken.offer.Employer.Name} vs {broken.offer.Opponent.Name}: {broken.rule}");
         var employers = offers.GroupBy(offer => offer.Employer.Kind == PartyKind.Pirates ? "pirates" : offer.Employer.Faction == Faction.ComStar ? "ComStar" : "House")
             .ToDictionary(group => group.Key, group => group.Count() * 100.0 / offers.Count);
-        check(employers["House"] is > 68 and < 82 && employers["ComStar"] is > 6 and < 14 && employers["pirates"] is > 11 and < 19,
-            $"Houses, ComStar and pirates hire about 75/10/15% of the time ({string.Join(", ", employers.Select(pair => $"{pair.Key} {pair.Value:0}%"))})");
+        // Pirates attack only, so they hire for half the offers they would otherwise: about 82/11/7%.
+        check(employers["House"] is > 75 and < 88 && employers["ComStar"] is > 7 and < 15 && employers["pirates"] is > 4 and < 11,
+            $"Houses, ComStar and pirates hire about 82/11/7% of the time ({string.Join(", ", employers.Select(pair => $"{pair.Key} {pair.Value:0}%"))})");
+        var kinds = Enum.GetValues<MissionKind>().ToDictionary(kind => kind, kind => offers.Count(offer => offer.Kind == kind) * 100.0 / offers.Count);
+        check(kinds.Values.All(share => share is > 21 and < 29),
+            $"raids, defenses, patrols and Take and Holds are each about a quarter of offers ({string.Join(", ", kinds.Select(pair => $"{pair.Key} {pair.Value:0}%"))})");
         check(offers.Any(offer => offer.Opponent.Kind == PartyKind.LocalForces) && offers.Any(offer => offer.Opponent.Faction == Faction.ComStar)
             && offers.Any(offer => offer.Kind == MissionKind.Raid && IsHouse(offer.Opponent.Faction) && IsHouse(offer.Employer.Faction))
             && offers.Any(offer => offer.Kind == MissionKind.Defense && IsHouse(offer.Opponent.Faction) && IsHouse(offer.Employer.Faction)),
             "offers include House raids and defenses, ComStar opponents and local forces");
-        var houseOffers = offers.Where(offer => IsHouse(offer.Employer.Faction)).ToArray();
-        var patrolShare = houseOffers.Count(offer => offer.Kind == MissionKind.Patrol) * 100.0 / houseOffers.Length;
-        check(patrolShare is > 15 and < 35 && offers.Any(offer => offer.Kind == MissionKind.Patrol && offer.Employer.Faction == Faction.ComStar)
+        check(offers.Any(offer => offer.Kind == MissionKind.Patrol && offer.Employer.Faction == Faction.ComStar)
+            && offers.Any(offer => offer.Kind == MissionKind.Patrol && IsHouse(offer.Employer.Faction))
             && offers.All(offer => offer.Kind != MissionKind.Patrol || offer.Employer.Kind == PartyKind.Faction),
-            $"Houses and ComStar post patrols, about a quarter of House offers ({patrolShare:0}%), and pirates never do");
+            "Houses and ComStar post patrols, and pirates never do");
+        check(offers.Any(offer => offer.Kind == MissionKind.TakeAndHold && offer.Employer.Kind == PartyKind.Pirates)
+            && offers.Any(offer => offer.Kind == MissionKind.TakeAndHold && IsHouse(offer.Employer.Faction) && IsHouse(offer.Opponent.Faction)),
+            "Houses and pirates post Take and Holds");
         check(offers.All(offer => offer.Name.EndsWith(chart[offer.SystemId].Name) && offer.Briefing.Contains(offer.Employer.Name)),
             "the offer names its location and the briefing its employer");
 
@@ -330,7 +392,7 @@ internal static class MissionChecks
     {
         var campaign = CampaignChecks.NewCompany(); var roster = campaign.Roster!;
         Throws(() => campaign.SettleMission(new(MissionOutcome.Success, [], 0)), check, "settling without a current mission is refused");
-        var offer = campaign.Missions.Available[0]; campaign.AcceptMission(offer.Id);
+        var offer = campaign.Missions.Available.First(item => item.Kind is MissionKind.Raid or MissionKind.Defense); campaign.AcceptMission(offer.Id);
         var deployed = roster.Mechs.Take(2).ToArray(); var pilots = deployed.Select(mech => roster.Pilot(mech)!).ToArray();
         var sim = CombatSimulation.DeployMission(roster, deployed.Select(mech => mech.Id), offer, 5, 183);
         var friends = sim.Units.Where(unit => unit.Side == CombatSide.Friendly).ToArray();

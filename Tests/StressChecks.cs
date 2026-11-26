@@ -241,7 +241,7 @@ internal static partial class CombatChecks
         foreach (var won in new[] { true, false })
         {
             var campaign = CampaignChecks.NewCompany(); var roster = campaign.Roster!;
-            var offer = campaign.Missions.Available.FirstOrDefault(item => item.Kind != MissionKind.Patrol && item.Opposition.Length >= 2);
+            var offer = campaign.Missions.Available.FirstOrDefault(item => item.Kind is MissionKind.Raid or MissionKind.Defense && item.Opposition.Length >= 2);
             if (offer is null) { check(false, "a mission with two or more enemies is available for the hostage checks"); return; }
             campaign.AcceptMission(offer.Id);
             var deployed = roster.Mechs.Take(1).ToArray();

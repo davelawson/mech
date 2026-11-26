@@ -30,6 +30,7 @@ public sealed class NetworkSessions { [Fact] public void Checks() => Suite.Run(N
 public sealed class NetworkReplica { [Fact] public void Checks() => Suite.Run(NetworkChecks.RunReplica); }
 public sealed class Combat { [Fact] public void Checks() => Suite.Run(CombatChecks.Run); }
 public sealed class Patrol { [Fact] public void Checks() => Suite.Run(PatrolChecks.Run); }
+public sealed class TakeAndHold { [Fact] public void Checks() => Suite.Run(TakeAndHoldChecks.Run); }
 public sealed class TerrainGeneration { [Fact] public void Checks() => Suite.Run(TerrainChecks.RunGeneration); }
 public sealed class TerrainFeatures { [Fact] public void Checks() => Suite.Run(TerrainChecks.RunFeatures); }
 public sealed class TerrainEngagements { [Fact] public void Checks() => Suite.Run(TerrainChecks.RunEngagements); }

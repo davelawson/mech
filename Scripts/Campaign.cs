@@ -488,7 +488,8 @@ public sealed class Campaign
             throw new ArgumentException("The report's skill gains do not fit its MechWarriors.", nameof(report));
         if (report.Mechs.Any(item => item.KillLog is null || item.InjuryCauses is null || item.KillLog.Any(kill => kill is null
             || string.IsNullOrWhiteSpace(kill.Enemy) || !Enum.IsDefined(kill.Manner)) || item.KillLog.Length > item.Kills
-            || item.InjuryCauses.Any(cause => !Enum.IsDefined(cause)) || item.Death is { Manner: { } manner } && !Enum.IsDefined(manner)))
+            || item.InjuryCauses.Any(cause => !Enum.IsDefined(cause)) || item.Death is { Manner: { } manner } && !Enum.IsDefined(manner)
+            || item.LedAdvanceAt is { } led && (!double.IsFinite(led) || offer.Kind != MissionKind.TakeAndHold)))
             throw new ArgumentException("The report's service records do not fit its MechWarriors.", nameof(report));
         if (report.Outcome != MissionOutcome.Success && report.Salvage.Length > 0) throw new ArgumentException("Only a victory takes salvage.", nameof(report));
         var pool = Salvage.Pool(report);
@@ -545,8 +546,8 @@ public sealed class Campaign
         };
     }
     /// <summary>Writes a mission into a deployed MechWarrior's service history, in the order things happened: the mech or lance they
-    /// took into it when either differs from their previous deployment, then their kills (the ace's fifth among them) and the comrades
-    /// they saw fall, by battle time, then how they died, ejected, lost their mech or were injured.</summary>
+    /// took into it when either differs from their previous deployment, then their kills (the ace's fifth among them), leading the advance
+    /// on a Take and Hold's objective and the comrades they saw fall, by battle time, then how they died, ejected, lost their mech or were injured.</summary>
     private void RecordBattle(RosterWarrior pilot, DeployedMechReport item, OwnedMech mech, string mission, (RosterWarrior Warrior, double Time)[] fallen)
     {
         ServiceEvent At(ServiceEventKind kind) => new(Date, kind) { Place = mission };
@@ -567,6 +568,7 @@ public sealed class Campaign
             if (++kills == ServiceRecord.AceKills) { moments.Add((kill.Time, At(ServiceEventKind.Ace))); ace = true; }
         }
         if (!ace && pilot.Kills < ServiceRecord.AceKills && pilot.Kills + item.Kills >= ServiceRecord.AceKills) moments.Add((double.MaxValue, At(ServiceEventKind.Ace)));
+        if (item.LedAdvanceAt is { } led) moments.Add((led, At(ServiceEventKind.LedAdvance)));
         if (!item.WarriorKilled)
             foreach (var (comrade, time) in fallen)
                 if (comrade != pilot) moments.Add((time, At(ServiceEventKind.ComradeKilled) with { Comrade = WarriorName(comrade) }));

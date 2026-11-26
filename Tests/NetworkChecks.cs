@@ -346,7 +346,7 @@ internal static class NetworkChecks
         sam.SubmitDraft(); host.LeaderDraft!.ForceName = "Battle Company"; host.SubmitLeaderDraft(); Pump();
         var campaign = host.Campaign!; var roster = campaign.Roster!;
         // A new company's default is 100 t a lance, so two lances average about 200 t.
-        var perOffer = campaign.Missions.Available.Average(offer => offer.OppositionTonnage / (offer.Kind == MissionKind.Patrol ? MissionTuning.PatrolTonnageMultiplier : 1));
+        var perOffer = campaign.Missions.Available.Average(offer => offer.OppositionTonnage / offer.ChallengeShare);
         check(campaign.Missions.Lances == 2 && perOffer is > 150 and < 260,
             "a two-lance company's offers field opposition for both lances");
         check(host.DeploymentProblem == "Accept a mission from the office phone first.", "force selection needs an accepted mission");

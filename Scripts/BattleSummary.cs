@@ -17,8 +17,9 @@ public sealed record WeaponTally(int ShotsFired = 0, int Hits = 0, int ArmorDeal
 /// what changed in the battle.</summary>
 public enum MechCondition { Undamaged, Scratched, Damaged, Crippled, Destroyed }
 
-/// <summary>A MechWarrior's fate in the battle, best first; the worst that applies is shown.</summary>
-public enum PilotCondition { Healthy, Extracted, Injured, Fled, Ejected, Hostage, Killed }
+/// <summary>A MechWarrior's fate in the battle, best first; the worst that applies is shown. NotEngaged is a reinforcement that never
+/// arrived.</summary>
+public enum PilotCondition { Healthy, Extracted, Injured, Fled, Ejected, Hostage, Killed, NotEngaged }
 
 /// <summary>A significant moment of a battle, as one sentence for the post-battle highlights.</summary>
 public sealed record CombatHighlight(double Time, string UnitId, string Text)
@@ -43,13 +44,14 @@ public static class BattleSummary
         return MechCondition.Undamaged;
     }
 
-    public static PilotCondition Pilot(CombatUnit unit) => unit.WarriorKilled ? PilotCondition.Killed
+    public static PilotCondition Pilot(CombatUnit unit) => unit.Inbound ? PilotCondition.NotEngaged : unit.WarriorKilled ? PilotCondition.Killed
         : unit.Surrendered ? PilotCondition.Hostage : unit.Ejected ? PilotCondition.Ejected : unit.Fled ? PilotCondition.Fled
         : unit.Injuries > 0 ? PilotCondition.Injured : unit.Extracted ? PilotCondition.Extracted : PilotCondition.Healthy;
 
     public static string Text(PilotCondition condition) => condition switch
     {
         PilotCondition.Hostage => "Taken hostage",
+        PilotCondition.NotEngaged => "Not engaged",
         _ => condition.ToString()
     };
 

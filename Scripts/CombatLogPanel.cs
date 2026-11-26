@@ -64,8 +64,8 @@ public partial class CombatLogPanel : PanelContainer
             if (item.Public) _pages[0].Append(item.Line(false));
             _pages[1].Append(item.Line(true));
         }
-        // Patrol progress joins both views as it happens.
-        var events = _simulation.Patrol?.Events ?? [];
+        // Patrol and objective progress joins both views as it happens.
+        var events = _simulation.ObjectiveEvents;
         while (_readEvents < events.Count)
         {
             var item = events[_readEvents++];

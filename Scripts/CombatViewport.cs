@@ -1563,6 +1563,17 @@ public partial class CombatViewport : Control
             DrawString(font, at, text, HorizontalAlignment.Left, -1, 13, color);
         }
     }
+    /// <summary>A control zone as a ring on the ground in its owner's colour, gold while contested, with its name and the company's share.</summary>
+    private void DrawControlZone(ControlZone zone, Font font)
+    {
+        var color = zone.Contested ? Ui.Gold : zone.Owner == CombatSide.Friendly ? ControlZoneBar.CompanyColor : ControlZoneBar.OppositionColor;
+        var ring = Enumerable.Range(0, 97).Select(segment => ScreenPoint(zone.Center + Vector2.FromAngle(segment * Mathf.Tau / 96) * zone.Radius, .6f)).ToArray();
+        DrawPolyline(ring, color, zone.Contested ? 3 : 2, true);
+        var text = $"{zone.Name} {Math.Floor(zone.Control * 100):0}%";
+        var at = ScreenPoint(zone.Center + Vector2.Up * zone.Radius, 2) + new Vector2(-font.GetStringSize(text, fontSize: 13).X / 2, -6);
+        DrawStringOutline(font, at, text, HorizontalAlignment.Left, -1, 13, 4, new Color("101820"));
+        DrawString(font, at, text, HorizontalAlignment.Left, -1, 13, color);
+    }
     public static readonly Color DropZoneColor = new("e8c46a"), EnemyDropZoneColor = new("e5735f"), InvalidDropColor = new("ed735e");
     /// <summary>The ground outline of a zone, following the terrain along each side.</summary>
     private Vector2[] ZoneOutline(DropZone zone)
@@ -1619,8 +1630,9 @@ public partial class CombatViewport : Control
         if (Simulation is null || Camera is null) return;
         var font = ThemeDB.FallbackFont;
         if (Simulation.Drop is { } drop) DrawDrop(drop, font);
+        foreach (var zone in Simulation.ControlZones) DrawControlZone(zone, font);
         if (Simulation.Patrol is { } patrol) DrawPatrol(patrol, font);
-        else
+        else if (Simulation.ControlZones.Count == 0)
         {
             var center = ScreenPoint(Vector2.Zero);
             DrawString(font, center + new Vector2(-42, -8), "ARENA CENTER", HorizontalAlignment.Left, -1, 12, new Color(Ui.Muted, .7f));

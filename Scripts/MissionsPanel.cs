@@ -153,15 +153,21 @@ public partial class MissionsPanel : Control
     {
         string Party(Party party) => party.Name + (standing?.Invoke(party) ?? "");
         return $"EMPLOYER  {Party(offer.Employer)}\nOPPONENT  {Party(offer.Opponent)}"
-            + $"\nCONTRACT  {offer.KindText}" + (offer.Kind == MissionKind.Patrol ? $"\nPATROL  {PatrolText(offer)}" : "") + $"\nPOSTED  {DateText(offer.Posted)}\nPAYMENT  {CBills(offer.Payment)}\nSALVAGE  {offer.SalvagePicks} {(offer.SalvagePicks == 1 ? "pick" : "picks")}"
+            + $"\nCONTRACT  {offer.KindText}" + (offer.Kind == MissionKind.Patrol ? $"\nPATROL  {PatrolText(offer)}" : "")
+            + (offer.Kind == MissionKind.TakeAndHold ? $"\nTAKE AND HOLD  {TakeAndHoldText(offer)}" : "") + $"\nPOSTED  {DateText(offer.Posted)}\nPAYMENT  {CBills(offer.Payment)}\nSALVAGE  {offer.SalvagePicks} {(offer.SalvagePicks == 1 ? "pick" : "picks")}"
             + $"\nINSURANCE  Up to {CBills(offer.InsuranceLimit)}\nLOCATION  {StarChart.Instance[offer.SystemId].Name}"
             + $"\nBIOME  {StarChart.Instance[offer.SystemId].BiomeText}";
     }
     public static string OppositionLines(MissionOffer offer) => string.Join("\n", offer.Opposition.Select(item =>
     {
         var spec = DraftCatalog.Mech(item.MechId);
-        return $"  {(item.Group is { } group ? $"Group {group + 1}: " : "")}{spec.DisplayName} · {spec.Tonnage}t — {item.Rank}";
+        var label = item.Group is { } group ? $"Group {group + 1}: " : item.Wave is 0 ? "Garrison: " : item.Wave is { } wave ? $"Wave {wave}: " : "";
+        return $"  {label}{spec.DisplayName} · {spec.Tonnage}t — {item.Rank}";
     }));
+
+    /// <summary>"A garrison of 3 mechs · 2 reinforcement waves".</summary>
+    public static string TakeAndHoldText(MissionOffer offer) =>
+        $"A garrison of {offer.GarrisonSize} {(offer.GarrisonSize == 1 ? "mech" : "mechs")} · {offer.ReinforcementWaves} reinforcement {(offer.ReinforcementWaves == 1 ? "wave" : "waves")}";
 
     /// <summary>"2 points + extraction · 3 enemy groups".</summary>
     public static string PatrolText(MissionOffer offer) =>

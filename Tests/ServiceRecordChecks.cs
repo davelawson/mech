@@ -11,6 +11,7 @@ internal static class ServiceRecordChecks
         CheckFoundingAndHiring(check);
         CheckBattle(check);
         CheckAce(check);
+        CheckLedAdvance(check);
         CheckPromotion(check);
         CheckDeployments(check);
         CheckSaves(check);
@@ -57,6 +58,7 @@ internal static class ServiceRecordChecks
             (At(ServiceEventKind.Kill) with { Enemy = "Marauder MAD-3R", Weapon = "AC/20", Manner = KillManner.Head },
                 "Killed the MechWarrior of an enemy Marauder MAD-3R by destroying the head with an AC/20 during Raid on Hesperus II."),
             (At(ServiceEventKind.Ace), "Became an ace with their fifth kill."),
+            (At(ServiceEventKind.LedAdvance) with { Place = "Take and Hold at Hesperus II" }, "Led the advance on the objective during Take and Hold at Hesperus II."),
             (At(ServiceEventKind.Ejected) with { Mech = "Griffin GRF-1N", Days = 14, Destroyed = true, AsDestroyed = true },
                 "Ejected as their Griffin GRF-1N was destroyed during Raid on Hesperus II; 14 days to recover."),
             (At(ServiceEventKind.Ejected) with { Mech = "Griffin GRF-1N", Days = 12, Destroyed = true },
@@ -153,6 +155,24 @@ internal static class ServiceRecordChecks
         var lost = CampaignChecks.NewCompany(); var name = Accept(lost); var mech = lost.Roster!.Mechs[0]; var pilot = lost.Roster.Pilot(mech)!;
         lost.SettleMission(new(MissionOutcome.Failure, [Report(mech) with { MechDestroyed = true }], 0));
         check(Lines(pilot)[^1] == $"Their {mech.Spec.DisplayName} was destroyed during {name}; they walked away.", "a mech destroyed under a MechWarrior who did not eject is recorded");
+    }
+
+    private static void CheckLedAdvance(Action<bool, string> check)
+    {
+        var campaign = CampaignChecks.NewCompany(); var mech = campaign.Roster!.Mechs[0]; var pilot = campaign.Roster.Pilot(mech)!;
+        campaign.AcceptMission(campaign.Missions.Available.First(item => item.Kind is MissionKind.Raid or MissionKind.Defense && campaign.DeadlineDays(item) is not null).Id);
+        Rejects(() => campaign.SettleMission(new(MissionOutcome.Success, [Report(mech) with { LedAdvanceAt = 30 }], 0)), check,
+            "only a Take and Hold report can say who led the advance");
+        campaign.Missions.Abandon();
+        for (var day = 0; day < 120 && !campaign.Missions.Available.Any(item => item.Kind == MissionKind.TakeAndHold && campaign.DeadlineDays(item) is not null); day++)
+            campaign.AdvanceOneDay();
+        var offer = campaign.Missions.Available.First(item => item.Kind == MissionKind.TakeAndHold && campaign.DeadlineDays(item) is not null);
+        campaign.AcceptMission(offer.Id);
+        campaign.SettleMission(new(MissionOutcome.Success, [Report(mech, kills: 2) with
+            { KillLog = [new(20, "Locust LCT-1V", "Medium Laser", KillManner.Destroyed), new(50, "Stinger STG-3R", "Medium Laser", KillManner.Disabled)], LedAdvanceAt = 31 }], 0));
+        check(Kinds(pilot).SkipWhile(kind => kind != ServiceEventKind.Kill).Take(3).SequenceEqual([ServiceEventKind.Kill, ServiceEventKind.LedAdvance, ServiceEventKind.Kill])
+            && Lines(pilot).Contains($"Led the advance on the objective during {offer.Name}."),
+            "leading the advance is recorded with the kills, in battle order");
     }
 
     private static void CheckAce(Action<bool, string> check)

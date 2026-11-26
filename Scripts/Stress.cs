@@ -128,7 +128,7 @@ public sealed partial class CombatSimulation
     }
 
     /// <summary>Mechs of a side out of the fight, for nerve checks: extracted mechs left safely, so they do not count.</summary>
-    private int AlliesDefeated(CombatUnit unit) => Units.Count(item => item != unit && item.Side == unit.Side && item.Defeated && !item.Extracted);
+    private int AlliesDefeated(CombatUnit unit) => Units.Count(item => item != unit && item.Side == unit.Side && item.Defeated && !item.Extracted && !item.Inbound);
 
     /// <summary>The nerve check's modifiers now, as a total and the text the log shows.</summary>
     internal (int Modifier, string Text) NerveModifiers(CombatUnit unit)

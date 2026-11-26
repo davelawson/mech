@@ -4,15 +4,17 @@ using Godot;
 namespace Mech;
 
 public enum CombatSide { Friendly, Enemy }
-/// <summary>A simulated deployment's opposition: a mirror of the force, a fresh draft matched to it, or a patrol rolled from reputation.</summary>
-public enum SimulationOpponent { Mirror, Randomized, Patrol }
+/// <summary>A simulated deployment's opposition: a mirror of the force, a fresh draft matched to it, or a patrol or Take and Hold rolled
+/// from reputation.</summary>
+public enum SimulationOpponent { Mirror, Randomized, Patrol, TakeAndHold }
 public enum CombatOrder { Hold, Move, Attack, Follow }
 public enum MovementMode { Walk, Run }
 /// <summary>How a mech is moving, read from its actual speed: above the unheated walking speed it runs.</summary>
 public enum Gait { Stopped, Walking, Running, Reverse }
 public enum FiringMode { FireAtWill, HoldFire }
 public enum CombatOutcome { Ongoing, Victory, Defeat, Draw, Ended }
-public enum CombatStatus { Active, Shutdown, Disabled, Destroyed, Extracted, Surrendered, Fled }
+/// <summary>Inbound is a reinforcement that has not yet arrived: off the field, out of the fight, and never seen.</summary>
+public enum CombatStatus { Active, Shutdown, Disabled, Destroyed, Extracted, Surrendered, Fled, Inbound }
 public enum ContactLevel { Lost, Identified, Detailed }
 
 /// <summary>A deployed mech's condition after a mission battle, keyed by its owned id. Armor lost is front plus rear. InjuryDays is the
@@ -22,6 +24,8 @@ public enum ContactLevel { Lost, Identified, Detailed }
 public sealed record DeployedMechReport(string MechId, LocationCondition[] Locations, EquipmentCondition[] Equipment, bool WarriorKilled, int ArmorLost,
     int Kills = 0, int InjuryDays = 0, WarriorSkill[]? SkillGains = null)
 {
+    /// <summary>When the MechWarrior, first into a Take and Hold's objective, held it until it was taken.</summary>
+    public double? LedAdvanceAt { get; init; }
     public BattleKill[] KillLog { get; init; } = [];
     public BattleDeath? Death { get; init; }
     public bool Ejected { get; init; }
@@ -216,6 +220,10 @@ public sealed partial class CombatUnit
     public int? Lance { get; }
     /// <summary>A patrol's enemy group, which wakes and hunts together; null outside patrols and for friendlies.</summary>
     public int? Group { get; }
+    /// <summary>A Take and Hold enemy's wave: 0 for the garrison, then each reinforcement wave; null otherwise.</summary>
+    public int? Wave { get; init; }
+    /// <summary>A reinforcement that has not yet arrived on the battlefield.</summary>
+    public bool Inbound { get; internal set; }
     /// <summary>Where the mech deployed, which a patrol group returns to after a fruitless search.</summary>
     internal Vector2 Post { get; set; }
     public IReadOnlyDictionary<MechLocation, CombatLocation> Locations { get; }
@@ -316,7 +324,7 @@ public sealed partial class CombatUnit
     public bool Extracted { get; internal set; }
     /// <summary>Only a lost center torso destroys a mech. A lost head, both legs lost, a struck cockpit or an ejected pilot disable
     /// it; losing every weapon does not.</summary>
-    public CombatStatus Status => Extracted ? CombatStatus.Extracted : Fled ? CombatStatus.Fled : Surrendered ? CombatStatus.Surrendered
+    public CombatStatus Status => Inbound ? CombatStatus.Inbound : Extracted ? CombatStatus.Extracted : Fled ? CombatStatus.Fled : Surrendered ? CombatStatus.Surrendered
         : !Intact(MechLocation.CenterTorso) ? CombatStatus.Destroyed
         : !Intact(MechLocation.Head) || (!Intact(MechLocation.LeftLeg) && !Intact(MechLocation.RightLeg)) || CockpitHit || Ejected
             ? CombatStatus.Disabled : Shutdown ? CombatStatus.Shutdown : CombatStatus.Active;
@@ -325,13 +333,14 @@ public sealed partial class CombatUnit
     /// A destroyed center torso always ejects the pilot before any overkill reaches the head.</summary>
     public bool WarriorKilled => !Ejected && (!Intact(MechLocation.Head) || CockpitHit);
     public bool Defeated => IsDefeated(Status);
-    /// <summary>Out of the fight. An extracted mech counts too: nothing can target, follow or order it any longer.</summary>
+    /// <summary>Out of the fight. An extracted mech counts too: nothing can target, follow or order it any longer; so does an inbound
+    /// reinforcement until it arrives.</summary>
     internal static bool IsDefeated(CombatStatus status) => status is CombatStatus.Disabled or CombatStatus.Destroyed or CombatStatus.Extracted
-        or CombatStatus.Surrendered or CombatStatus.Fled;
-    /// <summary>Occupies ground: wrecks and mechs that left the battle do not.</summary>
-    public bool Solid => Status is not (CombatStatus.Destroyed or CombatStatus.Extracted or CombatStatus.Fled);
-    /// <summary>Gone from the battlefield: extracted or fled.</summary>
-    public bool OffField => Extracted || Fled;
+        or CombatStatus.Surrendered or CombatStatus.Fled or CombatStatus.Inbound;
+    /// <summary>Occupies ground: wrecks, mechs that left the battle and reinforcements yet to arrive do not.</summary>
+    public bool Solid => Status is not (CombatStatus.Destroyed or CombatStatus.Extracted or CombatStatus.Fled or CombatStatus.Inbound);
+    /// <summary>Not on the battlefield: extracted, fled, or not yet arrived.</summary>
+    public bool OffField => Extracted || Fled || Inbound;
     private float Mobility => Defeated ? 0 : (!Intact(MechLocation.LeftLeg) || !Intact(MechLocation.RightLeg)) ? .5f : 1;
     public float UnheatedWalkingSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Walk) * Mobility * CriticalSpeedMultiplier;
     public float UnheatedRunningSpeed => CombatRules.MovementSpeed(Spec, MovementMode.Run) * Mobility * CriticalSpeedMultiplier;
@@ -535,7 +544,7 @@ public sealed partial class CombatSimulation
     private static CombatSimulation CreateDeployment(ForceRoster roster, IEnumerable<string> selected, int? seed, int? terrainSeed,
         BattlefieldTerrain? terrain, SimulationOpponent opponent, Biome biome, bool dropPhase)
     {
-        if (!Enum.IsDefined(opponent) || opponent == SimulationOpponent.Patrol) throw new ArgumentOutOfRangeException(nameof(opponent));
+        if (!Enum.IsDefined(opponent) || opponent is SimulationOpponent.Patrol or SimulationOpponent.TakeAndHold) throw new ArgumentOutOfRangeException(nameof(opponent));
         var force = DeployedForce(roster, selected);
         var combatSeed = seed ?? Random.Shared.Next();
         var enemies = opponent == SimulationOpponent.Randomized ? DraftOpposition(force, new Random(combatSeed)) : null;
@@ -555,10 +564,12 @@ public sealed partial class CombatSimulation
     {
         var force = DeployedForce(roster, selected);
         var friendly = force.Select(source => Deployed(source, roster.Pilot(source)!.Spec, pristine: false) with { Progress = roster.Pilot(source)!.Progress }).ToArray();
-        var enemy = offer.Opposition.Select((item, i) => Stock(DraftCatalog.Mech(item.MechId), MissionTuning.EnemyPilot(item.Rank, i + 1)) with { Group = item.Group }).ToArray();
+        var enemy = offer.Opposition.Select((item, i) => Stock(DraftCatalog.Mech(item.MechId), MissionTuning.EnemyPilot(item.Rank, i + 1))
+            with { Group = item.Group, Wave = item.Wave }).ToArray();
         var world = biome ?? StarChart.Instance[offer.SystemId].Biome ?? Biome.Valley;
         var combatSeed = seed ?? Random.Shared.Next(); var fieldSeed = terrainSeed ?? Random.Shared.Next();
         if (offer.Kind == MissionKind.Patrol) return DeployPatrol(friendly, enemy, combatSeed, fieldSeed, world, offer.PatrolLocations, dropPhase);
+        if (offer.Kind == MissionKind.TakeAndHold) return DeployTakeAndHold(friendly, enemy, combatSeed, fieldSeed, world, dropPhase);
         var edge = DropZone.StandardEdge(fieldSeed);
         return Deploy(friendly, enemy, combatSeed, BattlefieldTerrain.Generate(fieldSeed, world, dropEdge: edge), edge, dropPhase);
     }
@@ -584,7 +595,8 @@ public sealed partial class CombatSimulation
     /// <summary>A mech ready to deploy, keyed by its owned id; enemies are renumbered on deployment.</summary>
     /// <summary>Progress is the pilot's banked skill gain checks, carried only into missions, where skills can grow.</summary>
     private sealed record DeployedMech(string Id, MechSpec Spec, WarriorSpec Pilot, IEnumerable<LocationCondition> Locations,
-        IEnumerable<EquipmentCondition> Equipment, IEnumerable<AmmoCondition> Ammo, int? Lance = null, int? Group = null, SkillProgress? Progress = null);
+        IEnumerable<EquipmentCondition> Equipment, IEnumerable<AmmoCondition> Ammo, int? Lance = null, int? Group = null, SkillProgress? Progress = null,
+        int? Wave = null);
 
     private static DeployedMech Deployed(OwnedMech source, WarriorSpec pilot, bool pristine) => pristine
         ? Stock(source.Spec, pilot) with { Id = source.Id, Lance = source.Lance }
@@ -623,9 +635,10 @@ public sealed partial class CombatSimulation
                 unit.ReportedEquipment(), unit.WarriorKilled, unit.ArmorLost, unit.Kills, InjuryDays(unit), SkillGains(unit))
                 {
                     KillLog = [.. unit.KillLog], Death = unit.WarriorKilled ? unit.Death ?? new(Elapsed, null, null, null) : null, Ejected = unit.Ejected,
-                    AutoEjected = unit.AutoEjected, MechDestroyed = !unit.Intact(MechLocation.CenterTorso), InjuryCauses = [.. unit.InjuryCauses]
+                    AutoEjected = unit.AutoEjected, MechDestroyed = !unit.Intact(MechLocation.CenterTorso), InjuryCauses = [.. unit.InjuryCauses],
+                    LedAdvanceAt = unit.Use.LedAdvanceAt
                 }).ToArray(),
-            Units.Count(unit => unit.Side == CombatSide.Enemy && !unit.WarriorKilled))
+            Units.Count(unit => unit.Side == CombatSide.Enemy && !unit.WarriorKilled && !unit.Inbound))
         {
             Enemies = Units.Where(unit => unit.Side == CombatSide.Enemy).Select(unit => new EnemyWreckReport(unit.Id, unit.Spec.Id, unit.Status,
                 unit.Locations.Values.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)).ToArray(),
@@ -780,7 +793,12 @@ public sealed partial class CombatSimulation
         Elapsed += CombatRules.StepSeconds;
         RefreshDetection();
         if (Patrol is not null) UpdatePatrolAwareness();
-        if (EnemyAiEnabled) { UpdateFleeing(); UpdateAi(); if (Patrol is not null) UpdatePatrolAi(); }
+        if (EnemyAiEnabled)
+        {
+            UpdateFleeing();
+            if (TakeAndHold is not null) UpdateTakeAndHoldAi(); else UpdateAi();
+            if (Patrol is not null) UpdatePatrolAi();
+        }
         StopInvalidFollows();
         foreach (var unit in Units) { unit.Moving = unit.TorsoTurning = false; unit.AngularVelocity = 0; }
         foreach (var unit in Units.Where(item => item.Airborne)) AdvanceJump(unit, delta);
@@ -958,7 +976,9 @@ public sealed partial class CombatSimulation
         _burns.RemoveAll(burn => Unit(burn.Discharge.AttackerId).Status == CombatStatus.Destroyed);
         RefreshDetection();
         RecordSkillUse();
+        if (_zones.Count > 0) AdvanceControlZones();
         if (Patrol is not null) { UpdatePatrolObjectives(); return; }
+        if (TakeAndHold is not null) { UpdateTakeAndHoldObjectives(); return; }
         // A side with only unarmed mechs left is beaten: they can walk off, but no longer fight.
         var friendly = Units.Any(item => item.Side == CombatSide.Friendly && item.Fighting);
         var enemy = Units.Any(item => item.Side == CombatSide.Enemy && item.Fighting);

@@ -368,6 +368,31 @@ The terrain and heat checks cover stable route/firing choices, concurrent search
 
 The numbers live in `CombatRules` (`Scripts/Drop.cs`).
 
+## Control zones
+
+| Value | Default |
+| --- | --- |
+| Radius | 500 m |
+| Capture time | 30 s from one end to the other for one leading unit; N leading units take 30 ÷ N s, with no cap |
+
+The numbers live in `CombatRules` (`Scripts/ControlZone.cs`).
+
+## Take and Hold
+
+| Value | Default |
+| --- | --- |
+| Garrison and each wave | 0.5 × the challenge rating each, standard weight odds (`MissionTuning.GarrisonShare`, `WaveShare`) |
+| Waves | 1, 2 or 3, equally likely |
+| Objective settlement | 15–25 buildings, centred within 800 m of the arena centre |
+| Garrison posts | Random inside 90% of the zone's radius, at least 40 m apart |
+| Garrison leash | 250 m beyond the zone's edge |
+| Wave timing | 180 s after the previous wave or the capture, or 5 s after no enemy is fighting, whichever is sooner |
+| Wave arrival | 1,500 m beyond the zone's edge (2,000 m from the centre), at least 200 m inside the arena's edges |
+| Wave lances | Up to four mechs, each lance at a 100 m site within 200 m of the arrival point, mechs at least 40 m apart and from any standing mech |
+| Wave approach | Heads for the centre until within 250 m of it |
+
+The numbers live in `CombatRules` (`Scripts/TakeAndHold.cs`).
+
 ## Patrols
 
 | Value | Default |

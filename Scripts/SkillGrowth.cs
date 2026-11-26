@@ -21,9 +21,10 @@ public sealed record SkillProgress(int Gunnery = 0, int Piloting = 0, int Sensor
 
 /// <summary>What a MechWarrior did with each skill in one battle, counted by the simulation. Hits and kills come from the unit's own
 /// tallies. Metres in contact are moved while the side identifies an enemy; sole-spotter seconds are spent as the only friendly
-/// identifying an enemy that a friendly is aiming at. FirstIdentified lists the enemies this pilot was first on the side to identify.</summary>
+/// identifying an enemy that a friendly is aiming at. FirstIdentified lists the enemies this pilot was first on the side to identify.
+/// LedAdvanceAt is when the pilot, first into a Take and Hold's objective, held it until it was taken.</summary>
 public sealed record SkillUse(int PilotingChecks = 0, int FootingKept = 0, float MetresInContact = 0, string[]? FirstIdentified = null,
-    double SoleSpotterSeconds = 0, int PressuredNerveChecks = 0, int HeldOn = 0, bool Stressed = false)
+    double SoleSpotterSeconds = 0, int PressuredNerveChecks = 0, int HeldOn = 0, bool Stressed = false, double? LedAdvanceAt = null)
 {
     public static readonly SkillUse None = new();
     public IReadOnlyList<string> Identified => FirstIdentified ?? [];
@@ -74,11 +75,12 @@ public static class SkillGrowth
         use.Identified.Count * FirstIdentifiedWeight + use.SoleSpotterSeconds / SoleSpotterSecondsPerUse * SoleSpotterWeight,
         use.PressuredNerveChecks * PressuredNerveWeight,
     ];
-    /// <summary>Extra checks earned by deeds: kills for Gunnery, Piloting checks passed, enemies this pilot first identified that
+    /// <summary>Extra checks earned by deeds: kills for Gunnery, Piloting checks passed and leading the advance on a Take and Hold's
+    /// objective for Piloting, enemies this pilot first identified that
     /// were later defeated for Sensors, and for Grit each time a Panicked pilot held on, plus one for finishing the battle still
     /// fighting after being Stressed or worse.</summary>
     public static int[] ExtraChecks(SkillUse use, int kills, int identifiedDefeated, bool fightingAtEnd) =>
-        [kills, use.FootingKept, identifiedDefeated, use.HeldOn + (use.Stressed && fightingAtEnd ? 1 : 0)];
+        [kills, use.FootingKept + (use.LedAdvanceAt is null ? 0 : 1), identifiedDefeated, use.HeldOn + (use.Stressed && fightingAtEnd ? 1 : 0)];
 
     /// <summary>The skill the lottery draws for the guaranteed check: weighted by score, or any of the four alike when nothing scored.</summary>
     public static WarriorSkill Draw(Random random, IReadOnlyList<double> scores)

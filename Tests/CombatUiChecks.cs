@@ -405,7 +405,7 @@ public partial class SmokeTests
     private async Task TestSalvageUi()
     {
         var hangar = _app.Hangar; var tactical = _app.Tactical; var state = _app.State;
-        var offer = state.Missions.Available.First(item => item.Kind != MissionKind.Patrol); state.AcceptMission(offer.Id);
+        var offer = state.Missions.Available.First(item => item.Kind is MissionKind.Raid or MissionKind.Defense); state.AcceptMission(offer.Id);
         if (!_app.Office.Visible) _app.ShowOffice();
         await Frames(); await Click(_app.Office.HangarButton);
         var mechs = state.Roster!.Mechs.Count;
@@ -492,6 +492,48 @@ public partial class SmokeTests
         tactical.Battlefield.GrabFocus(); await PressKey(Key.Home); await Frames();
         await Capture("combat-patrol-arena");
         await PressKey(Key.Escape); await Click(tactical.EndButton); await Click(tactical.ReturnButton);
+    }
+    private async Task TestTakeAndHoldUi()
+    {
+        var roster = ForceRoster.Create("Hold checks", new[] { "wolverine", "jenner" }.Select(DraftCatalog.Mech), TestPilots.Warriors.Take(2));
+        for (var i = 0; i < 2; i++) roster.Assign(roster.Mechs[i].Id, roster.Warriors[i].Id);
+        var tactical = _app.Tactical; _app.Navigation.Push(CommandScreen.Tactical, _app.Hangar.DeploymentButton);
+        tactical.Open(roster, roster.Mechs[0].Id); await Frames();
+        GetWindow().Size = new Vector2I(900, 500); await Frames();
+        Check(tactical.GetGlobalRect().Encloses(tactical.TakeAndHoldButton.GetGlobalRect()) && tactical.GetGlobalRect().Encloses(tactical.BackButton.GetGlobalRect()),
+            "the Take and Hold choice fits the minimum window");
+        GetWindow().Size = new Vector2I(1440, 900); await Frames();
+        await Click(tactical.TakeAndHoldButton);
+        Check(tactical.Opponent == SimulationOpponent.TakeAndHold && tactical.Modal == CombatModal.ForceSelection, "Simulate Deployment offers a Take and Hold");
+        if (!tactical.ForceChoices[1].ButtonPressed) await Click(tactical.ForceChoices[1]);
+        tactical.ChooseBiome(Biome.Grassland);
+        await Click(tactical.LaunchButton); await Land(tactical);
+        var sim = tactical.Simulation!;
+        var bar = tactical.ZoneBars.SingleOrDefault();
+        Check(sim.TakeAndHold is not null && bar is not null && bar.Zone == sim.Objective && tactical.ZonePanel.Visible && bar.IsVisibleInTree()
+            && TacticalText().Contains("Take the objective") && TacticalText().Any(text => text.StartsWith("Reinforcements: ", StringComparison.Ordinal))
+            && bar.Caption == "OBJECTIVE · 0%",
+            "a simulated Take and Hold shows the objective, its control bar and the reinforcements to come");
+        Check(bar!.GetGlobalRect().Position.Y >= tactical.ObjectiveLabel.GetGlobalRect().End.Y && bar.GetGlobalRect().Position.X < 40
+            && tactical.ReinforcementLabel.GetGlobalRect().Position.Y >= bar.GetGlobalRect().End.Y,
+            "the control bar sits at the top left directly under the objective, with the reinforcements line below it");
+        await Frames(); await Capture("combat-take-and-hold-start");
+        sim.EnemyAiEnabled = false;
+        foreach (var unit in sim.Units) unit.Firing = FiringMode.HoldFire;
+        var scout = sim.Units.First(unit => unit.Side == CombatSide.Friendly);
+        scout.Position = sim.Terrain.ReachableDestination(sim.FriendlyZone!.Anchor, sim.Objective!.Center);
+        foreach (var guard in sim.Units.Where(unit => unit.Wave == 0)) guard.Position = sim.Objective.Center + new Vector2(2000, 0);
+        var paused = sim.Paused; sim.Paused = false; sim.Advance(6); sim.Paused = paused;
+        await ToSignal(GetTree().CreateTimer(.25), SceneTreeTimer.SignalName.Timeout); await Frames();
+        var logged = tactical.BattleLog.FindChildren("*", "RichTextLabel", true, false).OfType<RichTextLabel>()
+            .Any(text => text.GetParsedText().Contains("Objective contested"));
+        Check(sim.Objective.Contested && bar.Caption.StartsWith("OBJECTIVE · 2", StringComparison.Ordinal) && bar.Caption.EndsWith("CONTESTED", StringComparison.Ordinal)
+            && logged, $"taking the objective fills its bar, marks it contested and is logged ({bar.Caption})");
+        tactical.Battlefield.GrabFocus(); await PressKey(Key.Home); await Frames();
+        await Capture("combat-take-and-hold-arena");
+        await PressKey(Key.Escape); await Click(tactical.EndButton);
+        Check(TacticalText().Any(text => text.StartsWith("Combat time", StringComparison.Ordinal)), "the Take and Hold ends to its results");
+        await Click(tactical.ReturnButton);
     }
     private string[] TacticalText() => _app.Tactical.FindChildren("*", "Label", true, false).OfType<Label>()
         .Where(label => label.IsVisibleInTree()).Select(label => label.Text).ToArray();
