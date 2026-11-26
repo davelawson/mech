@@ -475,7 +475,7 @@ The second step of [co-op multiplayer](adr/0003-cooperative-multiplayer.md): the
 - **Sync.** The leader's machine holds the campaign. Other players' changes are commands the leader carries out or refuses (refusals appear as *Not possible*). The campaign goes to every player at most five times a second while it changes. Pending hangar changes that still apply survive each update.
 - **Leader-only controls for the other players:**
   - Snooze explains that only the leader advances time; the calendar still lists the upcoming events, with advancing disabled.
-  - The phone's Accept and Abandon buttons are disabled.
+  - The phone's Accept and Abandon buttons are disabled. The offer list follows the leader's board while it is open. If the offer a player is reading leaves the board, as when the leader advances time, a notice (*Offer withdrawn*) names it, and **Back to offers** returns to the list with its first offer shown and focused. Losing any other offer only redraws the list. The leader advances time only from the office, so only the other players can see this.
   - The star map shows no Embark or Cancel Journey, and plotting explains that only the leader plots travel.
   - The filing cabinet only explains that the leader saves and loads.
   - When the quarterly bill falls due, it opens for them with a disabled *Waiting for leader* button, and it closes once the leader settles it.

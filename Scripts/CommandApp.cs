@@ -166,6 +166,7 @@ public partial class CommandApp : Control
                 Execute(new AbandonMissionCommand()); Missions.Refresh(); RefreshCampaign();
                 Navigation.Close(CommandScreen.Dialog, Missions.MissionButtons.First());
             }, CloseDialog, "Abandon Mission");
+        Missions.OfferWithdrawn += ShowOfferWithdrawn;
         Hangar.BackRequested += LeaveHangar;
         Hangar.ApplyRequested += ApplyLoadout;
         Hangar.WarriorDetailsRequested += ShowWarriors;
@@ -739,6 +740,20 @@ public partial class CommandApp : Control
         Missions.Open(State); RefreshCampaign();
     }
 
+    /// <summary>The offer a player was reading left the board, as when the leader advanced time: say so, then return to the list.</summary>
+    private void ShowOfferWithdrawn(MissionOffer offer)
+    {
+        void Close()
+        {
+            // The board may have changed again while the notice was open; a second withdrawn offer replaces this notice.
+            var notice = Dialog.Body;
+            Missions.Refresh(State);
+            if (Dialog.Body == notice) Navigation.Close(CommandScreen.Dialog, Missions.ViewedButton ?? Missions.CloseButton);
+        }
+        OpenDialog("Offer withdrawn", $"{offer.Name} ({offer.Employer.ShortName} vs. {offer.Opponent.ShortName}) has been taken off the board and is no longer available.",
+            Close, new DialogAction("Back to offers", Close));
+    }
+
     public void ShowWarriors()
     {
         if (State.RequiresDraft || Navigation.CurrentScreen is not (CommandScreen.Office or CommandScreen.Hangar)) return;
@@ -1115,7 +1130,7 @@ public partial class CommandApp : Control
         Hangar.Campaign = State;
         if (State.Roster is { } roster) Hangar.Rebind(roster, State.Travel.InOrbit ? State.Travel.OrbitSystemId : null, State.Cash);
         UpdateQuickLaunch();
-        if (Navigation.CurrentScreen == CommandScreen.Missions) Missions.Refresh();
+        if (Navigation.CurrentScreen == CommandScreen.Missions) Missions.Refresh(State);
         Rolodex.Refresh(State);
         RefreshCompanyDialogs();
     }

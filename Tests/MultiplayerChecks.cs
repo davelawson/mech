@@ -281,6 +281,35 @@ public partial class SmokeTests
 
     /// <summary>The app joins the leader's co-op mission: it is pulled into force selection, marks its force ready, and orders its own
     /// lance in the leader's battle until the leader closes the results.</summary>
+    /// <summary>The leader advances time while the joined player reads the phone: losing another offer only redraws the list,
+    /// losing the one being read says so in a notice and returns to the list.</summary>
+    private async Task TestOfferWithdrawn(CoopHost host)
+    {
+        var board = host.Campaign!.Missions;
+        var oldest = board.Available[0]; var viewed = board.Available[1];
+        await Click(_app.Missions.MissionButtons[1]);
+        Check(_app.Missions.MissionName.Text == viewed.Name, "the joined player reads the second offer");
+        while (board.Find(oldest.Id) is not null) host.Campaign.AdvanceOneDay();
+        host.MarkDirty();
+        await Exchange(() => _app.State.Missions.Find(oldest.Id) is null, "the leader's day reaches the joined player", host);
+        await Frames();
+        Check(!_app.Dialog.Visible && _app.Missions.MissionName.Text == viewed.Name
+            && _app.Missions.MissionButtons.Select(button => button.Text).SequenceEqual(board.Available.Select(item => $"{item.Name}\n{item.Employer.ShortName} vs. {item.Opponent.ShortName}")),
+            "another offer leaving the board redraws the joined player's list without a notice");
+        Check(_app.Missions.MissionButtons.Count(button => button.ButtonPressed) == 1 && _app.Missions.ViewedButton!.Text.StartsWith(viewed.Name + "\n"),
+            "the offer being read stays selected");
+        while (board.Find(viewed.Id) is not null) host.Campaign.AdvanceOneDay();
+        host.MarkDirty();
+        await Exchange(() => _app.Dialog.Visible && _app.Dialog.Heading == "Offer withdrawn", "the joined player is told the offer they were reading is gone", host);
+        Check(_app.Dialog.Body.Contains(viewed.Name) && _app.Missions.Visible, "the notice names the withdrawn offer, over the phone");
+        await Click(DialogButton("Back to offers"));
+        var first = board.Available[0];
+        Check(!_app.Dialog.Visible && _app.Missions.Visible && _app.Missions.MissionName.Text == first.Name
+            && _app.Missions.MissionButtons.Count == MissionTuning.BoardSize && _app.GetViewport().GuiGetFocusOwner() == _app.Missions.ViewedButton
+            && _app.Missions.ViewedButton == _app.Missions.MissionButtons[0],
+            "closing the notice returns to the offer list, showing and focusing its first offer");
+    }
+
     private async Task JoinMission(CoopHost host)
     {
         var campaign = host.Campaign!;
@@ -431,6 +460,7 @@ public partial class SmokeTests
         Check(_app.Dialog.Body.Contains("Only the leader saves"), "only the leader saves and loads"); await Click(DialogButton("Close"));
         await Click(_app.Office.PhoneButton);
         Check(_app.Missions.AcceptButton.Disabled && _app.Missions.AcceptButton.TooltipText == "Only the leader accepts missions.", "only the leader accepts missions");
+        await TestOfferWithdrawn(host);
         await PressKey(Key.Escape);
 
         await Click(_app.Office.HangarButton);

@@ -8,17 +8,23 @@ public partial class MissionsPanel : Control
     public event Action? Closed;
     public event Action<string>? AcceptRequested;
     public event Action? AbandonRequested;
+    /// <summary>The available offer being viewed left the board while the panel was open; the panel now shows the list's first offer.</summary>
+    public event Action<MissionOffer>? OfferWithdrawn;
     /// <summary>Only the leader accepts and abandons missions; the other players browse the offers.</summary>
     public bool LeaderControls { get; set; } = true;
     public Button CloseButton { get; private set; } = null!;
     public Button AcceptButton { get; private set; } = null!;
     public Button AbandonButton { get; private set; } = null!;
     public Label MissionName { get; private set; } = null!;
+    /// <summary>The list button of the offer shown in the details.</summary>
+    public Button? ViewedButton => _missionButtons.FirstOrDefault(button => button.ButtonPressed);
     public IReadOnlyList<Button> MissionButtons => _missionButtons;
     private readonly List<Button> _missionButtons = [];
     private Campaign _campaign = null!;
     private MissionBoard _board = null!;
     private string? _viewedId;
+    /// <summary>The available offer last shown in the details, or null when the current mission or nothing was shown.</summary>
+    private MissionOffer? _viewedOffer;
     private PanelContainer _panel = null!;
     private VBoxContainer _index = null!;
     private Label _status = null!;
@@ -65,13 +71,16 @@ public partial class MissionsPanel : Control
         _campaign = campaign;
         var board = _board = campaign.Missions;
         _board.MarkOffersSeen();
-        _viewedId = board.SelectedMissionId ?? board.Available.FirstOrDefault()?.Id;
+        _viewedId = board.SelectedMissionId ?? board.Available.FirstOrDefault()?.Id; _viewedOffer = null;
         Show(); Refresh();
         (_missionButtons.FirstOrDefault(button => button.ButtonPressed) ?? CloseButton).CallDeferred(Control.MethodName.GrabFocus);
     }
 
-    public void Refresh()
+    /// <summary>Redraws the board; <paramref name="campaign"/> replaces the one shown, as a joined player's copy is replaced on each sync.</summary>
+    public void Refresh(Campaign? campaign = null)
     {
+        if (campaign is not null) { _campaign = campaign; _board = campaign.Missions; }
+        var withdrawn = _viewedOffer is { } viewed && _board.Find(viewed.Id) is null ? viewed : null;
         RosterUi.Clear(_reputation);
         Ui.Label(_reputation, "REPUTATION", 12, Ui.Muted);
         foreach (var faction in Factions.All)
@@ -81,8 +90,9 @@ public partial class MissionsPanel : Control
             label.MouseFilter = MouseFilterEnum.Pass;
         }
         RosterUi.Clear(_index); _missionButtons.Clear();
-        // An abandoned mission is gone, so fall back to the oldest offer.
-        if (_viewedId is null || _board.Find(_viewedId) is null) _viewedId = _board.Current?.Id ?? _board.Available.FirstOrDefault()?.Id;
+        // A withdrawn offer returns to the top of the list; an abandoned mission is gone, so fall back to the oldest offer.
+        if (withdrawn is not null) _viewedId = _board.Available.FirstOrDefault()?.Id ?? _board.Current?.Id;
+        else if (_viewedId is null || _board.Find(_viewedId) is null) _viewedId = _board.Current?.Id ?? _board.Available.FirstOrDefault()?.Id;
         if (_board.Current is { } current)
         {
             RosterUi.Text(_index, "CURRENT MISSION", 12, Ui.Gold);
@@ -92,6 +102,7 @@ public partial class MissionsPanel : Control
         foreach (var offer in _board.Available) AddMission(offer);
         if (!_board.Available.Any()) RosterUi.Text(_index, "No other offers available.", 13, Ui.Muted);
         ShowDetails(); Layout();
+        if (withdrawn is not null) OfferWithdrawn?.Invoke(withdrawn);
     }
 
     private void AddMission(MissionOffer offer)
@@ -112,6 +123,7 @@ public partial class MissionsPanel : Control
     {
         var offer = _viewedId is null ? null : _board.Find(_viewedId);
         var isCurrent = offer is not null && offer.Id == _board.SelectedMissionId;
+        _viewedOffer = isCurrent ? null : offer;
         _status.Text = isCurrent ? "CURRENT MISSION · ACCEPTED" : "AVAILABLE OFFER";
         MissionName.Text = offer?.Name ?? "No missions available";
         _briefing.Text = offer is null ? "Check the phone again when new offers arrive." : $"{offer.Briefing}\n\nOBJECTIVE\n{offer.Objective}";
