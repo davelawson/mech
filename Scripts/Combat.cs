@@ -16,9 +16,19 @@ public enum CombatStatus { Active, Shutdown, Disabled, Destroyed, Extracted, Sur
 public enum ContactLevel { Lost, Identified, Detailed }
 
 /// <summary>A deployed mech's condition after a mission battle, keyed by its owned id. Armor lost is front plus rear. InjuryDays is the
-/// MechWarrior's recovery time from the battle's injuries, 0 when unhurt. SkillGains are the skills whose gain checks succeeded.</summary>
+/// MechWarrior's recovery time from the battle's injuries, 0 when unhurt. SkillGains are the skills whose gain checks succeeded.
+/// The rest is for the MechWarrior's service history: their kills, how they died, whether they ejected (AutoEjected as the center
+/// torso was destroyed), whether the mech was destroyed, and what caused their other injuries.</summary>
 public sealed record DeployedMechReport(string MechId, LocationCondition[] Locations, EquipmentCondition[] Equipment, bool WarriorKilled, int ArmorLost,
-    int Kills = 0, int InjuryDays = 0, WarriorSkill[]? SkillGains = null);
+    int Kills = 0, int InjuryDays = 0, WarriorSkill[]? SkillGains = null)
+{
+    public BattleKill[] KillLog { get; init; } = [];
+    public BattleDeath? Death { get; init; }
+    public bool Ejected { get; init; }
+    public bool AutoEjected { get; init; }
+    public bool MechDestroyed { get; init; }
+    public InjuryCause[] InjuryCauses { get; init; } = [];
+}
 /// <summary>An enemy mech's condition when a mission battle ends, keyed by its battlefield id; salvage is drawn from it.</summary>
 public sealed record EnemyWreckReport(string UnitId, string MechId, CombatStatus Status, LocationCondition[] Locations, EquipmentCondition[] Equipment);
 /// <summary>A salvage pick: one item from an enemy mech, or the whole mech when ItemId is null.</summary>
@@ -379,7 +389,13 @@ public sealed partial class CombatUnit
         }
     }
     /// <summary>A destroyed center torso throws the pilot clear before any overkill reaches the head.</summary>
-    internal void AutoEject() { if (!Ejected && Intact(MechLocation.Head) && !CockpitHit) { Ejected = true; Injuries++; } }
+    internal void AutoEject() { if (!Ejected && Intact(MechLocation.Head) && !CockpitHit) { Ejected = true; AutoEjected = true; Injuries++; } }
+    /// <summary>The pilot ejected because the center torso was destroyed.</summary>
+    public bool AutoEjected { get; private set; }
+    /// <summary>The enemies this MechWarrior's hits took out of the fight, or whose MechWarriors they killed, in order.</summary>
+    internal List<BattleKill> KillLog { get; } = [];
+    /// <summary>How this MechWarrior died, once they have.</summary>
+    internal BattleDeath? Death { get; set; }
     private void DestroyAttachedArm(MechLocation location)
     { Locations[location].Armor = 0; Locations[location].Structure = 0; }
 }
@@ -604,7 +620,11 @@ public sealed partial class CombatSimulation
         return new(Outcome == CombatOutcome.Victory ? MissionOutcome.Success : MissionOutcome.Failure,
             Units.Where(unit => unit.Side == CombatSide.Friendly).Select(unit => new DeployedMechReport(unit.Id,
                 unit.Locations.Values.Select(loc => new LocationCondition(loc.Location, loc.Armor, loc.RearArmor, loc.Structure)).ToArray(),
-                unit.ReportedEquipment(), unit.WarriorKilled, unit.ArmorLost, unit.Kills, InjuryDays(unit), SkillGains(unit))).ToArray(),
+                unit.ReportedEquipment(), unit.WarriorKilled, unit.ArmorLost, unit.Kills, InjuryDays(unit), SkillGains(unit))
+                {
+                    KillLog = [.. unit.KillLog], Death = unit.WarriorKilled ? unit.Death ?? new(Elapsed, null, null, null) : null, Ejected = unit.Ejected,
+                    AutoEjected = unit.AutoEjected, MechDestroyed = !unit.Intact(MechLocation.CenterTorso), InjuryCauses = [.. unit.InjuryCauses]
+                }).ToArray(),
             Units.Count(unit => unit.Side == CombatSide.Enemy && !unit.WarriorKilled))
         {
             Enemies = Units.Where(unit => unit.Side == CombatSide.Enemy).Select(unit => new EnemyWreckReport(unit.Id, unit.Spec.Id, unit.Status,
@@ -613,6 +633,21 @@ public sealed partial class CombatSimulation
             EnemyHoldsField = EnemyHoldsField
         };
     }
+    /// <summary>Notes for the service histories what a resolved hit did: the kill it earned its shooter, or the MechWarrior it killed,
+    /// and how that MechWarrior died.</summary>
+    private void RecordDeeds(CombatShot shot, CombatUnit target, bool kill, bool pilotKilled)
+    {
+        var attacker = Unit(shot.AttackerId);
+        var enemy = attacker.Side != target.Side;
+        var pilot = target.Intact(MechLocation.Head) ? KillManner.Cockpit : KillManner.Head;
+        if (enemy && (kill || pilotKilled))
+            attacker.KillLog.Add(new(Elapsed, target.Spec.DisplayName, shot.Weapon,
+                pilotKilled ? pilot : target.Status == CombatStatus.Destroyed ? KillManner.Destroyed : KillManner.Disabled, kill));
+        if (pilotKilled)
+            target.Death = !enemy ? new(Elapsed, null, null, pilot) : new(Elapsed, attacker.Spec.DisplayName, shot.Weapon, pilot,
+                _fatalExplosion is { } fatal ? target.Spec.Ammo.Single(item => item.Id == fatal.BinId).Name : null);
+    }
+
     /// <summary>The opposition still has a mech fighting: not defeated and still armed.</summary>
     public bool EnemyHoldsField => Units.Any(unit => unit.Side == CombatSide.Enemy && unit.Fighting);
 
@@ -888,6 +923,7 @@ public sealed partial class CombatSimulation
             // The hit that disables or destroys an enemy earns its shooter the kill.
             var kill = !CombatUnit.IsDefeated(status) && target.Defeated && Unit(shot.AttackerId).Side != target.Side;
             if (kill) Unit(shot.AttackerId).Kills++;
+            RecordDeeds(shot, target, kill, !killed && target.WarriorKilled);
             var weapon = Unit(shot.AttackerId).Weapons.FirstOrDefault(item => item.Spec.Id == shot.WeaponId);
             if (weapon is not null)
                 weapon.Tally = weapon.Tally with

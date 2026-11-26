@@ -63,6 +63,9 @@ A skill rating of 7, one step worse than Green, where every skill of a newly gen
 **Skill points**:
 The points a MechWarrior's skills are worth, each level costing one more than the last: bought when they are generated, and growing as their skills rise. They set the MechWarrior's rank and salary.
 
+**Service history**:
+A MechWarrior's record of the significant moments of their career, each dated with one sentence, kept in memoriam after death and shown on the rolodex card's History tab.
+
 **Rank**:
 A MechWarrior's standing, worked out from their skill points: Private, Private First Class, Corporal, Sergeant, Lieutenant or Captain.
 _Avoid_: Green, Regular, Veteran, Elite or Legendary for a pilot; those words name skill levels.

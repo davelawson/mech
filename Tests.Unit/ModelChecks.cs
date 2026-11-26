@@ -22,6 +22,7 @@ public sealed class Missions { [Fact] public void Checks() => Suite.Run(MissionC
 public sealed class SalvageAndInsurance { [Fact] public void Checks() => Suite.Run(SalvageChecks.Run); }
 public sealed class Reputation { [Fact] public void Checks() => Suite.Run(ReputationChecks.Run); }
 public sealed class Roster { [Fact] public void Checks() => Suite.Run(RosterChecks.Run); }
+public sealed class ServiceHistory { [Fact] public void Checks() => Suite.Run(ServiceRecordChecks.Run); }
 public sealed class Travel { [Fact] public void Checks() => Suite.Run(TravelChecks.Run); }
 public sealed class Hangar { [Fact] public void Checks() => Suite.Run(HangarChecks.Run); }
 // The longest suites are split into parts, one class each, so they overlap too.

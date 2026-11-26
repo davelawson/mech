@@ -27,6 +27,11 @@ public partial class RolodexPanel : Control
     /// <summary>An active MechWarrior's skills with their progress bars; hidden on other cards, whose record lists the skills.</summary>
     public SkillBars Skills { get; private set; } = null!;
     private Label _position = null!;
+    /// <summary>The card's Record and History tabs; a card for hire has only its record.</summary>
+    public TabContainer Tabs { get; private set; } = null!;
+    public const int RecordTab = 0, HistoryTab = 1;
+    /// <summary>The History tab's rows, newest first: a date and a sentence each, then any note that the record began late.</summary>
+    public VBoxContainer HistoryList { get; private set; } = null!;
     private int _selected;
     private sealed record Entry(WarriorSpec Spec, RosterWarrior? Warrior);
     private Entry[] _visible = [];
@@ -48,15 +53,17 @@ public partial class RolodexPanel : Control
         Section.ItemSelected += _ => { _selected = 0; RebuildIndex(); ShowCard(); };
         _index = RosterUi.Scroll(left);
         _card = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; _card.AddThemeConstantOverride("separation", 12); content.AddChild(_card);
-        var record = new HBoxContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; record.AddThemeConstantOverride("separation", 20); _card.AddChild(record);
+        CardName = Ui.Label(_card, "", 23, Ui.Gold);
+        Tabs = new TabContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; _card.AddChild(Tabs);
+        var record = new HBoxContainer { Name = "Record", SizeFlagsVertical = SizeFlags.ExpandFill }; record.AddThemeConstantOverride("separation", 20); Tabs.AddChild(record);
         _portrait = RosterUi.Picture(record, "", new Vector2(185, 160)); _portrait.SizeFlagsVertical = SizeFlags.ExpandFill;
         var details = RosterUi.Scroll(record);
-        CardName = RosterUi.Text(details, "", 23, Ui.Gold);
         Skills = new SkillBars { CustomMinimumSize = new Vector2(220, 0), SizeFlagsHorizontal = SizeFlags.ShrinkBegin }; details.AddChild(Skills);
         _record = RosterUi.Text(details, "", 16);
         var actions = new HBoxContainer(); details.AddChild(actions);
         ActionButton = Ui.Button(actions, "Recruit"); ActionButton.CustomMinimumSize = new Vector2(190, 38);
         ActionButton.Pressed += Act;
+        HistoryList = RosterUi.Scroll(Tabs); HistoryList.GetParent<Control>().Name = "History"; HistoryList.AddThemeConstantOverride("separation", 8);
         var navigation = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center }; navigation.AddThemeConstantOverride("separation", 12); _card.AddChild(navigation);
         PreviousButton = Ui.Button(navigation, "← Previous"); PreviousButton.Pressed += () => Move(-1);
         _position = Ui.Label(navigation, "", 13, Ui.Muted);
@@ -107,7 +114,7 @@ public partial class RolodexPanel : Control
         PreviousButton.Disabled = NextButton.Disabled = _visible.Length < 2;
         if (_visible.Length == 0)
         {
-            ActionButton.Hide(); Skills.Hide(); _portrait.Texture = null; _position.Text = "0 / 0";
+            ActionButton.Hide(); Skills.Hide(); _portrait.Texture = null; _position.Text = "0 / 0"; ShowHistory(null);
             (CardName.Text, _record.Text) = Section.Selected switch
             {
                 MemorialSection => ("No memorial records", "No MechWarriors have been lost."),
@@ -121,6 +128,7 @@ public partial class RolodexPanel : Control
         var entry = _visible[_selected]; var spec = entry.Spec;
         _portrait.Texture = RosterUi.Portrait(spec); CardName.Text = $"“{spec.Callsign}”\n{spec.Name}";
         var salary = $"Salary: {RosterUi.Money(spec.Salary)} a quarter";
+        ShowHistory(entry.Warrior);
         if (entry.Warrior is not { } warrior)
         {
             Skills.Hide();
@@ -147,6 +155,22 @@ public partial class RolodexPanel : Control
         }
         _position.Text = $"{_selected + 1} / {_visible.Length}";
         RosterUi.TrapFocus(this);
+    }
+    /// <summary>Fills the History tab for a member of the company, newest first; with no one, or a MechWarrior for hire, only the
+    /// Record tab is offered.</summary>
+    private void ShowHistory(RosterWarrior? warrior)
+    {
+        RosterUi.Clear(HistoryList);
+        Tabs.SetTabHidden(HistoryTab, warrior is null);
+        if (warrior is null) { Tabs.CurrentTab = RecordTab; return; }
+        foreach (var item in warrior.History.Reverse())
+        {
+            var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 16); HistoryList.AddChild(row);
+            var date = Ui.Label(row, ServiceRecord.DateText(item.Date), 14, Ui.Muted); date.CustomMinimumSize = new Vector2(110, 0);
+            RosterUi.Text(row, ServiceRecord.Describe(item), 15).SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        }
+        if (warrior.RecordsSince is { } since) RosterUi.Text(HistoryList, ServiceRecord.EarlierNote(since), 14, Ui.Muted);
+        else if (warrior.History.Count == 0) RosterUi.Text(HistoryList, "No service record yet.", 14, Ui.Muted);
     }
     private void Act()
     {

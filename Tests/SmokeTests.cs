@@ -981,10 +981,11 @@ public partial class SmokeTests : Node
         // One banked success each for the first two cards, short of any threshold, so their bars show progress.
         foreach (var learner in _app.State.Roster!.Warriors.Take(2))
             learner.GainSkill(SkillGrowth.Skills.Last(skill => !SkillGrowth.Maxed(SkillGrowth.Rating(learner.Spec, skill))));
+        _app.State.Roster.Warriors[0].Record(new(_app.State.Date, ServiceEventKind.Recovered) { Days = 12 });
         await Click(_app.Office.RolodexButton);
         Check(_app.Rolodex.Visible && _app.Office.Visible && !_app.Hangar.Visible, "rolodex overlays the office");
         _app.StartAdvancing(false); Check(!_app.IsAdvancing, "rolodex pauses company time");
-        var heading = _app.Rolodex.FindChildren("*", nameof(Label), true, false).OfType<Label>().Select(label => label.Text).ToArray();
+        var heading = _app.Rolodex.FindChildren("*", nameof(Label), true, false).OfType<Label>().Where(label => !_app.Rolodex.HistoryList.IsAncestorOf(label)).Select(label => label.Text).ToArray();
         Check(heading.Contains("PERSONNEL") && !heading.Any(text => text.Contains("ROLODEX") || text.Contains(_app.State.Roster!.ForceName)),
             "personnel heading drops the rolodex label and company line");
         var record = heading.First(text => text.Contains("Deployments:"));
@@ -998,8 +999,23 @@ public partial class SmokeTests : Node
                     && bars.Bars[skill].GetParent<Control>().TooltipText == $"{pilot.Progress[skill]} of {bars.Bars[skill].MaxValue} toward {WarriorSkills.Descriptor(SkillGrowth.Rating(pilot.Spec, skill) - 1)}"),
             "an active MechWarrior's card shows a progress bar under each skill short of Legendary, with the count on hover");
         Check(record.StartsWith(pilot.Spec.Experience + "\n"), "the personnel card shows the MechWarrior's rank");
+        var tabs = _app.Rolodex.Tabs; var today = ServiceRecord.DateText(_app.State.Date); var founding = $"Founding member of {_app.State.Roster.ForceName}.";
+        Check(tabs.GetTabCount() == 2 && tabs.GetTabTitle(RolodexPanel.RecordTab) == "Record" && tabs.GetTabTitle(RolodexPanel.HistoryTab) == "History"
+            && tabs.CurrentTab == RolodexPanel.RecordTab && !tabs.IsTabHidden(RolodexPanel.HistoryTab), "an active personnel card has Record and History tabs, opening on its record");
+        tabs.CurrentTab = RolodexPanel.HistoryTab; await Frames();
+        Check(HistoryRows().SequenceEqual([(today, "Returned to duty after 12 days' recovery."), (today, founding)]),
+            $"the History tab lists the MechWarrior's history newest first, a date and a sentence each ({string.Join(" | ", HistoryRows())})");
+        await Capture("rolodex-history");
+        var legacy = _app.State.Snapshot();
+        _app.Rolodex.Refresh(Campaign.Restore(legacy with { Roster = legacy.Roster! with { Warriors = [.. legacy.Roster.Warriors.Select(item => item with { History = null })] } }));
+        await Frames();
+        Check(HistoryRows().Length == 0 && _app.Rolodex.HistoryList.GetChildren().OfType<Label>().Single().Text == ServiceRecord.EarlierNote(_app.State.Date),
+            "a MechWarrior from a save made before service histories notes when their record began");
+        _app.Rolodex.Refresh(_app.State); await Frames();
         var first = _app.Rolodex.CardName.Text; await Click(_app.Rolodex.NextButton);
         Check(first != _app.Rolodex.CardName.Text, "rolodex flips between personnel cards");
+        Check(tabs.CurrentTab == RolodexPanel.HistoryTab && HistoryRows().SequenceEqual([(today, founding)]), "flipping cards stays on the History tab");
+        tabs.CurrentTab = RolodexPanel.RecordTab;
         await Capture("rolodex");
         for (var i = 0; i < 8; i++) { await PressKey(Key.Tab); Check(_app.Rolodex.IsAncestorOf(GetViewport().GuiGetFocusOwner()), "rolodex retains keyboard focus"); }
         await PressKey(Key.Escape); Check(!_app.Rolodex.Visible && _app.Office.Visible, "rolodex Escape returns to office");
@@ -1023,9 +1039,14 @@ public partial class SmokeTests : Node
         Check(_app.Rolodex.CardName.Text.Contains(roster.Warriors[1].Spec.Name) && roster.Assignment(roster.Warriors[1].Id) is null,
             "memorial section retains a deceased warrior and clears assignment");
         Check(_app.Office.ReadyCount.Text == "3", "office count excludes memorial records");
+        Check(!_app.Rolodex.Tabs.IsTabHidden(RolodexPanel.HistoryTab), "a memorial card keeps its History tab");
         await Capture("rolodex-memorial"); await PressKey(Key.Escape);
         await TestHiringUi();
     }
+
+    /// <summary>The rolodex History tab's rows, top to bottom: each date and sentence.</summary>
+    private (string Date, string Text)[] HistoryRows() => [.. _app.Rolodex.HistoryList.GetChildren().OfType<HBoxContainer>()
+        .Select(row => (row.GetChild<Label>(0).Text, row.GetChild<Label>(1).Text))];
 
     /// <summary>The For hire section: recruiting pays at once and joins the company; Dismiss asks, then removes a MechWarrior for good.</summary>
     private async Task TestHiringUi()
@@ -1043,6 +1064,7 @@ public partial class SmokeTests : Node
             && _app.Rolodex.ActionButton.Text == $"Recruit · {RosterUi.Money(cost.Total)}" && _app.Rolodex.ActionButton.TooltipText.Contains("signing bonus")
             && _app.Rolodex.ActionButton.TooltipText.Contains($"{cost.DaysLeft} days left this quarter"), "a card for hire shows the salary, the hiring cost and its breakdown");
         Check(_app.Rolodex.CardName.Text.Contains(recruit.Name) && _app.Rolodex.NextButton.Disabled == false, "both MechWarriors for hire are listed");
+        Check(_app.Rolodex.Tabs.IsTabHidden(RolodexPanel.HistoryTab) && _app.Rolodex.Tabs.CurrentTab == RolodexPanel.RecordTab, "a card for hire has no History tab");
         await Capture("rolodex-for-hire");
         var cash = state.Cash;
         await Click(_app.Rolodex.ActionButton);
@@ -1054,6 +1076,9 @@ public partial class SmokeTests : Node
         _app.Rolodex.Section.Select(RolodexPanel.ActiveSection); _app.Rolodex.Section.EmitSignal(OptionButton.SignalName.ItemSelected, (long)RolodexPanel.ActiveSection); await Frames();
         while (_app.Rolodex.SelectedId != recruit.Id) await Click(_app.Rolodex.NextButton);
         Check(_app.Rolodex.ActionButton.Text == "Dismiss" && !_app.Rolodex.ActionButton.Disabled, "an active card offers Dismiss");
+        Check(!_app.Rolodex.Tabs.IsTabHidden(RolodexPanel.HistoryTab)
+            && HistoryRows().SequenceEqual([(ServiceRecord.DateText(state.Date), $"Hired at {StarChart.Instance[state.Travel.OrbitSystemId].Name}.")]),
+            "a recruit's History tab records where they were hired");
         await PressKey(Key.Escape);
         Check(_app.Office.ReadyCount.Text == "4", "a recruit counts as ready for deployment");
         await Click(_app.Office.HangarButton);

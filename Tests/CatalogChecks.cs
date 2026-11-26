@@ -280,6 +280,9 @@ internal static class CatalogChecks
             foreach (var (saved, i) in expected["Roster"]!["Mechs"]!.AsArray().Select((item, i) => (item, i))) saved!["Lance"] = i < ForceRoster.LanceSize ? 0 : null;
             // Saves from before career records give every warrior none, and saves from before skill growth no progress.
             foreach (var record in expected["Roster"]!["Warriors"]!.AsArray()) { record!["Deployments"] = 0; record["Kills"] = 0; record["Progress"] = null; }
+            // Saves from before service histories start each MechWarrior's empty one on the day they load.
+            foreach (var record in expected["Roster"]!["Warriors"]!.AsArray())
+            { record!["History"] = new JsonArray(); record["RecordsSince"] = expected["Date"]!.DeepClone(); record["LastMech"] = null; record["LastLance"] = null; }
             // Saves from before markets have none stocked, and gain a market seed.
             expected["Markets"] = null; expected["MarketSeed"] = resaved["MarketSeed"]!.DeepClone();
             // Saves from before repairs have no repair orders.

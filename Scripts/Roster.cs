@@ -262,9 +262,11 @@ public sealed record MechSnapshot(string Id, string DefinitionId, string? Warrio
     EquipmentCondition[] Equipment, AmmoCondition[] Ammo, string[]? Removed = null, InstalledItem[]? Installed = null, ArmorFit[]? Armor = null,
     int? Lance = null, RepairOrder? Repair = null);
 /// <summary>Deployments and Kills are the warrior's career record; saves from before it have none. Progress is the skill gain checks
-/// banked toward each skill's next level, none in saves from before skill growth.</summary>
+/// banked toward each skill's next level, none in saves from before skill growth. History is the service history, oldest first, and
+/// RecordsSince the date it began for a MechWarrior from a save made before histories, which has none. LastMech and LastLance are the
+/// owned mech and lance of their previous deployment.</summary>
 public sealed record WarriorSnapshot(WarriorSpec Spec, WarriorHealth Health, DateOnly? RecoveryDate, int Deployments = 0, int Kills = 0,
-    SkillProgress? Progress = null);
+    SkillProgress? Progress = null, ServiceEvent[]? History = null, DateOnly? RecordsSince = null, string? LastMech = null, int? LastLance = null);
 /// <summary>Lances is the company's lance count; saves from before lances have none.</summary>
 public sealed record RosterSnapshot(string ForceName, MechSnapshot[] Mechs, WarriorSnapshot[] Warriors, StorageEntry[]? Storage = null, int? Lances = null);
 
@@ -433,11 +435,21 @@ public sealed class RosterWarrior
     public int Deployments { get; internal set; }
     /// <summary>Enemy BattleMechs this warrior disabled or destroyed.</summary>
     public int Kills { get; internal set; }
+    /// <summary>The service history, oldest first; the rolodex shows it newest first.</summary>
+    public IReadOnlyList<ServiceEvent> History => _history.AsReadOnly();
+    private readonly List<ServiceEvent> _history;
+    /// <summary>When the history began for a MechWarrior from a save made before histories; null when it is complete.</summary>
+    public DateOnly? RecordsSince { get; }
+    /// <summary>The owned mech and lance of the previous deployment, which a deployment's history entry is compared against.</summary>
+    internal string? LastMech { get; set; }
+    internal int? LastLance { get; set; }
     internal RosterWarrior(WarriorSnapshot save)
     {
         Spec = save.Spec; Health = save.Health; RecoveryDate = save.RecoveryDate; Progress = save.Progress ?? SkillProgress.None;
         Deployments = Math.Max(0, save.Deployments); Kills = Math.Max(0, save.Kills);
+        _history = [.. save.History ?? []]; RecordsSince = save.RecordsSince; LastMech = save.LastMech; LastLance = save.LastLance;
     }
+    internal void Record(ServiceEvent item) => _history.Add(item);
     /// <summary>Banks a successful skill gain check; returns whether the skill rose a level.</summary>
     internal bool GainSkill(WarriorSkill skill)
     {
@@ -446,7 +458,8 @@ public sealed class RosterWarrior
     }
     public bool Ready => Health == WarriorHealth.Healthy;
     public string Status => Health switch { WarriorHealth.Healthy => "Healthy · ready for deployment", WarriorHealth.Injured => $"Injured · recovers {RecoveryDate:dd MMM yyyy}", _ => "In memoriam" };
-    internal WarriorSnapshot Snapshot() => new(Spec, Health, RecoveryDate, Deployments, Kills, Progress == SkillProgress.None ? null : Progress);
+    internal WarriorSnapshot Snapshot() => new(Spec, Health, RecoveryDate, Deployments, Kills, Progress == SkillProgress.None ? null : Progress,
+        [.. _history], RecordsSince, LastMech, LastLance);
 }
 
 /// <summary>Owned assets and personnel; assignments are independent of any future mission deployment.</summary>
@@ -625,7 +638,9 @@ public sealed class ForceRoster
         {
             if (warrior is null || !PilotGenerator.Valid(warrior.Spec) || !warriorIds.Add(warrior.Spec.Id) || !Enum.IsDefined(warrior.Health)
                 || (warrior.Progress is { } progress && !SkillGrowth.ValidProgress(warrior.Spec, progress))
-                || (warrior.Health == WarriorHealth.Injured ? warrior.RecoveryDate is null || warrior.RecoveryDate <= date : warrior.RecoveryDate is not null))
+                || (warrior.Health == WarriorHealth.Injured ? warrior.RecoveryDate is null || warrior.RecoveryDate <= date : warrior.RecoveryDate is not null)
+                || warrior.History?.Any(item => !ServiceRecord.Valid(item, date)) == true || warrior.RecordsSince > date
+                || warrior.LastLance is < 0 or >= MaxLances)
                 throw new ArgumentException("Invalid MechWarrior state.");
         }
         var mechIds = new HashSet<string>(StringComparer.Ordinal); var assigned = new HashSet<string>(StringComparer.Ordinal);
@@ -679,7 +694,9 @@ public sealed class ForceRoster
         if (save.Storage is { } storage && (storage.Any(item => item is null || item.Count <= 0 || item.Id is null || StorageCatalog.Describe(item.Id) is null)
             || storage.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != storage.Length))
             throw new ArgumentException("Invalid equipment storage.");
-        return new(save.ForceName, mechs.Select(item => new OwnedMech(item)), save.Warriors.Select(item => new RosterWarrior(item)), save.Storage, lances);
+        // MechWarriors from saves made before service histories start theirs on the day the save loads.
+        return new(save.ForceName, mechs.Select(item => new OwnedMech(item)),
+            save.Warriors.Select(item => new RosterWarrior(item.History is null ? item with { History = [], RecordsSince = date } : item)), save.Storage, lances);
     }
     /// <summary>A saved refit's plan must be a loadout the mech can change to.</summary>
     private static bool ValidRefit(MechSnapshot mech, LoadoutPlan plan)
