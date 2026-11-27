@@ -1014,6 +1014,8 @@ public partial class CombatScreen : Control
         if (terrain.Liquids.Count(body => body.Shape == LiquidShape.Lake) is > 0 and var lakes) features.Add(Count(lakes, "lake", "lakes"));
         if (terrain.Liquids.Count(body => body.Shape == LiquidShape.River) is > 0 and var rivers) features.Add(Count(rivers, "river", "rivers"));
         if (terrain.Liquids.Any(body => body.Shape == LiquidShape.Sea)) features.Add("sea");
+        if (terrain.Roads.Count > 0) features.Add(FormattableString.Invariant($"{terrain.Roads.Sum(road => road.Length) / 1000:0.0} km of road"));
+        if (terrain.Bridges.Count > 0) features.Add(Count(terrain.Bridges.Count, "bridge", "bridges"));
         if (terrain.Buildings.Count > 0) features.Add(Count(terrain.Buildings.Count, "building", "buildings"));
         lines.Add($"TERRAIN  {string.Join(" · ", features)}");
         if (simulation.Patrol is { } patrol) lines.Add($"PATROL  {patrol.Visited} of {patrol.Layout.PatrolPoints} points visited");

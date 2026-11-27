@@ -588,8 +588,9 @@ public partial class SmokeTests
             Check(Enum.GetNames<BuildingStyle>().Sum(Named) == view.Terrain.Buildings.Count
                 && (Named("Trees") == 1) == view.Terrain.Patches.Any(patch => patch.Kind == TerrainKind.Vegetation)
                 && Named("Rock") == view.Terrain.Patches.Count(patch => patch.Kind == TerrainKind.Rock)
-                && Enum.GetValues<LiquidShape>().All(shape => Named(shape.ToString()) == view.Terrain.Liquids.Count(body => body.Shape == shape)),
-                $"{biome} renders its buildings, rocks, trees, lakes, rivers and sea");
+                && Enum.GetValues<LiquidShape>().All(shape => Named(shape.ToString()) == view.Terrain.Liquids.Count(body => body.Shape == shape))
+                && Named("Roads") == (view.Terrain.Roads.Count > 0 ? 1 : 0) && Named("Bridge") == view.Terrain.Bridges.Count,
+                $"{biome} renders its buildings, rocks, trees, lakes, rivers, sea, roads and bridges");
             await Capture($"terrain-{biome.ToString().ToLowerInvariant()}");
             await PressKey(Key.Home); await Capture($"terrain-{biome.ToString().ToLowerInvariant()}-overview");
         }

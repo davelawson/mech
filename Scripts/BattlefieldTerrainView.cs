@@ -98,6 +98,13 @@ public static class BattlefieldTerrainView
             feature.Name = $"{patch.Kind}{i}"; root.AddChild(feature);
         }
         foreach (var liquid in Liquids(terrain, palette)) root.AddChild(liquid);
+        if (terrain.Streets.Count > 0) root.AddChild(Streets(terrain));
+        if (terrain.Roads.Count > 0) root.AddChild(Roads(terrain));
+        for (var i = 0; i < terrain.Bridges.Count; i++)
+        {
+            var bridge = Bridge(terrain, terrain.Bridges[i], palette);
+            bridge.Name = $"Bridge{i}"; root.AddChild(bridge);
+        }
         if (terrain.Patches.Any(patch => patch.Kind == TerrainKind.Vegetation)) root.AddChild(Trees(terrain, palette, random));
         for (var i = 0; i < terrain.Buildings.Count; i++)
         {
@@ -129,12 +136,13 @@ public static class BattlefieldTerrainView
     {
         var tool = new SurfaceTool();
         tool.Begin(Mesh.PrimitiveType.Triangles);
-        Vector3 Point(float x, float z) => new(x, terrain.HeightAt(new Vector2(x, z)), z);
+        // The ground itself: bridge decks are drawn over it.
+        Vector3 Point(float x, float z) => new(x, terrain.GroundAt(new Vector2(x, z)), z);
         Vector3 Normal(float x, float z)
         {
             var at = new Vector2(x, z);
-            return new Vector3(terrain.HeightAt(at - new Vector2(15, 0)) - terrain.HeightAt(at + new Vector2(15, 0)), 30,
-                terrain.HeightAt(at - new Vector2(0, 15)) - terrain.HeightAt(at + new Vector2(0, 15))).Normalized();
+            return new Vector3(terrain.GroundAt(at - new Vector2(15, 0)) - terrain.GroundAt(at + new Vector2(15, 0)), 30,
+                terrain.GroundAt(at - new Vector2(0, 15)) - terrain.GroundAt(at + new Vector2(0, 15))).Normalized();
         }
         Color ColorAt(Vector3 point)
         {
@@ -301,6 +309,102 @@ public static class BattlefieldTerrainView
         }
     }
 
+    /// <summary>Paved roads in towns and on most worlds, dirt tracks on farmland, sand tracks in the desert, graded regolith on the moon.</summary>
+    private static Color RoadColor(Biome? biome) => biome switch
+    {
+        Biome.Valley or Biome.Grassland or Biome.Tropical => new("7a6248"),
+        Biome.Desert => new("a88a5e"),
+        Biome.Lunar => new("8f8c86"),
+        _ => new("4c4b4a"),
+    };
+    private static StandardMaterial3D Paving(Biome? biome) =>
+        new() { AlbedoColor = RoadColor(biome), Roughness = .95f, CullMode = BaseMaterial3D.CullModeEnum.Disabled };
+
+    /// <summary>Clearance between a road or street and the ground beneath, so depth imprecision never draws the ground over it.</summary>
+    private const float PavingLift = 1;
+
+    /// <summary>Each road as a ribbon draped over its bed, leaving its bridges to their decks. Vertices every 10 m along and across
+    /// stand clear of the highest ground around them, so the ground's triangles never rise through the ribbon between them.</summary>
+    private static MeshInstance3D Roads(BattlefieldTerrain terrain)
+    {
+        var tool = new SurfaceTool(); tool.Begin(Mesh.PrimitiveType.Triangles);
+        var half = BattlefieldTerrain.RoadWidth / 2;
+        float[] sides = [-half, -half / 2, 0, half / 2, half];
+        float Clear(Vector2 at) => new[] { Vector2.Zero, new(7, 0), new(-7, 0), new(0, 7), new(0, -7) }.Max(offset => terrain.HeightAt(at + offset)) + PavingLift;
+        foreach (var road in terrain.Roads)
+        {
+            var course = road.Course;
+            Vector3[] Row(int i)
+            {
+                var tangent = (course[Math.Min(i + 1, course.Count - 1)] - course[Math.Max(i - 1, 0)]).Normalized();
+                return sides.Select(side => course[i] + tangent.Orthogonal() * side).Select(at => new Vector3(at.X, Clear(at), at.Y)).ToArray();
+            }
+            bool OnDeck(Vector2 point) => terrain.HeightAt(point) > terrain.GroundAt(point) + .01f;
+            var previous = Row(0);
+            for (var i = 0; i < course.Count - 1; i++)
+            {
+                var next = Row(i + 1);
+                if (!OnDeck(course[i]) && !OnDeck(course[i + 1]))
+                    for (var j = 0; j < sides.Length - 1; j++)
+                        foreach (var corner in new[] { previous[j], previous[j + 1], next[j], previous[j + 1], next[j + 1], next[j] })
+                        { tool.SetNormal(Vector3.Up); tool.AddVertex(corner); }
+                previous = next;
+            }
+        }
+        return new MeshInstance3D { Name = "Roads", Mesh = tool.Commit(), MaterialOverride = Paving(terrain.Biome), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+    }
+
+    /// <summary>Settlement streets: the paved pad, cut away where a river runs through it.</summary>
+    private static MeshInstance3D Streets(BattlefieldTerrain terrain)
+    {
+        var tool = new SurfaceTool(); tool.Begin(Mesh.PrimitiveType.Triangles);
+        const float step = 10;
+        foreach (var street in terrain.Streets)
+        {
+            var extent = street.Half + new Vector2(30, 30);
+            for (var x = -extent.X; x < extent.X - .01f; x += step) for (var z = -extent.Y; z < extent.Y - .01f; z += step)
+            {
+                var corners = new[] { new Vector2(x, z), new(x + step, z), new(x, z + step), new(x + step, z + step) }.Select(street.World).ToArray();
+                if (corners.Any(corner => Math.Abs(terrain.HeightAt(corner) - street.Level) > .5f)) continue;
+                var points = corners.Select(corner => new Vector3(corner.X, street.Level + PavingLift, corner.Y)).ToArray();
+                foreach (var i in new[] { 0, 1, 2, 1, 3, 2 }) { tool.SetNormal(Vector3.Up); tool.AddVertex(points[i]); }
+            }
+        }
+        return new MeshInstance3D { Name = "Streets", Mesh = tool.Commit(), MaterialOverride = Paving(terrain.Biome), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off };
+    }
+
+    /// <summary>A deck with low rails on piers; piers over lava are dark basalt.</summary>
+    private static Node3D Bridge(BattlefieldTerrain terrain, TerrainBridge bridge, Palette palette)
+    {
+        var root = new Node3D();
+        var from = new Vector3(bridge.From.X, bridge.FromHeight, bridge.From.Y); var to = new Vector3(bridge.To.X, bridge.ToHeight, bridge.To.Y);
+        var along = (to - from).Normalized(); var across = along.Cross(Vector3.Up).Normalized(); var up = across.Cross(along).Normalized();
+        var basis = new Basis(along, up, across);
+        var concrete = new StandardMaterial3D { AlbedoColor = new Color("8a8780"), Roughness = .9f };
+        var stone = bridge.Over == TerrainKind.Lava ? new StandardMaterial3D { AlbedoColor = palette.Rock.Darkened(.35f), Roughness = 1 } : concrete;
+        void Box(Vector3 center, Vector3 size, Material material) => root.AddChild(new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = size }, MaterialOverride = material, Transform = new Transform3D(basis, center),
+        });
+        var length = from.DistanceTo(to) + 2; var middle = (from + to) / 2;
+        Box(middle - up * .8f, new(length, 1.6f, BattlefieldTerrain.DeckWidth), concrete);
+        Box(middle + across * (BattlefieldTerrain.DeckWidth / 2 - .8f) + up * 1.2f, new(length, 2.4f, 1.6f), concrete);
+        Box(middle - across * (BattlefieldTerrain.DeckWidth / 2 - .8f) + up * 1.2f, new(length, 2.4f, 1.6f), concrete);
+        for (var at = 25f; at < bridge.Length - 15; at += 45)
+        {
+            var top = from.Lerp(to, at / bridge.Length) - up * 1.6f;
+            var ground = terrain.GroundAt(new Vector2(top.X, top.Z)) - 2;
+            if (top.Y - ground < 2) continue;
+            foreach (var side in new[] { -1, 1 })
+                root.AddChild(new MeshInstance3D
+                {
+                    Mesh = new CylinderMesh { TopRadius = 3, BottomRadius = 3.6f, Height = top.Y - ground, RadialSegments = 10, Rings = 1 },
+                    MaterialOverride = stone, Position = new Vector3(top.X, (top.Y + ground) / 2, top.Z) + across * side * (BattlefieldTerrain.DeckWidth / 2 - 8),
+                });
+        }
+        return root;
+    }
+
     /// <summary>Trees fill each vegetation patch: conifers in the arctic and highlands, broadleaf elsewhere. Cover is the patch, not the trees.</summary>
     private static MultiMeshInstance3D Trees(BattlefieldTerrain terrain, Palette palette, Random random)
     {
@@ -330,8 +434,11 @@ public static class BattlefieldTerrainView
                     + new Vector2(random.NextSingle() - .5f, random.NextSingle() - .5f) * 8;
                 var scale = .8f + random.NextSingle() * .55f;
                 var basis = Basis.Identity.Rotated(Vector3.Up, random.NextSingle() * Mathf.Tau).Scaled(new Vector3(scale, scale * (.85f + random.NextSingle() * .3f), scale));
+                var tint = Colors.White.Lerp(new Color(.75f, .85f, .7f), random.NextSingle());
+                // Roads run clear through forests.
+                if (terrain.OnRoad(at)) continue;
                 placements.Add(new Transform3D(basis, new Vector3(at.X, terrain.HeightAt(at) - .5f, at.Y)));
-                tints.Add(Colors.White.Lerp(new Color(.75f, .85f, .7f), random.NextSingle()));
+                tints.Add(tint);
             }
         }
         var multimesh = new MultiMesh { TransformFormat = MultiMesh.TransformFormatEnum.Transform3D, UseColors = true, Mesh = mesh, InstanceCount = placements.Count };

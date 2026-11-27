@@ -131,9 +131,11 @@ public sealed partial class BattlefieldTerrain
         IReadOnlyList<(Vector2 Center, float Radius)> Cones, IReadOnlyList<Vector2> Required);
 
     /// <summary>The generated liquids, and what rocks, vegetation and buildings must keep clear of.</summary>
-    private sealed class LiquidPlan(LiquidMap map, float[] dryDistance, bool[] blocked)
+    private sealed class LiquidPlan(LiquidMap map, float[] dryDistance, bool[] blocked, bool[] channel)
     {
         public LiquidMap Map { get; } = map;
+        /// <summary>Nodes a river trench carved.</summary>
+        public bool[] Channel { get; } = channel;
         /// <summary>Distance from a point to the nearest liquid or river trench.</summary>
         public float DryDistance(Vector2 point) => dryDistance[Node(point)];
         /// <summary>A building whose footprint reaches liquid or a river trench.</summary>
@@ -180,7 +182,6 @@ public sealed partial class BattlefieldTerrain
 
         if (biome == Mech.Biome.Archipelago)
         {
-            SandBars(relief, site.Required);
             var sea = Add(new(LiquidShape.Sea, TerrainKind.Water, []));
             Fill(Enumerable.Range(0, count).Where(index => relief[index] < SeaLevel), SeaLevel, TerrainKind.Water, sea);
         }
@@ -240,8 +241,8 @@ public sealed partial class BattlefieldTerrain
             var halfBed = Math.Max(barrier ? 30 : 10, width / 2 - depth / BankSlope);
             var meanderSeed = random.Next();
             float low = relief.Min(), high = relief.Max();
-            // Settlement pads: never the objective's; deep and lava rivers keep off every pad.
-            bool Forbidden(int cluster) => cluster == 0 && site.Objective || barrier;
+            // Rivers may run through settlements, whose streets bridge them, but never through a Take and Hold's objective.
+            bool Forbidden(int cluster) => cluster == 0 && site.Objective;
             float PadFactor(Vector2 point)
             {
                 for (var c = 0; c < site.Clusters.Count; c++)
@@ -435,9 +436,14 @@ public sealed partial class BattlefieldTerrain
                 blocked[index] = true;
                 foreach (var next in Neighbours(x, z)) blocked[next] = true;
             }
-        return new(new([.. bodies], kinds, surfaces, owners, deep), DistanceTo(index => kinds[index] >= 0 || channel[index]), blocked);
+        return new(new([.. bodies], kinds, surfaces, owners, deep), DistanceTo(index => kinds[index] >= 0 || channel[index]), blocked, channel);
     }
 
+    private static float SegmentDistance(Vector2 point, Vector2 from, Vector2 to)
+    {
+        var line = to - from; var t = line.LengthSquared() < 1e-6f ? 0 : Math.Clamp((point - from).Dot(line) / line.LengthSquared(), 0, 1);
+        return point.DistanceTo(from + line * t);
+    }
     private static bool Inside(Vector2 point) => Math.Abs(point.X) <= CombatRules.ArenaHalfSize && Math.Abs(point.Y) <= CombatRules.ArenaHalfSize;
     private static (int X, int Z) Cell(Vector2 point) =>
         (Math.Clamp((int)MathF.Round(point.X / CellSize + HalfCells), 0, GridSize - 1), Math.Clamp((int)MathF.Round(point.Y / CellSize + HalfCells), 0, GridSize - 1));
@@ -591,8 +597,8 @@ public sealed partial class BattlefieldTerrain
         }
     }
 
-    /// <summary>Raises shallow sand bars across deep sea until every required point shares one wadeable landmass.</summary>
-    private static void SandBars(float[] relief, IReadOnlyList<Vector2> required)
+    /// <summary>Raises shallow sand bars across deep sea until every required point shares one wadeable landmass, counting bridges as land.</summary>
+    private static void SandBars(float[] relief, IReadOnlyList<Vector2> required, Func<int, bool> bridged)
     {
         var floor = SeaLevel - DeepWaterDepth + 1;
         for (var round = 0; round < 12; round++)
@@ -600,11 +606,11 @@ public sealed partial class BattlefieldTerrain
             var labels = new int[relief.Length]; var label = 0;
             for (var index = 0; index < relief.Length; index++)
             {
-                if (labels[index] != 0 || relief[index] < floor) continue;
+                if (labels[index] != 0 || relief[index] < floor && !bridged(index)) continue;
                 var open = new Queue<int>(); open.Enqueue(index); labels[index] = ++label;
                 while (open.TryDequeue(out var node))
                     foreach (var next in Neighbours(node % GridSize, node / GridSize))
-                        if (labels[next] == 0 && relief[next] >= floor) { labels[next] = label; open.Enqueue(next); }
+                        if (labels[next] == 0 && (relief[next] >= floor || bridged(next))) { labels[next] = label; open.Enqueue(next); }
             }
             var main = labels[Node(required[0])];
             var apart = required.Select(point => labels[Node(point)]).Where(other => other != main).ToHashSet();

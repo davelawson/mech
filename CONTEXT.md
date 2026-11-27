@@ -341,3 +341,9 @@ A stretch of a deep or lava river where the bed rises so mechs can cross: shallo
 
 **Sea**:
 The Archipelago's water below one sea level, shallow at the shores and deep further out.
+
+**Road**:
+A graded track joining settlements or leading off the battlefield, faster for mechs than open ground. A settlement's streets count as road.
+
+**Bridge**:
+A deck carrying a road or street over a river or the sea, walkable only along its length.

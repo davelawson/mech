@@ -119,6 +119,7 @@ internal static class TerrainChecks
         var around = lava.FindPath(new Vector2(-240, 0), new Vector2(240, 0)); var start = new Vector2(-240, 0);
         check(around.Count > 1 && around.All(waypoint => { var clear = lava.CanTraverse(start, waypoint); start = waypoint; return clear; }),
             "navigation detours around lava");
+        CheckBridge(check);
         var dry = Travel(BattlefieldTerrain.Flat); var wet = Travel(water);
         check(wet > 0 && wet < dry * .7f, "water slowdown affects actual movement rather than only navigation cost");
         Console.WriteLine($"Terrain checks: movement on dry ground {dry:0.00}, water {wet:0.00}");
@@ -199,6 +200,56 @@ internal static class TerrainChecks
         }), $"{name} water slows, ice keeps full speed, and lava and deep water bar mechs");
         check(terrain.Patches.All(patch => terrain.LiquidAt(patch.Center) is null), $"{name} rocks and vegetation stand on dry ground");
     }
+    /// <summary>A hand-built bridge over a ravine: mechs cross on the deck, between its rails, and never climb on from beside it or pass beneath.</summary>
+    private static void CheckBridge(Action<bool, string> check)
+    {
+        var relief = new float[BattlefieldTerrain.GridSize * BattlefieldTerrain.GridSize];
+        var half = (BattlefieldTerrain.GridSize - 1) / 2;
+        for (var index = 0; index < relief.Length; index++)
+            relief[index] = -20 * Math.Clamp(1 - Math.Abs((index % BattlefieldTerrain.GridSize - half) * BattlefieldTerrain.CellSize) / 90, 0, 1);
+        var road = new TerrainRoad([new(-600, 0), new(600, 0)]);
+        var bridge = new TerrainBridge(new(-120, 0), new(120, 0), 0, 0, TerrainKind.Water);
+        var forest = new TerrainPatch(TerrainKind.Vegetation, new(-400, 0), 60);
+        var terrain = new BattlefieldTerrain(8, [forest], [], [], null, relief, null, new([road], [bridge], []));
+        check(terrain.HeightAt(Vector2.Zero) == 0 && terrain.GroundAt(Vector2.Zero) == -20, "a bridge deck stands over the ground beneath it");
+        check(terrain.Passable(Vector2.Zero) && terrain.Passable(new(0, 15)) && !terrain.Passable(new(0, 35)) && terrain.Passable(new(0, 70)),
+            "mechs walk the deck between its rails, and the ravine floor beyond them");
+        check(!terrain.CanTraverse(new(0, -80), new(0, 80)) && !terrain.CanTraverse(new(0, 70), new(0, 10)),
+            "nothing passes beneath a bridge or climbs onto it from the side");
+        var route = terrain.FindPath(new(-400, 0), new(400, 0)); var previous = new Vector2(-400, 0);
+        check(route.Count > 0 && route[^1].DistanceTo(new(400, 0)) < .3f && route.All(point => { var clear = terrain.CanTraverse(previous, point); previous = point; return clear; }),
+            "navigation crosses the bridge");
+        check(Mathf.IsEqualApprox(terrain.SpeedFactor(new(-400, 0)), BattlefieldTerrain.RoadSpeed) && terrain.VegetationModifier(new(-600, 40), new(-400, 0)) == 1
+            && Mathf.IsEqualApprox(terrain.SpeedFactor(new(-400, 100)), 1), "a road's speed replaces vegetation's slowdown but not its cover");
+        CheckMovement(terrain, check);
+    }
+    /// <summary>Roads join the settlements and leave the map on graded, rock-free beds; bridges carry them over liquid.</summary>
+    private static void CheckRoads(BattlefieldTerrain terrain, Action<bool, string> check)
+    {
+        var name = $"{terrain.Biome} {terrain.Seed}";
+        bool OnDeck(Vector2 point) => terrain.HeightAt(point) > terrain.GroundAt(point) + .01f;
+        var course = terrain.Roads.SelectMany(road => road.Course).ToArray();
+        check(terrain.Roads.Count > 0 && course.Any(point => Math.Max(Math.Abs(point.X), Math.Abs(point.Y)) > 2840), $"{name} has roads, one leaving the map");
+        if (terrain.Biome != Biome.Archipelago)
+            check(terrain.Buildings.GroupBy(building => building.Cluster).All(cluster =>
+            {
+                var middle = cluster.Aggregate(Vector2.Zero, (sum, building) => sum + building.Center) / cluster.Count();
+                var reach = cluster.Max(building => building.Center.DistanceTo(middle)) + 150;
+                return course.Any(point => point.DistanceTo(middle) <= reach);
+            }), $"{name} roads reach every settlement");
+        var ground = course.Where(point => !OnDeck(point)).ToArray();
+        check(ground.All(point => !terrain.Contains(TerrainKind.Rock, point)) && ground.Count(terrain.Passable) >= ground.Length * .97f,
+            $"{name} roads are clear of rocks and passable: {ground.Count(terrain.Passable)} of {ground.Length}");
+        check(ground.Where(point => terrain.LiquidAt(point) is null && terrain.Passable(point))
+                .All(point => Mathf.IsEqualApprox(terrain.SpeedFactor(point) * (1 + terrain.SlopeAt(point)), BattlefieldTerrain.RoadSpeed)),
+            $"{name} roads carry mechs at road speed");
+        foreach (var bridge in terrain.Bridges)
+        {
+            var middle = (bridge.From + bridge.To) / 2; var across = (bridge.To - bridge.From).Normalized().Orthogonal();
+            check(OnDeck(middle) && terrain.Passable(middle) && terrain.LiquidAt(middle) is null && !terrain.Passable(middle + across * (BattlefieldTerrain.DeckWidth / 2 + 5)),
+                $"{name} {bridge.Over} bridge at {middle} carries mechs between its rails");
+        }
+    }
     private static (float Low, float High) Relief(BattlefieldTerrain terrain)
     {
         float low = float.MaxValue, high = float.MinValue;
@@ -254,6 +305,7 @@ internal static class TerrainChecks
             foreach (var terrain in all.Values)
             {
                 CheckLiquids(terrain, check);
+                CheckRoads(terrain, check);
                 var clusters = terrain.Buildings.GroupBy(building => building.Cluster).ToArray();
                 check(clusters.Length is >= BattlefieldTerrain.MinClusters and <= BattlefieldTerrain.MaxClusters
                     && terrain.Buildings.Count is >= BattlefieldTerrain.MinBuildings and <= BattlefieldTerrain.MaxBuildings
@@ -317,7 +369,7 @@ internal static class TerrainChecks
     private static void CheckNavigationQueries(BattlefieldTerrain terrain, Action<bool, string> check)
     {
         var from = new Vector2(-360, 1920); var to = new Vector2(360, -1920);
-        Vector2[] expected = [new(-780, 1560), new(-570, 750), new(90, -390), to];
+        Vector2[] expected = [new(-780, 1560), new(-240, -900), new(30, -1230), to];
         var retained = terrain.FindPath(from, to);
         check(retained.SequenceEqual(expected), "seeded path retains its original waypoints and tie ordering");
         var rocks = new BattlefieldTerrain(1, [new(TerrainKind.Rock, Vector2.Zero, 60, 120)], []);

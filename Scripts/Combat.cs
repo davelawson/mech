@@ -1148,7 +1148,8 @@ public sealed partial class CombatSimulation
         {
             var steered = direction.Rotated(angle);
             var candidate = unit.Position + steered * lookAhead;
-            if (CombatRules.Clamp(candidate).DistanceSquaredTo(candidate) < 1e-10f && !Blocked(unit, candidate))
+            // The first half metre is checked too: a sliver of steep ground between the look-ahead's samples must not wedge the mech.
+            if (CombatRules.Clamp(candidate).DistanceSquaredTo(candidate) < 1e-10f && !Blocked(unit, candidate) && !Blocked(unit, unit.Position + steered * .5f))
                 return steered;
         }
         return direction;

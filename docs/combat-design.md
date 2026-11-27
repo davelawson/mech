@@ -153,7 +153,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 - Hover previews that same mech with a thicker, lighter [silhouette outline](mech-models.md): 4 pixels instead of 2, its team colour mixed 50% toward white, still at half opacity where terrain hides it. It preserves the selected unit's gold ground ring and never changes selection, inspection, or orders. UI overlays, menus, camera gestures and loss of enemy detection suppress hover. A mech out of the fight shows no outline, even when hovered.
 - Right-clicking an enemy sets the priority target and issues no order, so an active Move or Follow carries on. **Clear priority target** removes it.
 - Escape opens the combat menu: **Resume**, **Mission Details**, **Audio** (the audio settings, `docs/audio.md`), and **End Simulation** or **Withdraw**.
-- **Mission Details** replaces the menu over the still-paused battle. Its MISSION section gives a mission's briefing, objective and contract terms (employer, opponent, contract kind, patrol, posting date, payment, salvage, insurance, location, biome, opposition tonnage and expected opposition), worded as on the mission board but without reputation, travel or deadline. A practice battle names its opponent type instead and notes that it has no campaign consequences. Its BATTLEFIELD section gives the biome and description, ambient temperature and cooling efficiency, counts of hills, terrain patches, lakes, rivers and buildings, whether there is a sea, patrol points visited (on a patrol) and combat time, and offers the terrain seed in a read-only box for copying; the seed is no longer shown on the menu itself. **Back**, Escape or right-click return to the Combat menu without resuming. Every co-op player can open it.
+- **Mission Details** replaces the menu over the still-paused battle. Its MISSION section gives a mission's briefing, objective and contract terms (employer, opponent, contract kind, patrol, posting date, payment, salvage, insurance, location, biome, opposition tonnage and expected opposition), worded as on the mission board but without reputation, travel or deadline. A practice battle names its opponent type instead and notes that it has no campaign consequences. Its BATTLEFIELD section gives the biome and description, ambient temperature and cooling efficiency, counts of hills, terrain patches, lakes, rivers and buildings, whether there is a sea, the length of road and the number of bridges, patrol points visited (on a patrol) and combat time, and offers the terrain seed in a read-only box for copying; the seed is no longer shown on the menu itself. **Back**, Escape or right-click return to the Combat menu without resuming. Every co-op player can open it.
 - Combat explicitly overrides the existing office/subscreen right-click-back behavior: right-click remains a battlefield command while in combat.
 - Use an angled overhead camera with pan, zoom, and rotation.
 - Panning (WASD, arrows or a middle-drag) moves the camera across a level plane, so the view keeps a steady pace over hills and slopes. Rotation pivots on the ground at the centre of the view.
@@ -188,7 +188,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 
 ## Deferred beyond the first slice
 
-- Destructible buildings and terrain, roads and bridges, flowing-water animation, rivers that rise inside the map, and advanced cover-seeking tactics.
+- Destructible buildings, bridges and terrain, flowing-water animation, rivers that rise inside the map, and advanced cover-seeking tactics.
 - Infantry, vehicles, aircraft, and other combatant types.
 - Heat damage and heat-triggered ammunition explosions, water cooling bonuses, ammunition consumption, falls, Death from Above, and MechWarrior casualties beyond death and [injury](#critical-hits-confirmed-november-14-2026).
 - Physical projectile collision, friendly fire, melee, called shots, deliberate ammunition dumping, and other special actions.
@@ -280,9 +280,23 @@ A **lava river** pours from a volcanic cone's caldera, breaching its flank, and 
 
 **Fords.** A deep or lava river has two or three fords, spread along its course: stretches about 120 metres long where the bed rises, to shallow water a mech can wade across in the Tropical biome, or to a cooled basalt crust in the Volcanic biome. A deep or lava river also fords wherever it crosses a spawn band, the central rendezvous or a clearing, so those stay passable. Shallow and frozen rivers may run through spawn bands as they are, so mechs may start wading.
 
-**Settlements.** A shallow or frozen river may run through a settlement: lots in its channel stay empty. Deep and lava rivers keep off settlements, and no river crosses the objective settlement of a Take and Hold.
+**Settlements.** A river may run through a settlement: lots in its channel stay empty, and its streets cross on [bridges](#roads-and-bridges-confirmed-november-26-2026). No river crosses the objective settlement of a Take and Hold.
 
 **Mission Details** counts lakes and rivers, and notes the sea, beside the battlefield's other features.
+
+## Roads and bridges (confirmed November 26, 2026)
+
+**Roads** join every battlefield's settlements: each settlement is linked to its nearest neighbours as a minimum spanning tree, with one extra link so the network has a loop, and one or two through roads run from a map edge to the nearest road or settlement. Nothing ties roads to the drop zones. Every biome has them, styled to its world: paved roads, dirt tracks on farmland and jungle, sand tracks in the desert and graded regolith on the moon.
+
+A road is 40 metres wide. Its course favours gentle grades, keeps off lakes and leaves the map edge at once; its bed is smoothed by cut and fill so it never climbs too steeply for a mech. Mechs move 1.25 times as fast on a road as on open ground, and a settlement's streets count as road. Where a road runs through vegetation, the road's speed replaces vegetation's slowdown, but the vegetation's cover still counts. Rocks and buildings never stand on a road and trees are not drawn on it. Pathfinding prefers roads simply because they are faster.
+
+**Bridges** carry a road wherever it crosses a river, of water, ice or lava, and carry a settlement's street wherever a river runs through the settlement. A road takes a short detour around the liquid rather than need a bridge, and roads crossing at the same place share one bridge. Lava bridges stand on dark basalt piers. A deck is 60 metres wide and stands a few metres above the liquid. Mechs walk it only along its length: its rails, and the deck itself, bar a mech from climbing on from beside it, and mechs, far taller than any clearance, cannot pass beneath, so a mech wading along the river must use a ford or climb the bank. Decks do not block sight or fire. Bridges are indestructible.
+
+In the Archipelago, roads between island settlements cross the sea on long bridges of up to 1.2 kilometres, by the shortest crossing; sand bars are raised only where spawn areas, the rendezvous, clearings or the objective settlement are still cut off after the bridges are built. A link that would need a longer bridge is not built.
+
+Roads and streets are drawn a metre above the ground beneath them, so the ground never shows through.
+
+Mission Details gives the length of road and the number of bridges.
 
 ## Sensors and pilot budgets (confirmed October 27, 2026)
 

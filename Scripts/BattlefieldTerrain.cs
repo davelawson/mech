@@ -77,11 +77,12 @@ public sealed partial class BattlefieldTerrain
     public static BattlefieldTerrain Flat { get; } = new(0, [], []);
 
     internal BattlefieldTerrain(int seed, IEnumerable<TerrainPatch> patches, IEnumerable<TerrainHill> hills,
-        IEnumerable<TerrainBuilding>? buildings = null, Biome? biome = null, float[]? relief = null, LiquidMap? liquids = null)
+        IEnumerable<TerrainBuilding>? buildings = null, Biome? biome = null, float[]? relief = null, LiquidMap? liquids = null, RoadMap? roads = null)
     {
         Seed = seed; Biome = biome; Patches = Array.AsReadOnly(patches.ToArray()); Hills = Array.AsReadOnly(hills.ToArray());
         Buildings = Array.AsReadOnly((buildings ?? []).ToArray());
         Liquids = Array.AsReadOnly(liquids?.Bodies ?? []);
+        Roads = Array.AsReadOnly(roads?.Roads ?? []); Bridges = Array.AsReadOnly(roads?.Bridges ?? []); Streets = roads?.Streets ?? [];
         _flat = Patches.Count == 0 && Hills.Count == 0 && Buildings.Count == 0 && relief is null;
         for (var z = 0; z < GridSize; z++) for (var x = 0; x < GridSize; x++)
         {
@@ -105,6 +106,7 @@ public sealed partial class BattlefieldTerrain
                 _heights[index] = Mathf.Lerp(level, _heights[index], blend);
             }
         if (liquids is not null) (_liquidKind, _liquidSurface, _liquidBody, _hazardNear, _deepDepth) = LiquidGrid(liquids, _heights);
+        if (roads is not null) (_road, _decks, _deckNear) = RoadGrid(roads);
         _solids = Patches.Where(patch => patch.Kind == TerrainKind.Rock)
             .Select(rock => new Solid(rock.Center, new(rock.Radius, rock.Radius), 1, 0, true,
                 Math.Min(-15, HeightAt(rock.Center) - 15), HeightAt(rock.Center) + rock.Height))
@@ -159,6 +161,7 @@ public sealed partial class BattlefieldTerrain
             });
         for (var index = 0; index < _heights.Length; index++)
             for (var slot = 0; slot < 8; slot++) if (slots[index * 8 + slot] is { } edge) _neighbors[index].Add(edge);
+        BridgeEdges();
         var component = 0;
         for (var index = 0; index < _heights.Length; index++)
         {
@@ -253,7 +256,8 @@ public sealed partial class BattlefieldTerrain
             var streets = new List<Vector2>();
             // Archipelago settlements stand on dry land above the sea.
             var land = biome == Mech.Biome.Archipelago ? SeaLevel + 5 : float.NegativeInfinity;
-            var buildings = Settlements(biome, random, relief, clusters, Place, Between, objective, streets, land);
+            var pads = new List<StreetGrid>();
+            var buildings = Settlements(biome, random, relief, clusters, Place, Between, objective, streets, land, pads);
             if (buildings is null) continue;
             var plan = GenerateLiquids(biome, random, relief, new LiquidSite(ClearDistance, OutOfDropZones, clusters, objective is not null,
                 Place, Between, cones, [.. starts, .. streets]));
@@ -261,9 +265,17 @@ public sealed partial class BattlefieldTerrain
             // Lots a river runs through stay empty.
             buildings.RemoveAll(plan.Floods);
             if (buildings.Count < MinBuildings) continue;
+            var roads = GenerateRoads(random, relief, pads, plan);
+            // Island settlements are joined by bridges first; sand bars join what is still cut off.
+            if (biome == Mech.Biome.Archipelago)
+            {
+                var decks = roads.Map.Bridges.Select(bridge => (bridge.From, bridge.To)).ToArray();
+                SandBars(relief, [.. starts, .. streets], index => decks.Any(deck => SegmentDistance(Point(index), deck.From, deck.To) <= DeckWidth / 2));
+            }
             var patches = new List<TerrainPatch>();
             bool Free(Vector2 point, float radius) => patches.All(patch => patch.Center.DistanceTo(point) >= patch.Radius + radius + 30)
                 && clusters.All(cluster => cluster.Center.DistanceTo(point) >= cluster.Radius + radius + 150) && plan.DryDistance(point) >= radius + 30;
+            // Rocks never stand on roads; vegetation may overgrow them.
             foreach (var rule in PatchRules(biome))
             {
                 // Lunar boulders gather in fields; other features scatter.
@@ -273,25 +285,27 @@ public sealed partial class BattlefieldTerrain
                 for (var i = 0; i < rule.Count; i++)
                 {
                     var radius = Between(rule.MinRadius, rule.MaxRadius);
-                    Vector2 point;
+                    Vector2 point = default;
                     var tries = 0;
+                    bool Fits() => Free(point, radius) && Clear(point, radius + clearance) && (rule.Kind != TerrainKind.Rock || roads.Distance(point) >= radius + 30);
                     do
                     {
                         point = fields is null ? Place(radius + clearance)
                             : fields[i % fields.Length] + Vector2.FromAngle(random.NextSingle() * MathF.Tau) * (random.NextSingle() * 300);
                         tries++;
                     }
-                    while (tries < 500 && (!Free(point, radius) || !Clear(point, radius + clearance)));
-                    if (!Free(point, radius) || !Clear(point, radius + clearance)) continue;
+                    while (tries < 500 && !Fits());
+                    if (!Fits()) continue;
                     patches.Add(new(rule.Kind, point, radius, rule.MaxHeight > 0 ? Between(rule.MinHeight, rule.MaxHeight) : 0));
                 }
             }
-            var terrain = new BattlefieldTerrain(seed, patches, [], buildings, biome, relief, plan.Map);
+            var terrain = new BattlefieldTerrain(seed, patches, [], buildings, biome, relief, plan.Map, roads.Map);
             var component = terrain.Component(starts[0]);
             if (component != 0 && starts.All(point => terrain.Passable(point) && terrain.Component(point) == component)
                 && (objective is null || streets.Any(point => terrain.Passable(point) && terrain.Component(point) == component))
                 && PatchRules(biome).All(rule => patches.Any(patch => patch.Kind == rule.Kind))
-                && LakeRules(biome).All(rule => plan.Map.Bodies.Any(body => body.Shape == LiquidShape.Lake && body.Kind == rule.Kind))) return terrain;
+                && LakeRules(biome).All(rule => plan.Map.Bodies.Any(body => body.Shape == LiquidShape.Lake && body.Kind == rule.Kind))
+                && roads.Map.Roads.Length > 0) return terrain;
         }
         throw new InvalidOperationException("Could not generate a connected battlefield.");
     }
@@ -368,7 +382,7 @@ public sealed partial class BattlefieldTerrain
     /// <summary>Building clusters on levelled pads, the objective settlement first when there is one; null when the clusters do not
     /// fit. Points on the street around the objective settlement are added to <paramref name="streets"/>.</summary>
     private static List<TerrainBuilding>? Settlements(Biome biome, Random random, float[] relief, List<(Vector2 Center, float Radius)> placed,
-        Func<float, Vector2> place, Func<float, float, float> between, ObjectiveSettlement? objective, List<Vector2> streets, float land)
+        Func<float, Vector2> place, Func<float, float, float> between, ObjectiveSettlement? objective, List<Vector2> streets, float land, List<StreetGrid> pads)
     {
         var clusterCount = MinClusters + random.Next(MaxClusters - MinClusters + 1);
         var total = MinBuildings + random.Next(MaxBuildings - MinBuildings + 1);
@@ -404,6 +418,7 @@ public sealed partial class BattlefieldTerrain
                 streets.AddRange(new[] { new Vector2(-half.X - 30, 0), new Vector2(half.X + 30, 0), new Vector2(0, -half.Y - 30), new Vector2(0, half.Y + 30) }.Select(World));
             // Level the pad to its centre's height, blending back into the surrounding relief.
             var level = Math.Max(relief[Node(center)], land);
+            pads.Add(new(center, half, rotation, level));
             for (var index = 0; index < relief.Length; index++)
             {
                 var offset = Point(index) - center;
@@ -505,7 +520,14 @@ public sealed partial class BattlefieldTerrain
     private static int Index(int x, int z) => z * GridSize + x;
     private static Vector2 Point(int index) => new Vector2(index % GridSize - HalfCells, index / GridSize - HalfCells) * CellSize;
     private static int Node(Vector2 point) => Index(Math.Clamp((int)MathF.Round(point.X / CellSize + HalfCells), 1, GridSize - 2), Math.Clamp((int)MathF.Round(point.Y / CellSize + HalfCells), 1, GridSize - 2));
+    /// <summary>The surface a mech stands on: the ground, or a bridge deck where one spans it.</summary>
     public float HeightAt(Vector2 point)
+    {
+        var ground = GroundAt(point);
+        return _decks.Length > 0 && DeckHeight(point) is { } deck ? Math.Max(ground, deck) : ground;
+    }
+    /// <summary>The ground itself, beneath any bridge.</summary>
+    public float GroundAt(Vector2 point)
     {
         if (_flat) return 0;
         var x = Math.Clamp(point.X / CellSize + HalfCells, 0, GridSize - 1); var z = Math.Clamp(point.Y / CellSize + HalfCells, 0, GridSize - 1);
@@ -525,6 +547,7 @@ public sealed partial class BattlefieldTerrain
     public bool Passable(Vector2 point)
     {
         if (CombatRules.Clamp(point).DistanceSquaredTo(point) > 1e-8f) return false;
+        if (DeckFooting(point) is { } footing) return footing;
         foreach (var solid in SolidsNear(point))
             if (_solids[solid].Contains(point, CombatRules.UnitRadius + 1.5f)) return false;
         foreach (var barrier in _barriers)
@@ -562,7 +585,9 @@ public sealed partial class BattlefieldTerrain
         return true;
     }
     // Ice is flat and gives no cover: it neither slows nor screens.
-    public float SpeedFactor(Vector2 point) => (Contains(TerrainKind.Water, point) ? WaterSpeed : Contains(TerrainKind.Vegetation, point) ? VegetationSpeed : 1) / (1 + SlopeAt(point));
+    // A road's speed replaces vegetation's slowdown, though its cover still counts.
+    public float SpeedFactor(Vector2 point) => (Contains(TerrainKind.Water, point) ? WaterSpeed : OnRoad(point) ? RoadSpeed
+        : Contains(TerrainKind.Vegetation, point) ? VegetationSpeed : 1) / (1 + SlopeAt(point));
     public int VegetationModifier(Vector2 from, Vector2 to) => Math.Min(MaxVegetationModifier,
         Patches.Count(patch => patch.Kind == TerrainKind.Vegetation && SegmentCircle(from, to, patch.Center, patch.Radius, out _, out _)));
 
@@ -703,7 +728,12 @@ public sealed partial class BattlefieldTerrain
             }
             if (float.IsPositiveInfinity(costs[end])) return [];
             var route = new List<Vector2> { to };
-            for (var node = end; node != start; node = previous[node]) route.Add(Point(node));
+            for (var node = end; node != start; node = previous[node])
+            {
+                route.Add(Point(node));
+                // A bridge edge runs along its deck between the approaches.
+                if (_vias.TryGetValue((previous[node], node), out var via)) for (var i = via.Length - 1; i >= 0; i--) route.Add(via[i]);
+            }
             route.Add(Point(start)); route.Reverse();
             var smooth = new List<Vector2>(); var anchor = from;
             for (var i = 0; i < route.Count;)
