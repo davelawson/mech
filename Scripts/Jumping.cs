@@ -95,11 +95,12 @@ public sealed partial class CombatSimulation
         unit.JumpFromHeight = Terrain.HeightAt(unit.Position); unit.JumpToHeight = Terrain.HeightAt(landing);
         // Rise at least high enough to clear every rock and ridge beneath the arc.
         var apex = CombatRules.JumpApex(distance);
-        var steps = Math.Max(2, (int)Math.Ceiling(distance / 7.5f));
+        // Samples at most a mech radius apart, so no rock or roof edge slips between them.
+        var steps = Math.Max(2, (int)Math.Ceiling(distance / CombatRules.UnitRadius));
         for (var i = 1; i < steps; i++)
         {
             var t = i / (float)steps;
-            var clearance = Terrain.ObstacleTop(unit.JumpFrom.Lerp(landing, t)) + 6 - Mathf.Lerp(unit.JumpFromHeight, unit.JumpToHeight, t);
+            var clearance = Terrain.ObstacleTop(unit.JumpFrom.Lerp(landing, t)) + 6 * CombatRules.BodyScale - Mathf.Lerp(unit.JumpFromHeight, unit.JumpToHeight, t);
             apex = Math.Max(apex, clearance / (4 * t * (1 - t)));
         }
         unit.JumpApexHeight = apex;

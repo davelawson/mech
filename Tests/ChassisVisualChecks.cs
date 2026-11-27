@@ -45,7 +45,7 @@ public partial class SmokeTests
             }
             if (spec.Id == "atlas")
             {
-                Check(Math.Abs(model.Height - 60f) < .3f && meshes.Length == 24, "Atlas retains its complete articulated source silhouette");
+                Check(Math.Abs(model.Height - 4f * MechModel.MetresPerModelUnit) < .02f * MechModel.MetresPerModelUnit && meshes.Length == 24, "Atlas retains its complete articulated source silhouette");
                 Check(model.Locations[MechLocation.Head].FindChild("AmberCanopy", true, false) is not null
                     && model.Locations[MechLocation.Head].FindChild("CockpitFrame", true, false) is not null, "Atlas keeps its skull and separate glowing eyes");
                 Check(model.Locations[MechLocation.LeftTorso].FindChildren("LrmTube*", "Node3D", true, false).Count == 10,
@@ -68,8 +68,8 @@ public partial class SmokeTests
                 for (var frame = 0; frame < 180; frame++)
                 {
                     hangar.Preview._Process(1d / 60);
-                    grounded &= feet.All(foot => Bottom(foot) >= -.03f) && feet.Any(foot => Bottom(foot) < .3f);
-                    articulated |= Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .375f;
+                    grounded &= feet.All(foot => Bottom(foot) >= -.03f * CombatRules.BodyScale) && feet.Any(foot => Bottom(foot) < .3f * CombatRules.BodyScale);
+                    articulated |= Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .375f * CombatRules.BodyScale;
                     for (var arm = 0; arm < 2; arm++) maximumArmSwing[arm] = Math.Max(maximumArmSwing[arm], Math.Abs(shoulders[arm].Rotation.X));
                     if (frame is 15 or 40 or 70)
                     {
@@ -93,7 +93,7 @@ public partial class SmokeTests
             {
                 model.AnimateLocomotion(1f / 60, -CombatRules.MovementSpeed(spec, MovementMode.Walk),
                     CombatRules.MovementSpeed(spec, MovementMode.Walk), CombatRules.MovementSpeed(spec, MovementMode.Run));
-                reverseGrounded &= feet.All(foot => Bottom(foot) >= -.03f) && feet.Any(foot => Bottom(foot) < .3f);
+                reverseGrounded &= feet.All(foot => Bottom(foot) >= -.03f * CombatRules.BodyScale) && feet.Any(foot => Bottom(foot) < .3f * CombatRules.BodyScale);
             }
             Check(reverseGrounded && model.RunBlend < .01f, $"{spec.Chassis} reverse travel uses grounded backward walking");
             foreach (var turn in new[] { -1, 1 })
@@ -103,7 +103,7 @@ public partial class SmokeTests
                 {
                     model.AnimateLocomotion(1f / 60, 0, CombatRules.MovementSpeed(spec, MovementMode.Walk),
                         CombatRules.MovementSpeed(spec, MovementMode.Run), turn * Mathf.DegToRad(45));
-                    steps |= Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .375f;
+                    steps |= Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .375f * CombatRules.BodyScale;
                 }
                 Check(steps, $"{spec.Chassis} steps during a pivot in direction {turn}");
             }
@@ -144,8 +144,8 @@ public partial class SmokeTests
             Check(ReferenceEquals(model, hangar.Preview.Model), $"{spec.Chassis} assignment refresh preserves its model");
         }
         Check(heights["jenner"] < heights["wolverine"] && heights["wolverine"] < heights["catapult"]
-            && heights["catapult"] > 45 && heights["catapult"] < 49.14f, "new chassis have agreed relative heights beneath the Awesome");
-        Check(widths["catapult"] > heights["catapult"] * .65f && widths["jenner"] is > 21f and < 22.5f,
+            && heights["catapult"] > 3f * MechModel.MetresPerModelUnit && heights["catapult"] < 3.276f * MechModel.MetresPerModelUnit, "new chassis have agreed relative heights beneath the Awesome");
+        Check(widths["catapult"] > heights["catapult"] * .65f && widths["jenner"] > 1.4f * MechModel.MetresPerModelUnit && widths["jenner"] < 1.5f * MechModel.MetresPerModelUnit,
             "MW5 Catapult keeps its broad launcher silhouette and Jenner retains its source width");
 
         GetWindow().Size = new(1440, 900); hangar.Hide();
@@ -187,7 +187,8 @@ public partial class SmokeTests
         stage.QueueFree(); await Frames();
         TestStrideProportions();
     }
-    // Strides scale with gait speed at the Marauder's step rate; fast lights stop at leg reach.
+    // Strides scale with gait speed at the Marauder's old step rate, capped at leg reach. At true BattleTech heights every chassis
+    // reaches the cap, even the slow Marauder and Annihilator, so each steps as long as its legs allow and quicker the faster it goes.
     private void TestStrideProportions()
     {
         foreach (var id in new[] { "marauder", "annihilator", "jenner" })
@@ -198,11 +199,10 @@ public partial class SmokeTests
             {
                 var speed = CombatRules.MovementSpeed(spec, mode);
                 var metres = model.StrideAmplitude(speed, mode == MovementMode.Run) * model.Scale.X;
-                if (id == "jenner")
-                    Check(metres < .4383f * speed - .1f, $"Jenner {mode} stride is capped at leg reach");
-                else
-                    Check(Math.Abs(metres - .4383f * speed) < .01f, $"{spec.Chassis} {mode} stride is proportional to its speed");
+                Check(metres > 0 && metres < .4383f * speed - .1f, $"{spec.Chassis} {mode} stride is capped at leg reach: {metres:F2} m");
             }
+            Check(model.StrideAmplitude(1, false) * model.Scale.X is var slow && Math.Abs(slow - .4383f) < .01f,
+                $"{spec.Chassis} strides stay proportional to speed below leg reach");
             model.Free();
         }
     }

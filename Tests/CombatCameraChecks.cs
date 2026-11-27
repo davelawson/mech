@@ -132,7 +132,7 @@ public partial class SmokeTests
             await PressKey(Key.Home);
             CameraStep(field, 100, Key.W, Key.D);
             var groundFocus = field.GroundPoint(field.Size / 2);
-            Check(groundFocus.DistanceTo(new Vector2(2870.25f, -2870.25f)) < .3f, "camera pivot clamps to expanded battlefield edges");
+            Check(groundFocus.DistanceTo(new Vector2(1, -1) * (CombatRules.ArenaHalfSize - CombatRules.UnitRadius)) < .3f, "camera pivot clamps to expanded battlefield edges");
             await PressKey(Key.Home);
 
             await BeginCameraOrbit(at);

@@ -19,16 +19,17 @@ public sealed record TerrainBuilding(BuildingStyle Style, int Cluster, Vector2 C
 public sealed partial class BattlefieldTerrain
 {
     /// <summary>Metres between heightfield and navigation grid points.</summary>
-    public const float CellSize = 30;
+    public const float CellSize = 15;
     private const int HalfCells = (int)(CombatRules.ArenaHalfSize / CellSize);
     public const int GridSize = HalfCells * 2 + 1;
     public const float MaxSlope = .65f;
-    public const float EyeHeight = 22.5f;
+    /// <summary>Detection and firing height above the ground: 1.5 model units.</summary>
+    public const float EyeHeight = 1.5f * CombatRules.MetresPerModelUnit;
     public const float WaterSpeed = .5f;
     public const float VegetationSpeed = .7f;
     public const int MaxVegetationModifier = 2;
     /// <summary>Clear width between neighbouring buildings of a cluster, and the lot each building stands on.</summary>
-    public const float StreetWidth = 60, BuildingLot = 50;
+    public const float StreetWidth = 30, BuildingLot = 25;
     public int Seed { get; }
     /// <summary>The generated biome; hand-built test terrain has none and therefore no climate.</summary>
     public Biome? Biome { get; }
@@ -177,7 +178,8 @@ public sealed partial class BattlefieldTerrain
          Math.Clamp((int)((point.Y + CombatRules.ArenaHalfSize) / SolidCellSize), 0, SolidCells - 1));
     private int[] SolidsNear(Vector2 point) { var (x, z) = SolidCell(point); return _solidCells[z * SolidCells + x]; }
 
-    /// <summary>Rock and vegetation counts and sizes per biome; recorded in docs/combat-tuning.md. Liquids follow
+    /// <summary>Rock and vegetation counts and sizes per biome; recorded in docs/combat-tuning.md. Rock radii and heights are
+    /// authored at the old 15-metre model unit and scale with the mechs (<see cref="CombatRules.BodyScale"/>). Liquids follow
     /// <see cref="LakeRules"/> and <see cref="RiverRules"/>.</summary>
     private sealed record PatchRule(TerrainKind Kind, int Count, float MinRadius, float MaxRadius, float MinHeight = 0, float MaxHeight = 0);
     private static PatchRule[] PatchRules(Biome biome) => biome switch
@@ -285,10 +287,11 @@ public sealed partial class BattlefieldTerrain
                 const float clearance = 60;
                 for (var i = 0; i < rule.Count; i++)
                 {
-                    var radius = Between(rule.MinRadius, rule.MaxRadius);
+                    var scale = rule.Kind == TerrainKind.Rock ? CombatRules.BodyScale : 1;
+                    var radius = Between(rule.MinRadius, rule.MaxRadius) * scale;
                     Vector2 point = default;
                     var tries = 0;
-                    bool Fits() => Free(point, radius) && Clear(point, radius + clearance) && (rule.Kind != TerrainKind.Rock || roads.Distance(point) >= radius + 30);
+                    bool Fits() => Free(point, radius) && Clear(point, radius + clearance) && (rule.Kind != TerrainKind.Rock || roads.Distance(point) >= radius + RoadClearance);
                     do
                     {
                         point = fields is null ? Place(radius + clearance)
@@ -297,7 +300,7 @@ public sealed partial class BattlefieldTerrain
                     }
                     while (tries < 500 && !Fits());
                     if (!Fits()) continue;
-                    patches.Add(new(rule.Kind, point, radius, rule.MaxHeight > 0 ? Between(rule.MinHeight, rule.MaxHeight) : 0));
+                    patches.Add(new(rule.Kind, point, radius, rule.MaxHeight > 0 ? Between(rule.MinHeight, rule.MaxHeight) * scale : 0));
                 }
             }
             var terrain = new BattlefieldTerrain(seed, patches, [], buildings, biome, relief, plan.Map, roads.Map);
@@ -416,7 +419,8 @@ public sealed partial class BattlefieldTerrain
             Vector2 World(Vector2 local) => center + new Vector2(local.X * cos - local.Y * sin, local.X * sin + local.Y * cos);
             // The objective's outer street, on all four sides of its pad.
             if (objectiveCluster)
-                streets.AddRange(new[] { new Vector2(-half.X - 30, 0), new Vector2(half.X + 30, 0), new Vector2(0, -half.Y - 30), new Vector2(0, half.Y + 30) }.Select(World));
+                streets.AddRange(new[] { new Vector2(-half.X - StreetWidth / 2, 0), new Vector2(half.X + StreetWidth / 2, 0),
+                    new Vector2(0, -half.Y - StreetWidth / 2), new Vector2(0, half.Y + StreetWidth / 2) }.Select(World));
             // Level the pad to its centre's height, blending back into the surrounding relief.
             var level = Math.Max(relief[Node(center)], land);
             pads.Add(new(center, half, rotation, level));
@@ -424,7 +428,7 @@ public sealed partial class BattlefieldTerrain
             {
                 var offset = Point(index) - center;
                 var local = new Vector2(offset.X * cos + offset.Y * sin, -offset.X * sin + offset.Y * cos);
-                var outside = new Vector2(Math.Max(0, Math.Abs(local.X) - half.X - 30), Math.Max(0, Math.Abs(local.Y) - half.Y - 30)).Length();
+                var outside = new Vector2(Math.Max(0, Math.Abs(local.X) - half.X - StreetWidth / 2), Math.Max(0, Math.Abs(local.Y) - half.Y - StreetWidth / 2)).Length();
                 relief[index] = Mathf.Lerp(level, relief[index], Mathf.SmoothStep(0, 1, Math.Clamp(outside / 150, 0, 1)));
             }
             var lots = Enumerable.Range(0, columns * rows).OrderBy(_ => random.Next()).Take(count).Order();
@@ -433,6 +437,8 @@ public sealed partial class BattlefieldTerrain
             {
                 var lotCenter = new Vector2((lot % columns + .5f) * pitch - half.X, (lot / columns + .5f) * pitch - half.Y);
                 var (style, size, height) = BuildingShape(biome, town, random, between);
+                // Shapes are authored at the old 15-metre model unit and scale with the mechs.
+                size *= CombatRules.BodyScale; height *= CombatRules.BodyScale;
                 var extent = TerrainBuilding.IsRound(style) ? new Vector2(size.X, size.X) : size;
                 // Turning a rectangle a quarter keeps the street grid while varying the layout.
                 var quarter = random.Next(2) == 1;
@@ -543,11 +549,13 @@ public sealed partial class BattlefieldTerrain
         var c = _heights[Index(ix, iz + 1)]; var d = _heights[Index(ix + 1, iz + 1)];
         return u + v <= 1 ? a + (b - a) * u + (c - a) * v : d + (c - d) * (1 - u) + (b - d) * (1 - v);
     }
+    /// <summary>Ground slope from height differences a quarter cell either side, so it mostly follows one heightfield triangle.</summary>
     public float SlopeAt(Vector2 point)
     {
-        var dx = HeightAt(point + new Vector2(7.5f, 0)) - HeightAt(point - new Vector2(7.5f, 0));
-        var dz = HeightAt(point + new Vector2(0, 7.5f)) - HeightAt(point - new Vector2(0, 7.5f));
-        return new Vector2(dx, dz).Length() / 15;
+        const float reach = CellSize / 4;
+        var dx = HeightAt(point + new Vector2(reach, 0)) - HeightAt(point - new Vector2(reach, 0));
+        var dz = HeightAt(point + new Vector2(0, reach)) - HeightAt(point - new Vector2(0, reach));
+        return new Vector2(dx, dz).Length() / (2 * reach);
     }
     public bool Contains(TerrainKind kind, Vector2 point) => Patches.Any(patch => patch.Kind == kind && point.DistanceSquaredTo(patch.Center) <= patch.Radius * patch.Radius)
         || IsFlat(kind) && LiquidAt(point)?.Kind == kind;
@@ -560,11 +568,20 @@ public sealed partial class BattlefieldTerrain
         foreach (var barrier in _barriers)
             if (point.DistanceSquaredTo(barrier.Center) < (barrier.Radius + CombatRules.UnitRadius) * (barrier.Radius + CombatRules.UnitRadius)) return false;
         if (InLiquidBarrier(point)) return false;
-        return SlopeAt(point) <= MaxSlope
-            && SlopeAt(point + Vector2.Up * CombatRules.UnitRadius) <= MaxSlope
-            && SlopeAt(point + Vector2.Down * CombatRules.UnitRadius) <= MaxSlope
-            && SlopeAt(point + Vector2.Left * CombatRules.UnitRadius) <= MaxSlope
-            && SlopeAt(point + Vector2.Right * CombatRules.UnitRadius) <= MaxSlope;
+        return FootingSlope(point) <= MaxSlope
+            && FootingSlope(point + Vector2.Up * CombatRules.UnitRadius) <= MaxSlope
+            && FootingSlope(point + Vector2.Down * CombatRules.UnitRadius) <= MaxSlope
+            && FootingSlope(point + Vector2.Left * CombatRules.UnitRadius) <= MaxSlope
+            && FootingSlope(point + Vector2.Right * CombatRules.UnitRadius) <= MaxSlope;
+    }
+    /// <summary>The slope of the heightfield triangle under a point, measured at its centre. Passability tests each footprint
+    /// point's whole triangle, so steep ground blocks in triangles rather than in slivers a mech could wedge against.</summary>
+    private float FootingSlope(Vector2 point)
+    {
+        var x = Math.Clamp(point.X / CellSize + HalfCells, 0, GridSize - 1); var z = Math.Clamp(point.Y / CellSize + HalfCells, 0, GridSize - 1);
+        var ix = Math.Min((int)x, GridSize - 2); var iz = Math.Min((int)z, GridSize - 2);
+        var centre = x - ix + (z - iz) <= 1 ? 1 / 3f : 2 / 3f;
+        return SlopeAt(new Vector2(ix + centre - HalfCells, iz + centre - HalfCells) * CellSize);
     }
     /// <summary>The highest solid surface a mech passing over this point must clear: ground, rock or roof.</summary>
     public float ObstacleTop(Vector2 point) => SolidTop(point, CombatRules.UnitRadius);
@@ -576,10 +593,12 @@ public sealed partial class BattlefieldTerrain
             if (_solids[solid].Contains(point, margin)) top = Math.Max(top, _solids[solid].Top);
         return top;
     }
+    /// <summary>Segment clearance samples a quarter of a grid cell apart, so no impassable sliver slips between them.</summary>
+    private const float TraverseStep = CellSize / 4;
     public bool CanTraverse(Vector2 from, Vector2 to)
     {
         if (_flat) return Passable(to);
-        var steps = Math.Max(1, (int)MathF.Ceiling(from.DistanceTo(to) / 7.5f));
+        var steps = Math.Max(1, (int)MathF.Ceiling(from.DistanceTo(to) / TraverseStep));
         for (var i = 0; i <= steps; i++) if (!Passable(from.Lerp(to, i / (float)steps))) return false;
         return true;
     }
@@ -587,7 +606,7 @@ public sealed partial class BattlefieldTerrain
     private bool CanTraverseBetweenWalkable(Vector2 from, Vector2 to)
     {
         if (_flat) return true;
-        var steps = Math.Max(1, (int)MathF.Ceiling(from.DistanceTo(to) / 7.5f));
+        var steps = Math.Max(1, (int)MathF.Ceiling(from.DistanceTo(to) / TraverseStep));
         for (var i = 1; i < steps; i++) if (!Passable(from.Lerp(to, i / (float)steps))) return false;
         return true;
     }

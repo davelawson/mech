@@ -360,8 +360,10 @@ public sealed partial class BattlefieldTerrain
                 {
                     if (lakeOf[s] >= 0)
                     {
-                        if (!levels.TryGetValue(lakeOf[s], out var level))
-                            levels[lakeOf[s]] = level = Math.Min(surfaces[Array.IndexOf(owners, lakeOf[s])], previous);
+                        // A later pass may find the river arriving lower than the level an earlier pass gave the lake: it lowers the lake again.
+                        var level = levels.TryGetValue(lakeOf[s], out var known) ? (s > 0 && lakeOf[s - 1] == lakeOf[s] ? known : Math.Min(known, previous))
+                            : Math.Min(surfaces[Array.IndexOf(owners, lakeOf[s])], previous);
+                        levels[lakeOf[s]] = level;
                         result[s] = previous = level; continue;
                     }
                     var cap = ground[s] - trench + depth;
@@ -372,16 +374,22 @@ public sealed partial class BattlefieldTerrain
                     if (lakeOf[s] < 0) result[s] = Math.Min(result[s], result[s + 1] + steepest * 10);
                 return result;
             }
+            void Lower()
+            {
+                foreach (var (lake, level) in levels)
+                    for (var index = 0; index < count; index++)
+                        if (owners[index] == lake)
+                        {
+                            if (relief[index] < level) surfaces[index] = level;
+                            else { owners[index] = -1; kinds[index] = -1; surfaces[index] = float.NaN; }
+                        }
+            }
             Profile(Spans());
-            foreach (var (lake, level) in levels)
-                for (var index = 0; index < count; index++)
-                    if (owners[index] == lake)
-                    {
-                        if (relief[index] < level) surfaces[index] = level;
-                        else { owners[index] = -1; kinds[index] = -1; surfaces[index] = float.NaN; }
-                    }
+            Lower();
             // Where a lowered lake drew back, the river runs on in its own trench; only samples inside a lake leave the ground uncarved.
+            var before = levels.ToDictionary();
             var surface = Profile(Spans());
+            if (levels.Any(pair => !before.TryGetValue(pair.Key, out var earlier) || pair.Value < earlier)) Lower();
             joined.UnionWith(levels.Keys);
             var lakes = samples.Select(point => LakeAt(point, 0)).ToArray();
             // Fords: two or three spread along a deep or lava river, and wherever it crosses a clear area.

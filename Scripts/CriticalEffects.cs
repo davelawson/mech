@@ -17,17 +17,19 @@ public partial class CombatViewport
     internal const int AmmoSmokeParticles = 40;
     internal const float AmmoEmberEmitSeconds = 2;
     internal const float AmmoEmberSeconds = .8f;
-    internal const float DamagedFlashRadius = 4;
+    internal const float DamagedFlashRadius = 4 * B;
     internal const float DamagedFlashSeconds = .3f;
     internal const int DamagedSparks = 10;
     internal const float DamagedSparkSeconds = .45f;
-    internal const float DestroyedFlashRadius = 7;
+    internal const float DestroyedFlashRadius = 7 * B;
     internal const float DestroyedFlashSeconds = .5f;
     internal const int DestroyedSparks = 20;
     internal const float DestroyedSmokeEmitSeconds = .5f;
     internal const float DestroyedSmokeSeconds = 1.5f;
-    /// <summary>Fireball radius in metres for an ammunition explosion's damage: a 600-damage bin reaches 44 metres.</summary>
-    internal static float AmmoBlastRadius(int damage) => Math.Clamp(20 + damage / 25f, 25, 60);
+    // Particle and flash sizes, speeds and forces were authored at the old 15-metre model unit and scale with the mechs.
+    private const float B = CombatRules.BodyScale;
+    /// <summary>Fireball radius in metres for an ammunition explosion's damage: a 600-damage bin reaches about 10 metres.</summary>
+    internal static float AmmoBlastRadius(int damage) => Math.Clamp(20 + damage / 25f, 25, 60) * B;
     private static readonly Color SmokeColor = new(.16f, .15f, .14f);
     private static readonly Color PuffColor = new(.55f, .53f, .5f);
     private static readonly QuadMesh ParticleQuad = new() { Size = Vector2.One };
@@ -96,25 +98,25 @@ public partial class CombatViewport
                     blast.Emitters.Add((Emitter(at, fire: true, AmmoFragments, AmmoFragmentSeconds, oneShot: true, size: radius * .15f,
                         speed: (radius * 1.3f, radius * 2.1f), spread: 60, gravity: -radius * 1.2f, damping: radius * .3f,
                         colors: [Colors.White, FlameYellow, FlameOrange, new Color(FlameOrange, 0)], grow: (1, .4f)), 0));
-                    blast.Emitters.Add((Emitter(at, fire: false, AmmoSmokeParticles, AmmoSmokeSeconds, oneShot: false, size: 30,
-                        speed: (12, 22), spread: 20, gravity: 6, damping: 2, colors: [new Color(SmokeColor, 0), new Color(SmokeColor, .75f),
+                    blast.Emitters.Add((Emitter(at, fire: false, AmmoSmokeParticles, AmmoSmokeSeconds, oneShot: false, size: 30 * B,
+                        speed: (12 * B, 22 * B), spread: 20, gravity: 6 * B, damping: 2 * B, colors: [new Color(SmokeColor, 0), new Color(SmokeColor, .75f),
                             new Color(SmokeColor.Lightened(.2f), 0)], grow: (8 / 30f, 1), emitRadius: radius * .2f), AmmoSmokeEmitSeconds));
-                    blast.Emitters.Add((Emitter(at, fire: true, 24, AmmoEmberSeconds, oneShot: false, size: 2.5f, speed: (25, 45), spread: 35,
-                        gravity: -20, damping: 5, colors: [FlameYellow, FlameOrange, new Color(FlameOrange, 0)], emitRadius: radius * .15f),
+                    blast.Emitters.Add((Emitter(at, fire: true, 24, AmmoEmberSeconds, oneShot: false, size: 2.5f * B, speed: (25 * B, 45 * B), spread: 35,
+                        gravity: -20 * B, damping: 5 * B, colors: [FlameYellow, FlameOrange, new Color(FlameOrange, 0)], emitRadius: radius * .15f),
                         AmmoEmberEmitSeconds));
                     break;
                 case CriticalBlastKind.Destroyed:
                     blast.Core = Blob(FlameYellow.Lerp(Colors.White, .6f)); blast.Fireball = Blob(BlastColor);
-                    blast.Emitters.Add((Emitter(at, fire: true, DestroyedSparks, DamagedSparkSeconds * 1.3f, oneShot: true, size: 2,
-                        speed: (30, 55), spread: 80, gravity: -40, damping: 10, colors: [Colors.White, FlameYellow, new Color(FlameOrange, 0)]), 0));
-                    blast.Emitters.Add((Emitter(at, fire: false, 10, DestroyedSmokeSeconds, oneShot: false, size: 12, speed: (8, 14), spread: 30,
-                        gravity: 4, damping: 2, colors: [new Color(PuffColor, .6f), new Color(PuffColor, 0)], grow: (.4f, 1), emitRadius: 2),
+                    blast.Emitters.Add((Emitter(at, fire: true, DestroyedSparks, DamagedSparkSeconds * 1.3f, oneShot: true, size: 2 * B,
+                        speed: (30 * B, 55 * B), spread: 80, gravity: -40 * B, damping: 10 * B, colors: [Colors.White, FlameYellow, new Color(FlameOrange, 0)]), 0));
+                    blast.Emitters.Add((Emitter(at, fire: false, 10, DestroyedSmokeSeconds, oneShot: false, size: 12 * B, speed: (8 * B, 14 * B), spread: 30,
+                        gravity: 4 * B, damping: 2 * B, colors: [new Color(PuffColor, .6f), new Color(PuffColor, 0)], grow: (.4f, 1), emitRadius: 2 * B),
                         DestroyedSmokeEmitSeconds));
                     break;
                 default:
                     blast.Core = Blob(FlameYellow.Lerp(Colors.White, .6f));
-                    blast.Emitters.Add((Emitter(at, fire: true, DamagedSparks, DamagedSparkSeconds, oneShot: true, size: 1.5f, speed: (25, 45),
-                        spread: 70, gravity: -40, damping: 10, colors: [Colors.White, FlameYellow, new Color(FlameYellow, 0)]), 0));
+                    blast.Emitters.Add((Emitter(at, fire: true, DamagedSparks, DamagedSparkSeconds, oneShot: true, size: 1.5f * B, speed: (25 * B, 45 * B),
+                        spread: 70, gravity: -40 * B, damping: 10 * B, colors: [Colors.White, FlameYellow, new Color(FlameYellow, 0)]), 0));
                     break;
             }
             _criticalBlasts.Add(blast);

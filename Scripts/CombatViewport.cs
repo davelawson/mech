@@ -100,40 +100,40 @@ public partial class CombatViewport : Control
     internal const float BurstShare = .45f;
     internal const float BurstPortion = .4f;
     // An attack that destroys a location sets off a large explosion there.
-    internal const float DestructionRadius = 37.5f;
+    internal const float DestructionRadius = 37.5f * CombatRules.BodyScale;
     internal const float DestructionSeconds = 1.1f;
     private const int DestructionDebris = 5;
     // A PPC flashes a brief beam, then a glowing bolt races down it and bursts in crackling arcs.
     private static readonly Color PpcColor = new(.6f, .4f, 1);
     private static readonly Color PpcWhite = Colors.White.Lerp(PpcColor, .3f);
-    internal const float PpcBeamRadius = .3f;
+    internal const float PpcBeamRadius = .3f * CombatRules.BodyScale;
     /// <summary>The beam holds for the long-range flight time, past the bolt landing at any range, then fades out over the rest of its half second.</summary>
     internal const float PpcBeamHold = (float)CombatRules.PpcLongRangeSeconds;
     internal const float PpcBeamSeconds = .5f;
-    internal const float PpcBoltRadius = 2.7f;
-    internal const float PpcBurstRadius = 13.5f;
+    internal const float PpcBoltRadius = 2.7f * CombatRules.BodyScale;
+    internal const float PpcBurstRadius = 13.5f * CombatRules.BodyScale;
     internal const float PpcBurstSeconds = .8f;
     internal const int PpcRadialArcs = 6;
     private const int PpcArcSegments = 3;
-    private const float PpcArcRadius = .375f;
+    private const float PpcArcRadius = .375f * CombatRules.BodyScale;
     /// <summary>Arcs jump to new random paths this often, in effect age.</summary>
     private const float PpcArcFlicker = .06f;
     // A machine gun's burst streams tiny yellow and orange tracers; hits spark on the target, misses vanish.
     internal const int TracerRounds = 15;
-    internal const float TracerRadius = .3f;
-    internal const float TracerLength = 6;
-    internal const float TracerScatter = 2.25f;
-    internal const float SparkRadius = .75f;
+    internal const float TracerRadius = .3f * CombatRules.BodyScale;
+    internal const float TracerLength = 6 * CombatRules.BodyScale;
+    internal const float TracerScatter = 2.25f * CombatRules.BodyScale;
+    internal const float SparkRadius = .75f * CombatRules.BodyScale;
     internal const float SparkSeconds = .08f;
     internal const float TracerFlashSeconds = .04f;
-    private const float TracerFlashRadius = 1.2f;
+    private const float TracerFlashRadius = 1.2f * CombatRules.BodyScale;
     internal static readonly Color TracerYellow = new(1, .9f, .3f);
     internal static readonly Color TracerOrange = new(1, .55f, .1f);
     private static readonly Color SparkColor = new(1, 1, .75f);
     // Missile salvos ripple out of the rack and skitter in flight, gathering only as they reach their impact points.
     internal const float MissileRipple = .25f;
-    internal const float MissileWobble = 11.25f;
-    internal const float MissileBlastRadius = 3.75f;
+    internal const float MissileWobble = 11.25f * CombatRules.BodyScale;
+    internal const float MissileBlastRadius = 3.75f * CombatRules.BodyScale;
     internal const float MissileBlastSeconds = .3f;
     internal const float MissileTrailSeconds = .04f;
     /// <summary>LRMs leave the rack at 40% of their average speed and dive in at 160%.</summary>
@@ -249,7 +249,7 @@ public partial class CombatViewport : Control
     internal static float ExplosionRadius(WeaponKind kind) => kind switch
     {
         WeaponKind.AC2 => 4.5f, WeaponKind.AC5 => 7.5f, WeaponKind.AC10 => 12, _ => 18
-    };
+    } * CombatRules.BodyScale;
     internal static float ExplosionSeconds(WeaponKind kind) => kind switch
     {
         WeaponKind.AC2 => .3f, WeaponKind.AC5 => .4f, WeaponKind.AC10 => .5f, _ => .6f
@@ -257,7 +257,7 @@ public partial class CombatViewport : Control
     internal static float ShellRadius(WeaponKind kind) => kind switch
     {
         WeaponKind.AC2 => .9f, WeaponKind.AC5 => 1.2f, WeaponKind.AC10 => 1.5f, _ => 1.95f
-    };
+    } * CombatRules.BodyScale;
     // A mostly colored core keeps additive beams from washing out to white.
     internal const float LaserCoreWhite = .3f;
     internal static Color LaserColor(WeaponKind kind) => kind switch
@@ -269,7 +269,7 @@ public partial class CombatViewport : Control
     internal static float LaserRadius(WeaponKind kind) => kind switch
     {
         WeaponKind.SmallLaser => .3f, WeaponKind.MediumLaser => .6f, _ => .9f
-    };
+    } * CombatRules.BodyScale;
     private Vector3 _focus = new(0, 0, CombatRules.DeploymentDepth - 600);
     /// <summary>Seconds a <see cref="GlideTo"/> takes to carry the camera to its point.</summary>
     public const double FocusSeconds = .4;
@@ -283,6 +283,8 @@ public partial class CombatViewport : Control
     private static readonly float OrbitRadius = new Vector2(4200, 4800).Length();
     internal const float RightDragThreshold = 12;
     private static readonly float OrbitSensitivity = Mathf.DegToRad(.25f);
+    /// <summary>The closest zoom: a camera view 180 metres tall at the old 15-metre model unit, scaled with the mechs.</summary>
+    internal const float MinimumZoom = 180 * CombatRules.BodyScale;
     private float _yaw;
     private float _pitch = DefaultPitch;
     private bool _commandsEnabled = true;
@@ -671,7 +673,7 @@ public partial class CombatViewport : Control
                 var struck = target.LocationCenter(missile.Location);
                 var direction = new Vector3(struck.X - created.Launch.X, 0, struck.Z - created.Launch.Z).Normalized();
                 var side = new Vector3(-direction.Z, 0, direction.X) * (random.Next(2) == 0 ? 1 : -1);
-                var ground = struck + side * Between(15, 37.5f) + direction * Between(15, 45);
+                var ground = struck + (side * Between(15, 37.5f) + direction * Between(15, 45)) * CombatRules.BodyScale;
                 created.MissEnd = new Vector3(ground.X, Simulation!.Terrain.HeightAt(new Vector2(ground.X, ground.Z)), ground.Z);
                 var span = new Vector2(struck.X - created.Launch.X, struck.Z - created.Launch.Z).Length();
                 var missReach = new Vector2(created.MissEnd.X - created.Launch.X, created.MissEnd.Z - created.Launch.Z).Length();
@@ -752,10 +754,10 @@ public partial class CombatViewport : Control
             var launched = age >= missile.Delay; var flying = launched && age < missile.Arrival;
             var flash = launched ? Math.Clamp(1 - (age - missile.Delay) / MuzzleFlash, 0, 1) : 0;
             Set(missile.Flash, flash);
-            if (flash > 0) missile.Flash.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * 2.25f), missile.Launch);
+            if (flash > 0) missile.Flash.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * 2.25f * CombatRules.BodyScale), missile.Launch);
             var head = MissilePoint(effect, missile, age).Position;
             Set(missile.Glow, flying ? 1 : 0);
-            if (flying) missile.Glow.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * 1.05f), head);
+            if (flying) missile.Glow.GlobalTransform = new Transform3D(Basis.Identity.Scaled(Vector3.One * 1.05f * CombatRules.BodyScale), head);
             // A short flame trail follows the skittering path back toward the launcher.
             var tail = MissilePoint(effect, missile, Math.Max(missile.Delay, age - MissileTrailSeconds)).Position;
             var axis = head - tail;
@@ -763,7 +765,7 @@ public partial class CombatViewport : Control
             if (missile.Trail.Visible)
             {
                 var across = axis.Cross(Math.Abs(axis.Normalized().Y) > .9f ? Vector3.Right : Vector3.Up).Normalized();
-                missile.Trail.GlobalTransform = new Transform3D(new Basis(across * .75f, axis, axis.Cross(across).Normalized() * .75f), (head + tail) / 2);
+                missile.Trail.GlobalTransform = new Transform3D(new Basis(across * .75f * CombatRules.BodyScale, axis, axis.Cross(across).Normalized() * .75f * CombatRules.BodyScale), (head + tail) / 2);
             }
             var blast = flying || !launched ? -1 : (age - missile.Arrival) / MissileBlastSeconds;
             if (blast is >= 0 and < 1)
@@ -971,13 +973,13 @@ public partial class CombatViewport : Control
     private readonly HashSet<string> _ejected = [], _surrendered = [];
     private sealed record EjectionSeat(MeshInstance3D Seat, Vector3 From, double Start, List<(MeshInstance3D Mesh, double Start)> Puffs);
     private readonly List<EjectionSeat> _seats = [];
-    private const float SeatSeconds = 2.6f, SeatRise = 70, PuffSeconds = 1.8f, PuffInterval = .05f;
+    private const float SeatSeconds = 2.6f, SeatRise = 70 * CombatRules.BodyScale, PuffSeconds = 1.8f, PuffInterval = .05f;
     private void AddEjection(Vector3 from)
     {
         if (Simulation is null) return;
         var seat = new MeshInstance3D
         {
-            Mesh = new BoxMesh { Size = new Vector3(1.6f, 2, 1.6f) }, Position = from,
+            Mesh = new BoxMesh { Size = new Vector3(1.6f, 2, 1.6f) * CombatRules.BodyScale }, Position = from,
             MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color("3d4644"), EmissionEnabled = true, Emission = new Color("ffb347"), EmissionEnergyMultiplier = .6f }
         };
         _world.AddChild(seat); _seats.Add(new(seat, from, Simulation.Clock, []));
@@ -993,13 +995,13 @@ public partial class CombatViewport : Control
             {
                 var (mesh, start) = seat.Puffs[p]; var t = (float)((Simulation?.Clock ?? start) - start) / PuffSeconds;
                 if (t >= 1 || Simulation is null) { mesh.QueueFree(); seat.Puffs.RemoveAt(p); continue; }
-                mesh.Scale = Vector3.One * (1 + 3 * Mathf.Sqrt(Math.Max(0, t)));
+                mesh.Scale = Vector3.One * (1 + 3 * Mathf.Sqrt(Math.Max(0, t))) * CombatRules.BodyScale;
                 ((StandardMaterial3D)mesh.MaterialOverride).AlbedoColor = new Color("9a9a96", .55f * (1 - t));
             }
             if (Simulation is null || age >= SeatSeconds + PuffSeconds) { seat.Seat.QueueFree(); foreach (var puff in seat.Puffs) puff.Mesh.QueueFree(); _seats.RemoveAt(i); continue; }
             var flight = Math.Min(age, SeatSeconds) / SeatSeconds;
             seat.Seat.Visible = age < SeatSeconds;
-            seat.Seat.Position = seat.From + new Vector3(flight * 6, SeatRise * (1 - (1 - flight) * (1 - flight)), flight * 4);
+            seat.Seat.Position = seat.From + new Vector3(flight * 6 * CombatRules.BodyScale, SeatRise * (1 - (1 - flight) * (1 - flight)), flight * 4 * CombatRules.BodyScale);
             // A new puff each interval while the seat climbs.
             if (age < SeatSeconds * .7f && (seat.Puffs.Count == 0 || Simulation.Clock - seat.Puffs[^1].Start >= PuffInterval))
             {
@@ -1235,7 +1237,7 @@ public partial class CombatViewport : Control
         var side = new Vector3(-direction.Z, 0, direction.X) * ((int)(shot.Roll * 100) % 2 == 0 ? 1 : -1);
         if (shot.Hit)
             return (from, shot.SecondLocation is { } next ? to.Lerp(_models[shot.TargetId].LocationCenter(next), sweep) : to, location);
-        return (from, to + side * 18 + direction * 22.5f, location);
+        return (from, to + (side * 18 + direction * 22.5f) * CombatRules.BodyScale, location);
     }
     internal IEnumerable<(CombatShot Shot, Vector3 From, Vector3 To, MechLocation Location)> ShotPaths()
         => _effects.Select(effect => { var (from, to, location) = ShotPath(effect); return (effect.Shot, from, to, location); });
@@ -1382,7 +1384,7 @@ public partial class CombatViewport : Control
         {
             GrabFocus();
             if (mouse.ButtonIndex is MouseButton.WheelUp or MouseButton.WheelDown && mouse.Pressed)
-            { Camera.Size = Math.Clamp(Camera.Size * (mouse.ButtonIndex == MouseButton.WheelUp ? .85f : 1.18f), 180, 8400); AcceptEvent(); }
+            { Camera.Size = Math.Clamp(Camera.Size * (mouse.ButtonIndex == MouseButton.WheelUp ? .85f : 1.18f), MinimumZoom, 8400); AcceptEvent(); }
             if (mouse.ButtonIndex == MouseButton.Middle)
             { _panning = mouse.Pressed && !mouse.ShiftPressed; _rotating = mouse.Pressed && mouse.ShiftPressed; SetHovered(null); AcceptEvent(); }
             if (mouse.ButtonIndex == MouseButton.Left)
@@ -1666,7 +1668,7 @@ public partial class CombatViewport : Control
             if (!unit.Active) color = Ui.Muted;
             if (Selection.Contains(unit.Id))
             {
-                DrawArc(at, Math.Max(10, 17.25f * Size.Y / Camera.Size), 0, Mathf.Tau, 32, Ui.Gold, 2, true);
+                DrawArc(at, Math.Max(10, 17.25f * CombatRules.BodyScale * Size.Y / Camera.Size), 0, Mathf.Tau, 32, Ui.Gold, 2, true);
                 DrawCircle(at, 3, Ui.Gold);
                 var to = unit.Order == CombatOrder.Move ? unit.Destination : unit.Order == CombatOrder.Follow && unit.FollowTarget is { } leader
                     ? Simulation.Unit(leader).Position : unit.AttackTarget is { } id
@@ -1676,12 +1678,12 @@ public partial class CombatViewport : Control
                 if (unit.PriorityTarget is { } priority && Simulation.Contacts(unit.Side).TryGetValue(priority, out var preferred))
                     DrawArc(ScreenPoint(preferred.LastKnownPosition), 16, 0, Mathf.Tau, 24, Ui.Gold, 1, true);
             }
-            var forward = ScreenPoint(unit.Position + unit.Facing * 22.5f);
+            var forward = ScreenPoint(unit.Position + unit.Facing * 22.5f * CombatRules.BodyScale);
             DrawLine(at, forward, color, 2, true);
-            var torso = ScreenPoint(unit.Position + unit.TorsoFacing * 31.5f);
+            var torso = ScreenPoint(unit.Position + unit.TorsoFacing * 31.5f * CombatRules.BodyScale);
             DrawLine(at, torso, Ui.Gold, 2, true);
             DrawCircle(torso, 2.5f, Ui.Gold);
-            var label = ScreenPoint(unit.Position, _models[unit.Id].Height + 4.5f);
+            var label = ScreenPoint(unit.Position, _models[unit.Id].Height + 4.5f * CombatRules.BodyScale);
             // Friendlies show only their callsign over a heat bar; enemies show their chassis.
             var text = friendly ? unit.Warrior.Callsign
                 : InspectedEnemy == unit.Id && Simulation.DetailsVisible(CombatSide.Friendly, unit.Id) ? unit.Spec.DisplayName : unit.Spec.Chassis;

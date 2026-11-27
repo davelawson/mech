@@ -51,8 +51,8 @@ public partial class MechModel : Node3D
             void fragment() { ALBEDO = team_color.rgb; }
             """ };
 
-    /// <summary>World metres per authored model unit; prepared models stand roughly 36–55 metres tall.</summary>
-    public const float MetresPerModelUnit = 15;
+    /// <summary>World metres per authored model unit; prepared models stand 7.8–14 metres tall.</summary>
+    public const float MetresPerModelUnit = CombatRules.MetresPerModelUnit;
 
     /// <summary>Builds the chassis with its weapons' visuals, resolved from the spec unless a mount map is given. Without
     /// <paramref name="hullOutline"/> the armor carries no outline pass; the battlefield draws its silhouette instead.</summary>

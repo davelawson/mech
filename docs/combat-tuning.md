@@ -9,7 +9,7 @@ The first tactical slice implements [the confirmed combat design](combat-design.
 | Distance unit | Metre; one world unit is one metre |
 | Arena | 5,760 × 5,760 metres, centered on the origin |
 | Starts | Drop sites in the [drop zones](#drop-phase) on opposite edges |
-| Occupied radius | 9.75 metres, with swept-disc collision checks |
+| Occupied radius | 2.275 metres (0.65 model units), with swept-disc collision checks |
 | Identification range | `1500 × (1 + (6 − Sensors) / 4) × (0.5 + (target tons − 20) / 160)` metres |
 | Detailed status range | Half identification range; same terrain sight requirement |
 | Movement limits | Stock Walk / Run MP × 25/9 metres per second (exactly 10 km/h per MP) for every chassis |
@@ -51,13 +51,13 @@ Terrain is an immutable, seeded heightfield shared by combat, navigation, render
 | Archipelago relief | Fractal noise (1,100 m) through a narrow smoothstep, up to 150 m, falling up to 45 m below the shore where the noise is low; plus 6 m of detail. The whole relief is shifted so 40% of it lies below the sea level of −1 m |
 | Volcanic relief | 60 m of ridged noise (900 m), 8 m of detail, and 5 cones, radius 350–650 m, height 35% of radius, with a caldera at the inner 22% sunk by a quarter of the cone's height |
 | Toxic relief | Fractal noise (1,200 m) through a smoothstep, up to 140 m, plus 40 m of ridged noise (500 m) and 6 m of detail |
-| Valley features | 40 rocks (radius 39–90 m, height 90–180 m), 48 forests (radius 90–180 m), 16 lakes (radius 90–180 m), 1–2 rivers |
+| Valley features | 40 rocks (radius 9.1–21 m, height 21–42 m), 48 forests (radius 90–180 m), 16 lakes (radius 90–180 m), 1–2 rivers |
 | Arctic features | 56 rocks (as Valley), 24 conifer stands (radius 60–120 m), 14 frozen lakes (radius 120–240 m), 0–1 frozen rivers |
-| Lunar features | 84 boulders (radius 24–60 m, height 30–100 m) in 12 fields |
+| Lunar features | 84 boulders (radius 5.6–14 m, height 7–23.3 m) in 12 fields |
 | Highlands features | 64 rocks (as Valley), 28 conifer stands (radius 60–120 m), 8 tarns (radius 60–120 m), 0–1 rivers |
-| Desert features | 48 rocks (radius 45–110 m, height 60–200 m), 10 scrub patches (radius 45–90 m), 4 oases (radius 60–90 m) |
+| Desert features | 48 rocks (radius 10.5–25.7 m, height 14–46.7 m), 10 scrub patches (radius 45–90 m), 4 oases (radius 60–90 m) |
 | Tropical features | 18 lakes (radius 90–180 m), 1–2 deep rivers, 72 jungle patches (radius 90–200 m), 24 rocks (as Valley) |
-| Grassland features | 16 rocks (radius 39–90 m, height 60–140 m), 14 copses (radius 60–120 m), 6 ponds (radius 90–150 m), 0–1 rivers |
+| Grassland features | 16 rocks (radius 9.1–21 m, height 14–32.7 m), 14 copses (radius 60–120 m), 6 ponds (radius 90–150 m), 0–1 rivers |
 | Archipelago features | Sea, 24 palm groves (radius 60–120 m), 20 rocks (as Valley); settlements on ground at least 5 m above the sea |
 | Volcanic features | 12 lava pools (radius 90–200 m), the first in the calderas; 1–2 lava rivers; 64 rocks (as Valley) |
 | Toxic features | 18 toxic pools (water, radius 90–180 m), 20 fungal thickets (radius 60–120 m), 40 rocks (as Valley) |
@@ -73,21 +73,21 @@ Terrain is an immutable, seeded heightfield shared by combat, navigation, render
 | Lava rivers | From a cone's caldera to the map edge or a lava pool more than 800 m (or the cone's radius) away; +10 per metre climbed |
 | Spills | A hollow below a river's surface joins the river (under 9 cells) or becomes a lake at its level; one that would reach lower liquid, a clear area or more than 220 cells gets a bank 0.5 m above the surface instead |
 | Vegetation | 70% speed |
-| Settlements | 1–6 clusters, 15–50 buildings in total, 15–60 m tall; 50 m lots on a grid with 60 m streets, levelled pads blended over 150 m |
+| Settlements | 1–6 clusters, 15–50 buildings in total, 3.5–14 m tall; 25 m lots on a grid with 30 m streets, levelled pads blended over 150 m. Building shapes are authored at the old 15-metre model unit and scaled by 7/30 with the mechs |
 | Road network | Minimum spanning tree between settlement pads by centre distance, plus the shortest remaining link; 1–2 through roads from a map edge point to the nearest road or outer street |
-| Road course | Grid search between outer streets costing grade (+10 × grade, +20 above 0.3), up to ×3 nearing the map edge (within 300 m), ×4 across a river or trench, ×3 across sea, plus 1,000 m for each new bridge begun, so a road detours up to a kilometre to avoid one; ×0.5 along an existing road; never through lakes (and one cell beyond), settlement lots or along the map edge. Every other node kept, corners cut four times; a cut corner that clips liquid more than 45 m from any of the route's own crossings returns to the route |
-| Road bed | 40 m wide; ground smoothed three times, then half cut and half filled to a 0.2 grade; banks at a 0.5 gradient up to 60 m beyond the road; never lowered below 0.5 m over liquid within two cells; pads, liquid and river trenches left alone |
+| Road course | Grid search between outer streets costing grade (+10 × grade, +20 above 0.3), up to ×3 nearing the map edge (within 300 m), ×4 across a river or trench, ×3 across sea, plus 1,000 m for each new bridge begun, so a road detours up to a kilometre to avoid one; ×0.5 along an existing road; never through lakes (and one cell beyond), settlement lots or along the map edge. Every other node kept, corners cut four times; a cut corner that clips liquid more than 22.5 m (1.5 cells) from any of the route's own crossings returns to the route |
+| Road bed | 20 m wide; ground smoothed three times, then half cut and half filled to a 0.2 grade; banks at a 0.5 gradient up to 60 m beyond the road; never lowered below 0.5 m over liquid within two cells; pads, liquid and river trenches left alone |
 | Road speed | 125% of open ground, on roads, decks and settlement pads; replaces vegetation's 70% |
-| Bridges | Wherever a road course crosses river, sea or trench, landing on dry ground 10 m beyond; deck 60 m wide and straight between its ends, at least 4 m above the liquid beneath, with approaches ramped at 0.2. Longest 400 m over a river, 1.2 km over the sea. Street bridges at the pad's level. A road whose span ends lie within 120 m in all of an existing bridge's uses that bridge |
-| Deck footing | A mech on a deck keeps its centre within 18.75 m of the deck's axis (half the width less mech radius + 1.5 m); within 41.25 m of the axis beside a deck is impassable. Navigation joins each bridge's two approaches, 25 m beyond its ends, by an edge along the deck |
+| Bridges | Wherever a road course crosses river, sea or liquid in a trench (a dry stretch of trench keeps the road on its bed), landing on dry ground 10 m beyond; deck 30 m wide and straight between its ends, at least 4 m above the liquid beneath, with approaches ramped at 0.2. Longest 400 m over a river, 1.2 km over the sea. Street bridges at the pad's level. A road whose span ends lie within 120 m in all of an existing bridge's uses that bridge |
+| Deck footing | A mech on a deck keeps its centre within 11.225 m of the deck's axis (half the width less mech radius + 1.5 m); within 18.775 m of the axis beside a deck is impassable. Navigation joins each bridge's two approaches, 25 m beyond its ends, by an edge along the deck |
 | Road drawing | Ribbons with vertices every 10 m along and across, each 1 m above the highest ground within 7 m; streets 1 m above their pad |
-| Road clearance | Rocks keep 30 m beyond their radius from roads, decks and streets; vegetation may cover roads |
-| Steepness limit | Gradient 0.65 (about 33°), including the mech footprint |
-| Slope speed factor | Divide terrain speed by 1 + local gradient |
+| Road clearance | Rocks keep 15 m beyond their radius from roads, decks and streets; vegetation may cover roads |
+| Steepness limit | Gradient 0.65 (about 33°), tested on the whole heightfield triangle under the mech's centre and under four points at mech radius, so steep ground blocks in triangles, never in slivers |
+| Slope speed factor | Divide terrain speed by 1 + local gradient, from height differences a quarter cell (3.75 m) either side |
 | Solid clearance | Rock radius, or building footprint, + mech radius + 1.5 metres |
-| Detection / firing height | 22.5 metres above the ground at each endpoint |
+| Detection / firing height | 5.25 metres (1.5 model units) above the ground at each endpoint |
 | Vegetation hit modifier | +1 per crossed patch, capped at +2 |
-| Navigation | Eight-neighbor 30-metre grid, continuous segment clearance checks every 7.5 metres |
+| Navigation | Eight-neighbor 15-metre grid (also the heightfield's), continuous segment clearance checks every 3.75 metres (a quarter cell) |
 | Sight checks | Every 6 metres along the elevated sight ray; rocks use ray/cylinder and buildings ray/box intersection |
 
 Generation permits unrestricted asymmetry while reserving clear spawn bands and a clear central rendezvous: relief fades to flat within 400 metres of them, though a river trench may cross them. Lakes keep 150 metres from spawns and settlements, and other features 60 metres from spawns and 150 metres from settlements; rocks and vegetation also keep 30 metres from liquid and river trenches. Buildings whose footprint reaches liquid or a river trench are left out. Generation validates paths between all possible spawn slots and the center, retries disconnected candidates, and requires every rock and vegetation kind and a lake of its biome's kind. Patch placement avoids overlapping patches. A point's liquid surface interpolates over the same triangles as the ground, so shorelines follow the ground's contour. Hand-built test terrain may still use cosine hills. The 30-metre navigation and heightfield grid is 193 × 193.
@@ -153,6 +153,8 @@ Lasers split damage across a one-second burn: half (rounded up) at discharge, th
 | Left / right arm | Same-side torso |
 | Left / right leg | Center torso, same-side torso |
 
+Effect sizes in this section (shell, bullet, beam, bolt, burst, blast, scorch, spark and fireball radii and lengths, debris and scatter offsets, missile skitter and miss offsets, particle sizes, speeds and forces) are authored at the old 15-metre model unit and multiplied in play by the body scale 7/30 (`CombatRules.BodyScale`), so they keep their size relative to the mechs: an AC/20 explosion reaches 4.2 metres and a destroyed location's fireball 8.75 metres. Flight speeds, ranges and times are not scaled.
+
 Autocannon shells fly at 1,800 metres per second, so flight time is planar distance / 1,800: about 0.45 seconds at the AC/20's 810-metre long range and 1.2 seconds at the AC/2's 2,160. Impact is applied in the first 0.05-second step at or after that time.
 
 | Caliber | Shell radius | Explosion radius | Explosion duration |
@@ -210,7 +212,7 @@ Each step moves units, integrates movement heat and cooling, refreshes detection
 | Range | Effective jump MP × 45 m (half a weapon-range hex), × 0.5 with a lost leg; a Jenner jumps 225 m |
 | Minimum jump | 15 m |
 | Flight time | 1.5 s + distance / 60 m/s (5.25 s for 225 m) |
-| Arc | Parabola peaking max(20 m, 0.2 × distance) above the line between takeoff and landing ground, raised to clear every rock and ridge beneath it by 6 m |
+| Arc | Parabola peaking max(20 m, 0.2 × distance) above the line between takeoff and landing ground, raised to clear every rock, roof and ridge beneath it by 1.4 m (6 m at the old model unit, scaled with the mechs), sampled at most a mech radius apart |
 | Heat | max(3, ⌈distance / 45 m⌉) at takeoff; never refused for heat. Enemy AI jumps only at or below its heat limit (default 10) |
 | Recharge | 10 s from landing |
 | Hit difficulty | +3 for an airborne attacker or target, replacing its walk/run/reverse modifier |

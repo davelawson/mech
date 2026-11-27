@@ -87,7 +87,7 @@ public partial class SmokeTests
             }
             Check(paths.Where(path => path.Shot.Hit).All(OnStruck), "hits end at the struck location on the target model");
             Check(paths.Where(path => !path.Shot.Hit).All(path =>
-                    path.To.DistanceTo(ModelAt(sim.Unit(path.Shot.TargetId)).LocationCenter(path.Shot.Location)) > 15),
+                    path.To.DistanceTo(ModelAt(sim.Unit(path.Shot.TargetId)).LocationCenter(path.Shot.Location)) > 15 * CombatRules.BodyScale),
                 "misses pass beside the rolled location");
 
             // Follow a laser discharge from the step it fires.
@@ -127,8 +127,9 @@ public partial class SmokeTests
                         .Lerp(struckModel.LocationCenter(burning.SecondLocation!.Value), .65f)) < 1e-2f
                     && Math.Abs(halo.GlobalTransform.Basis.Y.Length() - swept[0].From.DistanceTo(swept[0].To)) < 1e-2f,
                 "a full-length beam sweeps linearly from the first location toward the adjacent one over the burn");
-            Check(CombatViewport.LaserRadius(WeaponKind.SmallLaser) == .3f && CombatViewport.LaserRadius(WeaponKind.MediumLaser) == .6f
-                    && CombatViewport.LaserRadius(WeaponKind.LargeLaser) == .9f && CombatViewport.LaserRadius(WeaponKind.ERLargeLaser) == .9f,
+            var large = CombatViewport.LaserRadius(WeaponKind.LargeLaser);
+            Check(Mathf.IsEqualApprox(CombatViewport.LaserRadius(WeaponKind.SmallLaser), large / 3) && Mathf.IsEqualApprox(CombatViewport.LaserRadius(WeaponKind.MediumLaser), large * 2 / 3)
+                    && Mathf.IsEqualApprox(large, .9f * CombatRules.BodyScale) && CombatViewport.LaserRadius(WeaponKind.ERLargeLaser) == large,
                 "beam widths are one, two and three thirds of the large laser's");
 
             var miss = Fresh(shot => !shot.Hit);
@@ -207,10 +208,10 @@ public partial class SmokeTests
                 "a destroyed shooter's beam vanishes immediately");
 
             Check(new[] { WeaponKind.AC2, WeaponKind.AC5, WeaponKind.AC10, WeaponKind.AC20 }
-                    .Select(CombatViewport.ExplosionRadius).Zip(new[] { 4.5f, 7.5f, 12f, 18f }).All(pair => pair.First == pair.Second),
+                    .Select(CombatViewport.ExplosionRadius).Zip(new[] { 4.5f, 7.5f, 12f, 18f }).All(pair => Mathf.IsEqualApprox(pair.First, pair.Second * CombatRules.BodyScale)),
                 "autocannon explosions scale with caliber");
             Check(new[] { WeaponKind.AC2, WeaponKind.AC5, WeaponKind.AC10, WeaponKind.AC20 }
-                    .Select(CombatViewport.ShellRadius).Zip(new[] { .9f, 1.2f, 1.5f, 1.95f }).All(pair => pair.First == pair.Second),
+                    .Select(CombatViewport.ShellRadius).Zip(new[] { .9f, 1.2f, 1.5f, 1.95f }).All(pair => Mathf.IsEqualApprox(pair.First, pair.Second * CombatRules.BodyScale)),
                 "autocannon bullets scale with caliber");
             CombatShot? shell = null;
             Deploy(atlasFires: true);
@@ -282,7 +283,7 @@ public partial class SmokeTests
                 Check(swarm.All(item => item.Flying && !item.Exploding && item.Position.DistanceTo(item.Course)
                         <= CombatViewport.MissileWobble * CombatViewport.WobbleEnvelope(item.Progress) + 1e-2f),
                     "missiles skitter within their wobble envelope mid-flight");
-                Check(swarm.Count(item => item.Position.DistanceTo(item.Course) > 1.5f) > swarm.Length / 2
+                Check(swarm.Count(item => item.Position.DistanceTo(item.Course) > 1.5f * CombatRules.BodyScale) > swarm.Length / 2
                         && swarm.Select(item => item.Position - item.Course).Distinct().Count() == swarm.Length,
                     "each missile skitters along its own randomized path");
                 Check(swarm.Where(item => item.Missile.Hit).All(item => item.Progress < .5f),
@@ -365,7 +366,7 @@ public partial class SmokeTests
             {
                 var aim = ModelAt(sim.Unit(spray!.TargetId)).LocationCenter(spray.Location);
                 sparked |= Rounds(spray).Any(round => round.Sparking);
-                wide &= Rounds(spray).Where(round => round.Launched).All(round => round.End.DistanceTo(aim) > 15);
+                wide &= Rounds(spray).Where(round => round.Launched).All(round => round.End.DistanceTo(aim) > 15 * CombatRules.BodyScale);
                 sim.Advance(CombatRules.StepSeconds); field._Process(0);
             }
             Check(!sparked && wide && Rounds(spray!).Length == 0, "missed rounds spray beside and past the rolled location and vanish without sparks");
@@ -404,7 +405,7 @@ public partial class SmokeTests
                     && item.Position.IsEqualApprox(blastCenter) && item.Emitters.All(emitter => emitter.Emitting
                         && emitter.GlobalPosition.IsEqualApprox(blastCenter))),
                 "each critical hit flashes at the struck location's center with its particles emitting there");
-            Check(blastsByKind[CriticalBlastKind.Explosion].Radius == CombatViewport.AmmoBlastRadius(600) && CombatViewport.AmmoBlastRadius(600) == 44
+            Check(blastsByKind[CriticalBlastKind.Explosion].Radius == CombatViewport.AmmoBlastRadius(600) && Mathf.IsEqualApprox(CombatViewport.AmmoBlastRadius(600), 44 * CombatRules.BodyScale)
                     && CombatViewport.AmmoBlastRadius(100) < CombatViewport.AmmoBlastRadius(600) && CombatViewport.AmmoBlastRadius(600) > CombatViewport.DestructionRadius
                     && blastsByKind[CriticalBlastKind.Explosion].Emitters.Count == 3,
                 "an ammunition explosion is a fireball sized by its damage with fragments, a smoke plume and embers");
@@ -477,7 +478,7 @@ public partial class SmokeTests
                         return new Vector4(pair.Second.R - expected.R, pair.Second.G - expected.G, pair.Second.B - expected.B, pair.Second.A - expected.A).Length() < .01f;
                     }),
                 "missile trails run from white at the missile through yellow to a fading orange tail");
-            Check(CombatViewport.MissileTrailSeconds <= .04f && CombatViewport.MissileWobble == 11.25f, "missile trails are short and the skitter is gentle");
+            Check(CombatViewport.MissileTrailSeconds <= .04f && Mathf.IsEqualApprox(CombatViewport.MissileWobble, 11.25f * CombatRules.BodyScale), "missile trails are short and the skitter is gentle");
             Check(CombatViewport.WobbleEnvelope(0) == 0 && CombatViewport.WobbleEnvelope(1) == 0 && CombatViewport.WobbleEnvelope(.5f) == 1,
                 "the skitter builds after launch and vanishes on arrival");
 

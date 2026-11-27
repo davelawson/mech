@@ -107,8 +107,8 @@ public partial class SmokeTests
             {
                 hangar.Preview._Process(1d / 60);
                 articulated |= Math.Abs(ankles[0].Position.Y - ankles[1].Position.Y) > .001f
-                    || Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .3f;
-                grounded &= feet.All(foot => Bottom(foot) >= -.03f) && feet.Any(foot => Bottom(foot) < .3f);
+                    || Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .3f * CombatRules.BodyScale;
+                grounded &= feet.All(foot => Bottom(foot) >= -.03f * CombatRules.BodyScale) && feet.Any(foot => Bottom(foot) < .3f * CombatRules.BodyScale);
                 if (frame is 15 or 35 or 55) await Capture($"awesome-{(gait == 1 ? "walk" : "run")}-{frame}");
             }
             Check(articulated && grounded, $"Awesome gait {gait} articulates legs with ground clearance and a planted support foot");
@@ -123,7 +123,7 @@ public partial class SmokeTests
         for (var i = 0; i < 90; i++)
         {
             model.AnimateLocomotion(1f / 60, 0, walk, run, Mathf.DegToRad(45));
-            pivotStepping |= Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .3f;
+            pivotStepping |= Math.Abs(ankles[0].GlobalPosition.Y - ankles[1].GlobalPosition.Y) > .3f * CombatRules.BodyScale;
         }
         Check(pivotStepping, "stationary turning produces alternating pivot steps");
         await Capture("awesome-pivot");

@@ -6,7 +6,7 @@ Tests are split into **test groups**, mostly one per screen. A group is a part o
 scripts/mech test hangar            # one group
 scripts/mech test roster hangar     # several groups
 scripts/mech test --list            # group names
-scripts/mech test                   # full suite, about 45 s
+scripts/mech test                   # full suite, about 2.5 min
 scripts/mech capture combat-ui      # rendered run with screenshots in TestResults/
 ```
 
@@ -22,13 +22,13 @@ The engine-free check suites run only as xUnit tests in `Tests.Unit/`, without s
 scripts/mech unit                   # same as dotnet test --project Tests.Unit
 ```
 
-Each test class runs one suite from `Tests/` (`CatalogChecks`, `CampaignChecks`, `MissionChecks`, `SalvageChecks`, `ReputationChecks`, `RosterChecks`, `ServiceRecordChecks`, `TravelChecks`, `HangarChecks`, `NetworkChecks`, `CombatChecks`, `PatrolChecks`, `TakeAndHoldChecks`, `TerrainChecks`) and reports every failed check, not only the first. xUnit runs classes in parallel. The longest suites are split into parts, each with its own class (`TerrainGeneration`, `TerrainFeatures`, `TerrainEngagements`, `TerrainLanceEngagement`, `NetworkSessions`, `NetworkReplica`), and the suite's `Run` still calls every part. Split any part that grows past about 20 s the same way. A whole run takes about 20 s, led by the replicated battle and the four-on-four terrain engagement. GitHub Actions (`.github/workflows/unit-tests.yml`) runs it on every push and pull request.
+Each test class runs one suite from `Tests/` (`CatalogChecks`, `CampaignChecks`, `MissionChecks`, `SalvageChecks`, `ReputationChecks`, `RosterChecks`, `ServiceRecordChecks`, `TravelChecks`, `HangarChecks`, `NetworkChecks`, `CombatChecks`, `PatrolChecks`, `TakeAndHoldChecks`, `TerrainChecks`) and reports every failed check, not only the first. xUnit runs classes in parallel. The longest suites are split into parts, each with its own class (`TerrainGeneration`, `TerrainSeed7`, `TerrainSeedMinus41`, `TerrainFeatures`, `TerrainEngagements`, `TerrainLanceEngagement`, `NetworkSessions`, `NetworkReplica`), and the suite's `Run` still calls every part. Split any part that grows past about 20 s the same way. A whole run takes about 1.5 min, led by terrain generation (each map takes 1–2 s on the 15 m grid) and the terrain engagements; under that parallel load several combat suites run past 20 s too. GitHub Actions (`.github/workflows/unit-tests.yml`) runs it on every push and pull request.
 
 These suites must stay engine-free: they may use Godot math structs (`Vector2`, `Vector3`, `Mathf`) but nothing that calls into the engine, such as `GD.Print`, nodes, resources, or static members of node classes that build meshes or materials. Write diagnostic output with `Console.WriteLine`. An engine call crashes the unit run with exit code 139 rather than failing a check. Hardpoint data therefore lives in `PreparedMechModels`, not on `MechModel`.
 
 `scripts/mech test <group>` runs a group's unit classes for you. `unit_classes` in `scripts/mech` maps each group to its classes: `map` → `Travel`, `roster` → `Roster`, `ServiceHistory`, `hangar` → `Hangar`, `missions` → `Missions`, `Reputation`, `SalvageAndInsurance`, `finance` → `Campaign`, `multiplayer` → `Network*`. `catalog` → `Catalog` and `combat-sim` → `Combat`, `Patrol`, `TakeAndHold`, `Terrain*` are unit classes only. When you add a suite or a class, add it there and here. Run `scripts/mech unit` for the whole unit suite. `SkillUseRates` is explicit, so neither runs it: it measures the [skill gain lottery](combat-tuning.md#skill-gain-lottery)'s rates over simulated battles in about ten minutes, when run on its own with `--explicit only`.
 
-Generating a battlefield takes about 0.1 s. It used to take 2 s, before navigation edges were evaluated once per pair and in parallel rows. Check how long a new test spends building terrain before adding many maps.
+Generating a battlefield takes about 1–2 s on the 15 m grid (0.25–0.65 s on the old 30 m grid). It once took longer still, before navigation edges were evaluated once per pair and in parallel rows. Check how long a new test spends building terrain before adding many maps.
 
 ## Groups
 

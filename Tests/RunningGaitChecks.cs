@@ -13,7 +13,7 @@ public partial class SmokeTests
         Check(locust.Airborne == 0 && locust.Single >= .95f, $"a running Locust has exactly one foot planted almost all the time ({locust.Single:P1})");
         Check(Math.Abs(locust.FootfallRate - locust.ExpectedRate) <= .05f * locust.ExpectedRate,
             $"a running Locust steps at its half-stride stance cadence ({locust.FootfallRate:F2} of {locust.ExpectedRate:F2} footfalls/s)");
-        Check(locust.Spacing >= 19, $"a running Locust's footprints land long strides apart ({locust.Spacing:F1} m)");
+        Check(locust.Spacing >= .6f * locust.Height, $"a running Locust's footprints land long strides apart ({locust.Spacing:F1} m, {locust.Spacing / locust.Height:P0} of its height)");
         Check(locust.Bounce >= .04f && locust.FootfallDip <= .1f,
             $"a running Locust's body dips as each foot lands and rises between footfalls (bounce {locust.Bounce:F3}, dip {locust.FootfallDip:P0})");
         var walk = Gait("locust", MovementMode.Walk);
@@ -24,7 +24,7 @@ public partial class SmokeTests
     }
 
     private sealed record GaitMeasure(float Single, float Double, float Airborne, float FootfallRate, float ExpectedRate, float Spacing,
-        float Bounce, float FootfallDip);
+        float Bounce, float FootfallDip, float Height);
 
     /// <summary>Runs a chassis at a steady walk or run and measures foot support, cadence and body bounce at 1/600 s.</summary>
     private GaitMeasure Gait(string id, MovementMode mode)
@@ -43,7 +43,7 @@ public partial class SmokeTests
         {
             var before = model.Footfalls;
             model.AnimateLocomotion(delta, speed, walk, run);
-            var grounded = feet.Count(foot => Math.Abs(Enumerable.Range(0, 8).Min(i => (foot.GlobalTransform * foot.Mesh.GetAabb().GetEndpoint(i)).Y)) < .002f);
+            var grounded = feet.Count(foot => Math.Abs(Enumerable.Range(0, 8).Min(i => (foot.GlobalTransform * foot.Mesh.GetAabb().GetEndpoint(i)).Y)) < .002f * CombatRules.BodyScale);
             if (grounded == 1) single++; else if (grounded == 0) none++; else both++;
             heights.Add(body.Position.Y);
             if (model.Footfalls != before) landings.Add(body.Position.Y);
@@ -53,7 +53,8 @@ public partial class SmokeTests
         var expected = speed * stance / (model.StrideAmplitude(speed, mode == MovementMode.Run) * model.Scale.X);
         var (low, high) = (heights.Min(), heights.Max());
         var dip = landings.Count == 0 || high <= low ? 1 : landings.Max(height => (height - low) / (high - low));
+        var height = model.Height;
         model.QueueFree();
-        return new(single / (float)samples, both / (float)samples, none / (float)samples, rate, expected, speed / rate, high - low, dip);
+        return new(single / (float)samples, both / (float)samples, none / (float)samples, rate, expected, speed / rate, high - low, dip, height);
     }
 }

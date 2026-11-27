@@ -3,6 +3,7 @@ This file serves as a repository for ideas that await implementation or further 
 
 ## Strategy Layer
 ### Drafting Interface
+Size of mechs in the drafting interface is much too small.
 
 ### Calendar Interface
 

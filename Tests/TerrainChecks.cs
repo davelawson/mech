@@ -21,7 +21,7 @@ internal static class TerrainChecks
     /// <summary>Every part in turn. The unit tests run the parts separately, in parallel.</summary>
     public static void Run(Action<bool, string> check)
     {
-        RunGeneration(check); RunFeatures(check); RunEngagements(check); RunLanceEngagement(check);
+        RunGeneration(check); RunSeed7(check); RunSeedMinus41(check); RunFeatures(check); RunEngagements(check); RunLanceEngagement(check);
     }
     /// <summary>Seed 183 in every biome.</summary>
     private static Dictionary<Biome, BattlefieldTerrain> Standard() => Biomes.All.ToDictionary(spec => spec.Biome, spec => BattlefieldTerrain.Generate(183, spec.Biome));
@@ -48,7 +48,7 @@ internal static class TerrainChecks
             && first.Liquids.Count(body => body.Shape == LiquidShape.Lake) >= 12 && first.Liquids.Count(body => body.Shape == LiquidShape.River) is 1 or 2
             && first.Liquids.All(body => body.Kind == TerrainKind.Water),
             "valley maps carry rocks, forests, lakes and rivers at the agreed density");
-        CheckBiomes(standard, check);
+        CheckBiomes(standard, check, 183);
         CheckBuildings(check);
         check(first.Patches.Any(patch => Math.Abs(patch.Center.X) > 1440) && first.Patches.Any(patch => Math.Abs(patch.Center.Y) > 1440),
             "terrain features populate the expanded battlefield beyond the old boundaries");
@@ -59,8 +59,9 @@ internal static class TerrainChecks
             foreach (var x in new[] { -360f, -240, -120, 0, 120, 240, 360 }) foreach (var z in new[] { -1920f, 1920 })
             {
                 var spawn = new Vector2(x, z);
-                // A shallow or frozen river may run through the spawn band, so mechs may start wading in its trench.
-                check(terrain.Passable(spawn) && Math.Abs(terrain.HeightAt(spawn)) <= 15
+                // A shallow or frozen river may run through the spawn band, so mechs may start wading in its trench. The 15 m grid
+                // reaches a trench's full depth, up to 20 m where a river carved a gorge upstream.
+                check(terrain.Passable(spawn) && Math.Abs(terrain.HeightAt(spawn)) <= 20
                     && new[] { TerrainKind.Rock, TerrainKind.Vegetation, TerrainKind.DeepWater, TerrainKind.Lava }.All(kind => !terrain.Contains(kind, spawn))
                     && (terrain.HeightAt(spawn) == 0 || terrain.Liquids.Any(body => body.Shape == LiquidShape.River)),
                     $"every force size has clear spawn positions ({terrain.Biome} {terrain.Seed} {spawn})");
@@ -83,7 +84,9 @@ internal static class TerrainChecks
     public static void RunFeatures(Action<bool, string> check)
     {
         var rocks = new BattlefieldTerrain(1, [new(TerrainKind.Rock, Vector2.Zero, 60, 120)], []);
-        check(!rocks.Passable(new Vector2(71, 0)) && rocks.Passable(new Vector2(72, 0)), "rocks reserve space for mech radius");
+        // Rocks and buildings reserve their footprint plus the mech radius and 1.5 metres.
+        const float clearance = CombatRules.UnitRadius + 1.5f;
+        check(!rocks.Passable(new Vector2(60 + clearance - .5f, 0)) && rocks.Passable(new Vector2(60 + clearance + .5f, 0)), "rocks reserve space for mech radius");
         check(!rocks.ClearSight(new Vector2(-240, 0), new Vector2(240, 0)) && rocks.ClearSight(new Vector2(-240, 120), new Vector2(240, 120)), "rocks block intersecting sight and firing rays");
         var path = rocks.FindPath(new Vector2(-240, 0), new Vector2(240, 0)); var origin = new Vector2(-240, 0);
         check(path.Count > 1, "navigation finds a detour around solid terrain");
@@ -94,7 +97,7 @@ internal static class TerrainChecks
         CheckSightAndFire(rocks, check);
         var hill = new BattlefieldTerrain(2, [], [new(Vector2.Zero, 240, 180)]);
         check(hill.HeightAt(Vector2.Zero) == 180 && !hill.ClearSight(new Vector2(-300, 0), new Vector2(300, 0)), "hills have actual elevation and block low sight rays");
-        check(hill.ClearSight(new Vector2(-30, 0), new Vector2(30, 0)), "elevated viewpoints can see over the hill crest");
+        check(hill.ClearSight(new Vector2(-10, 0), new Vector2(10, 0)), "elevated viewpoints can see over the hill crest");
         check(!hill.Passable(new Vector2(120, 0)) && hill.Passable(new Vector2(360, 0)), "steep hill slopes are impassable");
         var outerHill = new BattlefieldTerrain(6, [], [new(new Vector2(2160, 2100), 240, 180)]);
         check(outerHill.HeightAt(new(2160, 2100)) == 180 && !outerHill.Passable(new(2280, 2100)), "expanded heightfield samples real elevation and slope beyond the old boundaries");
@@ -146,7 +149,7 @@ internal static class TerrainChecks
     }
     private static IEnumerable<Vector2> Grid()
     {
-        for (var z = -2880f; z <= 2880; z += 30) for (var x = -2880f; x <= 2880; x += 30) yield return new(x, z);
+        for (var z = -2880f; z <= 2880; z += BattlefieldTerrain.CellSize) for (var x = -2880f; x <= 2880; x += BattlefieldTerrain.CellSize) yield return new(x, z);
     }
     private static bool SameLiquids(BattlefieldTerrain a, BattlefieldTerrain b) =>
         a.Liquids.Count == b.Liquids.Count && a.Liquids.Zip(b.Liquids).All(pair => pair.First.Shape == pair.Second.Shape && pair.First.Kind == pair.Second.Kind
@@ -166,7 +169,7 @@ internal static class TerrainChecks
             check(nodes.Length > 0 && nodes.All(point => terrain.LiquidAt(point) is not null) && levels.Max() - levels.Min() < .01f, $"{name} lake {lake} is level");
             var level = levels.Max();
             // Every neighbour of a lake is liquid too, or ground at least as high as the lake.
-            check(nodes.All(point => Enumerable.Range(0, 8).Select(i => point + Vector2.FromAngle(i * Mathf.Tau / 8) * 30 * (i % 2 == 0 ? 1 : Mathf.Sqrt2))
+            check(nodes.All(point => Enumerable.Range(0, 8).Select(i => point + Vector2.FromAngle(i * Mathf.Tau / 8) * BattlefieldTerrain.CellSize * (i % 2 == 0 ? 1 : Mathf.Sqrt2))
                     .All(next => terrain.LiquidAt(next) is not null || terrain.HeightAt(next) >= level - .01f)),
                 $"{name} lake {lake} lies in a hollow the ground holds");
         }
@@ -175,8 +178,8 @@ internal static class TerrainChecks
         {
             var nodes = terrain.LiquidNodes(lake).ToArray();
             var middle = nodes.Aggregate(Vector2.Zero, (sum, point) => sum + point) / nodes.Length;
-            var reach = nodes.Max(point => point.DistanceTo(middle)) + 15;
-            return nodes.Length >= 12 && nodes.Length * 900 < Mathf.Pi * reach * reach * .6f;
+            var reach = nodes.Max(point => point.DistanceTo(middle)) + BattlefieldTerrain.CellSize / 2;
+            return nodes.Length >= 12 && nodes.Length * BattlefieldTerrain.CellSize * BattlefieldTerrain.CellSize < Mathf.Pi * reach * reach * .6f;
         }), $"{name} lakes follow the ground's contours, not circles");
         foreach (var river in terrain.Liquids.Where(body => body.Shape == LiquidShape.River))
         {
@@ -231,7 +234,9 @@ internal static class TerrainChecks
         var forest = new TerrainPatch(TerrainKind.Vegetation, new(-400, 0), 60);
         var terrain = new BattlefieldTerrain(8, [forest], [], [], null, relief, null, new([road], [bridge], []));
         check(terrain.HeightAt(Vector2.Zero) == 0 && terrain.GroundAt(Vector2.Zero) == -20, "a bridge deck stands over the ground beneath it");
-        check(terrain.Passable(Vector2.Zero) && terrain.Passable(new(0, 15)) && !terrain.Passable(new(0, 35)) && terrain.Passable(new(0, 70)),
+        // A mech keeps its centre a mech radius and 1.5 metres inside the rails, and keeps as far clear of the deck beside it.
+        var footing = BattlefieldTerrain.DeckWidth / 2 - CombatRules.UnitRadius - 1.5f;
+        check(terrain.Passable(Vector2.Zero) && terrain.Passable(new(0, footing - .5f)) && !terrain.Passable(new(0, BattlefieldTerrain.DeckWidth / 2 + 1)) && terrain.Passable(new(0, 70)),
             "mechs walk the deck between its rails, and the ravine floor beyond them");
         check(!terrain.CanTraverse(new(0, -80), new(0, 80)) && !terrain.CanTraverse(new(0, 70), new(0, 10)),
             "nothing passes beneath a bridge or climbs onto it from the side");
@@ -265,22 +270,24 @@ internal static class TerrainChecks
         foreach (var bridge in terrain.Bridges)
         {
             var middle = (bridge.From + bridge.To) / 2; var across = (bridge.To - bridge.From).Normalized().Orthogonal();
-            check(OnDeck(middle) && terrain.Passable(middle) && terrain.LiquidAt(middle) is null && !terrain.Passable(middle + across * (BattlefieldTerrain.DeckWidth / 2 + 5)),
+            check(OnDeck(middle) && terrain.Passable(middle) && terrain.LiquidAt(middle) is null && !terrain.Passable(middle + across * (BattlefieldTerrain.DeckWidth / 2 + CombatRules.UnitRadius)),
                 $"{name} {bridge.Over} bridge at {middle} carries mechs between its rails");
         }
     }
     private static (float Low, float High) Relief(BattlefieldTerrain terrain)
     {
         float low = float.MaxValue, high = float.MinValue;
-        for (var z = -2880f; z <= 2880; z += 30) for (var x = -2880f; x <= 2880; x += 30)
+        for (var z = -2880f; z <= 2880; z += BattlefieldTerrain.CellSize) for (var x = -2880f; x <= 2880; x += BattlefieldTerrain.CellSize)
         { var height = terrain.HeightAt(new(x, z)); low = Math.Min(low, height); high = Math.Max(high, height); }
         return (low, high);
     }
-    private static void CheckBiomes(IReadOnlyDictionary<Biome, BattlefieldTerrain> standard, Action<bool, string> check)
+    /// <summary>Every biome's checks for another seed: each seed is its own part, since a seed's ten maps take a while to generate.</summary>
+    public static void RunSeed7(Action<bool, string> check) => CheckBiomes(null, check, 7);
+    public static void RunSeedMinus41(Action<bool, string> check) => CheckBiomes(null, check, -41);
+    private static void CheckBiomes(IReadOnlyDictionary<Biome, BattlefieldTerrain>? standard, Action<bool, string> check, int seed)
     {
-        foreach (var seed in new[] { 183, 7, -41 })
         {
-            var all = seed == 183 ? standard : Biomes.All.ToDictionary(spec => spec.Biome, spec => BattlefieldTerrain.Generate(seed, spec.Biome));
+            var all = standard ?? Biomes.All.ToDictionary(spec => spec.Biome, spec => BattlefieldTerrain.Generate(seed, spec.Biome));
             var valley = all[Biome.Valley]; var arctic = all[Biome.Arctic]; var lunar = all[Biome.Lunar];
             check(arctic.Biome == Biome.Arctic && arctic.Liquids.Any(body => body.Shape == LiquidShape.Lake) && arctic.Patches.Any(patch => patch.Kind == TerrainKind.Vegetation)
                 && arctic.Liquids.All(body => body.Kind == TerrainKind.Ice), "arctic maps have frozen lakes and sparse forests but no open water");
@@ -328,8 +335,8 @@ internal static class TerrainChecks
                 var clusters = terrain.Buildings.GroupBy(building => building.Cluster).ToArray();
                 check(clusters.Length is >= BattlefieldTerrain.MinClusters and <= BattlefieldTerrain.MaxClusters
                     && terrain.Buildings.Count is >= BattlefieldTerrain.MinBuildings and <= BattlefieldTerrain.MaxBuildings
-                    && terrain.Buildings.All(building => building.Height is >= 15 and <= 60),
-                    $"{terrain.Biome} settlements hold 15–50 buildings, 15–60 m tall, in one to six clusters: {terrain.Buildings.Count} in {clusters.Length}");
+                    && terrain.Buildings.All(building => building.Height is >= 15 * CombatRules.BodyScale - .001f and <= 60 * CombatRules.BodyScale + .001f),
+                    $"{terrain.Biome} settlements hold 15–50 buildings, 3.5–14 m tall, in one to six clusters: {terrain.Buildings.Count} in {clusters.Length}");
                 var styles = terrain.Buildings.Select(building => building.Style).ToHashSet();
                 check(terrain.Biome switch
                 {
@@ -361,15 +368,18 @@ internal static class TerrainChecks
     {
         var block = new TerrainBuilding(BuildingStyle.Block, 0, Vector2.Zero, new(30, 15), 0, 40);
         var solid = new BattlefieldTerrain(1, [], [], [block]);
-        check(!solid.Passable(new(41, 0)) && solid.Passable(new(42, 0)) && !solid.Passable(new(0, 26)) && solid.Passable(new(0, 27)),
+        const float clearance = CombatRules.UnitRadius + 1.5f;
+        check(!solid.Passable(new(30 + clearance - .5f, 0)) && solid.Passable(new(30 + clearance + .5f, 0))
+            && !solid.Passable(new(0, 15 + clearance - .5f)) && solid.Passable(new(0, 15 + clearance + .5f)),
             "rectangular buildings reserve their footprint plus mech clearance");
         var turned = new BattlefieldTerrain(2, [], [], [block with { Rotation = Mathf.Pi / 2 }]);
-        check(turned.Passable(new(27, 0)) && !turned.Passable(new(0, 41)) && turned.Passable(new(0, 42)), "rotated footprints turn with the building");
+        check(turned.Passable(new(15 + clearance + .5f, 0)) && !turned.Passable(new(0, 30 + clearance - .5f)) && turned.Passable(new(0, 30 + clearance + .5f)),
+            "rotated footprints turn with the building");
         var diagonal = new BattlefieldTerrain(3, [], [], [block with { Rotation = Mathf.Pi / 4 }]);
         check(!diagonal.Passable(new(20, 20)) && diagonal.Passable(new(-20, 20)) && diagonal.Passable(new(41, 0)),
             "diagonal footprints block along their length and leave the space beside their corners open");
         check(!solid.ClearSight(new(-240, 0), new(240, 0)) && solid.ClearSight(new(-240, 120), new(240, 120)), "buildings block intersecting sight and firing rays");
-        check(solid.ObstacleTop(Vector2.Zero) == 40 && solid.SolidTop(new(35, 0)) == 0 && solid.ObstacleTop(new(35, 0)) == 40,
+        check(solid.ObstacleTop(Vector2.Zero) == 40 && solid.SolidTop(new(30 + CombatRules.UnitRadius / 2, 0)) == 0 && solid.ObstacleTop(new(30 + CombatRules.UnitRadius / 2, 0)) == 40,
             "jumping mechs must clear roofs, including the mech's own width");
         check(solid.RayDistance(new(0, 100, 0), Vector3.Down, 200) is { } roof && Math.Abs(roof - 60) < .01f
             && solid.RayDistance(new(-100, 20, 0), Vector3.Right, 200) is { } wall && Math.Abs(wall - 70) < .01f,
@@ -381,21 +391,22 @@ internal static class TerrainChecks
         check(path.Count > 1, "navigation detours around buildings");
         foreach (var waypoint in path) { check(solid.CanTraverse(origin, waypoint), "detours cannot clip building clearance"); origin = waypoint; }
         var dome = new BattlefieldTerrain(5, [], [], [new(BuildingStyle.Dome, 0, Vector2.Zero, new(20, 0), 1, 30)]);
-        check(!dome.Passable(new(21, 21)) && dome.Passable(new(23, 23)) && !dome.ClearSight(new(-240, 10), new(240, 10)),
+        var diagonalReach = (20 + clearance) / Mathf.Sqrt2;
+        check(!dome.Passable(Vector2.One * (diagonalReach - .5f)) && dome.Passable(Vector2.One * (diagonalReach + .5f)) && !dome.ClearSight(new(-240, 10), new(240, 10)),
             "domes use round footprints");
         CheckMovement(solid, check);
     }
     private static void CheckNavigationQueries(BattlefieldTerrain terrain, Action<bool, string> check)
     {
         var from = new Vector2(-360, 1920); var to = new Vector2(360, -1920);
-        Vector2[] expected = [new(-780, 1560), new(-240, -900), new(30, -1230), to];
+        Vector2[] expected = [new(-705, 1515), new(-165, -990), new(120, -1410), to];
         var retained = terrain.FindPath(from, to);
-        check(retained.SequenceEqual(expected), "seeded path retains its original waypoints and tie ordering");
+        check(retained.SequenceEqual(expected), $"seeded path retains its original waypoints and tie ordering: {string.Join(", ", retained)}");
         var rocks = new BattlefieldTerrain(1, [new(TerrainKind.Rock, Vector2.Zero, 60, 120)], []);
-        check(rocks.FindPath(new(-240, 0), new(240, 0)).SequenceEqual(new Vector2[] { new(30, -90), new(240, 0) }),
-            "symmetric rock detour preserves the original route choice");
-        check(rocks.FiringPosition(new(-240, 0), new(240, 0), 180, 450) == new Vector2(60, -60),
-            "equally ranked clear firing positions retain row-major tie ordering");
+        check(rocks.FindPath(new(-240, 0), new(240, 0)).SequenceEqual(new Vector2[] { new(30, -75), new(240, 0) }),
+            $"symmetric rock detour preserves the original route choice: {string.Join(", ", rocks.FindPath(new(-240, 0), new(240, 0)))}");
+        check(rocks.FiringPosition(new(-240, 0), new(240, 0), 180, 450) == new Vector2(60, -30),
+            $"equally ranked clear firing positions retain row-major tie ordering: {rocks.FiringPosition(new(-240, 0), new(240, 0), 180, 450)}");
         check(rocks.FiringPosition(new(-240, 0), new(240, 0), 180, 0) == new Vector2(-240, 0),
             "firing search with no eligible cells returns its starting position");
         var routes = new IReadOnlyList<Vector2>[8];
@@ -407,7 +418,7 @@ internal static class TerrainChecks
         });
         var reverse = terrain.FindPath(to, from);
         check(routes.Select((route, index) => route.SequenceEqual(index % 2 == 0 ? expected : reverse)).All(equal => equal)
-            && firing.All(point => point == new Vector2(60, -60)) && retained.SequenceEqual(expected),
+            && firing.All(point => point == new Vector2(60, -30)) && retained.SequenceEqual(expected),
             "concurrent navigation queries and buffer reuse preserve independent returned paths");
 
         // Wide allocation budgets catch grid-sized scratch arrays without depending on machine timing.

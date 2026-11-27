@@ -360,7 +360,7 @@ public static class BattlefieldTerrainView
         const float step = 10;
         foreach (var street in terrain.Streets)
         {
-            var extent = street.Half + new Vector2(30, 30);
+            var extent = street.Half + Vector2.One * BattlefieldTerrain.StreetWidth / 2;
             for (var x = -extent.X; x < extent.X - .01f; x += step) for (var z = -extent.Y; z < extent.Y - .01f; z += step)
             {
                 var corners = new[] { new Vector2(x, z), new(x + step, z), new(x, z + step), new(x + step, z + step) }.Select(street.World).ToArray();
@@ -450,8 +450,11 @@ public static class BattlefieldTerrainView
     {
         var ground = terrain.HeightAt(building.Center);
         // Godot turns +X toward −Z for a positive yaw; the simulation turns X toward +Z.
-        var node = new Node3D { Name = building.Style.ToString(), Position = new Vector3(building.Center.X, ground, building.Center.Y), Rotation = new Vector3(0, -building.Rotation, 0) };
-        var size = building.HalfSize * 2; var height = building.Height;
+        // Details (bands, caps, floors, footings) are authored at the old 15-metre model unit: build at that size, then scale with the mechs.
+        const float scale = CombatRules.BodyScale;
+        var node = new Node3D { Name = building.Style.ToString(), Position = new Vector3(building.Center.X, ground, building.Center.Y),
+            Rotation = new Vector3(0, -building.Rotation, 0), Scale = Vector3.One * scale };
+        var size = building.HalfSize * 2 / scale; var height = building.Height / scale;
         void Add(Mesh mesh, Vector3 position, Color color, float roughness = .9f, float metallic = 0, Vector3? rotation = null, Color? glow = null) =>
             node.AddChild(new MeshInstance3D
             {
@@ -470,7 +473,7 @@ public static class BattlefieldTerrainView
         void Column(float radius, float bottom, float tall, Color color, float metallic = 0) =>
             Add(new CylinderMesh { TopRadius = radius, BottomRadius = radius, Height = tall + 6, RadialSegments = 20, Rings = 1 },
                 new Vector3(0, bottom + tall / 2 - 3, 0), color, .6f, metallic);
-        var radius = building.HalfSize.X;
+        var radius = building.HalfSize.X / scale;
         switch (building.Style)
         {
             case BuildingStyle.House:

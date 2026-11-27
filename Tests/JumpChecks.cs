@@ -113,7 +113,7 @@ internal static partial class CombatChecks
         }
 
         // Height in flight sees over terrain.
-        var screen = new BattlefieldTerrain(2, [new(TerrainKind.Rock, new Vector2(300, 0), 30, 35)], []);
+        var screen = new BattlefieldTerrain(2, [new(TerrainKind.Rock, new Vector2(300, 0), 30, 20)], []);
         roster = Roster(1, "jenner");
         sim = Quiet(CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(unit => unit.Id), screen));
         jenner = Friendly(sim); jenner.Position = Vector2.Zero; Enemy(sim).Position = new Vector2(600, 0);

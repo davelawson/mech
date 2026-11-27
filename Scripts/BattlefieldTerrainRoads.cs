@@ -43,7 +43,9 @@ internal sealed record RoadMap(TerrainRoad[] Roads, TerrainBridge[] Bridges, Str
 public sealed partial class BattlefieldTerrain
 {
     public const float RoadSpeed = 1.25f;
-    public const float RoadWidth = 40, DeckWidth = 60;
+    public const float RoadWidth = 20, DeckWidth = 30;
+    /// <summary>The gap rocks keep beyond their radius from roads, decks and streets.</summary>
+    private const float RoadClearance = 15;
     /// <summary>The steepest grade a road's bed climbs, and its cut and fill banks.</summary>
     private const float RoadGrade = .2f, RoadBank = .5f;
     /// <summary>The longest bridge over a river, and over the sea.</summary>
@@ -51,7 +53,7 @@ public sealed partial class BattlefieldTerrain
     /// <summary>The longest detour a road takes to avoid building a bridge.</summary>
     private const float BridgeDetour = 1000;
     /// <summary>Metres between the road raster's points.</summary>
-    private const float RoadCell = 10;
+    private const float RoadCell = 5;
     private const int RoadCells = (int)(CombatRules.ArenaHalfSize * 2 / RoadCell) + 1;
 
     /// <summary>A bridge deck: its axis, length and end heights.</summary>
@@ -104,7 +106,7 @@ public sealed partial class BattlefieldTerrain
         for (var z = 0; z < RoadCells; z++) for (var x = 0; x < RoadCells; x++)
         {
             var point = new Vector2(x * RoadCell - CombatRules.ArenaHalfSize, z * RoadCell - CombatRules.ArenaHalfSize);
-            if (map.Streets.Any(street => street.Within(point, 30))) raster[z * RoadCells + x] = true;
+            if (map.Streets.Any(street => street.Within(point, StreetWidth / 2))) raster[z * RoadCells + x] = true;
         }
         var near = new bool[GridSize * GridSize];
         var reach = DeckWidth / 2 + CombatRules.UnitRadius + 1.5f + CellSize * 1.5f;
@@ -199,10 +201,10 @@ public sealed partial class BattlefieldTerrain
                         floor[Index(x + dx, z + dz)] = Math.Max(floor[Index(x + dx, z + dz)], map.Surfaces[index] + .5f);
             }
         // Roads keep out of settlements' lots, meeting their outer streets.
-        var interior = Enumerable.Range(0, count).Select(index => pads.Any(pad => pad.Within(Point(index), -15))).ToArray();
-        var street = Enumerable.Range(0, count).Select(index => pads.Any(pad => pad.Within(Point(index), 30))).ToArray();
+        var interior = Enumerable.Range(0, count).Select(index => pads.Any(pad => pad.Within(Point(index), -StreetWidth / 4))).ToArray();
+        var street = Enumerable.Range(0, count).Select(index => pads.Any(pad => pad.Within(Point(index), StreetWidth / 2))).ToArray();
         bool Interior(int index) => interior[index];
-        bool Ring(int index, StreetGrid pad) => street[index] && !interior[index] && pad.Within(Point(index), 30);
+        bool Ring(int index, StreetGrid pad) => street[index] && !interior[index] && pad.Within(Point(index), StreetWidth / 2);
         static bool Border(int index) => index % GridSize is 0 or GridSize - 1 || index / GridSize is 0 or GridSize - 1;
         var paved = new bool[count];
         var roads = new List<TerrainRoad>(); var bridges = new List<TerrainBridge>();
@@ -231,7 +233,7 @@ public sealed partial class BattlefieldTerrain
             // A cut corner that clips liquid the route itself kept clear of returns to the route, rather than needing a bridge.
             var crossings = route.Where(Wet).Select(Point).ToArray();
             for (var s = 0; s < smooth.Count; s++)
-                if (Wet(Node(smooth[s])) && !crossings.Any(point => point.DistanceTo(smooth[s]) <= 45))
+                if (Wet(Node(smooth[s])) && !crossings.Any(point => point.DistanceTo(smooth[s]) <= CellSize * 1.5f))
                     smooth[s] = raw.Zip(raw.Skip(1)).Select(segment => Closest(smooth[s], segment.First, segment.Second)).MinBy(point => point.DistanceTo(smooth[s]));
             return Resample(smooth, 10);
         }
@@ -251,6 +253,8 @@ public sealed partial class BattlefieldTerrain
                 if (spans.Count > 0 && start - spans[^1].To <= 6) spans[^1] = (spans[^1].From, s);
                 else spans.Add((start, s));
             }
+            // A road grazing a dry stretch of river trench, with no liquid under it, keeps to its bed rather than building a bridge.
+            spans = spans.Where(span => Enumerable.Range(span.From, span.To - span.From + 1).Any(s => !float.IsNaN(map.Surfaces[Node(samples[s])]))).ToList();
             // A deck lands on dry ground a sample beyond the liquid at each end.
             spans = spans.Select(span => (span.From - 1, span.To + 1)).ToList();
             if (spans.Any(span => span.Item1 < 1 || span.Item2 > n - 2)) return false;

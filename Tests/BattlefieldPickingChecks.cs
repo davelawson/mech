@@ -25,28 +25,29 @@ public partial class SmokeTests
             var sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(unit => unit.Id), BattlefieldTerrain.Flat);
             var friendly = sim.Units.First(unit => unit.Side == CombatSide.Friendly);
             var enemy = sim.Units.First(unit => unit.Side == CombatSide.Enemy);
-            // Mech-scale distances: this layout is the original framing at 15 metres per model unit.
-            friendly.Position = new Vector2(0, 180);
-            sim.Units.Last(unit => unit.Side == CombatSide.Friendly).Position = new Vector2(120, 180);
+            // Mech-scale distances: this layout is the original framing at 15 metres per model unit, scaled with the mechs.
+            const float s = CombatRules.BodyScale;
+            friendly.Position = new Vector2(0, 180) * s;
+            sim.Units.Last(unit => unit.Side == CombatSide.Friendly).Position = new Vector2(120, 180) * s;
             field.Display(sim); field.Selection = [friendly.Id]; await Frames();
-            field.Camera.Position = new(0, 2400, 2280); field.Camera.LookAt(new(0, 0, 180));
-            var model = field.FindChildren("*", "Node3D", true, false).OfType<MechModel>().Single(item => item.Position.X == 0 && item.Position.Z == 180);
-            foreach (var zoom in new[] { 180f, 750, 3300, 4200 })
+            field.Camera.Position = new Vector3(0, 2400, 2280) * s; field.Camera.LookAt(new Vector3(0, 0, 180) * s);
+            var model = field.FindChildren("*", "Node3D", true, false).OfType<MechModel>().Single(item => item.Position.X == 0 && Mathf.IsEqualApprox(item.Position.Z, 180 * s));
+            foreach (var zoom in new[] { 180f * s, 750 * s, 3300 * s, 4200 * s })
             {
                 field.Camera.Size = zoom; field._Process(0);
                 var upperBody = field.ScreenPoint(friendly.Position, model.Height * .8f);
                 Check(field.PickMech(upperBody) == friendly, $"mech-sized picking reaches the upper body at zoom {zoom}");
                 var gap = field.ScreenPoint(friendly.Position, model.Height * .18f);
                 Check(field.PickMech(gap) == friendly, $"gaps inside the mech envelope are clickable at zoom {zoom}");
-                var beside = field.ScreenPoint(friendly.Position + Vector2.Left * (model.RestBounds.Size.X * model.Scale.X / 2 + 9), model.Height * .5f);
+                var beside = field.ScreenPoint(friendly.Position + Vector2.Left * (model.RestBounds.Size.X * model.Scale.X / 2 + 9 * s), model.Height * .5f);
                 Check(field.PickMech(beside) is null, $"mech hit area excludes nearby empty space at zoom {zoom}");
             }
-            field.Camera.Size = 180; field._Process(0);
+            field.Camera.Size = 180 * s; field._Process(0);
             var top = field.ScreenPoint(friendly.Position, model.Height * .8f);
-            Check(top.DistanceTo(field.ScreenPoint(friendly.Position, 15)) > 20, "upper-body check exercises geometry outside the old fixed hit circle");
+            Check(top.DistanceTo(field.ScreenPoint(friendly.Position, 15 * s)) > 20, "upper-body check exercises geometry outside the old fixed hit circle");
             var second = sim.Units.Last(unit => unit.Side == CombatSide.Friendly);
-            second.Position = new Vector2(60, 180); field.Camera.Size = 525; field._Process(0);
-            var secondModel = field.FindChildren("*", "Node3D", true, false).OfType<MechModel>().Single(item => item.Position.X == 60 && item.Position.Z == 180);
+            second.Position = new Vector2(60, 180) * s; field.Camera.Size = 525 * s; field._Process(0);
+            var secondModel = field.FindChildren("*", "Node3D", true, false).OfType<MechModel>().Single(item => Mathf.IsEqualApprox(item.Position.X, 60 * s) && Mathf.IsEqualApprox(item.Position.Z, 180 * s));
             Check(field.PickMech(field.ScreenPoint(second.Position, secondModel.Height * .8f)) == second,
                 "a larger chassis uses its own model-sized hit area");
             friendly.Facing = Vector2.Right; field._Process(0);
@@ -59,9 +60,9 @@ public partial class SmokeTests
             Check(model.PickBounds()!.Value.Size.X < intact.Size.X, "mech hit bounds shrink when outlying limbs are destroyed");
 
             // A shallow camera makes the two grounded mechs overlap on screen without overlapping in world space.
-            field.Camera.Position = new Vector3(0, 150, 750); field.Camera.LookAt(new Vector3(0, 22.5f, 180));
-            enemy.Position = new Vector2(0, 225); sim.RefreshDetection(); field._Process(0);
-            var overlap = field.ScreenPoint(friendly.Position, 22.5f);
+            field.Camera.Position = new Vector3(0, 150, 750) * s; field.Camera.LookAt(new Vector3(0, 22.5f, 180) * s);
+            enemy.Position = new Vector2(0, 225) * s; sim.RefreshDetection(); field._Process(0);
+            var overlap = field.ScreenPoint(friendly.Position, 22.5f * s);
             Check(field.PickMech(overlap) == enemy, "frontmost enemy wins an overlap instead of unconditional friendly priority");
             field.InspectedEnemy = enemy.Id;
             MovePointer(field.GlobalPosition + overlap); await Frames();
@@ -86,8 +87,8 @@ public partial class SmokeTests
             await RightClick(field.GlobalPosition + overlap);
             Check(commanded == enemy.Id, "right-click targets the same frontmost mech previewed by hover");
 
-            friendly.Position = new Vector2(0, 225); enemy.Position = new Vector2(0, 180); sim.RefreshDetection(); field._Process(0);
-            overlap = field.ScreenPoint(enemy.Position, 22.5f);
+            friendly.Position = new Vector2(0, 225) * s; enemy.Position = new Vector2(0, 180) * s; sim.RefreshDetection(); field._Process(0);
+            overlap = field.ScreenPoint(enemy.Position, 22.5f * s);
             Check(field.PickMech(overlap) == friendly, "frontmost friendly blocks picking an enemy behind it");
             MovePointer(field.GlobalPosition + overlap); await Frames();
             await RightClick(field.GlobalPosition + overlap);
@@ -102,36 +103,36 @@ public partial class SmokeTests
             Check(field.HoveredMech is null && field.FindChildren("*", "Node3D", true, false).OfType<MechModel>().All(item => !item.Hovered),
                 "disabling battlefield commands clears model hover immediately");
             field.CommandsEnabled = true;
-            enemy.Position = new Vector2(0, -2700); friendly.Position = new Vector2(0, 180); sim.RefreshDetection(); field._Process(0);
-            Check(field.PickMech(field.ScreenPoint(enemy.Position, 22.5f)) is null, "lost enemy contacts are not pickable");
+            enemy.Position = new Vector2(0, -2700); friendly.Position = new Vector2(0, 180) * s; sim.RefreshDetection(); field._Process(0);
+            Check(field.PickMech(field.ScreenPoint(enemy.Position, 22.5f * s)) is null, "lost enemy contacts are not pickable");
 
             foreach (var terrain in new[]
             {
-                new BattlefieldTerrain(1, [new(TerrainKind.Rock, new Vector2(0, 240), 30, 60)], []),
-                new BattlefieldTerrain(2, [], [new(new Vector2(0, 255), 75, 90)])
+                new BattlefieldTerrain(1, [new(TerrainKind.Rock, new Vector2(0, 240) * s, 30 * s, 60 * s)], []),
+                new BattlefieldTerrain(2, [], [new(new Vector2(0, 255) * s, 75 * s, 90 * s)])
             })
             {
                 sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(unit => unit.Id), terrain);
-                friendly = sim.Units.First(unit => unit.Side == CombatSide.Friendly); friendly.Position = new Vector2(0, 150);
-                second = sim.Units.Last(unit => unit.Side == CombatSide.Friendly); second.Position = new Vector2(120, 150);
+                friendly = sim.Units.First(unit => unit.Side == CombatSide.Friendly); friendly.Position = new Vector2(0, 150) * s;
+                second = sim.Units.Last(unit => unit.Side == CombatSide.Friendly); second.Position = new Vector2(120, 150) * s;
                 field.Display(sim);
-                field.Camera.Size = 375; field.Camera.Position = new Vector3(0, 150, 750); field.Camera.LookAt(new Vector3(0, 15, 150));
+                field.Camera.Size = 375 * s; field.Camera.Position = new Vector3(0, 150, 750) * s; field.Camera.LookAt(new Vector3(0, 15, 150) * s);
                 field._Process(0);
-                var hidden = field.ScreenPoint(friendly.Position, 22.5f);
+                var hidden = field.ScreenPoint(friendly.Position, 22.5f * s);
                 Check(field.PickMech(hidden) is null, "solid terrain blocks camera picking of a hidden friendly mech");
                 MovePointer(field.GlobalPosition + hidden); await Frames();
                 Check(field.HoveredMech is null, "hidden mechs do not acquire a hover outline through terrain");
             }
-            var lowRock = new BattlefieldTerrain(3, [new(TerrainKind.Rock, new Vector2(0, 240), 30, 27)], []);
+            var lowRock = new BattlefieldTerrain(3, [new(TerrainKind.Rock, new Vector2(0, 240) * s, 30 * s, 27 * s)], []);
             sim = CombatSimulation.DeployOnTerrain(roster, roster.Mechs.Select(unit => unit.Id), lowRock);
-            friendly = sim.Units.First(unit => unit.Side == CombatSide.Friendly); friendly.Position = new Vector2(0, 150);
-            sim.Units.Last(unit => unit.Side == CombatSide.Friendly).Position = new Vector2(120, 150);
-            field.Display(sim); field.Camera.Size = 375;
-            field.Camera.Position = new Vector3(0, 75, 750); field.Camera.LookAt(new Vector3(0, 15, 150)); field._Process(0);
-            Check(field.PickMech(field.ScreenPoint(friendly.Position, 4.5f)) is null
-                && field.PickMech(field.ScreenPoint(friendly.Position, 30)) == friendly,
+            friendly = sim.Units.First(unit => unit.Side == CombatSide.Friendly); friendly.Position = new Vector2(0, 150) * s;
+            sim.Units.Last(unit => unit.Side == CombatSide.Friendly).Position = new Vector2(120, 150) * s;
+            field.Display(sim); field.Camera.Size = 375 * s;
+            field.Camera.Position = new Vector3(0, 75, 750) * s; field.Camera.LookAt(new Vector3(0, 15, 150) * s); field._Process(0);
+            Check(field.PickMech(field.ScreenPoint(friendly.Position, 4.5f * s)) is null
+                && field.PickMech(field.ScreenPoint(friendly.Position, 30 * s)) == friendly,
                 "partial cover blocks the hidden feet while the exposed upper body remains clickable");
-            MovePointer(field.GlobalPosition + field.ScreenPoint(friendly.Position, 30)); await Frames();
+            MovePointer(field.GlobalPosition + field.ScreenPoint(friendly.Position, 30 * s)); await Frames();
             await Capture("combat-mech-partial-cover");
         }
         finally

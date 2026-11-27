@@ -51,7 +51,7 @@ public partial class SmokeTests
                 && Math.Abs(-field.Camera.Rotation.X - Mathf.Atan2(80, 70)) < .001,
                 "selection framing resets yaw and pitch");
             Check(friends.Take(2).All(unit => new Rect2(Vector2.One * 16, field.Size - Vector2.One * 32)
-                .HasPoint(field.ScreenPoint(unit.Position, 15))), "selection framing keeps both widely spaced mechs within the view");
+                .HasPoint(field.ScreenPoint(unit.Position, 15 * CombatRules.BodyScale))), "selection framing keeps both widely spaced mechs within the view");
 
             var width = field.Size.X; var camera = field.Camera.Transform;
             KeyPress(Key.Asciitilde, true, Key.Quoteleft); await Frames();
@@ -65,7 +65,7 @@ public partial class SmokeTests
                     $"the log floats above the cards and the battlefield keeps the window at {size}");
                 KeyPress(Key.Quoteleft);
                 Check(friends.Take(2).All(unit => new Rect2(Vector2.One * 16, field.Size - Vector2.One * 32)
-                    .HasPoint(field.ScreenPoint(unit.Position, 15))), $"group framing fits the full-window view at {size}");
+                    .HasPoint(field.ScreenPoint(unit.Position, 15 * CombatRules.BodyScale))), $"group framing fits the full-window view at {size}");
             }
             field.ReleaseFocus();
             Check(KeyPress(Key.Key3) && screen.Selected.SequenceEqual([friends[2].Id]), "selection shortcuts work without battlefield focus");

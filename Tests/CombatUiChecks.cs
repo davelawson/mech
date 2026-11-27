@@ -107,7 +107,7 @@ public partial class SmokeTests
         Check(tactical.Visible && !_app.Office.Visible && friendly.Order == CombatOrder.Move && sim.Elapsed == 0, "actual right-click queues Move while paused without campaign back navigation");
         await Capture("combat-paused");
         // Actual drag selects both friendly stand-ins.
-        var points = sim.Units.Where(item => item.Side == CombatSide.Friendly).Select(item => field.GlobalPosition + field.ScreenPoint(item.Position, 15)).ToArray();
+        var points = sim.Units.Where(item => item.Side == CombatSide.Friendly).Select(item => field.GlobalPosition + field.ScreenPoint(item.Position, 15 * CombatRules.BodyScale)).ToArray();
         var from = new Vector2(points.Min(point => point.X) - 24, points.Min(point => point.Y) - 24);
         var to = new Vector2(points.Max(point => point.X) + 24, points.Max(point => point.Y) + 24);
         MouseMotion(from, Vector2.Zero); MouseButton(from, Godot.MouseButton.Left, true);
@@ -117,7 +117,7 @@ public partial class SmokeTests
         Check(sim.Units.Where(item => item.Side == CombatSide.Friendly).Select(item => item.Destination).Distinct().Count() == 2, "UI group Move assigns distinct destinations");
         var leader = sim.Units.Last(item => item.Side == CombatSide.Friendly);
         var leaderDestination = leader.Destination;
-        await RightClick(field.GlobalPosition + field.ScreenPoint(leader.Position, 15));
+        await RightClick(field.GlobalPosition + field.ScreenPoint(leader.Position, 15 * CombatRules.BodyScale));
         Check(friendly.Order == CombatOrder.Follow && friendly.FollowTarget == leader.Id
             && leader.Order == CombatOrder.Move && leader.Destination == leaderDestination && tactical.Selected.Count == 2,
             "right-click friendly queues Follow for the group without changing the selected leader's order");
@@ -155,7 +155,7 @@ public partial class SmokeTests
         // Bring a contact into view to exercise priority targeting and enemy inspection through mouse input.
         var enemy = sim.Units.First(item => item.Side == CombatSide.Enemy);
         enemy.Position = friendly.Position + new Vector2(-150, -60); sim.RefreshDetection(); await Frames();
-        var enemyAt = field.GlobalPosition + field.ScreenPoint(enemy.Position, 15);
+        var enemyAt = field.GlobalPosition + field.ScreenPoint(enemy.Position, 15 * CombatRules.BodyScale);
         var scroll = tactical.SidebarScroll;
         MouseButton(enemyAt, Godot.MouseButton.Right, true);
         CameraMotion(enemyAt + new Vector2(CombatViewport.RightDragThreshold + 1, 0), new Vector2(CombatViewport.RightDragThreshold + 1, 0));
@@ -191,7 +191,7 @@ public partial class SmokeTests
             "model-only inspection hides variant, armor, internals, systems and stale detailed readouts");
         await Capture("combat-model-contact");
         sim.SetPriority([friendly.Id], null);
-        await RightClick(field.GlobalPosition + field.ScreenPoint(enemy.Position, 15));
+        await RightClick(field.GlobalPosition + field.ScreenPoint(enemy.Position, 15 * CombatRules.BodyScale));
         Check(friendly.PriorityTarget == enemy.Id && friendly.AttackTarget is null, "model-only contact accepts an actual mouse priority target");
         enemy.Position = new Vector2(-1350, -300); sim.RefreshDetection(); await Delay(.15);
         Check(field.InspectedEnemy is null && tactical.Paperdoll.Unit == friendly,

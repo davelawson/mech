@@ -81,7 +81,12 @@ public static partial class CombatRules
         * (.5f + (Math.Clamp(targetTonnage, 20, 100) - 20) / 160f);
     public static float DetectionRadius(CombatUnit observer, CombatUnit target) =>
         DetectionRadius(observer.Sensors, target.Spec.Tonnage) * observer.SensorRangeMultiplier;
-    public const float UnitRadius = 9.75f;
+    /// <summary>World metres per authored model unit: every chassis stands 7.8–14 metres tall (Locust to Atlas).</summary>
+    public const float MetresPerModelUnit = 3.5f;
+    /// <summary>Body-tied sizes (effects, markers, props) were authored when a model unit was 15 metres; they scale by this.</summary>
+    public const float BodyScale = MetresPerModelUnit / 15;
+    /// <summary>A mech's occupied radius: 0.65 model units.</summary>
+    public const float UnitRadius = .65f * MetresPerModelUnit;
     public const float FollowDistance = 90;
     /// <summary>Metres per second per stock movement point: exactly 10 km/h.</summary>
     public const float MovementScale = 25f / 9;
@@ -1140,6 +1145,7 @@ public sealed partial class CombatSimulation
         unit.Facing = unit.Facing.Rotated(angle).Normalized();
         unit.AngularVelocity = angle / delta;
     }
+    private static readonly float[] ShortSteps = [.1f, .25f, .5f], EscapeSteps = [.1f, .25f, .5f, 1, 3];
     private Vector2 Steer(CombatUnit unit, Vector2 direction)
     {
         var stopping = unit.Braking > 0 ? unit.CurrentSpeed * unit.CurrentSpeed / (2 * unit.Braking) : 0;
@@ -1148,9 +1154,18 @@ public sealed partial class CombatSimulation
         {
             var steered = direction.Rotated(angle);
             var candidate = unit.Position + steered * lookAhead;
-            // The first half metre is checked too: a sliver of steep ground between the look-ahead's samples must not wedge the mech.
-            if (CombatRules.Clamp(candidate).DistanceSquaredTo(candidate) < 1e-10f && !Blocked(unit, candidate) && !Blocked(unit, unit.Position + steered * .5f))
+            // The first half metre is checked too, at the short steps a mech actually takes: a sliver of steep ground between the
+            // look-ahead's samples must not wedge the mech.
+            if (CombatRules.Clamp(candidate).DistanceSquaredTo(candidate) < 1e-10f && !Blocked(unit, candidate)
+                && ShortSteps.All(step => !Blocked(unit, unit.Position + steered * step)))
                 return steered;
+        }
+        // Wedged in a corner of steep ground that no direction clears at full look-ahead: slide along whatever opens within a
+        // few metres, backing out if need be, rather than standing still.
+        foreach (var angle in new[] { .52f, -.52f, 1.05f, -1.05f, 1.57f, -1.57f, 2.09f, -2.09f, 2.62f, -2.62f, 3.14f })
+        {
+            var steered = direction.Rotated(angle);
+            if (EscapeSteps.All(step => !Blocked(unit, unit.Position + steered * step))) return steered;
         }
         return direction;
     }
