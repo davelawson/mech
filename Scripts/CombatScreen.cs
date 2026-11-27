@@ -586,8 +586,8 @@ public partial class CombatScreen : Control
         // The leader's terrain seed recreates the battlefield on every player's machine.
         seedRow.Visible = Leading;
         var body = RosterUi.Scroll(_modalContent); ForceChoices.Clear(); _forceIds.Clear();
-        // The player's own lance deploys; reserve mechs are listed so their absence is explained.
-        var offered = _roster.Mechs.Where(item => item.Lance == Slot || item.Lance is null).ToArray();
+        // Only the player's own lance deploys, so only its mechs are listed.
+        var offered = _roster.Mechs.Where(item => item.Lance == Slot).ToArray();
         var first = offered.FirstOrDefault(item => item.Id == selectedMechId && CombatSimulation.UnavailableReason(_roster, item) is null)
             ?? offered.FirstOrDefault(item => CombatSimulation.UnavailableReason(_roster, item) is null);
         foreach (var mech in offered)

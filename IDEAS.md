@@ -5,7 +5,6 @@ This file serves as a repository for ideas that await implementation or further 
 ### Drafting Interface
 
 ### Deployment Interface
-Don't include mechs that aren't assigned to a lance
 
 ### Calendar Interface
 

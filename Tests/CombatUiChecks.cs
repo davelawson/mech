@@ -30,6 +30,13 @@ public partial class SmokeTests
         Check(!tactical.LaunchButton.Disabled && tactical.ForceChoices.All(item => !item.Disabled), "drafted company can deploy immediately with its assigned pilots");
         await PressKey(Key.Escape);
         var roster = _app.State.Roster!;
+        var reserve = roster.Mechs[3]; roster.SetLance(reserve.Id, null);
+        _app.Hangar.Refresh(); await Frames();
+        await Click(_app.Hangar.DeploymentButton); await Click(tactical.MirrorMatchButton);
+        Check(tactical.ForceChoices.Count == roster.Mechs.Count(mech => mech.Lance == 0)
+            && !TacticalText().Any(text => text.Contains("In reserve")), "force selection leaves out reserve mechs");
+        await PressKey(Key.Escape);
+        roster.SetLance(reserve.Id, 0); _app.Hangar.Refresh(); await Frames();
         foreach (var mech in roster.Mechs) roster.Assign(mech.Id, null);
         _app.Hangar.Refresh();
         await Frames(); await Click(_app.Hangar.DeploymentButton);
