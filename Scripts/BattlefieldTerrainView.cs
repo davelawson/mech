@@ -97,6 +97,7 @@ public static class BattlefieldTerrainView
             if (feature is null) continue;
             feature.Name = $"{patch.Kind}{i}"; root.AddChild(feature);
         }
+        foreach (var liquid in Liquids(terrain, palette)) root.AddChild(liquid);
         if (terrain.Patches.Any(patch => patch.Kind == TerrainKind.Vegetation)) root.AddChild(Trees(terrain, palette, random));
         for (var i = 0; i < terrain.Buildings.Count; i++)
         {
@@ -138,7 +139,8 @@ public static class BattlefieldTerrainView
         Color ColorAt(Vector3 point)
         {
             var at = new Vector2(point.X, point.Z);
-            if (terrain.Patches.Any(patch => BattlefieldTerrain.IsFlat(patch.Kind) && at.DistanceSquaredTo(patch.Center) <= patch.Radius * patch.Radius)) return palette.Bed;
+            if (terrain.Patches.Any(patch => BattlefieldTerrain.IsFlat(patch.Kind) && at.DistanceSquaredTo(patch.Center) <= patch.Radius * patch.Radius)
+                || terrain.LiquidAt(at) is not null) return palette.Bed;
             if (terrain.Contains(TerrainKind.Vegetation, at)) return palette.Forest;
             var slope = terrain.SlopeAt(at);
             var ground = palette.Low.Lerp(palette.High, Math.Clamp(point.Y / palette.HighAt, 0, 1));
@@ -247,6 +249,56 @@ public static class BattlefieldTerrainView
                 Transparency = opaque ? BaseMaterial3D.TransparencyEnum.Disabled : BaseMaterial3D.TransparencyEnum.Alpha
             }
         };
+    }
+
+    /// <summary>One surface per lake, river or sea over the grid triangles it wets, at its own level: flat for lakes and the sea, falling
+    /// with a river's course. The surface runs on under the banks, so the ground cuts the shoreline along its contour.
+    /// Water darkens and turns opaque with depth; ice is opaque; lava glows.</summary>
+    private static IEnumerable<MeshInstance3D> Liquids(BattlefieldTerrain terrain, Palette palette)
+    {
+        if (terrain.Liquids.Count == 0) yield break;
+        var side = BattlefieldTerrain.GridSize; var half = (side - 1) / 2;
+        var triangles = terrain.Liquids.Select(_ => new List<(int X, int Z)[]>()).ToArray();
+        for (var z = 0; z < side - 1; z++) for (var x = 0; x < side - 1; x++)
+            foreach (var triangle in new[] { new[] { (x, z), (x + 1, z), (x, z + 1) }, new[] { (x + 1, z + 1), (x, z + 1), (x + 1, z) } })
+                if (triangle.Select(node => terrain.NodeBody(node.Item1, node.Item2)).FirstOrDefault(body => body >= 0, -1) is >= 0 and var owner)
+                    triangles[owner].Add(triangle);
+        var deepAt = terrain.Biome is Biome.Tropical or Biome.Archipelago ? BattlefieldTerrain.DeepWaterDepth : 16;
+        for (var body = 0; body < terrain.Liquids.Count; body++)
+        {
+            var liquid = terrain.Liquids[body];
+            if (triangles[body].Count == 0) continue;
+            var tool = new SurfaceTool();
+            tool.Begin(Mesh.PrimitiveType.Triangles);
+            foreach (var triangle in triangles[body])
+            {
+                // A shore node shared with another body takes this body's level.
+                var level = triangle.Where(node => terrain.NodeBody(node.X, node.Z) == body).Max(node => terrain.NodeSurface(node.X, node.Z));
+                foreach (var (x, z) in triangle)
+                {
+                    var surface = terrain.NodeBody(x, z) == body || terrain.NodeBody(x, z) < 0 && !float.IsNaN(terrain.NodeSurface(x, z))
+                        ? terrain.NodeSurface(x, z) : level;
+                    if (float.IsNaN(surface)) surface = level;
+                    var depth = Math.Clamp((surface - terrain.NodeHeight(x, z)) / deepAt, 0, 1);
+                    var color = liquid.Kind == TerrainKind.Water
+                        ? palette.Water.Lerp(palette.Water.Darkened(.45f), depth) with { A = Mathf.Lerp(.7f, .97f, depth) } : palette.Water;
+                    tool.SetNormal(Vector3.Up); tool.SetColor(color);
+                    tool.AddVertex(new((x - half) * BattlefieldTerrain.CellSize, surface + .25f, (z - half) * BattlefieldTerrain.CellSize));
+                }
+            }
+            yield return new MeshInstance3D
+            {
+                Name = $"{liquid.Shape}{body}", Mesh = tool.Commit(), CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+                MaterialOverride = new StandardMaterial3D
+                {
+                    VertexColorUseAsAlbedo = true, VertexColorIsSrgb = true, CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+                    Transparency = liquid.Kind == TerrainKind.Water ? BaseMaterial3D.TransparencyEnum.Alpha : BaseMaterial3D.TransparencyEnum.Disabled,
+                    Roughness = liquid.Kind == TerrainKind.Ice ? .2f : liquid.Kind == TerrainKind.Lava ? .7f : .08f,
+                    Metallic = liquid.Kind == TerrainKind.Water ? .1f : 0,
+                    EmissionEnabled = liquid.Kind == TerrainKind.Lava, Emission = palette.Water, EmissionEnergyMultiplier = 1.4f,
+                },
+            };
+        }
     }
 
     /// <summary>Trees fill each vegetation patch: conifers in the arctic and highlands, broadleaf elsewhere. Cover is the patch, not the trees.</summary>

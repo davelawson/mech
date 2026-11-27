@@ -16,7 +16,7 @@ public sealed record TerrainBuilding(BuildingStyle Style, int Cluster, Vector2 C
 }
 
 /// <summary>Immutable terrain shared by simulation, navigation, rendering and picking. X/Y are ground X/Z.</summary>
-public sealed class BattlefieldTerrain
+public sealed partial class BattlefieldTerrain
 {
     /// <summary>Metres between heightfield and navigation grid points.</summary>
     public const float CellSize = 30;
@@ -35,6 +35,8 @@ public sealed class BattlefieldTerrain
     public IReadOnlyList<TerrainPatch> Patches { get; }
     public IReadOnlyList<TerrainHill> Hills { get; }
     public IReadOnlyList<TerrainBuilding> Buildings { get; }
+    /// <summary>Generated lakes, rivers and sea. Hand-built test terrain uses liquid patches instead.</summary>
+    public IReadOnlyList<LiquidBody> Liquids { get; }
     private readonly float[] _heights = new float[GridSize * GridSize];
     private readonly bool[] _walkable = new bool[GridSize * GridSize];
     private readonly int[] _components = new int[GridSize * GridSize];
@@ -75,10 +77,11 @@ public sealed class BattlefieldTerrain
     public static BattlefieldTerrain Flat { get; } = new(0, [], []);
 
     internal BattlefieldTerrain(int seed, IEnumerable<TerrainPatch> patches, IEnumerable<TerrainHill> hills,
-        IEnumerable<TerrainBuilding>? buildings = null, Biome? biome = null, float[]? relief = null)
+        IEnumerable<TerrainBuilding>? buildings = null, Biome? biome = null, float[]? relief = null, LiquidMap? liquids = null)
     {
         Seed = seed; Biome = biome; Patches = Array.AsReadOnly(patches.ToArray()); Hills = Array.AsReadOnly(hills.ToArray());
         Buildings = Array.AsReadOnly((buildings ?? []).ToArray());
+        Liquids = Array.AsReadOnly(liquids?.Bodies ?? []);
         _flat = Patches.Count == 0 && Hills.Count == 0 && Buildings.Count == 0 && relief is null;
         for (var z = 0; z < GridSize; z++) for (var x = 0; x < GridSize; x++)
         {
@@ -101,6 +104,7 @@ public sealed class BattlefieldTerrain
                 }
                 _heights[index] = Mathf.Lerp(level, _heights[index], blend);
             }
+        if (liquids is not null) (_liquidKind, _liquidSurface, _liquidBody, _hazardNear, _deepDepth) = LiquidGrid(liquids, _heights);
         _solids = Patches.Where(patch => patch.Kind == TerrainKind.Rock)
             .Select(rock => new Solid(rock.Center, new(rock.Radius, rock.Radius), 1, 0, true,
                 Math.Min(-15, HeightAt(rock.Center) - 15), HeightAt(rock.Center) + rock.Height))
@@ -169,24 +173,27 @@ public sealed class BattlefieldTerrain
          Math.Clamp((int)((point.Y + CombatRules.ArenaHalfSize) / SolidCellSize), 0, SolidCells - 1));
     private int[] SolidsNear(Vector2 point) { var (x, z) = SolidCell(point); return _solidCells[z * SolidCells + x]; }
 
-    /// <summary>Feature counts and sizes per biome; recorded in docs/combat-tuning.md.</summary>
+    /// <summary>Rock and vegetation counts and sizes per biome; recorded in docs/combat-tuning.md. Liquids follow
+    /// <see cref="LakeRules"/> and <see cref="RiverRules"/>.</summary>
     private sealed record PatchRule(TerrainKind Kind, int Count, float MinRadius, float MaxRadius, float MinHeight = 0, float MaxHeight = 0);
     private static PatchRule[] PatchRules(Biome biome) => biome switch
     {
-        Mech.Biome.Arctic => [new(TerrainKind.Rock, 56, 39, 90, 90, 180), new(TerrainKind.Vegetation, 24, 60, 120), new(TerrainKind.Ice, 14, 120, 240)],
+        Mech.Biome.Arctic => [new(TerrainKind.Rock, 56, 39, 90, 90, 180), new(TerrainKind.Vegetation, 24, 60, 120)],
         Mech.Biome.Lunar => [new(TerrainKind.Rock, 84, 24, 60, 30, 100)],
-        Mech.Biome.Highlands => [new(TerrainKind.Rock, 64, 39, 90, 90, 180), new(TerrainKind.Vegetation, 28, 60, 120), new(TerrainKind.Water, 8, 60, 120)],
-        Mech.Biome.Desert => [new(TerrainKind.Rock, 48, 45, 110, 60, 200), new(TerrainKind.Vegetation, 10, 45, 90), new(TerrainKind.Water, 4, 60, 90)],
-        Mech.Biome.Tropical => [new(TerrainKind.Water, 18, 90, 180), new(TerrainKind.Vegetation, 72, 90, 200), new(TerrainKind.Rock, 24, 39, 90, 90, 180)],
-        Mech.Biome.Grassland => [new(TerrainKind.Rock, 16, 39, 90, 60, 140), new(TerrainKind.Vegetation, 14, 60, 120), new(TerrainKind.Water, 6, 90, 150)],
-        Mech.Biome.Archipelago => [new(TerrainKind.DeepWater, 16, 180, 360), new(TerrainKind.Water, 14, 90, 180), new(TerrainKind.Vegetation, 24, 60, 120),
-            new(TerrainKind.Rock, 20, 39, 90, 90, 180)],
-        Mech.Biome.Volcanic => [new(TerrainKind.Lava, 12, 90, 200), new(TerrainKind.Rock, 64, 39, 90, 90, 180)],
-        Mech.Biome.Toxic => [new(TerrainKind.Water, 18, 90, 180), new(TerrainKind.Vegetation, 20, 60, 120), new(TerrainKind.Rock, 40, 39, 90, 90, 180)],
-        _ => [new(TerrainKind.Rock, 40, 39, 90, 90, 180), new(TerrainKind.Vegetation, 48, 90, 180), new(TerrainKind.Water, 16, 90, 180)],
+        Mech.Biome.Highlands => [new(TerrainKind.Rock, 64, 39, 90, 90, 180), new(TerrainKind.Vegetation, 28, 60, 120)],
+        Mech.Biome.Desert => [new(TerrainKind.Rock, 48, 45, 110, 60, 200), new(TerrainKind.Vegetation, 10, 45, 90)],
+        Mech.Biome.Tropical => [new(TerrainKind.Vegetation, 72, 90, 200), new(TerrainKind.Rock, 24, 39, 90, 90, 180)],
+        Mech.Biome.Grassland => [new(TerrainKind.Rock, 16, 39, 90, 60, 140), new(TerrainKind.Vegetation, 14, 60, 120)],
+        Mech.Biome.Archipelago => [new(TerrainKind.Vegetation, 24, 60, 120), new(TerrainKind.Rock, 20, 39, 90, 90, 180)],
+        Mech.Biome.Volcanic => [new(TerrainKind.Rock, 64, 39, 90, 90, 180)],
+        Mech.Biome.Toxic => [new(TerrainKind.Vegetation, 20, 60, 120), new(TerrainKind.Rock, 40, 39, 90, 90, 180)],
+        _ => [new(TerrainKind.Rock, 40, 39, 90, 90, 180), new(TerrainKind.Vegetation, 48, 90, 180)],
     };
-    public static IReadOnlyList<TerrainKind> Kinds(Biome biome) => PatchRules(biome).Select(rule => rule.Kind).ToArray();
-    /// <summary>Kinds levelled flat at their centre's height and placed on low ground.</summary>
+    /// <summary>The rock, vegetation and liquid kinds a biome's battlefields carry.</summary>
+    public static IReadOnlyList<TerrainKind> Kinds(Biome biome) => PatchRules(biome).Select(rule => rule.Kind)
+        .Concat(LakeRules(biome).Select(rule => rule.Kind)).Concat(RiverRules(biome).Select(rule => rule.Kind))
+        .Concat(biome == Mech.Biome.Archipelago ? [TerrainKind.Water, TerrainKind.DeepWater] : []).Distinct().ToArray();
+    /// <summary>Kinds levelled flat at their centre's height when hand-built as patches; generated liquids are lakes, rivers and sea.</summary>
     public static bool IsFlat(TerrainKind kind) => kind is TerrainKind.Water or TerrainKind.Ice or TerrainKind.Lava or TerrainKind.DeepWater;
     public const int MinClusters = 1, MaxClusters = 6, MinBuildings = 15, MaxBuildings = 50;
 
@@ -232,28 +239,37 @@ public sealed class BattlefieldTerrain
             return new Vector2(CombatRules.ArenaHalfSize * .625f, 0);
         }
         float Between(float min, float max) => min + random.NextSingle() * (max - min);
+        var starts = Enumerable.Range(-3, 7).Select(index => index * CombatRules.DeploymentSpacing / 2)
+            .SelectMany(x => new[] { Turned(new Vector2(x, CombatRules.DeploymentDepth)), Turned(new Vector2(x, -CombatRules.DeploymentDepth)) })
+            .Concat(objective is null ? new[] { Vector2.Zero } : Array.Empty<Vector2>()).Concat(clearings?.Select(clearing => clearing.Center) ?? []).ToArray();
         // Retry complete candidates instead of silently accepting disconnected spawn areas.
         for (var attempt = 0; attempt < 64; attempt++)
         {
-            var relief = Relief(biome, random, Place, Between);
+            var cones = new List<(Vector2 Center, float Radius)>();
+            var relief = Relief(biome, random, Place, Between, cones);
             for (var index = 0; index < relief.Length; index++)
                 relief[index] *= Mathf.SmoothStep(0, 1, Math.Clamp(ClearDistance(Point(index)) / 400, 0, 1));
             var clusters = new List<(Vector2 Center, float Radius)>();
             var streets = new List<Vector2>();
-            var buildings = Settlements(biome, random, relief, clusters, Place, Between, objective, streets);
+            // Archipelago settlements stand on dry land above the sea.
+            var land = biome == Mech.Biome.Archipelago ? SeaLevel + 5 : float.NegativeInfinity;
+            var buildings = Settlements(biome, random, relief, clusters, Place, Between, objective, streets, land);
             if (buildings is null) continue;
+            var plan = GenerateLiquids(biome, random, relief, new LiquidSite(ClearDistance, OutOfDropZones, clusters, objective is not null,
+                Place, Between, cones, [.. starts, .. streets]));
+            if (plan is null) continue;
+            // Lots a river runs through stay empty.
+            buildings.RemoveAll(plan.Floods);
+            if (buildings.Count < MinBuildings) continue;
             var patches = new List<TerrainPatch>();
-            // Lakes and frozen lakes keep to the lowest ground, so levelling them leaves gentle banks.
-            var lowGround = relief.Order().ElementAt(relief.Length * 3 / 10);
-            // Banks blend up to 120 m beyond a lake, so lakes keep that far from pads and spawns.
             bool Free(Vector2 point, float radius) => patches.All(patch => patch.Center.DistanceTo(point) >= patch.Radius + radius + 30)
-                && clusters.All(cluster => cluster.Center.DistanceTo(point) >= cluster.Radius + radius + 150);
+                && clusters.All(cluster => cluster.Center.DistanceTo(point) >= cluster.Radius + radius + 150) && plan.DryDistance(point) >= radius + 30;
             foreach (var rule in PatchRules(biome))
             {
                 // Lunar boulders gather in fields; other features scatter.
                 var fields = rule.Kind == TerrainKind.Rock && biome == Mech.Biome.Lunar
                     ? Enumerable.Range(0, 12).Select(_ => Place(300)).ToArray() : null;
-                var flat = IsFlat(rule.Kind); var clearance = flat ? 150 : 60;
+                const float clearance = 60;
                 for (var i = 0; i < rule.Count; i++)
                 {
                     var radius = Between(rule.MinRadius, rule.MaxRadius);
@@ -265,26 +281,24 @@ public sealed class BattlefieldTerrain
                             : fields[i % fields.Length] + Vector2.FromAngle(random.NextSingle() * MathF.Tau) * (random.NextSingle() * 300);
                         tries++;
                     }
-                    while (tries < 500 && (!Free(point, radius) || !Clear(point, radius + clearance) || (flat && !OutOfDropZones(point, radius))
-                        || (flat && tries < 400 && relief[Node(point)] > lowGround + 1)));
-                    if (!Free(point, radius) || !Clear(point, radius + clearance) || (flat && !OutOfDropZones(point, radius))) continue;
+                    while (tries < 500 && (!Free(point, radius) || !Clear(point, radius + clearance)));
+                    if (!Free(point, radius) || !Clear(point, radius + clearance)) continue;
                     patches.Add(new(rule.Kind, point, radius, rule.MaxHeight > 0 ? Between(rule.MinHeight, rule.MaxHeight) : 0));
                 }
             }
-            var terrain = new BattlefieldTerrain(seed, patches, [], buildings, biome, relief);
-            var starts = Enumerable.Range(-3, 7).Select(index => index * CombatRules.DeploymentSpacing / 2)
-                .SelectMany(x => new[] { Turned(new Vector2(x, CombatRules.DeploymentDepth)), Turned(new Vector2(x, -CombatRules.DeploymentDepth)) })
-                .Concat(objective is null ? new[] { Vector2.Zero } : Array.Empty<Vector2>()).Concat(clearings?.Select(clearing => clearing.Center) ?? []).ToArray();
+            var terrain = new BattlefieldTerrain(seed, patches, [], buildings, biome, relief, plan.Map);
             var component = terrain.Component(starts[0]);
             if (component != 0 && starts.All(point => terrain.Passable(point) && terrain.Component(point) == component)
                 && (objective is null || streets.Any(point => terrain.Passable(point) && terrain.Component(point) == component))
-                && PatchRules(biome).All(rule => patches.Any(patch => patch.Kind == rule.Kind))) return terrain;
+                && PatchRules(biome).All(rule => patches.Any(patch => patch.Kind == rule.Kind))
+                && LakeRules(biome).All(rule => plan.Map.Bodies.Any(body => body.Shape == LiquidShape.Lake && body.Kind == rule.Kind))) return terrain;
         }
         throw new InvalidOperationException("Could not generate a connected battlefield.");
     }
 
     /// <summary>Grid heights before patches and settlements, shaped per biome; recorded in docs/combat-tuning.md.</summary>
-    private static float[] Relief(Biome biome, Random random, Func<float, Vector2> place, Func<float, float, float> between)
+    private static float[] Relief(Biome biome, Random random, Func<float, Vector2> place, Func<float, float, float> between,
+        List<(Vector2 Center, float Radius)> cones)
     {
         var noiseSeed = random.Next(); var detailSeed = random.Next();
         // A second large-scale field, derived rather than drawn so existing biomes keep their random sequence.
@@ -304,7 +318,9 @@ public sealed class BattlefieldTerrain
                     + 4 * Fbm(detailSeed, point / 300, 2),
                 Mech.Biome.Tropical => 170 * Mathf.SmoothStep(.3f, .8f, Fbm(noiseSeed, point / 1000, 3)) + 12 * Fbm(detailSeed, point / 300, 2),
                 Mech.Biome.Grassland => 60 * Fbm(noiseSeed, point / 2400, 3) + 4 * Fbm(detailSeed, point / 420, 2),
-                Mech.Biome.Archipelago => 150 * Mathf.SmoothStep(.45f, .8f, Fbm(noiseSeed, point / 1100, 3)) + 6 * Fbm(detailSeed, point / 420, 2),
+                // Island interiors rise from shores that fall away into a deep sea floor.
+                Mech.Biome.Archipelago => 150 * Mathf.SmoothStep(.45f, .8f, Fbm(noiseSeed, point / 1100, 3))
+                    - 45 * Mathf.SmoothStep(.45f, .2f, Fbm(noiseSeed, point / 1100, 3)) + 6 * Fbm(detailSeed, point / 420, 2),
                 Mech.Biome.Volcanic => 60 * Ridged(noiseSeed, point / 900, 3) + 8 * Fbm(detailSeed, point / 300, 2),
                 Mech.Biome.Toxic => 140 * Mathf.SmoothStep(.35f, .75f, Fbm(noiseSeed, point / 1200, 3)) + 40 * Ridged(shapeSeed, point / 500, 2)
                     + 6 * Fbm(detailSeed, point / 300, 2),
@@ -317,6 +333,7 @@ public sealed class BattlefieldTerrain
                 // Volcanic cones with a sunken caldera at the summit.
                 var radius = between(350, 650); var center = place(radius + 120);
                 var height = radius * .35f; var caldera = .22f;
+                cones.Add((center, radius));
                 for (var index = 0; index < relief.Length; index++)
                 {
                     var d = Point(index).DistanceTo(center) / radius;
@@ -325,6 +342,12 @@ public sealed class BattlefieldTerrain
                     relief[index] += d < caldera ? cone - height * .25f * (1 - d / caldera) * (1 - d / caldera) : cone;
                 }
             }
+        if (biome == Mech.Biome.Archipelago)
+        {
+            // Shift the relief so the sea covers SeaShare of the battlefield.
+            var shore = relief.Order().ElementAt((int)(relief.Length * SeaShare));
+            for (var index = 0; index < relief.Length; index++) relief[index] += SeaLevel - shore;
+        }
         if (biome != Mech.Biome.Lunar) return relief;
         for (var i = 0; i < 40; i++)
         {
@@ -345,7 +368,7 @@ public sealed class BattlefieldTerrain
     /// <summary>Building clusters on levelled pads, the objective settlement first when there is one; null when the clusters do not
     /// fit. Points on the street around the objective settlement are added to <paramref name="streets"/>.</summary>
     private static List<TerrainBuilding>? Settlements(Biome biome, Random random, float[] relief, List<(Vector2 Center, float Radius)> placed,
-        Func<float, Vector2> place, Func<float, float, float> between, ObjectiveSettlement? objective, List<Vector2> streets)
+        Func<float, Vector2> place, Func<float, float, float> between, ObjectiveSettlement? objective, List<Vector2> streets, float land)
     {
         var clusterCount = MinClusters + random.Next(MaxClusters - MinClusters + 1);
         var total = MinBuildings + random.Next(MaxBuildings - MinBuildings + 1);
@@ -369,7 +392,7 @@ public sealed class BattlefieldTerrain
             {
                 center = place(radius + 120);
                 fits = Math.Max(Math.Abs(center.X), Math.Abs(center.Y)) <= CombatRules.ArenaHalfSize - radius - 60
-                    && placed.All(other => other.Center.DistanceTo(center) >= other.Radius + radius + 120);
+                    && placed.All(other => other.Center.DistanceTo(center) >= other.Radius + radius + 120) && relief[Node(center)] >= land;
             }
             if (!fits) return null;
             placed.Add((center, radius));
@@ -380,7 +403,7 @@ public sealed class BattlefieldTerrain
             if (objectiveCluster)
                 streets.AddRange(new[] { new Vector2(-half.X - 30, 0), new Vector2(half.X + 30, 0), new Vector2(0, -half.Y - 30), new Vector2(0, half.Y + 30) }.Select(World));
             // Level the pad to its centre's height, blending back into the surrounding relief.
-            var level = relief[Node(center)];
+            var level = Math.Max(relief[Node(center)], land);
             for (var index = 0; index < relief.Length; index++)
             {
                 var offset = Point(index) - center;
@@ -497,7 +520,8 @@ public sealed class BattlefieldTerrain
         var dz = HeightAt(point + new Vector2(0, 7.5f)) - HeightAt(point - new Vector2(0, 7.5f));
         return new Vector2(dx, dz).Length() / 15;
     }
-    public bool Contains(TerrainKind kind, Vector2 point) => Patches.Any(patch => patch.Kind == kind && point.DistanceSquaredTo(patch.Center) <= patch.Radius * patch.Radius);
+    public bool Contains(TerrainKind kind, Vector2 point) => Patches.Any(patch => patch.Kind == kind && point.DistanceSquaredTo(patch.Center) <= patch.Radius * patch.Radius)
+        || IsFlat(kind) && LiquidAt(point)?.Kind == kind;
     public bool Passable(Vector2 point)
     {
         if (CombatRules.Clamp(point).DistanceSquaredTo(point) > 1e-8f) return false;
@@ -505,6 +529,7 @@ public sealed class BattlefieldTerrain
             if (_solids[solid].Contains(point, CombatRules.UnitRadius + 1.5f)) return false;
         foreach (var barrier in _barriers)
             if (point.DistanceSquaredTo(barrier.Center) < (barrier.Radius + CombatRules.UnitRadius) * (barrier.Radius + CombatRules.UnitRadius)) return false;
+        if (InLiquidBarrier(point)) return false;
         return SlopeAt(point) <= MaxSlope
             && SlopeAt(point + Vector2.Up * CombatRules.UnitRadius) <= MaxSlope
             && SlopeAt(point + Vector2.Down * CombatRules.UnitRadius) <= MaxSlope

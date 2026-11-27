@@ -64,6 +64,8 @@ This file serves as a repository for ideas that await implementation or further 
 - destroyed components should remain, but with a shitty texture
 - animation for mech falling over
 - Improve terrain features
+- animate flowing water: moving river surfaces, ripples and foam
+- rivers that rise inside the map, from springs or lakes
 - make it more visible while capturing objectives
 
 ### Mech Details Panel

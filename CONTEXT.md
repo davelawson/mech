@@ -328,3 +328,16 @@ A biome's multiplier on heat-sink output. It does not affect ambient exchange.
 
 **Settlement**:
 A cluster of solid buildings on a levelled pad of the battlefield.
+
+**Lake**:
+A body of water, ice or lava gathered in a hollow of the battlefield's ground, with a flat surface.
+_Avoid_: Pool, patch (for generated liquids)
+
+**River**:
+Water, ice or lava running between map edges, or from a volcanic cone, in a trench it carves, its surface falling downstream.
+
+**Ford**:
+A stretch of a deep or lava river where the bed rises so mechs can cross: shallow water, or a cooled lava crust.
+
+**Sea**:
+The Archipelago's water below one sea level, shallow at the shores and deep further out.

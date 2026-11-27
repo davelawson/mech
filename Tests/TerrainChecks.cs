@@ -30,23 +30,24 @@ internal static class TerrainChecks
     {
         var standard = Standard();
         var first = standard[Biome.Valley]; var repeat = BattlefieldTerrain.Generate(183); var other = BattlefieldTerrain.Generate(184);
-        check(first.Patches.SequenceEqual(repeat.Patches) && first.Buildings.SequenceEqual(repeat.Buildings) && SameRelief(first, repeat),
-            "terrain seed recreates all geometry");
+        check(first.Patches.SequenceEqual(repeat.Patches) && first.Buildings.SequenceEqual(repeat.Buildings) && SameRelief(first, repeat)
+            && SameLiquids(first, repeat), "terrain seed recreates all geometry, lakes and rivers");
         CheckNavigationQueries(first, check);
         foreach (var (terrain, dropEdge) in standard.Values.Select(terrain => (terrain, ArenaEdge.South))
             .Append((BattlefieldTerrain.Generate(183, dropEdge: ArenaEdge.East), ArenaEdge.East)))
         {
             var zones = new[] { DropZone.Standard(dropEdge), DropZone.Standard(DropZone.Opposite(dropEdge)) };
-            check(terrain.Patches.Where(patch => BattlefieldTerrain.IsFlat(patch.Kind))
-                    .All(patch => zones.All(zone => zone.Depth(patch.Center) - patch.Radius >= CombatRules.DropZoneDepth))
+            check(Enumerable.Range(0, terrain.Liquids.Count).Where(body => terrain.Liquids[body].Shape == LiquidShape.Lake)
+                    .All(body => terrain.LiquidNodes(body).All(point => zones.All(zone => zone.Depth(point) >= CombatRules.DropZoneDepth)))
                 && terrain.Component(zones[0].Anchor) != 0 && terrain.Component(zones[0].Anchor) == terrain.Component(zones[1].Anchor),
                 $"lakes, ice and lava keep out of both drop zones, whose anchors connect ({terrain.Biome}, {dropEdge})");
         }
         check(!first.Patches.SequenceEqual(other.Patches), "different terrain seeds create different maps");
         check(first.Biome == Biome.Valley && first.Patches.Count(patch => patch.Kind == TerrainKind.Rock) > 30
             && first.Patches.Count(patch => patch.Kind == TerrainKind.Vegetation) > 36
-            && first.Patches.Count(patch => patch.Kind == TerrainKind.Water) > 12 && !first.Patches.Any(patch => patch.Kind == TerrainKind.Ice),
-            "valley maps carry rocks, forests and water at the agreed density");
+            && first.Liquids.Count(body => body.Shape == LiquidShape.Lake) >= 12 && first.Liquids.Count(body => body.Shape == LiquidShape.River) is 1 or 2
+            && first.Liquids.All(body => body.Kind == TerrainKind.Water),
+            "valley maps carry rocks, forests, lakes and rivers at the agreed density");
         CheckBiomes(standard, check);
         CheckBuildings(check);
         check(first.Patches.Any(patch => Math.Abs(patch.Center.X) > 1440) && first.Patches.Any(patch => Math.Abs(patch.Center.Y) > 1440),
@@ -58,7 +59,11 @@ internal static class TerrainChecks
             foreach (var x in new[] { -360f, -240, -120, 0, 120, 240, 360 }) foreach (var z in new[] { -1920f, 1920 })
             {
                 var spawn = new Vector2(x, z);
-                check(terrain.Passable(spawn) && terrain.HeightAt(spawn) == 0 && !Enum.GetValues<TerrainKind>().Any(kind => terrain.Contains(kind, spawn)), "every force size has clear spawn positions");
+                // A shallow or frozen river may run through the spawn band, so mechs may start wading in its trench.
+                check(terrain.Passable(spawn) && Math.Abs(terrain.HeightAt(spawn)) <= 15
+                    && new[] { TerrainKind.Rock, TerrainKind.Vegetation, TerrainKind.DeepWater, TerrainKind.Lava }.All(kind => !terrain.Contains(kind, spawn))
+                    && (terrain.HeightAt(spawn) == 0 || terrain.Liquids.Any(body => body.Shape == LiquidShape.River)),
+                    $"every force size has clear spawn positions ({terrain.Biome} {terrain.Seed} {spawn})");
                 var route = terrain.FindPath(spawn, new Vector2(x, -z)); var previous = spawn;
                 check(route.Count > 0 && route[^1].DistanceTo(new Vector2(x, -z)) < .3f, "opposing spawn is reachable");
                 foreach (var waypoint in route) { check(terrain.CanTraverse(previous, waypoint), "generated route respects slopes and mech clearance"); previous = waypoint; }
@@ -138,6 +143,62 @@ internal static class TerrainChecks
             if (a.HeightAt(new(x, z)) != b.HeightAt(new(x, z))) return false;
         return true;
     }
+    private static IEnumerable<Vector2> Grid()
+    {
+        for (var z = -2880f; z <= 2880; z += 30) for (var x = -2880f; x <= 2880; x += 30) yield return new(x, z);
+    }
+    private static bool SameLiquids(BattlefieldTerrain a, BattlefieldTerrain b) =>
+        a.Liquids.Count == b.Liquids.Count && a.Liquids.Zip(b.Liquids).All(pair => pair.First.Shape == pair.Second.Shape && pair.First.Kind == pair.Second.Kind
+            && pair.First.Fords == pair.Second.Fords && pair.First.Course.SequenceEqual(pair.Second.Course))
+        && Grid().All(point => a.LiquidAt(point) == b.LiquidAt(point));
+    /// <summary>Lakes level in hollows the ground holds; rivers fall downstream in their trenches; liquids slow, bar or carry mechs by kind.</summary>
+    private static void CheckLiquids(BattlefieldTerrain terrain, Action<bool, string> check)
+    {
+        var name = $"{terrain.Biome} {terrain.Seed}";
+        float Surface(Vector2 point) => terrain.HeightAt(point) + (terrain.LiquidAt(point)?.Depth ?? 0);
+        var lakes = Enumerable.Range(0, terrain.Liquids.Count).Where(body => terrain.Liquids[body].Shape == LiquidShape.Lake).ToArray();
+        foreach (var lake in lakes)
+        {
+            var nodes = terrain.LiquidNodes(lake).ToArray();
+            var levels = nodes.Select(Surface).ToArray();
+            check(nodes.Length > 0 && nodes.All(point => terrain.LiquidAt(point) is not null) && levels.Max() - levels.Min() < .01f, $"{name} lake {lake} is level");
+            var level = levels.Max();
+            // Every neighbour of a lake is liquid too, or ground at least as high as the lake.
+            check(nodes.All(point => Enumerable.Range(0, 8).Select(i => point + Vector2.FromAngle(i * Mathf.Tau / 8) * 30 * (i % 2 == 0 ? 1 : Mathf.Sqrt2))
+                    .All(next => terrain.LiquidAt(next) is not null || terrain.HeightAt(next) >= level - .01f)),
+                $"{name} lake {lake} lies in a hollow the ground holds");
+        }
+        // Lakes take the shape of their hollows rather than circles.
+        check(lakes.Length == 0 || lakes.Any(lake =>
+        {
+            var nodes = terrain.LiquidNodes(lake).ToArray();
+            var middle = nodes.Aggregate(Vector2.Zero, (sum, point) => sum + point) / nodes.Length;
+            var reach = nodes.Max(point => point.DistanceTo(middle)) + 15;
+            return nodes.Length >= 12 && nodes.Length * 900 < Mathf.Pi * reach * reach * .6f;
+        }), $"{name} lakes follow the ground's contours, not circles");
+        foreach (var river in terrain.Liquids.Where(body => body.Shape == LiquidShape.River))
+        {
+            var wet = river.Course.Where(point => terrain.LiquidAt(point) is not null).ToArray();
+            check(river.Course.Count > 20 && wet.Length >= river.Course.Count * (river.Kind == TerrainKind.Lava ? .5f : .9f),
+                $"{name} {river.Kind} river runs through its trench: {wet.Length} of {river.Course.Count} course points wet");
+            check(wet.Zip(wet.Skip(1)).All(pair => Surface(pair.Second) <= Surface(pair.First) + .6f), $"{name} {river.Kind} river surface only falls downstream");
+            var barrier = river.Kind == TerrainKind.Lava || terrain.Biome == Biome.Tropical;
+            check(!barrier || river.Fords >= 2, $"{name} deep and lava rivers have at least two fords: {river.Fords}");
+            if (river.Kind != TerrainKind.Lava)
+                check(Math.Max(Math.Abs(river.Course[0].X), Math.Abs(river.Course[0].Y)) > 2800 && Math.Max(Math.Abs(river.Course[^1].X), Math.Abs(river.Course[^1].Y)) > 2800,
+                    $"{name} rivers run between map edges");
+        }
+        var deep = terrain.Biome is Biome.Tropical or Biome.Archipelago;
+        check(deep || !Grid().Any(point => terrain.LiquidAt(point)?.Kind == TerrainKind.DeepWater), $"{name} has deep water only in tropical and archipelago biomes");
+        var samples = Grid().Where(point => terrain.LiquidAt(point) is { Depth: > 1 }).Take(400).ToArray();
+        check(samples.All(point => terrain.LiquidAt(point)!.Value.Kind switch
+        {
+            TerrainKind.Water => terrain.Passable(point) ? Mathf.IsEqualApprox(terrain.SpeedFactor(point) * (1 + terrain.SlopeAt(point)), BattlefieldTerrain.WaterSpeed) : true,
+            TerrainKind.Ice => !terrain.Passable(point) || Mathf.IsEqualApprox(terrain.SpeedFactor(point) * (1 + terrain.SlopeAt(point)), 1),
+            _ => !terrain.Passable(point),
+        }), $"{name} water slows, ice keeps full speed, and lava and deep water bar mechs");
+        check(terrain.Patches.All(patch => terrain.LiquidAt(patch.Center) is null), $"{name} rocks and vegetation stand on dry ground");
+    }
     private static (float Low, float High) Relief(BattlefieldTerrain terrain)
     {
         float low = float.MaxValue, high = float.MinValue;
@@ -151,9 +212,9 @@ internal static class TerrainChecks
         {
             var all = seed == 183 ? standard : Biomes.All.ToDictionary(spec => spec.Biome, spec => BattlefieldTerrain.Generate(seed, spec.Biome));
             var valley = all[Biome.Valley]; var arctic = all[Biome.Arctic]; var lunar = all[Biome.Lunar];
-            check(arctic.Biome == Biome.Arctic && arctic.Patches.Any(patch => patch.Kind == TerrainKind.Ice) && arctic.Patches.Any(patch => patch.Kind == TerrainKind.Vegetation)
-                && !arctic.Patches.Any(patch => patch.Kind == TerrainKind.Water), "arctic maps have frozen lakes and sparse forests but no open water");
-            check(lunar.Biome == Biome.Lunar && lunar.Patches.Count > 60 && lunar.Patches.All(patch => patch.Kind == TerrainKind.Rock),
+            check(arctic.Biome == Biome.Arctic && arctic.Liquids.Any(body => body.Shape == LiquidShape.Lake) && arctic.Patches.Any(patch => patch.Kind == TerrainKind.Vegetation)
+                && arctic.Liquids.All(body => body.Kind == TerrainKind.Ice), "arctic maps have frozen lakes and sparse forests but no open water");
+            check(lunar.Biome == Biome.Lunar && lunar.Patches.Count > 60 && lunar.Patches.All(patch => patch.Kind == TerrainKind.Rock) && lunar.Liquids.Count == 0,
                 "lunar maps have boulder fields and neither vegetation nor water");
             check(arctic.Patches.Where(patch => patch.Kind == TerrainKind.Vegetation).Sum(patch => patch.Radius * patch.Radius)
                 < valley.Patches.Where(patch => patch.Kind == TerrainKind.Vegetation).Sum(patch => patch.Radius * patch.Radius) / 2,
@@ -167,29 +228,32 @@ internal static class TerrainChecks
             check(all[Biome.Tropical].Patches.Where(patch => patch.Kind == TerrainKind.Vegetation).Sum(patch => patch.Radius * patch.Radius)
                 > valley.Patches.Where(patch => patch.Kind == TerrainKind.Vegetation).Sum(patch => patch.Radius * patch.Radius),
                 "tropical jungle is denser than valley forest");
-            foreach (var (biome, kinds) in new (Biome, TerrainKind[])[]
+            foreach (var (biome, kinds, liquid, rivers) in new (Biome, TerrainKind[], TerrainKind, (int, int))[]
             {
-                (Biome.Highlands, [TerrainKind.Rock, TerrainKind.Vegetation, TerrainKind.Water]),
-                (Biome.Desert, [TerrainKind.Rock, TerrainKind.Vegetation, TerrainKind.Water]),
-                (Biome.Tropical, [TerrainKind.Rock, TerrainKind.Vegetation, TerrainKind.Water]),
-                (Biome.Grassland, [TerrainKind.Rock, TerrainKind.Vegetation, TerrainKind.Water]),
-                (Biome.Archipelago, [TerrainKind.Rock, TerrainKind.Vegetation, TerrainKind.Water, TerrainKind.DeepWater]),
-                (Biome.Volcanic, [TerrainKind.Rock, TerrainKind.Lava]),
-                (Biome.Toxic, [TerrainKind.Rock, TerrainKind.Vegetation, TerrainKind.Water]),
+                (Biome.Valley, [TerrainKind.Rock, TerrainKind.Vegetation], TerrainKind.Water, (1, 2)),
+                (Biome.Arctic, [TerrainKind.Rock, TerrainKind.Vegetation], TerrainKind.Ice, (0, 1)),
+                (Biome.Highlands, [TerrainKind.Rock, TerrainKind.Vegetation], TerrainKind.Water, (0, 1)),
+                (Biome.Desert, [TerrainKind.Rock, TerrainKind.Vegetation], TerrainKind.Water, (0, 0)),
+                (Biome.Tropical, [TerrainKind.Rock, TerrainKind.Vegetation], TerrainKind.Water, (1, 2)),
+                (Biome.Grassland, [TerrainKind.Rock, TerrainKind.Vegetation], TerrainKind.Water, (0, 1)),
+                (Biome.Archipelago, [TerrainKind.Rock, TerrainKind.Vegetation], TerrainKind.Water, (0, 0)),
+                (Biome.Volcanic, [TerrainKind.Rock], TerrainKind.Lava, (1, 2)),
+                (Biome.Toxic, [TerrainKind.Rock, TerrainKind.Vegetation], TerrainKind.Water, (0, 0)),
             })
-                check(all[biome].Biome == biome && all[biome].Patches.Select(patch => patch.Kind).ToHashSet().SetEquals(kinds),
-                    $"{biome} maps carry exactly their biome's features");
+            {
+                var terrain = all[biome];
+                check(terrain.Biome == biome && terrain.Patches.Select(patch => patch.Kind).ToHashSet().SetEquals(kinds)
+                    && terrain.Liquids.Count > 0 && terrain.Liquids.All(body => body.Kind == liquid)
+                    && terrain.Liquids.Count(body => body.Shape == LiquidShape.River) is var count && count >= rivers.Item1 && count <= rivers.Item2
+                    && terrain.Liquids.Any(body => body.Shape == (biome == Biome.Archipelago ? LiquidShape.Sea : LiquidShape.Lake)),
+                    $"{biome} maps carry exactly their biome's features, lakes and rivers");
+            }
+            var sea = all[Biome.Archipelago]; var share = (float)sea.LiquidNodes(0).Count() / (BattlefieldTerrain.GridSize * BattlefieldTerrain.GridSize);
+            check(sea.Liquids.Count == 1 && share is > .3f and < .5f && Grid().Any(point => sea.LiquidAt(point)?.Kind == TerrainKind.DeepWater)
+                && Grid().Any(point => sea.LiquidAt(point)?.Kind == TerrainKind.Water), $"archipelago islands stand in a sea with shallows and deep water: {share:P0}");
             foreach (var terrain in all.Values)
             {
-                var flats = terrain.Patches.Where(patch => BattlefieldTerrain.IsFlat(patch.Kind)).ToArray();
-                check(flats.All(patch => Math.Abs(terrain.HeightAt(patch.Center + new Vector2(patch.Radius * .7f, 0)) - terrain.HeightAt(patch.Center)) < .01f),
-                    $"{terrain.Biome} water, ice, lava and deep water are flat");
-                check(flats.Where(patch => patch.Kind is TerrainKind.Water or TerrainKind.Ice)
-                    .All(patch => terrain.SpeedFactor(patch.Center) == (patch.Kind == TerrainKind.Ice ? 1 : BattlefieldTerrain.WaterSpeed)),
-                    "ice keeps full speed and water slows");
-                check(flats.Where(patch => patch.Kind is TerrainKind.Lava or TerrainKind.DeepWater).All(patch => !terrain.Passable(patch.Center)
-                    && !terrain.Passable(patch.Center + new Vector2(patch.Radius + CombatRules.UnitRadius - 1, 0))),
-                    $"{terrain.Biome} lava and deep water bar mechs, including their width");
+                CheckLiquids(terrain, check);
                 var clusters = terrain.Buildings.GroupBy(building => building.Cluster).ToArray();
                 check(clusters.Length is >= BattlefieldTerrain.MinClusters and <= BattlefieldTerrain.MaxClusters
                     && terrain.Buildings.Count is >= BattlefieldTerrain.MinBuildings and <= BattlefieldTerrain.MaxBuildings
@@ -209,8 +273,8 @@ internal static class TerrainChecks
                     Biome.Toxic => styles.IsSubsetOf([BuildingStyle.Dome, BuildingStyle.Module, BuildingStyle.Tank]),
                     _ => styles.IsSubsetOf([BuildingStyle.House, BuildingStyle.Barn, BuildingStyle.Silo, BuildingStyle.Block]),
                 }, $"{terrain.Biome} buildings use the biome's styles");
-                check(terrain.Buildings.All(building => terrain.Patches.All(patch => patch.Center.DistanceTo(building.Center) > patch.Radius + 30)),
-                    "terrain features keep clear of settlements");
+                check(terrain.Buildings.All(building => terrain.Patches.All(patch => patch.Center.DistanceTo(building.Center) > patch.Radius + 30)
+                    && terrain.LiquidAt(building.Center) is null), "terrain features and liquids keep clear of settlements");
                 check(clusters.All(cluster => cluster.Select(building => terrain.HeightAt(building.Center)).Distinct().Count() == 1),
                     "each settlement stands on a levelled pad");
                 // Every building can be approached on foot from the deployment area.
@@ -253,7 +317,7 @@ internal static class TerrainChecks
     private static void CheckNavigationQueries(BattlefieldTerrain terrain, Action<bool, string> check)
     {
         var from = new Vector2(-360, 1920); var to = new Vector2(360, -1920);
-        Vector2[] expected = [new(-840, 1170), new(-840, 1080), new(210, -1260), to];
+        Vector2[] expected = [new(-780, 1560), new(-570, 750), new(90, -390), to];
         var retained = terrain.FindPath(from, to);
         check(retained.SequenceEqual(expected), "seeded path retains its original waypoints and tie ordering");
         var rocks = new BattlefieldTerrain(1, [new(TerrainKind.Rock, Vector2.Zero, 60, 120)], []);

@@ -100,14 +100,16 @@ public partial class SmokeTests
             Near(PanShift(field.Camera.Position - start, view).Length(), field.Camera.Size * .05f, "arrow movement retains zoom-scaled speed");
             await PressKey(Key.Home);
             field.Camera.Size = 1500;
-            // Pan W (toward -Z) along the hilliest line from the arena centre, so the view crosses slopes.
+            // Pan W (toward -Z) along the hilliest open line from the arena centre, so the view crosses slopes.
             var terrain = tactical.Simulation!.Terrain;
             float Relief(float x)
             {
                 var heights = Enumerable.Range(0, 21).Select(i => terrain.HeightAt(new Vector2(x, -i * 75))).ToArray();
                 return heights.Max() - heights.Min();
             }
-            var line = Enumerable.Range(-8, 17).Select(i => i * 250f).MaxBy(Relief);
+            // Rocks and roofs would lift the pivot off the ground, so the line keeps clear of them.
+            bool Open(float x) => Enumerable.Range(0, 101).All(i => terrain.SolidTop(new Vector2(x, -i * 15), 90) <= terrain.HeightAt(new Vector2(x, -i * 15)) + .01f);
+            var line = Enumerable.Range(-8, 17).Select(i => i * 250f).Where(Open).MaxBy(Relief);
             if (line != 0) CameraStep(field, Math.Abs(line) / (field.Camera.Size * .5f), line > 0 ? Key.D : Key.A);
             var marker = field.Camera.Position - field.Camera.Basis.Z * new Vector2(4200, 4800).Length();
             var previous = field.Unproject(marker);
@@ -117,7 +119,12 @@ public partial class SmokeTests
                 CameraStep(field, .1, Key.W);
                 var now = field.Unproject(marker); steps.Add(now - previous); previous = now;
                 reliefs.Add(terrain.HeightAt(field.GroundPoint(field.Size / 2)));
-                if (!PivotOnGround(field)) { Check(false, $"pan keeps orbit pivot on the ground at step {i}"); break; }
+                if (!PivotOnGround(field))
+                {
+                    var orbit = field.Camera.Position - field.Camera.Basis.Z * new Vector2(4200, 4800).Length(); var under = field.GroundPoint(field.Size / 2);
+                    Check(false, $"pan keeps orbit pivot on the ground at step {i}: pivot {orbit}, ground {under} at {terrain.HeightAt(under)}, solid {terrain.SolidTop(under)}");
+                    break;
+                }
             }
             Check(reliefs.Max() - reliefs.Min() > 10, $"slope pan test crosses changing terrain: relief {reliefs.Max() - reliefs.Min():0.0} m on line x={line}");
             Check(steps.All(step => step.DistanceTo(steps[0]) < .1f),

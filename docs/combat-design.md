@@ -153,7 +153,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 - Hover previews that same mech with a thicker, lighter [silhouette outline](mech-models.md): 4 pixels instead of 2, its team colour mixed 50% toward white, still at half opacity where terrain hides it. It preserves the selected unit's gold ground ring and never changes selection, inspection, or orders. UI overlays, menus, camera gestures and loss of enemy detection suppress hover. A mech out of the fight shows no outline, even when hovered.
 - Right-clicking an enemy sets the priority target and issues no order, so an active Move or Follow carries on. **Clear priority target** removes it.
 - Escape opens the combat menu: **Resume**, **Mission Details**, **Audio** (the audio settings, `docs/audio.md`), and **End Simulation** or **Withdraw**.
-- **Mission Details** replaces the menu over the still-paused battle. Its MISSION section gives a mission's briefing, objective and contract terms (employer, opponent, contract kind, patrol, posting date, payment, salvage, insurance, location, biome, opposition tonnage and expected opposition), worded as on the mission board but without reputation, travel or deadline. A practice battle names its opponent type instead and notes that it has no campaign consequences. Its BATTLEFIELD section gives the biome and description, ambient temperature and cooling efficiency, counts of hills, terrain patches and buildings, patrol points visited (on a patrol) and combat time, and offers the terrain seed in a read-only box for copying; the seed is no longer shown on the menu itself. **Back**, Escape or right-click return to the Combat menu without resuming. Every co-op player can open it.
+- **Mission Details** replaces the menu over the still-paused battle. Its MISSION section gives a mission's briefing, objective and contract terms (employer, opponent, contract kind, patrol, posting date, payment, salvage, insurance, location, biome, opposition tonnage and expected opposition), worded as on the mission board but without reputation, travel or deadline. A practice battle names its opponent type instead and notes that it has no campaign consequences. Its BATTLEFIELD section gives the biome and description, ambient temperature and cooling efficiency, counts of hills, terrain patches, lakes, rivers and buildings, whether there is a sea, patrol points visited (on a patrol) and combat time, and offers the terrain seed in a read-only box for copying; the seed is no longer shown on the menu itself. **Back**, Escape or right-click return to the Combat menu without resuming. Every co-op player can open it.
 - Combat explicitly overrides the existing office/subscreen right-click-back behavior: right-click remains a battlefield command while in combat.
 - Use an angled overhead camera with pan, zoom, and rotation.
 - Panning (WASD, arrows or a middle-drag) moves the camera across a level plane, so the view keeps a steady pace over hills and slopes. Rotation pivots on the ground at the centre of the view.
@@ -188,7 +188,7 @@ Excess damage from the blow that destroys a location transfers immediately. Tran
 
 ## Deferred beyond the first slice
 
-- Destructible buildings and terrain, roads, deep water, and advanced cover-seeking tactics.
+- Destructible buildings and terrain, roads and bridges, flowing-water animation, rivers that rise inside the map, and advanced cover-seeking tactics.
 - Infantry, vehicles, aircraft, and other combatant types.
 - Heat damage and heat-triggered ammunition explosions, water cooling bonuses, ammunition consumption, falls, Death from Above, and MechWarrior casualties beyond death and [injury](#critical-hits-confirmed-november-14-2026).
 - Physical projectile collision, friendly fire, melee, called shots, deliberate ammunition dumping, and other special actions.
@@ -241,18 +241,18 @@ Every generated battlefield belongs to a **biome**: Valley, Arctic, Lunar, Highl
 
 **Terrain.** A biome shapes a seeded noise heightfield and chooses its features:
 
-- **Valley**: rolling hills and ridges, forests, rocks, and shallow streams and lakes on low ground.
-- **Arctic**: sharper snowy ridges, sparse conifer stands, rocks, and frozen lakes. Ice is flat, keeps full speed and gives no cover. There is no open water.
+- **Valley**: rolling hills and ridges, forests, rocks, lakes on low ground and one or two rivers.
+- **Arctic**: sharper snowy ridges, sparse conifer stands, rocks, frozen lakes and sometimes a frozen river. Ice keeps full speed and gives no cover. There is no open water.
 - **Lunar**: cratered plains with raised rims, and boulder fields. No vegetation or water.
-- **Highlands**: tall mountain massifs cut by ridges and passes, many rocks, conifer scrub and small tarns.
+- **Highlands**: tall mountain massifs cut by ridges and passes, many rocks, conifer scrub, small tarns and sometimes a river.
 - **Desert**: long dunes over rolling sand, tall rock outcrops, sparse scrub and a few oases.
-- **Tropical**: broken hills under dense jungle, the most vegetation of any biome, with rivers and a few rocks.
-- **Grassland**: nearly flat plains with few rocks, copses and ponds, so sight lines are long.
-- **Archipelago**: low islands separated by **deep water** channels, with shallows, palm groves and rocks.
-- **Volcanic**: jagged basalt ground, five volcanic cones with summit calderas, **lava** flows and many rocks. No vegetation or water.
+- **Tropical**: broken hills under dense jungle, the most vegetation of any biome, with one or two deep rivers, lakes with deep centres and a few rocks.
+- **Grassland**: nearly flat plains with few rocks, copses, ponds and sometimes a river, so sight lines are long.
+- **Archipelago**: low islands in a sea, shallow at its shores and **deep water** further out, with palm groves and rocks.
+- **Volcanic**: jagged basalt ground, five volcanic cones with summit calderas, **lava** pools, one or two lava rivers and many rocks. No vegetation or water.
 - **Toxic**: eroded hills and ridges, toxic pools (shallow water), fungal thickets and rocks.
 
-Lava and deep water are flat like water, but no mech may stand in them: they block movement, including the mech's own width, and jumping mechs cannot land in them. They do not block sight or fire. Navigation detours around them like rocks.
+Lava and deep water slow nothing, because no mech may stand in them: they block movement, including the mech's own width, and jumping mechs cannot land in them. They do not block sight or fire. Navigation detours around them like rocks. How liquids lie on the ground is described under [lakes, rivers and the sea](#lakes-rivers-and-the-sea-confirmed-november-26-2026).
 
 **Buildings.** Every biome has one to six settlements holding 15–50 buildings between them, each on a levelled pad, with streets wide enough for any mech. Buildings are solid and indestructible, like rocks: they block movement, sight and fire and give no cover penalty. Movement, jumping and blocked-attack firing positions treat them like rocks. Valley has farmsteads and small towns, Arctic prefab outposts with tanks and radio masts, and Lunar pressurised domes and habitat modules. Highlands has stone villages and relay masts; Desert walled flat-roofed blocks, water tanks and moisture domes; Tropical stilt houses and plantation sheds, with blocks in towns; Grassland ranches and grain silos; Archipelago fishing villages and fuel tanks, with blocks in towns; Volcanic geothermal plants with tanks and cooling stacks; and Toxic sealed domes, habitat modules and tanks.
 
@@ -262,7 +262,27 @@ Lava and deep water are flat like water, but no mech may stand in them: they blo
 
 **Weather** (deferred). Storms, rain, blizzards and sandstorms are a separate layer that can sit on any biome and may affect sensors and visibility, unlike biomes.
 
-**Visuals.** Everything is drawn in code: noise-textured ground in each biome's palette, faceted rocks and boulders, broadleaf or conifer trees filling vegetation patches, water and ice surfaces, buildings per style, and each biome's sky and sunlight (a black starfield on Lunar). Lava glows; deep water is darker and opaque. Snow and dust particles are deferred.
+**Visuals.** Everything is drawn in code: noise-textured ground in each biome's palette, faceted rocks and boulders, broadleaf or conifer trees filling vegetation patches, water and ice surfaces, buildings per style, and each biome's sky and sunlight (a black starfield on Lunar). Lava glows; water darkens and turns opaque with depth. Snow and dust particles are deferred.
+
+## Lakes, rivers and the sea (confirmed November 26, 2026)
+
+Liquids follow the heightfield instead of sitting in circles. Water, deep water, ice and lava all take the same shapes; rocks and vegetation remain circular patches.
+
+**Lakes** gather in low ground. A lake starts at a low point and floods outward over the connected ground below its surface, which rises until the lake covers its intended area or reaches the hollow's spill point, whichever comes first, so a lake never overflows its rim and its shore follows the ground's contour. Its surface is flat; the ground beneath keeps its shape. Where a hollow is too shallow to hold its lake, an irregular bowl is first sunk into the ground. Each biome keeps its number of lakes; a lake that reaches its spill point early comes out smaller. Lava pools gather first in the volcanic calderas. Lakes keep out of the drop zones and away from clear areas and settlements.
+
+**Depth.** In Tropical and Archipelago maps, water deeper than 8 metres is deep water, so their lakes have impassable centres and wadeable margins. Every other biome's lakes and rivers are wadeable throughout.
+
+**The sea.** The Archipelago has one sea level instead of lakes: everything below it is sea, about 40% of the battlefield, shallow near the shores and deep further out. Settlements stand on dry land. Where deep water would cut off a spawn area, the central rendezvous, a clearing or the objective settlement, generation raises a shallow sand bar to join them.
+
+**Rivers** run in Valley and Tropical maps (one or two), Highlands and Grassland (none or one), Arctic (none or one, frozen) and Volcanic (one or two, of lava). Lunar, Desert, Archipelago and Toxic maps have none. A river enters where a map edge is high and leaves where an edge is lower, possibly the same edge, along a course that prefers low ground, winds from side to side and passes through the lakes on its way. It carves a trench with a flat bed and climbable banks. Its bed and surface only ever fall downstream; where the ground rises across its way, the trench cuts deeper, like a gorge. A lake the river passes through takes the river's level, lowered if the river arrives lower; a hollow beside the river that lies below its surface fills as a lake at its level. Rivers never cross each other or share a lake.
+
+A **lava river** pours from a volcanic cone's caldera, breaching its flank, and flows downhill to a map edge or into a lava pool.
+
+**Fords.** A deep or lava river has two or three fords, spread along its course: stretches about 120 metres long where the bed rises, to shallow water a mech can wade across in the Tropical biome, or to a cooled basalt crust in the Volcanic biome. A deep or lava river also fords wherever it crosses a spawn band, the central rendezvous or a clearing, so those stay passable. Shallow and frozen rivers may run through spawn bands as they are, so mechs may start wading.
+
+**Settlements.** A shallow or frozen river may run through a settlement: lots in its channel stay empty. Deep and lava rivers keep off settlements, and no river crosses the objective settlement of a Take and Hold.
+
+**Mission Details** counts lakes and rivers, and notes the sea, beside the battlefield's other features.
 
 ## Sensors and pilot budgets (confirmed October 27, 2026)
 

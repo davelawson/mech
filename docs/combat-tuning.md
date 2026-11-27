@@ -48,21 +48,30 @@ Terrain is an immutable, seeded heightfield shared by combat, navigation, render
 | Desert relief | 70 m of broad noise (2,200 m) plus dunes: squared ridged noise stretched 650 m along X and 260 m along Z, up to 22 m, plus 4 m of detail |
 | Tropical relief | Fractal noise (1,000 m) through a smoothstep, up to 170 m, plus 12 m of detail |
 | Grassland relief | 60 m of broad noise (2,400 m) plus 4 m of detail |
-| Archipelago relief | Fractal noise (1,100 m) through a narrow smoothstep, up to 150 m, so most ground is low shore; plus 6 m of detail |
+| Archipelago relief | Fractal noise (1,100 m) through a narrow smoothstep, up to 150 m, falling up to 45 m below the shore where the noise is low; plus 6 m of detail. The whole relief is shifted so 40% of it lies below the sea level of −1 m |
 | Volcanic relief | 60 m of ridged noise (900 m), 8 m of detail, and 5 cones, radius 350–650 m, height 35% of radius, with a caldera at the inner 22% sunk by a quarter of the cone's height |
 | Toxic relief | Fractal noise (1,200 m) through a smoothstep, up to 140 m, plus 40 m of ridged noise (500 m) and 6 m of detail |
-| Valley features | 40 rocks (radius 39–90 m, height 90–180 m), 48 forests (radius 90–180 m), 16 water patches (radius 90–180 m) |
-| Arctic features | 56 rocks (as Valley), 24 conifer stands (radius 60–120 m), 14 frozen lakes (radius 120–240 m) |
+| Valley features | 40 rocks (radius 39–90 m, height 90–180 m), 48 forests (radius 90–180 m), 16 lakes (radius 90–180 m), 1–2 rivers |
+| Arctic features | 56 rocks (as Valley), 24 conifer stands (radius 60–120 m), 14 frozen lakes (radius 120–240 m), 0–1 frozen rivers |
 | Lunar features | 84 boulders (radius 24–60 m, height 30–100 m) in 12 fields |
-| Highlands features | 64 rocks (as Valley), 28 conifer stands (radius 60–120 m), 8 tarns (radius 60–120 m) |
+| Highlands features | 64 rocks (as Valley), 28 conifer stands (radius 60–120 m), 8 tarns (radius 60–120 m), 0–1 rivers |
 | Desert features | 48 rocks (radius 45–110 m, height 60–200 m), 10 scrub patches (radius 45–90 m), 4 oases (radius 60–90 m) |
-| Tropical features | 18 rivers and pools (radius 90–180 m), 72 jungle patches (radius 90–200 m), 24 rocks (as Valley) |
-| Grassland features | 16 rocks (radius 39–90 m, height 60–140 m), 14 copses (radius 60–120 m), 6 ponds (radius 90–150 m) |
-| Archipelago features | 16 deep-water channels (radius 180–360 m), 14 shallows (radius 90–180 m), 24 palm groves (radius 60–120 m), 20 rocks (as Valley) |
-| Volcanic features | 12 lava flows (radius 90–200 m), 64 rocks (as Valley) |
+| Tropical features | 18 lakes (radius 90–180 m), 1–2 deep rivers, 72 jungle patches (radius 90–200 m), 24 rocks (as Valley) |
+| Grassland features | 16 rocks (radius 39–90 m, height 60–140 m), 14 copses (radius 60–120 m), 6 ponds (radius 90–150 m), 0–1 rivers |
+| Archipelago features | Sea, 24 palm groves (radius 60–120 m), 20 rocks (as Valley); settlements on ground at least 5 m above the sea |
+| Volcanic features | 12 lava pools (radius 90–200 m), the first in the calderas; 1–2 lava rivers; 64 rocks (as Valley) |
 | Toxic features | 18 toxic pools (water, radius 90–180 m), 20 fungal thickets (radius 60–120 m), 40 rocks (as Valley) |
-| Water / ice | Flat at their centre's level, banks blended over 120 m; water 50% speed, ice full speed and no cover. Placed on the lowest 30% of the ground where possible |
-| Lava / deep water | Flat and placed like water; impassable within patch radius + mech radius; open to sight and fire |
+| Lake size | A lake's radius range sets its intended area, π·r²; it floods to that area or until its surface is 0.3 m below the hollow's spill point. Lakes start in the lowest 30% of the ground where possible, keep 150 m from clear areas and settlement pads, out of the drop zones, and two cells from other liquids |
+| Lake bowls | A hollow holding less than 40% of its lake is first sunk into a bowl 1.1 × the lake's radius, its edge varied by 75–130%, 4–8 m deep (11–16 m in the Tropical biome) |
+| Water / ice | Water 50% speed; ice full speed and no cover |
+| Deep water | Water deeper than 8 m in the Tropical and Archipelago biomes; elsewhere water is wadeable at any depth |
+| Lava / deep water | Impassable wherever the mech's footprint (centre and eight points at mech radius) reaches them; open to sight and fire |
+| Sea | Surface at −1 m over the lowest 40% of the Archipelago's relief; sand bars, 60 m across at 3 m deep with 0.3 slopes, join spawn areas, the rendezvous, clearings and the objective settlement where needed |
+| River course | Between two edge points at least 2,400 m apart, in at the higher; grid search costing height above the map's lowest ground (up to 3.5 ×), meander noise (0.3–1.9 ×, 500 m), ×4 near the map edge, ×0.35 through lakes, ×4 over settlement pads, +6 per metre climbed. Corners cut, then winding up to ±130 m (520 m wavelength), tapered over the first and last 250 m. Courses that wind back within a river's width + 90 m of themselves are rejected |
+| River trench | 60–120 m wide at the water (deep rivers 110–150 m, lava 90–130 m), 6–12 m deep (deep 12–14 m, lava 6–10 m) with 2.5–4.5 m of water (deep 9.5–11 m, lava 3 m); banks at a 0.45 gradient; the surface falls at least 1.5 m per km and at most 1.5 m per 100 m (lava 6 m), cutting a gorge rather than falling faster |
+| Fords | 2–3 per deep or lava river, 120 m long with 30 m ramps; the bed rises to 2 m under the surface (water) or 1.5 m above it (lava crust). A deep or lava river also fords within its half-width + 90 m of any clear area |
+| Lava rivers | From a cone's caldera to the map edge or a lava pool more than 800 m (or the cone's radius) away; +10 per metre climbed |
+| Spills | A hollow below a river's surface joins the river (under 9 cells) or becomes a lake at its level; one that would reach lower liquid, a clear area or more than 220 cells gets a bank 0.5 m above the surface instead |
 | Vegetation | 70% speed |
 | Settlements | 1–6 clusters, 15–50 buildings in total, 15–60 m tall; 50 m lots on a grid with 60 m streets, levelled pads blended over 150 m |
 | Steepness limit | Gradient 0.65 (about 33°), including the mech footprint |
@@ -73,7 +82,7 @@ Terrain is an immutable, seeded heightfield shared by combat, navigation, render
 | Navigation | Eight-neighbor 30-metre grid, continuous segment clearance checks every 7.5 metres |
 | Sight checks | Every 6 metres along the elevated sight ray; rocks use ray/cylinder and buildings ray/box intersection |
 
-Generation permits unrestricted asymmetry while reserving clear spawn bands and a clear central rendezvous: relief fades to flat within 400 metres of them. Lakes keep 150 metres from spawns and settlements, and other features 60 metres from spawns and 150 metres from settlements. Generation validates paths between all possible spawn slots and the center, retries disconnected candidates, and requires every feature kind of its biome. Patch placement avoids overlapping patches. Hand-built test terrain may still use cosine hills. The 30-metre navigation and heightfield grid is 193 × 193.
+Generation permits unrestricted asymmetry while reserving clear spawn bands and a clear central rendezvous: relief fades to flat within 400 metres of them, though a river trench may cross them. Lakes keep 150 metres from spawns and settlements, and other features 60 metres from spawns and 150 metres from settlements; rocks and vegetation also keep 30 metres from liquid and river trenches. Buildings whose footprint reaches liquid or a river trench are left out. Generation validates paths between all possible spawn slots and the center, retries disconnected candidates, and requires every rock and vegetation kind and a lake of its biome's kind. Patch placement avoids overlapping patches. A point's liquid surface interpolates over the same triangles as the ground, so shorelines follow the ground's contour. Hand-built test terrain may still use cosine hills. The 30-metre navigation and heightfield grid is 193 × 193.
 
 Move orders resolve inaccessible destinations to the nearest reachable navigation point in the unit's connected component. A unit held up by an obstacle for 1.5 seconds replans its route from where it stands. Paths detour around rocks, buildings and steep slopes, with terrain speed weighting for detours; direct clear routes remain direct. Waypoints feed the existing acceleration, braking, turning, and occupied-space avoidance. A unit nearing the end of its route while its goal has moved replans to the current goal, so a moving Follow leader cannot strand it short. Both sides seek a reachable clear firing position when a detected attack target is behind terrain, reconsidering at most once per simulated second. There is no deliberate cover-seeking AI. Shared detection cannot authorize a shot through solid terrain.
 

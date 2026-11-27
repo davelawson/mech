@@ -1011,6 +1011,9 @@ public partial class CombatScreen : Control
             (TerrainKind.Water, "pool of water", "pools of water"), (TerrainKind.DeepWater, "deep lake", "deep lakes"), (TerrainKind.Ice, "ice sheet", "ice sheets"),
             (TerrainKind.Lava, "lava field", "lava fields") })
             if (terrain.Patches.Count(patch => patch.Kind == kind) is > 0 and var count) features.Add(Count(count, one, many));
+        if (terrain.Liquids.Count(body => body.Shape == LiquidShape.Lake) is > 0 and var lakes) features.Add(Count(lakes, "lake", "lakes"));
+        if (terrain.Liquids.Count(body => body.Shape == LiquidShape.River) is > 0 and var rivers) features.Add(Count(rivers, "river", "rivers"));
+        if (terrain.Liquids.Any(body => body.Shape == LiquidShape.Sea)) features.Add("sea");
         if (terrain.Buildings.Count > 0) features.Add(Count(terrain.Buildings.Count, "building", "buildings"));
         lines.Add($"TERRAIN  {string.Join(" · ", features)}");
         if (simulation.Patrol is { } patrol) lines.Add($"PATROL  {patrol.Visited} of {patrol.Layout.PatrolPoints} points visited");
