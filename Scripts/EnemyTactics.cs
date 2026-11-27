@@ -2,9 +2,10 @@ using Godot;
 
 namespace Mech;
 
-/// <summary>How an AI mech with an Attack order moves: keeping its preferred distance (the ordinary Attack movement), heading for a
-/// point the tactics chose, or standing still.</summary>
-internal enum AiMovement { Range, Point, Still }
+/// <summary>How an AI mech with an Attack order moves: keeping its preferred distance as an ordinary Attack does, keeping it toward
+/// the goal the tactics worked out at their last decision (so it is not worked out again every step), heading for a strafing point,
+/// or standing still.</summary>
+internal enum AiMovement { Range, Keep, Point, Still }
 
 /// <summary>Tactical values for AI-controlled groups. Distances are metres, time is seconds.</summary>
 public static partial class CombatRules
@@ -72,6 +73,9 @@ public sealed partial class CombatUnit
     internal double TargetSince { get; set; }
     internal AiMovement AiMove { get; set; }
     internal Vector2 AiGoal { get; set; }
+    /// <summary>The kept-range goal from the last decision, null when already at range, and whether it is reached in reverse.</summary>
+    internal Vector2? AiRangeGoal { get; set; }
+    internal bool AiReverse { get; set; }
     internal int StrafeSign { get; set; } = 1;
     internal double NextStrafeFlip { get; set; } = double.NegativeInfinity;
     /// <summary>Pulled back behind its group's front to recover, since <see cref="PulledBackAt"/>.</summary>
@@ -110,6 +114,8 @@ internal sealed class TacticalGroupState(int index, CombatSide side, int size)
     public bool InContact { get; set; }
     public List<CombatUnit> Engaging { get; } = [];
     public HashSet<CombatUnit> Targets { get; } = [];
+    /// <summary>Where a standard battle's group advances out of contact, fixed as the advance begins.</summary>
+    public Vector2? Lane { get; set; }
     /// <summary>A circle the group's movement goals stay inside while engaging, such as a garrison's leash.</summary>
     public (Vector2 Center, float Radius)? Leash { get; set; }
 }
@@ -254,12 +260,13 @@ public sealed partial class CombatSimulation
         AttackWith(unit, target); unit.PriorityTarget = null;
         var distance = unit.Position.DistanceTo(target.Position);
         var run = false;
-        unit.AiMove = AiMovement.Range;
+        unit.AiMove = AiMovement.Keep;
         if (!Sight(unit, target) || distance > unit.PreferredDistance + CombatRules.RangeBand) run = true;
         else if (distance < unit.PreferredDistance - CombatRules.RangeBand || CombatRules.IsCorporal(unit.Warrior)) { }
         else if (targets.All(enemy => unit.Position.DistanceTo(enemy.Position) > enemy.Weapons.Select(weapon => weapon.LongRange).DefaultIfEmpty(0).Max() + CombatRules.SniperMargin))
             unit.AiMove = AiMovement.Still;
         else { unit.AiMove = AiMovement.Point; unit.AiGoal = StrafeGoal(unit, target, members, leash); }
+        if (unit.AiMove == AiMovement.Keep) { unit.AiRangeGoal = RangeGoal(unit, target, out var reverse); unit.AiReverse = reverse; }
         SetGait(unit, run || UnderFire(unit));
     }
 

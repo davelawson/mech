@@ -307,7 +307,7 @@ internal static class NetworkChecks
         "NerveRemaining", "NerveDamage", "ShotAtSinceCheck", "KnockedDownSinceCheck", "HeadDamagedSinceCheck", "InjuriesAtLastCheck", "AlliesDefeatedAtLastCheck",
         "AbsorbedArmor", "AbsorbedStructure", "ShutdownHighlighted", "PanicHighlighted", "CountedPosition",
         // Route-search throttling and the enemy tactics' working state stay with the leader, which alone runs the AI.
-        "PathPlans", "PathFailed", "NextPathAt", "TacticalTarget", "TargetSince", "AiMove", "AiGoal", "StrafeSign", "NextStrafeFlip", "PullingBack",
+        "PathPlans", "PathFailed", "NextPathAt", "TacticalTarget", "TargetSince", "AiMove", "AiGoal", "AiRangeGoal", "AiReverse", "StrafeSign", "NextStrafeFlip", "PullingBack",
         "PulledBackAt", "Regrouping", "BreachesSeen", "LastShotAt", "LastHitAt", "LastAttackFrom", "RecentDamage", "Routed",
         // Service-history notes go only into the leader's mission report.
         "AutoEjected", "KillLog", "Death", "InjuryCauses"];

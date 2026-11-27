@@ -1011,7 +1011,8 @@ public sealed partial class CombatSimulation
             && (unit.FollowTarget is null || Unit(unit.FollowTarget).Defeated)).Select(unit => unit.Id));
     }
     /// <summary>A standard battle's lances engage every enemy their side detects. Out of contact each advances on the centre line in
-    /// its anchor's lane, its members side by side; a member still chasing a lost contact's last known position carries on.</summary>
+    /// its anchor's lane, taken as the advance begins, its members side by side; a member still chasing a lost contact's last known
+    /// position carries on.</summary>
     private void UpdateAi()
     {
         foreach (var group in _tacticalGroups)
@@ -1019,8 +1020,9 @@ public sealed partial class CombatSimulation
             var members = Units.Where(item => item.TacticalGroup == group.Index && item.Active && item.Fighting).ToArray();
             if (members.Length == 0) continue;
             var targets = Units.Where(item => item.Side != group.Side && !item.Defeated && Detected(group.Side, item.Id)).ToArray();
-            if (targets.Length > 0) { foreach (var unit in members) Engage(unit, targets); continue; }
-            var lane = new Vector2(Anchor(members).Position.X * .1f, 0);
+            if (targets.Length > 0) { group.Lane = null; foreach (var unit in members) Engage(unit, targets); continue; }
+            // The lane is fixed as the advance begins, so the group's routes are planned once rather than as its anchor drifts.
+            var lane = group.Lane ??= new Vector2(Anchor(members).Position.X * .1f, 0);
             for (var i = 0; i < members.Length; i++)
             {
                 var unit = members[i];
@@ -1081,8 +1083,11 @@ public sealed partial class CombatSimulation
             {
                 var target = Unit(id);
                 if (target.Defeated) { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
-                // The AI's tactics may steer an attack: strafing toward a point, or standing still to fire.
-                else goal = unit.AiMove switch { AiMovement.Point => unit.AiGoal, AiMovement.Still => null, _ => RangeGoal(unit, target, out reverse) };
+                // The AI's tactics may steer an attack: keeping range toward the goal of their last decision, strafing toward a point,
+                // or standing still to fire.
+                else if (unit.AiMove == AiMovement.Point) goal = unit.AiGoal;
+                else if (unit.AiMove == AiMovement.Keep) { goal = unit.AiRangeGoal; reverse = unit.AiReverse; }
+                else if (unit.AiMove == AiMovement.Range) goal = RangeGoal(unit, target, out reverse);
             }
             else if (_contacts[unit.Side].TryGetValue(id, out var contact)) goal = contact.LastKnownPosition;
             else { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }

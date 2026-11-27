@@ -168,7 +168,7 @@ internal static class TacticsChecks
 
         var corporal = Enemy("griffin", Vector2.Zero, EnemyPilotRank.Corporal); var target = Friend("awesome", new(0, -corporal.PreferredDistance));
         var line = Battle(corporal, target); line.Advance(3);
-        check(corporal.AiMove == AiMovement.Range && Math.Abs(corporal.Position.X) < 5, "a Corporal holds its range rather than strafing");
+        check(corporal.AiMove == AiMovement.Keep && Math.Abs(corporal.Position.X) < 5, "a Corporal holds its range rather than strafing");
 
         // A Catapult told to stand off 1,200 m from a Locust, whose longest weapon reaches 810 m, stands still to fire.
         var sniper = Enemy("catapult", Vector2.Zero); sniper.PreferredDistance = 1200; var locust = Friend("locust", new(0, -1200));
@@ -178,7 +178,7 @@ internal static class TacticsChecks
 
         var closer = Enemy("griffin", Vector2.Zero); var distant = Friend("awesome", new(0, -1500));
         var closing = Battle(closer, distant); closing.Advance(.5);
-        check(closer.AiMove == AiMovement.Range && closer.Movement == MovementMode.Run, "closing on a distant target, it runs");
+        check(closer.AiMove == AiMovement.Keep && closer.AiRangeGoal is not null && closer.Movement == MovementMode.Run, "closing on a distant target, it runs");
     }
 
     private static void CheckCohesion(Action<bool, string> check)

@@ -332,7 +332,7 @@ The [enemy tactics](combat-design.md#enemy-tactics-confirmed-november-27-2026) u
 | Value | Setting |
 |---|---|
 | Enemy lances | Up to 4 mechs; as few lances as hold the force, dealt heaviest first |
-| Decisions | Every 0.5 s in contact, and at once on first contact |
+| Decisions | Every 0.5 s in contact, and at once on first contact; movement goals, kept range included, are worked out only then |
 | Target score | 100 base, +60 in reach, +40 × rank factor for the focus, +10 per mate in reach, +40 × visible damage share, +20 down or shut down, +0.1 per ton, −4 per 100 m; never below 1 |
 | Target switching | Kept at least 8 s; replaced only by a target scoring 1.25 times as much |
 | In range | Within 150 m of the preferred distance |
@@ -340,7 +340,7 @@ The [enemy tactics](combat-design.md#enemy-tactics-confirmed-november-27-2026) u
 | Standing still | Beyond every visible enemy's longest stock weapon range plus 60 m |
 | Under fire | Shot at within the last 5 s |
 | Spacing | Movement goals at least 60 m from mates |
-| Advance | Out of contact, the anchor's lane on the centre line: 10% of its x position, mechs 100 m apart |
+| Advance | Out of contact, the anchor's lane on the centre line: 10% of its x position as the advance begins, mechs 100 m apart |
 | Separated | Over 300 m from the anchor with no mate within 300 m; regrouping runs to 100 m from the anchor and ends within 150 m |
 | Joining | The last fighting mech of a group joins another whose anchor stands within 1,000 m |
 | Pull-back | 200 m behind the group's front; damage window 15 s; return after 20 s back without a hit |
