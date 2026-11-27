@@ -63,7 +63,7 @@ Terrain is an immutable, seeded heightfield shared by combat, navigation, render
 | Toxic features | 18 toxic pools (water, radius 90–180 m), 20 fungal thickets (radius 60–120 m), 40 rocks (as Valley) |
 | Lake size | A lake's radius range sets its intended area, π·r²; it floods to that area or until its surface is 0.3 m below the hollow's spill point. Lakes start in the lowest 30% of the ground where possible, keep 150 m from clear areas and settlement pads, out of the drop zones, and two cells from other liquids |
 | Lake bowls | A hollow holding less than 40% of its lake is first sunk into a bowl 1.1 × the lake's radius, its edge varied by 75–130%, 4–8 m deep (11–16 m in the Tropical biome) |
-| Water / ice | Water 50% speed; ice full speed and no cover |
+| Water / ice | Water 50% speed; mechs walk on the ice's top at full speed, with no cover. Lake ice is level and river ice falls only at the river's grade |
 | Deep water | Water deeper than 8 m in the Tropical and Archipelago biomes; elsewhere water is wadeable at any depth |
 | Lava / deep water | Impassable wherever the mech's footprint (centre and eight points at mech radius) reaches them; open to sight and fire |
 | Sea | Surface at −1 m over the lowest 40% of the Archipelago's relief; sand bars, 60 m across at 3 m deep with 0.3 slopes, join spawn areas, the rendezvous, clearings and the objective settlement where needed |

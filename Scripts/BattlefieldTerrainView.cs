@@ -339,12 +339,11 @@ public static class BattlefieldTerrainView
                 var tangent = (course[Math.Min(i + 1, course.Count - 1)] - course[Math.Max(i - 1, 0)]).Normalized();
                 return sides.Select(side => course[i] + tangent.Orthogonal() * side).Select(at => new Vector3(at.X, Clear(at), at.Y)).ToArray();
             }
-            bool OnDeck(Vector2 point) => terrain.HeightAt(point) > terrain.GroundAt(point) + .01f;
             var previous = Row(0);
             for (var i = 0; i < course.Count - 1; i++)
             {
                 var next = Row(i + 1);
-                if (!OnDeck(course[i]) && !OnDeck(course[i + 1]))
+                if (!terrain.OnDeck(course[i]) && !terrain.OnDeck(course[i + 1]))
                     for (var j = 0; j < sides.Length - 1; j++)
                         foreach (var corner in new[] { previous[j], previous[j + 1], next[j], previous[j + 1], next[j + 1], next[j] })
                         { tool.SetNormal(Vector3.Up); tool.AddVertex(corner); }

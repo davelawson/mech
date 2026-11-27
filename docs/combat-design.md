@@ -242,7 +242,7 @@ Every generated battlefield belongs to a **biome**: Valley, Arctic, Lunar, Highl
 **Terrain.** A biome shapes a seeded noise heightfield and chooses its features:
 
 - **Valley**: rolling hills and ridges, forests, rocks, lakes on low ground and one or two rivers.
-- **Arctic**: sharper snowy ridges, sparse conifer stands, rocks, frozen lakes and sometimes a frozen river. Ice keeps full speed and gives no cover. There is no open water.
+- **Arctic**: sharper snowy ridges, sparse conifer stands, rocks, frozen lakes and sometimes a frozen river. Mechs walk on top of the ice as on open ground: it is flat, keeps full speed, gives no cover, and its surface, not the bed beneath it, sets a mech's height for movement, slope and line of sight. There is no open water. Roads still detour around ice or cross it on bridges, and like any bridge, one over a frozen river bars a mech walking along the ice beside or beneath it.
 - **Lunar**: cratered plains with raised rims, and boulder fields. No vegetation or water.
 - **Highlands**: tall mountain massifs cut by ridges and passes, many rocks, conifer scrub, small tarns and sometimes a river.
 - **Desert**: long dunes over rolling sand, tall rock outcrops, sparse scrub and a few oases.

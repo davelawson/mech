@@ -113,6 +113,8 @@ public sealed partial class BattlefieldTerrain
         return (raster, decks, near);
     }
 
+    /// <summary>Whether a bridge deck carries this point above the ground.</summary>
+    internal bool OnDeck(Vector2 point) => DeckHeight(point) is { } deck && deck > GroundAt(point) + .01f;
     /// <summary>The deck surface at a point, where a deck spans it.</summary>
     private float? DeckHeight(Vector2 point)
     {

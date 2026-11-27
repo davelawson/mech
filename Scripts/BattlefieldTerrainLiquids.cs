@@ -32,6 +32,8 @@ public sealed partial class BattlefieldTerrain
     /// <summary>Nodes within two cells of lava or deep water, where passability must test the liquid.</summary>
     private readonly bool[]? _hazardNear;
     private readonly float _deepDepth = float.PositiveInfinity;
+    /// <summary>Whether any liquid is ice, whose top mechs stand on.</summary>
+    private readonly bool _ice;
 
     /// <summary>Wet nodes keep their surface; each dry node beside a wet one takes its highest neighbour's, so a point's surface
     /// interpolates over every triangle touching liquid and the shoreline follows the ground's contour.</summary>
@@ -65,8 +67,20 @@ public sealed partial class BattlefieldTerrain
             if ((dx != 0 || dz != 0) && x + dx is >= 0 and < GridSize && z + dz is >= 0 and < GridSize) yield return Index(x + dx, z + dz);
     }
 
-    /// <summary>The generated liquid at a point and its depth; null on dry ground. Water deeper than the biome allows is deep water.</summary>
+    /// <summary>The generated liquid at a point and its depth; null on dry ground. Water deeper than the biome allows is deep water.
+    /// Depth runs down from the surface to the ground, or to a bridge deck; ice keeps its depth though mechs walk on its top.</summary>
     public (TerrainKind Kind, float Depth)? LiquidAt(Vector2 point)
+    {
+        if (LiquidSurfaceAt(point) is not { } liquid) return null;
+        var depth = liquid.Surface - BelowLiquidAt(point);
+        if (depth <= 0) return null;
+        return (liquid.Kind == TerrainKind.Water && depth > _deepDepth ? TerrainKind.DeepWater : liquid.Kind, depth);
+    }
+    /// <summary>The top of the ice at a point, where it lies above what is below it.</summary>
+    private float? IceTop(Vector2 point, float below) =>
+        LiquidSurfaceAt(point) is { Kind: TerrainKind.Ice, Surface: var surface } && surface > below ? surface : null;
+    /// <summary>The liquid surface interpolated over a point's triangle and the liquid's kind; null where no liquid reaches it.</summary>
+    private (TerrainKind Kind, float Surface)? LiquidSurfaceAt(Vector2 point)
     {
         if (_liquidSurface is null) return null;
         var x = Math.Clamp(point.X / CellSize + HalfCells, 0, GridSize - 1); var z = Math.Clamp(point.Y / CellSize + HalfCells, 0, GridSize - 1);
@@ -79,10 +93,8 @@ public sealed partial class BattlefieldTerrain
         var fill = MathF.Max(float.IsNaN(sp) ? float.MinValue : sp, MathF.Max(float.IsNaN(sq) ? float.MinValue : sq, float.IsNaN(sr) ? float.MinValue : sr));
         if (float.IsNaN(sp)) sp = fill; if (float.IsNaN(sq)) sq = fill; if (float.IsNaN(sr)) sr = fill;
         var surface = lower ? sp + (sq - sp) * u + (sr - sp) * v : sp + (sq - sp) * (1 - u) + (sr - sp) * (1 - v);
-        var depth = surface - HeightAt(point);
-        if (depth <= 0) return null;
-        var kind = (TerrainKind)new[] { _liquidKind![p], _liquidKind[q], _liquidKind[r] }.First(kind => kind >= 0);
-        return (kind == TerrainKind.Water && depth > _deepDepth ? TerrainKind.DeepWater : kind, depth);
+        var kind = _liquidKind![p] >= 0 ? _liquidKind[p] : _liquidKind[q] >= 0 ? _liquidKind[q] : _liquidKind[r];
+        return ((TerrainKind)kind, surface);
     }
     /// <summary>Lava and deep water bar a mech whose footprint reaches them.</summary>
     private bool InLiquidBarrier(Vector2 point)

@@ -47,7 +47,6 @@ This file serves as a repository for ideas that await implementation or further 
 ## Tactical Layer
 - damage to the terrain should accumulate for a while, resulting in the battlefield looking scarred after long fights
 - jumping over rocks makes weird
-- water in arctic should be ice
 - enemy pilots should tend to be better in bigger mechs
 
 ### Top Bar

@@ -156,7 +156,8 @@ internal static class TerrainChecks
     private static void CheckLiquids(BattlefieldTerrain terrain, Action<bool, string> check)
     {
         var name = $"{terrain.Biome} {terrain.Seed}";
-        float Surface(Vector2 point) => terrain.HeightAt(point) + (terrain.LiquidAt(point)?.Depth ?? 0);
+        // Mechs already stand on the ice's top; other liquids lie their depth above where mechs stand.
+        float Surface(Vector2 point) => terrain.HeightAt(point) + (terrain.LiquidAt(point) is { Kind: not TerrainKind.Ice, Depth: var depth } ? depth : 0);
         var lakes = Enumerable.Range(0, terrain.Liquids.Count).Where(body => terrain.Liquids[body].Shape == LiquidShape.Lake).ToArray();
         foreach (var lake in lakes)
         {
@@ -198,6 +199,24 @@ internal static class TerrainChecks
             TerrainKind.Ice => !terrain.Passable(point) || Mathf.IsEqualApprox(terrain.SpeedFactor(point) * (1 + terrain.SlopeAt(point)), 1),
             _ => !terrain.Passable(point),
         }), $"{name} water slows, ice keeps full speed, and lava and deep water bar mechs");
+        // Mechs stand on the ice's top, not the bed beneath it; away from its shores and bridges the ice is flat open ground.
+        var ice = samples.Where(point => terrain.LiquidAt(point)!.Value.Kind == TerrainKind.Ice && !terrain.OnDeck(point)).ToArray();
+        check(ice.All(point => Mathf.IsEqualApprox(terrain.HeightAt(point), terrain.GroundAt(point) + terrain.LiquidAt(point)!.Value.Depth)),
+            $"{name} mechs stand on top of the ice");
+        bool NearBridge(Vector2 point) => terrain.Bridges.Any(bridge =>
+        {
+            var along = bridge.To - bridge.From;
+            var t = Math.Clamp((point - bridge.From).Dot(along) / Math.Max(along.LengthSquared(), 1e-6f), 0, 1);
+            return (bridge.From + along * t).DistanceTo(point) < 40;
+        });
+        var open = ice.Where(point => !NearBridge(point) && Math.Max(Math.Abs(point.X), Math.Abs(point.Y)) < CombatRules.ArenaHalfSize - CombatRules.UnitRadius
+            && Enumerable.Range(0, 8)
+            .All(i => terrain.LiquidAt(point + Vector2.FromAngle(i * Mathf.Tau / 8) * 30) is { Kind: TerrainKind.Ice })).ToArray();
+        check(terrain.Biome != Biome.Arctic || open.Length > 0, $"{name} has open ice to walk on");
+        // Lake ice is level and river ice falls only at its river's gentle grade, so the bed's slopes never slow a mech on top.
+        bool Open(Vector2 point) => terrain.Passable(point) && terrain.SlopeAt(point) < .05f;
+        check(open.All(Open), $"{name} mechs cross open ice, whatever the bed beneath: " + string.Join("; ", open.Where(point => !Open(point)).Take(4)
+            .Select(point => $"{point} passable {terrain.Passable(point)} slope {terrain.SlopeAt(point):F3}")));
         check(terrain.Patches.All(patch => terrain.LiquidAt(patch.Center) is null), $"{name} rocks and vegetation stand on dry ground");
     }
     /// <summary>A hand-built bridge over a ravine: mechs cross on the deck, between its rails, and never climb on from beside it or pass beneath.</summary>

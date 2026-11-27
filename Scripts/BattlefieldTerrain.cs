@@ -106,6 +106,7 @@ public sealed partial class BattlefieldTerrain
                 _heights[index] = Mathf.Lerp(level, _heights[index], blend);
             }
         if (liquids is not null) (_liquidKind, _liquidSurface, _liquidBody, _hazardNear, _deepDepth) = LiquidGrid(liquids, _heights);
+        _ice = _liquidKind?.Contains((sbyte)TerrainKind.Ice) == true;
         if (roads is not null) (_road, _decks, _deckNear) = RoadGrid(roads);
         _solids = Patches.Where(patch => patch.Kind == TerrainKind.Rock)
             .Select(rock => new Solid(rock.Center, new(rock.Radius, rock.Radius), 1, 0, true,
@@ -520,8 +521,14 @@ public sealed partial class BattlefieldTerrain
     private static int Index(int x, int z) => z * GridSize + x;
     private static Vector2 Point(int index) => new Vector2(index % GridSize - HalfCells, index / GridSize - HalfCells) * CellSize;
     private static int Node(Vector2 point) => Index(Math.Clamp((int)MathF.Round(point.X / CellSize + HalfCells), 1, GridSize - 2), Math.Clamp((int)MathF.Round(point.Y / CellSize + HalfCells), 1, GridSize - 2));
-    /// <summary>The surface a mech stands on: the ground, or a bridge deck where one spans it.</summary>
+    /// <summary>The surface a mech stands on: the ground, a bridge deck where one spans it, or the top of the ice over a frozen lake or river.</summary>
     public float HeightAt(Vector2 point)
+    {
+        var below = BelowLiquidAt(point);
+        return _ice && IceTop(point, below) is { } ice ? ice : below;
+    }
+    /// <summary>The ground, or a bridge deck where one spans it: what lies under any liquid.</summary>
+    private float BelowLiquidAt(Vector2 point)
     {
         var ground = GroundAt(point);
         return _decks.Length > 0 && DeckHeight(point) is { } deck ? Math.Max(ground, deck) : ground;
@@ -584,7 +591,7 @@ public sealed partial class BattlefieldTerrain
         for (var i = 1; i < steps; i++) if (!Passable(from.Lerp(to, i / (float)steps))) return false;
         return true;
     }
-    // Ice is flat and gives no cover: it neither slows nor screens.
+    // Mechs walk on the ice's flat top: it neither slows nor screens.
     // A road's speed replaces vegetation's slowdown, though its cover still counts.
     public float SpeedFactor(Vector2 point) => (Contains(TerrainKind.Water, point) ? WaterSpeed : OnRoad(point) ? RoadSpeed
         : Contains(TerrainKind.Vegetation, point) ? VegetationSpeed : 1) / (1 + SlopeAt(point));
