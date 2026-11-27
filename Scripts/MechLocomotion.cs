@@ -8,7 +8,9 @@ public partial class MechModel
     private const float StrideSeconds = .4383f;
     internal sealed record GaitProfile(float WalkLift = .075f, float RunLift = .11f, float BodyDrop = .035f, float RunDrop = .012f,
         float Bob = .010f, float Sway = .016f, float Lean = .035f, float Roll = .008f,
-        float LeftArmSwing = .045f, float RightArmSwing = .045f);
+        float LeftArmSwing = .045f, float RightArmSwing = .045f, float RunStance = .60f, float RunBounce = 0);
+    // RunStance is each foot's planted share of a running stride (never below half, so a foot is always down).
+    // RunBounce, when set, replaces the running bob: the body dips as each foot lands and rises through mid-stance.
     // Joint positions are model-local, on the anatomical right; the left side mirrors X.
     internal sealed record RigProfile(float Waist, Vector3 Hip, Vector3 Knee, Vector3 Ankle, Vector3 Shoulder, GaitProfile Gait);
     // Per-chassis profiles are generated into PreparedMechModels.cs from model manifests and Data/mech-gaits.json.
@@ -75,7 +77,9 @@ public partial class MechModel
             var height = Math.Abs(thigh.Y + shin.Y) - drop + rig.Gait.Bob;
             return Mathf.Sqrt(Math.Max(0, length * length - height * height)) - Math.Abs(thigh.Z + shin.Z);
         }
-        _walkReach = Reach(rig.Gait.BodyDrop); _runReach = Reach(rig.Gait.BodyDrop + rig.Gait.RunDrop);
+        _walkReach = Reach(rig.Gait.BodyDrop);
+        // A running bounce is at its lowest when the feet are at the stride's extremes, so no bob shortens the running reach.
+        _runReach = Reach(rig.Gait.BodyDrop + rig.Gait.RunDrop + (rig.Gait.RunBounce > 0 ? rig.Gait.Bob : 0));
     }
     /// <summary>Stride amplitude in local units: proportional to gait speed, capped at leg reach.</summary>
     internal float StrideAmplitude(float speed, bool running) =>
@@ -96,14 +100,16 @@ public partial class MechModel
         _motionBlend = Mathf.Lerp(_motionBlend, targetBlend, smoothing);
         RunBlend = Mathf.Lerp(RunBlend, Math.Clamp((Math.Abs(speed) - walk) / Math.Max(.001f, runningSpeed - walk), 0, 1), smoothing);
         var stride = Mathf.Lerp(StrideAmplitude(walk, false), StrideAmplitude(Math.Max(walk, runningSpeed), true), RunBlend);
-        var stance = Mathf.Lerp(.65f, .60f, RunBlend); // Always at least one planted foot.
+        var stance = Mathf.Lerp(.65f, Math.Max(.5f, gait.RunStance), RunBlend); // Always at least one planted foot.
         var cycles = speed / (2 * stride * Scale.X / stance);
         if (!moving) cycles = pivoting * .5f;
         _stridePhase = (_stridePhase + cycles * delta) % 1;
         if (_stridePhase < 0) _stridePhase += 1;
         var phase = (float)_stridePhase;
         var wave = Mathf.Sin(phase * Mathf.Tau);
-        var bob = (-gait.BodyDrop - RunBlend * gait.RunDrop + gait.Bob * Mathf.Cos(phase * Mathf.Tau * 2)) * _motionBlend;
+        var bounce = gait.Bob * Mathf.Cos(phase * Mathf.Tau * 2);
+        if (gait.RunBounce > 0) bounce = Mathf.Lerp(bounce, gait.RunBounce * Math.Abs(Mathf.Sin(phase * Mathf.Tau)), RunBlend);
+        var bob = (-gait.BodyDrop - RunBlend * gait.RunDrop + bounce) * _motionBlend;
         var sway = wave * gait.Sway * _motionBlend;
         _body.Position = new(sway, _rig.Waist + bob, 0);
         _body.Rotation = new(-gait.Lean * RunBlend * _motionBlend, -_torsoTwist, -wave * gait.Roll * _motionBlend);

@@ -630,7 +630,7 @@ internal static class PreparedMechModels
             new("Torso_Right_MH2", MechLocation.RightTorso, HardpointClass.Missile, ["Missile10", "Missile15", "Missile2", "Missile20", "Missile4", "Missile5", "Missile6"]),
         ]),
         ["locust"] = new("Locust", new(1.3295978f, new(0.3412905f, 1.1848425f, 0.0000013f), new(0.3413090f, 0.8034716f, 0.2120375f),
-            new(0.3438076f, 0.1235709f, -0.0000033f), new(0.5111468f, 1.6251684f, 0.2241694f), new(BodyDrop: 0.08f, RunDrop: 0.045f, LeftArmSwing: 0.04f, RightArmSwing: 0.04f)),
+            new(0.3438076f, 0.1235709f, -0.0000033f), new(0.5111468f, 1.6251684f, 0.2241694f), new(BodyDrop: 0.08f, LeftArmSwing: 0.04f, RightArmSwing: 0.04f, RunStance: 0.5f, RunDrop: 0.07f, RunBounce: 0.05f, RunLift: 0.16f, Lean: 0.05f)),
         [
             new("Torso_Center_BH1", MechLocation.CenterTorso, HardpointClass.Ballistic, ["AC2", "MG"]),
             new("Torso_Center_BH2", MechLocation.CenterTorso, HardpointClass.Ballistic, ["AC2", "MG"]),

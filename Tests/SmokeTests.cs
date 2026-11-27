@@ -52,7 +52,7 @@ public partial class SmokeTests : Node
         }),
         new("mech-visuals", Setup.None, async () =>
         {
-            await TestMechVisuals(); await TestChassisVisuals(); await TestAdditionalChassis(); await TestFinalChassis(); await TestAdditionalBatch(); await TestWeaponMounts(); await TestJumpVisuals(); await TestStandUpVisuals();
+            await TestMechVisuals(); await TestChassisVisuals(); await TestAdditionalChassis(); await TestFinalChassis(); await TestAdditionalBatch(); await TestWeaponMounts(); await TestJumpVisuals(); await TestStandUpVisuals(); await TestRunningGaits();
         }),
         new("layout", Setup.Drafted, TestResizing),
         new("audio", Setup.Menu, async () => { await TestAudioUi(); await TestCombatAudio(); }),
