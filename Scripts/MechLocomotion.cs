@@ -8,9 +8,24 @@ public partial class MechModel
     private const float StrideSeconds = .4383f;
     internal sealed record GaitProfile(float WalkLift = .075f, float RunLift = .11f, float BodyDrop = .035f, float RunDrop = .012f,
         float Bob = .010f, float Sway = .016f, float Lean = .035f, float Roll = .008f,
-        float LeftArmSwing = .045f, float RightArmSwing = .045f, float RunStance = .60f, float RunBounce = 0);
+        float LeftArmSwing = .045f, float RightArmSwing = .045f, float RunStance = .60f, float RunBounce = 0,
+        float WalkStance = .65f, float WalkCadence = 0, float RunCadence = 0, float WalkDip = 0, float RunDip = 0, float FootRoll = 0,
+        float MaxRunCadence = 0, float FlightBounce = 0)
+    {
+        /// <summary>A flight run leaves the ground between steps rather than step faster than <see cref="MaxRunCadence"/>.</summary>
+        public bool Flight => MaxRunCadence > 0;
+        /// <summary>Weighted gaits size strides from a target cadence, dip the hips through double support and roll each planted
+        /// foot from heel to toe, which lets legs that stand nearly straight take longer steps.</summary>
+        public bool Weighted => WalkCadence > 0 || RunCadence > 0 || WalkDip > 0 || RunDip > 0 || FootRoll > 0 || Flight;
+    }
     // RunStance is each foot's planted share of a running stride (never below half, so a foot is always down).
     // RunBounce, when set, replaces the running bob: the body dips as each foot lands and rises through mid-stance.
+    // WalkStance is each foot's planted share of a walking stride. WalkCadence and RunCadence are target footfalls per second,
+    // reached when leg reach allows. WalkDip and RunDip lower the hips through double support, in model units; FootRoll is the
+    // pitch in radians of a foot rocking on its heel as it lands and on its toes as it pushes off.
+    // MaxRunCadence caps running footfalls per second: a run that would step faster shortens its stance below half, so both feet
+    // leave the ground between steps. FlightBounce is how far, in model units, the body arcs up while airborne; it sinks half as far
+    // at mid-stance.
     // Joint positions are model-local, on the anatomical right; the left side mirrors X.
     internal sealed record RigProfile(float Waist, Vector3 Hip, Vector3 Knee, Vector3 Ankle, Vector3 Shoulder, GaitProfile Gait);
     // Per-chassis profiles are generated into PreparedMechModels.cs from model manifests and Data/mech-gaits.json.
@@ -32,6 +47,14 @@ public partial class MechModel
     private double _stridePhase;
     // Longest stride amplitude (local units) whose stance poses stay within leg reach.
     private float _walkReach, _runReach;
+    // A flight run's reach, for its own hip profile.
+    private float _flightReach;
+    // Each foot's bottom-rear (heel) and bottom-front (toe) corners, as (Y, Z) in its ankle pivot's frame, in leg order. Source
+    // feet are not always mirror images, so each foot rocks about its own corners.
+    private readonly record struct Sole(float HeelY, float HeelZ, float ToeY, float ToeZ);
+    private readonly List<Sole> _soles = [];
+    // Stance progress by which a landing foot has rocked flat off its heel, and from which it rocks onto its toes.
+    private const float HeelRock = .2f, ToeRock = .55f;
     private float _motionBlend;
     public float RunBlend { get; private set; }
     /// <summary>Feet planted so far: one each time a leg's swing ends and its stance begins.</summary>
@@ -77,13 +100,92 @@ public partial class MechModel
             var height = Math.Abs(thigh.Y + shin.Y) - drop + rig.Gait.Bob;
             return Mathf.Sqrt(Math.Max(0, length * length - height * height)) - Math.Abs(thigh.Z + shin.Z);
         }
-        _walkReach = Reach(rig.Gait.BodyDrop);
+        foreach (var leg in _legs)
+        {
+            var foot = leg.Ankle.FindChildren("*", "MeshInstance3D", true, false).OfType<MeshInstance3D>()
+                .Select(mesh => Relative(mesh, leg.Ankle) * mesh.Mesh.GetAabb()).Aggregate((Aabb?)null, (sum, box) => sum?.Merge(box) ?? box);
+            _soles.Add(foot is { } box ? new(box.Position.Y, box.End.Z, box.Position.Y, box.Position.Z) : default);
+        }
+        var gait = rig.Gait;
+        if (gait.Weighted)
+        {
+            // Hip height for stance progress 0–1 in a walk or grounded run, and in a flight run.
+            Func<float, float> Grounded(float stance, float drop, float dip) => progress =>
+                -drop + gait.Bob * Mathf.Cos(progress * stance * Mathf.Tau * 2) - dip * DipCurve(progress * stance, stance);
+            Func<float, float> Flying(float drop, float dip) => progress => -drop + FlightBob(progress * .5f, .5f, dip, gait.FlightBounce);
+            float WeightedReach(Func<float, float> hip)
+            {
+                // Every planted pose of the stance, with the hip dip and foot roll at full strength, must stay within leg reach.
+                bool Fits(float amplitude)
+                {
+                    for (var sample = 0; sample <= 32; sample++)
+                    {
+                        var progress = sample / 32f; var bob = hip(progress);
+                        foreach (var sole in _soles)
+                        {
+                            var foot = PlantedFoot(sole, progress, amplitude * (2 * progress - 1), gait.FootRoll);
+                            if (new Vector2(thigh.Y + shin.Y + foot.Y - bob, thigh.Z + shin.Z + foot.Z).Length() > length) return false;
+                        }
+                    }
+                    return true;
+                }
+                float low = 0, high = length;
+                for (var i = 0; i < 24; i++) { var mid = (low + high) / 2; if (Fits(mid)) low = mid; else high = mid; }
+                return low;
+            }
+            _walkReach = WeightedReach(Grounded(Math.Max(.5f, gait.WalkStance), gait.BodyDrop, gait.WalkDip));
+            _runReach = WeightedReach(Grounded(Math.Max(.5f, gait.RunStance), gait.BodyDrop + gait.RunDrop, gait.RunDip));
+            if (gait.Flight) _flightReach = WeightedReach(Flying(gait.BodyDrop + gait.RunDrop, gait.RunDip));
+            return;
+        }
+        _walkReach = Reach(gait.BodyDrop);
         // A running bounce is at its lowest when the feet are at the stride's extremes, so no bob shortens the running reach.
-        _runReach = Reach(rig.Gait.BodyDrop + rig.Gait.RunDrop + (rig.Gait.RunBounce > 0 ? rig.Gait.Bob : 0));
+        _runReach = Reach(gait.BodyDrop + gait.RunDrop + (gait.RunBounce > 0 ? gait.Bob : 0));
     }
-    /// <summary>Stride amplitude in local units: proportional to gait speed, capped at leg reach.</summary>
-    internal float StrideAmplitude(float speed, bool running) =>
-        Math.Min(StrideSeconds * speed / Scale.X, running ? _runReach : _walkReach);
+    /// <summary>Stride amplitude in local units, capped at leg reach: sized for the gait's target cadence when it has one, otherwise
+    /// proportional to gait speed.</summary>
+    internal float StrideAmplitude(float speed, bool running)
+    {
+        if (_rig is not { Gait: var gait }) return StrideSeconds * speed / Scale.X;
+        if (!running) return Amplitude(speed, gait.WalkCadence, Math.Max(.5f, gait.WalkStance), _walkReach);
+        return Flies(gait, speed) ? Amplitude(speed, gait.RunCadence, .5f, _flightReach)
+            : Amplitude(speed, gait.RunCadence, Math.Max(.5f, gait.RunStance), _runReach);
+    }
+    // Footfalls per second are speed × stance / amplitude (in metres), so a target cadence sets the amplitude.
+    private float Amplitude(float speed, float cadence, float stance, float reach) =>
+        Math.Min(cadence > 0 ? speed * stance / (cadence * Scale.X) : StrideSeconds * speed / Scale.X, reach);
+    /// <summary>Whether a run at this speed leaves the ground between steps: only a flight gait whose grounded run would land
+    /// footfalls faster than its cap.</summary>
+    private bool Flies(GaitProfile gait, float speed)
+    {
+        var stance = Math.Max(.5f, gait.RunStance);
+        return gait.Flight && speed * stance / (Amplitude(speed, gait.RunCadence, stance, _runReach) * Scale.X) > gait.MaxRunCadence;
+    }
+    /// <summary>Hip dip weight for a leg's step phase: 1 in the middle of double support, when the feet are furthest apart, and 0 in
+    /// mid single support, when the body vaults over the planted leg.</summary>
+    private static float DipCurve(float step, float stance) => (1 + Mathf.Cos((step - (stance - .5f) / 2) * Mathf.Tau * 2)) / 2;
+    /// <summary>Hip offset in a flight run, for the time since the latest footfall as a share of the stride cycle (0–0.5) and a stance
+    /// of at most half: held down by the dip as each foot lands and pushes off, sinking by half the bounce at mid-stance, then arcing
+    /// up by the bounce while both feet are off the ground.</summary>
+    private static float FlightBob(float sinceLanding, float stance, float dip, float bounce) => sinceLanding < stance
+        ? -dip - bounce / 2 * Mathf.Sin(Mathf.Pi * sinceLanding / stance)
+        : -dip + bounce * Mathf.Sin(Mathf.Pi * (sinceLanding - stance) / Math.Max(.0001f, .5f - stance));
+    /// <summary>How far a sole corner, as (Y, Z) from the ankle pivot, rises when the foot pitches by <paramref name="pitch"/>.</summary>
+    private static float CornerRise(float y, float z, float pitch) => y * Mathf.Cos(pitch) - z * Mathf.Sin(pitch) - y;
+    /// <summary>A planted foot at stance progress 0–1, its flat ankle at <paramref name="ground"/> along Z: the ankle's offset from
+    /// that flat pose and the foot's pitch (positive raises the toes). It lands rocked back on its heel, settles flat, then rocks
+    /// onto its toes to push off, pivoting about the heel or toe so the touching corner stays put.</summary>
+    private static (float Y, float Z, float Pitch) PlantedFoot(Sole sole, float progress, float ground, float roll)
+    {
+        float pitch, pivotY, pivotZ;
+        if (progress < HeelRock) (pitch, pivotY, pivotZ) = (roll * (1 - Mathf.SmoothStep(0, 1, progress / HeelRock)), sole.HeelY, sole.HeelZ);
+        else if (progress > ToeRock) (pitch, pivotY, pivotZ) = (-roll * Mathf.SmoothStep(0, 1, (progress - ToeRock) / (1 - ToeRock)), sole.ToeY, sole.ToeZ);
+        else return (0, ground, 0);
+        // The ankle sits at minus the pivot from it; rotating that about X moves the ankle while the pivot stays put.
+        var (sin, cos) = (Mathf.Sin(pitch), Mathf.Cos(pitch));
+        var (y, z) = (-pivotY, -pivotZ);
+        return (y * cos - z * sin - y, ground + y * sin + z * cos - z, pitch);
+    }
 
     /// <summary>Shared hangar/combat pose. Speed is signed world units/sec; turning is radians/sec.
     /// Foot cadence follows distance, with overlapping planted phases and two-link leg articulation.</summary>
@@ -99,8 +201,19 @@ public partial class MechModel
         var smoothing = 1 - Mathf.Exp(-delta * 10);
         _motionBlend = Mathf.Lerp(_motionBlend, targetBlend, smoothing);
         RunBlend = Mathf.Lerp(RunBlend, Math.Clamp((Math.Abs(speed) - walk) / Math.Max(.001f, runningSpeed - walk), 0, 1), smoothing);
-        var stride = Mathf.Lerp(StrideAmplitude(walk, false), StrideAmplitude(Math.Max(walk, runningSpeed), true), RunBlend);
-        var stance = Mathf.Lerp(.65f, Math.Max(.5f, gait.RunStance), RunBlend); // Always at least one planted foot.
+        var run = Math.Max(walk, runningSpeed);
+        var walkStride = StrideAmplitude(walk, false); var runStride = StrideAmplitude(run, true);
+        var stride = Mathf.Lerp(walkStride, runStride, RunBlend);
+        // A flight run shortens its stance below half until full-speed footfalls come no faster than its cap; otherwise a foot is
+        // always planted.
+        var flying = Flies(gait, run);
+        var runStance = flying ? Math.Clamp(gait.MaxRunCadence * runStride * Scale.X / run, .25f, .5f) : Math.Max(.5f, gait.RunStance);
+        var stance = Mathf.Lerp(Math.Max(.5f, gait.WalkStance), runStance, RunBlend);
+        // A weighted gait dips and rolls in proportion to how much of its leg reach the stride uses.
+        float Use(float amplitude, float reach) => gait.Weighted && reach > 0 ? Math.Min(1, amplitude / reach) : 0;
+        var (walkUse, runUse) = (Use(walkStride, _walkReach), Use(runStride, flying ? _flightReach : _runReach));
+        var dip = Mathf.Lerp(gait.WalkDip * walkUse, gait.RunDip * runUse, RunBlend);
+        var roll = moving ? gait.FootRoll * Mathf.Lerp(walkUse, runUse, RunBlend) * _motionBlend : 0;
         var cycles = speed / (2 * stride * Scale.X / stance);
         if (!moving) cycles = pivoting * .5f;
         _stridePhase = (_stridePhase + cycles * delta) % 1;
@@ -109,7 +222,10 @@ public partial class MechModel
         var wave = Mathf.Sin(phase * Mathf.Tau);
         var bounce = gait.Bob * Mathf.Cos(phase * Mathf.Tau * 2);
         if (gait.RunBounce > 0) bounce = Mathf.Lerp(bounce, gait.RunBounce * Math.Abs(Mathf.Sin(phase * Mathf.Tau)), RunBlend);
-        var bob = (-gait.BodyDrop - RunBlend * gait.RunDrop + bounce) * _motionBlend;
+        var lowered = -dip * DipCurve(phase, stance);
+        if (flying) lowered = Mathf.Lerp(-gait.WalkDip * walkUse * DipCurve(phase, stance),
+            FlightBob(phase % .5f, Math.Min(.5f, stance), gait.RunDip * runUse, gait.FlightBounce), RunBlend);
+        var bob = (-gait.BodyDrop - RunBlend * gait.RunDrop + bounce + lowered) * _motionBlend;
         var sway = wave * gait.Sway * _motionBlend;
         _body.Position = new(sway, _rig.Waist + bob, 0);
         _body.Rotation = new(-gait.Lean * RunBlend * _motionBlend, -_torsoTwist, -wave * gait.Roll * _motionBlend);
@@ -122,14 +238,22 @@ public partial class MechModel
             if (_lastStep[index] >= 0 && Math.Abs(step - _lastStep[index]) > .5f && _motionBlend > .3f) Footfalls++;
             _lastStep[index] = step;
             var swing = Math.Clamp((step - stance) / (1 - stance), 0, 1);
-            var reach = step < stance ? -1 + 2 * step / stance
-                : 1 - 2 * Mathf.SmoothStep(0, 1, swing);
             var lift = Mathf.Pow(Mathf.Sin(swing * Mathf.Pi), 2) * Mathf.Lerp(gait.WalkLift, gait.RunLift, RunBlend) * _motionBlend;
-            var stepLength = moving ? stride : .065f * Math.Sign(turning) * leg.Side;
-            var z = reach * stepLength * _motionBlend;
+            var stepLength = (moving ? stride : .065f * Math.Sign(turning) * leg.Side) * _motionBlend;
+            // Planted, the foot's flat position travels back at ground speed; swinging, it carries forward from push-off to landing.
+            var sole = _soles[index];
+            var foot = PlantedFoot(sole, step / stance, stepLength * (2 * step / stance - 1), roll);
+            if (step >= stance)
+            {
+                var (pushOff, landing) = (PlantedFoot(sole, 1, stepLength, roll), PlantedFoot(sole, 0, -stepLength, roll));
+                var carry = Mathf.SmoothStep(0, 1, swing);
+                foot = (Mathf.Lerp(pushOff.Y, landing.Y, carry), Mathf.Lerp(pushOff.Z, landing.Z, carry), Mathf.Lerp(pushOff.Pitch, landing.Pitch, carry));
+                // A rolled foot sinks from its raised push-off as it swings; lift it clear wherever its heel or toe would dip below ground.
+                lift = Math.Max(lift, -foot.Y - Math.Min(CornerRise(sole.HeelY, sole.HeelZ, foot.Pitch), CornerRise(sole.ToeY, sole.ToeZ, foot.Pitch)));
+            }
             leg.Hip.Position = leg.Rest + new Vector3(sway, bob, 0);
-            PoseLeg(leg, leg.KneeRest.Y + leg.AnkleRest.Y + lift - bob, leg.KneeRest.Z + leg.AnkleRest.Z + z);
-            leg.Ankle.Rotation = new(leg.Ankle.Rotation.X,
+            PoseLeg(leg, leg.KneeRest.Y + leg.AnkleRest.Y + lift + foot.Y - bob, leg.KneeRest.Z + leg.AnkleRest.Z + foot.Z);
+            leg.Ankle.Rotation = new(leg.Ankle.Rotation.X + foot.Pitch,
                 pivoting * Math.Sign(turning) * Mathf.Sin(step * Mathf.Tau) * .12f * _motionBlend, 0);
         }
         for (var i = 0; i < _shoulders.Count; i++)

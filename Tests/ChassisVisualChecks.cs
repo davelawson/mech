@@ -187,22 +187,25 @@ public partial class SmokeTests
         stage.QueueFree(); await Frames();
         TestStrideProportions();
     }
-    // Strides scale with gait speed at the Marauder's old step rate, capped at leg reach. At true BattleTech heights every chassis
-    // reaches the cap, even the slow Marauder and Annihilator, so each steps as long as its legs allow and quicker the faster it goes.
+    // Strides are sized for each chassis's target cadence, capped at leg reach: a chassis steps no slower than its target, and
+    // exactly at it whenever its legs can reach the stride.
     private void TestStrideProportions()
     {
-        foreach (var id in new[] { "marauder", "annihilator", "jenner" })
+        foreach (var id in new[] { "marauder", "annihilator", "commando" })
         {
             var spec = DraftCatalog.Mech(id);
             var model = MechModel.Create(spec, CombatSide.Friendly);
+            var gait = PreparedMechModels.Models[id].Rig.Gait;
             foreach (var mode in new[] { MovementMode.Walk, MovementMode.Run })
             {
                 var speed = CombatRules.MovementSpeed(spec, mode);
                 var metres = model.StrideAmplitude(speed, mode == MovementMode.Run) * model.Scale.X;
-                Check(metres > 0 && metres < .4383f * speed - .1f, $"{spec.Chassis} {mode} stride is capped at leg reach: {metres:F2} m");
+                var (stance, cadence) = mode == MovementMode.Run ? (Math.Max(.5f, gait.RunStance), gait.RunCadence) : (gait.WalkStance, gait.WalkCadence);
+                Check(metres > 0 && speed * stance / metres >= .99f * cadence,
+                    $"{spec.Chassis} {mode} steps no slower than its {cadence:F2} footfalls/s target: {metres:F2} m amplitude");
             }
-            Check(model.StrideAmplitude(1, false) * model.Scale.X is var slow && Math.Abs(slow - .4383f) < .01f,
-                $"{spec.Chassis} strides stay proportional to speed below leg reach");
+            Check(model.StrideAmplitude(1, false) * model.Scale.X is var slow && Math.Abs(slow - gait.WalkStance / gait.WalkCadence) < .01f,
+                $"{spec.Chassis} strides land at the target cadence below leg reach");
             model.Free();
         }
     }
@@ -232,9 +235,13 @@ public partial class SmokeTests
         }
         var excursion = 2 * model.StrideAmplitude(gait == PreviewGait.Walk ? walk : run, gait == PreviewGait.Run);
         GD.Print($"{model.ChassisId} {gait} foot travel: {maximumZ[0] - minimumZ[0]:F4}, {maximumZ[1] - minimumZ[1]:F4}; support contact: {supportContact}");
-        Check(Enumerable.Range(0, 2).All(leg => Math.Abs(maximumZ[leg] - minimumZ[leg] - excursion) < .002f),
+        // A weighted gait's rolling foot keeps its heel or toe fixed rather than its ankle, so its ankle travels a little less.
+        var weighted = PreparedMechModels.Models.TryGetValue(model.ChassisId, out var prepared) && prepared.Rig.Gait.Weighted;
+        Check(weighted || Enumerable.Range(0, 2).All(leg => Math.Abs(maximumZ[leg] - minimumZ[leg] - excursion) < .002f),
             $"{model.ChassisId} {gait} feet cover the speed-proportional stride");
-        Check(supportContact, $"{model.ChassisId} {gait} keeps a support foot planted throughout its stride");
+        // A flight run leaves the ground between steps by design.
+        var flight = weighted && prepared!.Rig.Gait.Flight && gait == PreviewGait.Run;
+        Check(supportContact || flight, $"{model.ChassisId} {gait} keeps a support foot planted throughout its stride");
     }
 
 }

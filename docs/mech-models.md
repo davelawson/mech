@@ -6,7 +6,7 @@ Confirmed October 26, 2026. Awesome AWS-8Q, Jenner JR7-D, Wolverine WVR-6R and C
 
 `Scripts/MechModel.cs` provides the factory and shared rendering/condition contract used by both combat and the hangar. `Scripts/PreparedMechModels.cs` is the single table of prepared chassis: each catalog chassis whose manifest exists in `Assets/Models/` maps to its GLB name and locomotion rig. `Scripts/PreparedModelLoader.cs` loads those GLBs, attaches rigid sections to damage roots and gives each instance independent team outlines. Chassis without an imported model use the generic geometry.
 
-The table is generated; do not edit it by hand. `python3 scripts/generate-mech-rigs.py` reads rig pivots from each manifest and gait tuning from `Data/mech-gaits.json`, where `tuned` holds hand-tuned gaits by chassis ID and `default` applies to every other prepared chassis. Rerun it after preparing a model or changing a gait.
+The table is generated; do not edit it by hand. `python3 scripts/generate-mech-rigs.py` reads rig pivots from each manifest and gait tuning from `Data/mech-gaits.json`, where `weighted` sets every chassis's [weighted gait](#shared-locomotion) by tonnage and height, `tuned` holds hand-tuned gaits by chassis ID and `default` applies to every other prepared chassis; tuned or default settings override weighted ones. Rerun it after preparing a model or changing a gait.
 
 ## Preparing models
 
@@ -80,7 +80,7 @@ The project retains the prepared GLB, four required Godot companion textures and
 
 ## Imported Atlas
 
-`Assets/Models/Atlas.glb` supplies the AS7-D model, at a 14-metre displayed height (4 model units) with 50,045 triangles in 24 rigid render meshes. It uses the source skull cockpit, amber eyes, stock weapon meshes, olive paint and source normal detail. Its articulated rig uses the shared speed-proportional stride and movement speed. The preparation manifest records source files, hashes and joint pivots.
+`Assets/Models/Atlas.glb` supplies the AS7-D model, at a 14-metre displayed height (4 model units) with 50,045 triangles in 24 rigid render meshes. It uses the source skull cockpit, amber eyes, stock weapon meshes, olive paint and source normal detail. Its articulated rig uses the shared weighted gait and movement speed. The preparation manifest records source files, hashes and joint pivots.
 
 MW5's AS7-D source loadout and hardpoint mappings place the AC/20 on the right torso, LRM 20 and SRM 6 on the left torso, one laser on each arm and two on the center torso. The LRM 20 uses MW5's ten-position missile visual; the SRM retains six positions. The tabletop stock catalog records the two center-torso lasers as rear-facing. Existing combat rules do not yet enforce weapon firing arcs, so their rear-facing status is currently informational.
 
@@ -88,7 +88,7 @@ Atlas is eligible in the assault draft pool and uses its 3D model in draft previ
 
 ## Imported Panther, Shadow Hawk and Griffin
 
-The existing draft candidates PNT-9R, SHD-2H and GRF-1N use prepared MW5 source models in the hangar and combat, retaining their existing tabletop statistics and draft entries. Their displayed heights are 8.7, 10.5 and 10.5 metres respectively. The models contain 40,503, 29,896 and 24,401 triangles, with source cockpit geometry, weapons, masks and normals. Source joints drive the same shared faster movement and speed-proportional strides as the other imports.
+The existing draft candidates PNT-9R, SHD-2H and GRF-1N use prepared MW5 source models in the hangar and combat, retaining their existing tabletop statistics and draft entries. Their displayed heights are 8.7, 10.5 and 10.5 metres respectively. The models contain 40,503, 29,896 and 24,401 triangles, with source cockpit geometry, weapons, masks and normals. Source joints drive the same shared faster movement and weighted gait as the other imports.
 
 The MW5 loadouts and hardpoint visual mappings select the stock weapons; Shadow Hawk's right-arm laser blueprint references `Arm_Right_EH1_Laser_SKM`. Its head SRM, left torso AC/5 and right torso LRM stay with their corresponding damage roots. Panther has four SRM firing markers and Griffin has ten LRM markers; Shadow Hawk has two SRM and five LRM markers. The Panther and Shadow Hawk source bodies have a few cross-bone torso seam faces; each intact triangle is assigned to its predominant torso region.
 
@@ -102,7 +102,7 @@ The MW5 CRD-3R source locates both SRM 6 visuals on the torso; the tabletop cata
 
 The 36 remaining exported base-game chassis are eligible in the initial draft according to weight class; existing companies are unchanged. Their selected variants are listed below. `Data/additional-mechs.json` records the pinned stock-data paths, while their entries in `Data/mech-models.json` record the installed game's source hardpoints and weapon blueprints. Their weapon libraries hold every hardpoint visual MW5 provides, like the other imports (see [Weapon hardpoints](#weapon-hardpoints)). Each prepared GLB has a manifest with source hashes, rig pivots, geometry counts and the number of source seam or weighted faces assigned to their predominant damage region.
 
-All additional rigs inherit the shared movement speed and speed-proportional strides. The Mauler has an XL engine, double heat sinks and ER lasers; the catalog retains those facts and the UI displays double heat-sink dissipation. The current simplified combat rules do not model XL-engine vulnerability, heat accumulation or other advanced equipment effects. Its missing unweighted Cockpit export uses the equivalent source Torso_Head transform. The Rifleman's wear and default masks have different dimensions, so the default mask is resampled to preserve the larger wear texture during baking.
+All additional rigs inherit the shared movement speed and weighted gait. The Mauler has an XL engine, double heat sinks and ER lasers; the catalog retains those facts and the UI displays double heat-sink dissipation. The current simplified combat rules do not model XL-engine vulnerability, heat accumulation or other advanced equipment effects. Its missing unweighted Cockpit export uses the equivalent source Torso_Head transform. The Rifleman's wear and default masks have different dimensions, so the default mask is resampled to preserve the larger wear texture during baking.
 
 | Chassis | Selected variant |
 | --- | --- |
@@ -194,19 +194,43 @@ In the current visual scale the Jenner is about 8.4 metres tall, Wolverine 10.3 
 
 The grounded gait uses chassis-specific steps, overlapping stance phases, restrained shoulder movement and subtle body sway. Two-link leg articulation derives segment lengths and rest angles from each rig, lifts swing feet and keeps support feet at ground level. Cadence follows signed actual travel speed and model scale. Speeds above walking speed blend into the running stride; reversing plays walking backward. Stationary rotation produces alternating pivot steps. Stopping eases back to the neutral pose. Combat pause freezes the animation while leaving camera controls available.
 
-Stride length is proportional to gait speed. `StrideAmplitude` in `MechLocomotion` gives each foot a stride amplitude of `StrideSeconds = 0.4383` metres per m/s of walking or running speed. This is the Marauder's walk, about 4.7 m at 10.8 m/s, and gives every chassis the same step rate: about 0.74 cycles per second walking and 0.68 running, since the stance share drops from 0.65 to 0.60 (chassis with a `RunStance` setting, such as the Locust, differ; see below). Combat passes each unit's current walking and running speeds, so heat- or damage-slowed mechs take proportionally shorter steps at the same rate. Combat and hangar movement speeds come from `CombatRules.MovementSpeed` at 2.7 metres per second per MP. Gait profiles no longer set stride.
+Every prepared chassis has a *weighted gait*, confirmed November 27, 2026. Before it, strides were proportional to speed (`StrideSeconds = 0.4383` metres per m/s, the Marauder's old walk) and capped at a leg reach found with the hips held almost level. At BattleTech speeds every chassis hit that cap, so step length depended on how straight each source model's legs stood at rest rather than on its size: the Atlas walked at 4.0 footfalls a second, two and a half times as often as the Marauder, and the Jenner at 14.6. `StrideSeconds` and the level-hip reach remain only for a rig without weighted settings. Combat passes each unit's current walking and running speeds (`CombatRules.MovementSpeed`), so heat- or damage-slowed mechs take shorter strides.
 
-Each rig caps its stride at leg reach. `BuildLocomotionRig` computes the longest walking and running amplitude for which every stance pose keeps the hip-to-ankle distance within thigh plus shin, given that gait's body drop and bob. A capped chassis keeps its feet planted and steps faster instead. Since [true BattleTech heights](combat-design.md#true-battletech-mech-heights-confirmed-november-26-2026) (3.5 metres per model unit) every chassis reaches the cap, walking and running, so each steps as long as its legs allow and quickens its steps with speed; `StrideSeconds` only shortens steps below about 1 m/s. A running Locust lands about 6.8 footfalls a second, 4.9 metres apart.
+Weighted gaits use these settings in `Data/mech-gaits.json`:
 
-Reverse uses the walking stride. Stationary pivot-step lengths, foot lift, arm swing, sway, lean and body drop retain each chassis's settings in `Data/mech-gaits.json`. When importing another rig, check that full stride excursion is twice `StrideAmplitude` and that a support foot stays in contact.
+- `WalkCadence` and `RunCadence` are target footfalls per second. They set the stride amplitude to speed × stance ÷ cadence. The leg-reach cap still applies, so a chassis that cannot reach its target steps faster instead.
+- `WalkStance` and `RunStance` are each foot's planted share of a stride, at least 0.5 so a foot is always down (except in a flight run). A shorter stance means fewer footfalls for the same stride. Walking defaults to 0.65 and running to 0.60.
+- `WalkDip` and `RunDip` lower the hips, in model units, in the middle of double support, when the feet are furthest apart. The body rises again to vault over the planted leg in mid single support, so a nearly straight leg reaches further and the mech visibly shifts its weight. `Bob` is 0, because the old bob raised the hips as each foot landed.
+- `FootRoll` is a pitch in radians. A landing foot touches down rocked back on its heel, settles flat by 20% of its stance, then rocks forward onto its toes from 55% to push off. It pivots about the heel's or toe's bottom corner, so that corner stays put and the foot never slides. The corners come from each foot's own mesh bounds, because source feet are not always mirror images (the Spider's left heel reaches 0.37 m behind its ankle, its right 0.26 m). A swinging foot is lifted wherever its rolled heel or toe would otherwise dip below the ground.
+- `MaxRunCadence` caps running footfalls per second (4.5 for every chassis). A run whose grounded stride would step faster becomes a *flight run*: its stance drops to at most 0.5, and further (to no less than 0.25) until full running speed lands footfalls no faster than the cap, so both feet are off the ground for the rest of each step. A run under the cap stays grounded. Whether a run flies is settled from the unit's current running speed, so damage or heat can ground it.
+- `FlightBounce`, in model units, is how far the body arcs up in a flight run's airborne phase, exaggerated beyond a true ballistic arc (millimetres at these speeds) so the airtime reads. It sinks half as far at mid-stance, while each foot lands and pushes off with the hips held down by `RunDip`. The airtime fades in through the walk-to-run blend as the stance shortens.
 
-Light running gaits, confirmed November 26, 2026: two optional gait settings in `Data/mech-gaits.json` change only the running stride. `RunStance` sets each foot's planted share of a running stride, 0.60 by default. It is never below 0.5, so a foot is always planted. `RunBounce`, when set, replaces the running bob: the body sits lowest as each foot lands and rises by that many model units through mid-stance. Because the body is lowest when the feet reach the ends of the stride, the running leg-reach cap leaves out the bob, so the stride is a little longer. Chassis without these settings run as before.
+The reach caps are found numerically: the longest stride amplitude for which every planted pose of each foot, with full dip and roll, stays within thigh plus shin. The walk, the grounded run and the flight run each have their own hip profile and cap. When a stride uses less than its reach, the dip and roll shrink in proportion.
 
-The Locust is the first chassis tuned this way, for a lighter, loping run. It has a 0.50 running stance, so one foot is always on the ground and both are never planted together. Its other running settings are a deeper landing compression (`RunDrop` 0.07), a 0.05 bounce, a higher foot recovery (`RunLift` 0.16) and more forward lean (0.05). Against the default 0.60 stance its running cadence falls by about a fifth and its footprints land about 30% further apart: at true BattleTech heights, 6.8 footfalls per second and 4.9 m apart, about 62% of its height. Its walk, reverse and pivot steps are unchanged.
+`scripts/generate-mech-rigs.py` gives every chassis its weighted settings from the `weighted` block of `Data/mech-gaits.json`. Stance, cadence targets, dips and foot roll are interpolated by tonnage between its `from` (20 tons) and `to` (100 tons) ends: walking stance 0.58–0.60, cadence 2.0–1.2 walking and 2.7–1.6 running, walking dip 0.08–0.12, running dip 0.08–0.10 and foot roll 0.45–0.35. `fixed` adds `Bob` 0 and the 4.5 cap, and `FlightBounce` is 3% of the model's height (displayed height over the tonnage scale factor). A chassis's `tuned` or `default` settings override any of them. The Atlas, Jenner and Spider keep the values they were first tuned with, and the Jenner keeps a deeper crouch (`BodyDrop` 0.06, `RunDrop` 0.03).
+
+At true BattleTech heights every chassis walks at 1.2–4.4 footfalls a second and runs at 1.6–4.5, with no foot ever below the ground:
+
+| Chassis | Walk footfalls/s (before) | Run footfalls/s (before) | Run |
+|---|---|---|---|
+| Atlas | 1.2 (4.0) | 2.0 (4.8) | grounded |
+| Marauder | 1.5 (1.6) | 2.0 (2.1) | grounded |
+| Griffin | 2.5 (7.2) | 4.0 (8.7) | grounded |
+| Wolverine | 2.7 (9.3) | 4.2 (10.5) | grounded |
+| Jenner | 4.0 (14.6) | 4.5 (18.1) | 13% airborne |
+| Spider | 4.0 (8.4) | 4.5 (10.3) | 8% airborne |
+| Cicada | 4.4 (11.3) | 4.5 (12.1) | 13% airborne |
+| Locust | 4.0 (7.2) | 4.5 (6.8) | 8% airborne |
+
+Flight runs are the Locust, Commando, Spider, Jenner, Assassin and Cicada; the Commando and Assassin barely leave the ground. A few fast lights (Javelin, Firestarter) reach the cap's half stance without any airtime, running on one planted foot. Assault mechs walk slowest, at 1.2–1.6. The Cicada's walk, at 4.4, is the fastest; walks never leave the ground.
+
+The Locust's running settings, from its earlier lighter, loping run, are a 0.50 running stance, a deeper landing compression (`RunDrop` 0.07), a higher foot recovery (`RunLift` 0.16) and more forward lean (0.05). Its `RunBounce` (the body lowest as each foot lands, rising through mid-stance) is retired in favour of its flight bounce; the setting remains for gaits that are not flight runs.
+
+Reverse uses the walking stride. Stationary pivot-step lengths, foot lift, arm swing, sway, lean and body drop retain each chassis's settings in `Data/mech-gaits.json`. When importing another rig, rerun the generator and check that a support foot stays in contact and that no foot sinks below the ground.
 
 Jump jet exhaust lives in `Scripts/JumpJets.cs`. No model has authored jet markers. `PlaceJumpJets` puts one nozzle per location holding jets in the installed loadout, measured from rest-pose bounds when the model is built. Torso nozzles sit on the back face (+Z) of the location's bounds, 30% up from its bottom, aimed 20° rearward of straight down. Leg nozzles hang from the ankle pivot at the sole, aimed straight down, so they follow the jump poses; generic models use the bottom of the leg's bounds. Nozzle radius grows with the square root of the location's jet count. Plume nodes (`JumpJet_<Location>`) are built on the first jetting and are left out of rest bounds, pick bounds and `LocationCenter`.
 
-Generic chassis receive the shared movement speed immediately and retain their static geometry until imported. New imported models inherit speed-proportional strides and their leg-reach cap through `BuildLocomotionRig` without a chassis-specific speed or stride exception.
+Generic chassis receive the shared movement speed immediately and retain their static geometry until imported. New imported models inherit weighted gaits from the generator and their leg-reach caps through `BuildLocomotionRig` without a chassis-specific speed or stride exception.
 
 ## Shared paperdoll
 

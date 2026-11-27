@@ -1,4 +1,10 @@
 {
+  "weighted": {
+    "from": { "Tonnage": 20, "WalkStance": 0.58, "WalkCadence": 2.0, "RunCadence": 2.7, "WalkDip": 0.08, "RunDip": 0.08, "FootRoll": 0.45 },
+    "to": { "Tonnage": 100, "WalkStance": 0.60, "WalkCadence": 1.2, "RunCadence": 1.6, "WalkDip": 0.12, "RunDip": 0.10, "FootRoll": 0.35 },
+    "fixed": { "Bob": 0, "MaxRunCadence": 4.5 },
+    "FlightBounceShare": 0.03
+  },
   "default": { "BodyDrop": 0.08, "RunDrop": 0.045, "LeftArmSwing": 0.04, "RightArmSwing": 0.04 },
   "tuned": {
     "firestarter": { "BodyDrop": 0.055, "RunDrop": 0.035, "LeftArmSwing": 0.035, "RightArmSwing": 0.035 },
@@ -9,15 +15,21 @@
     "panther": { "BodyDrop": 0.055, "RunDrop": 0.025, "LeftArmSwing": 0.10, "RightArmSwing": 0.02 },
     "shadow-hawk": { "BodyDrop": 0.045, "RunDrop": 0.02, "LeftArmSwing": 0.08, "RightArmSwing": 0.04 },
     "griffin": { "BodyDrop": 0.055, "RunDrop": 0.025, "LeftArmSwing": 0.10, "RightArmSwing": 0.02 },
-    "atlas": { "BodyDrop": 0.05, "RunDrop": 0.025, "LeftArmSwing": 0.06, "RightArmSwing": 0.06 },
+    "atlas": { "BodyDrop": 0.05, "RunDrop": 0.025, "LeftArmSwing": 0.06, "RightArmSwing": 0.06, "Bob": 0,
+      "WalkStance": 0.60, "WalkCadence": 1.2, "RunCadence": 1.6, "WalkDip": 0.12, "RunDip": 0.10, "FootRoll": 0.35 },
     "awesome": {},
-    "jenner": { "WalkLift": 0.065, "RunLift": 0.095, "BodyDrop": 0.030, "RunDrop": 0.015,
-      "Bob": 0.008, "Sway": 0.014, "Lean": 0.045, "Roll": 0.007, "LeftArmSwing": 0.015, "RightArmSwing": 0.015 },
+    "jenner": { "WalkLift": 0.065, "RunLift": 0.095, "BodyDrop": 0.060, "RunDrop": 0.030,
+      "Bob": 0, "Sway": 0.014, "Lean": 0.045, "Roll": 0.007, "LeftArmSwing": 0.015, "RightArmSwing": 0.015,
+      "WalkStance": 0.58, "WalkCadence": 1.85, "RunCadence": 2.5, "WalkDip": 0.08, "RunDip": 0.08, "FootRoll": 0.45,
+      "MaxRunCadence": 4.5, "FlightBounce": 0.065 },
+    "spider": { "BodyDrop": 0.08, "RunDrop": 0.045, "LeftArmSwing": 0.04, "RightArmSwing": 0.04, "Bob": 0,
+      "WalkStance": 0.58, "WalkCadence": 1.9, "RunCadence": 2.55, "WalkDip": 0.08, "RunDip": 0.08, "FootRoll": 0.45,
+      "MaxRunCadence": 4.5, "FlightBounce": 0.07 },
     "wolverine": { "WalkLift": 0.085, "RunLift": 0.13, "BodyDrop": 0.045, "RunDrop": 0.025,
-      "Bob": 0.012, "Sway": 0.022, "Lean": 0.055, "Roll": 0.010, "LeftArmSwing": 0.14, "RightArmSwing": 0.018 },
+      "Sway": 0.022, "Lean": 0.055, "Roll": 0.010, "LeftArmSwing": 0.14, "RightArmSwing": 0.018 },
     "locust": { "BodyDrop": 0.08, "LeftArmSwing": 0.04, "RightArmSwing": 0.04,
-      "RunStance": 0.50, "RunDrop": 0.07, "RunBounce": 0.05, "RunLift": 0.16, "Lean": 0.05 },
+      "RunStance": 0.50, "RunDrop": 0.07, "RunLift": 0.16, "Lean": 0.05 },
     "catapult": { "WalkLift": 0.065, "RunLift": 0.095, "BodyDrop": 0.022, "RunDrop": 0.006,
-      "Bob": 0.005, "Sway": 0.009, "Lean": 0.015, "Roll": 0.004, "LeftArmSwing": 0.012, "RightArmSwing": 0.012 }
+      "Sway": 0.009, "Lean": 0.015, "Roll": 0.004, "LeftArmSwing": 0.012, "RightArmSwing": 0.012 }
   }
 }

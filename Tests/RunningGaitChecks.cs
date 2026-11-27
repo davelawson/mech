@@ -4,27 +4,33 @@ namespace Mech.Tests;
 
 public partial class SmokeTests
 {
-    /// <summary>Tuned running gaits: the Locust lopes on one planted foot with a landing dip; untuned runs keep double support.</summary>
+    /// <summary>Running gaits: fast runs leave the ground between steps rather than step faster than their cap, slower runs and
+    /// every walk keep overlapping planted steps, and no foot sinks into the ground.</summary>
     private async Task TestRunningGaits()
     {
-        var locust = Gait("locust", MovementMode.Run);
-        GD.Print($"Locust run: single support {locust.Single:P1}, airborne {locust.Airborne:P1}, {locust.FootfallRate:F2} footfalls/s, "
-            + $"footprints {locust.Spacing:F1} m apart, bounce {locust.Bounce:F3}, footfall dip {locust.FootfallDip:P0}");
-        Check(locust.Airborne == 0 && locust.Single >= .95f, $"a running Locust has exactly one foot planted almost all the time ({locust.Single:P1})");
-        Check(Math.Abs(locust.FootfallRate - locust.ExpectedRate) <= .05f * locust.ExpectedRate,
-            $"a running Locust steps at its half-stride stance cadence ({locust.FootfallRate:F2} of {locust.ExpectedRate:F2} footfalls/s)");
-        Check(locust.Spacing >= .6f * locust.Height, $"a running Locust's footprints land long strides apart ({locust.Spacing:F1} m, {locust.Spacing / locust.Height:P0} of its height)");
-        Check(locust.Bounce >= .04f && locust.FootfallDip <= .1f,
-            $"a running Locust's body dips as each foot lands and rises between footfalls (bounce {locust.Bounce:F3}, dip {locust.FootfallDip:P0})");
+        foreach (var id in new[] { "locust", "jenner", "spider", "cicada" })
+        {
+            var run = Gait(id, MovementMode.Run);
+            GD.Print($"{id} flight run: {run.FootfallRate:F2} footfalls/s, footprints {run.Spacing:F1} m apart, single support {run.Single:P1}, "
+                + $"double {run.Double:P1}, airborne {run.Airborne:P1}, bounce {run.Bounce:F3}, lowest foot {run.Sink:F3} m");
+            Check(Math.Abs(run.FootfallRate - 4.5f) <= .05f * 4.5f, $"a running {id} steps no faster than its 4.5 footfalls/s cap ({run.FootfallRate:F2})");
+            Check(run.Airborne >= .05f && run.Double == 0, $"a running {id} leaves the ground between steps ({run.Airborne:P1} airborne)");
+            Check(run.Sink >= -.01f, $"a running {id}'s feet never sink into the ground ({run.Sink:F3} m)");
+        }
+        foreach (var id in new[] { "atlas", "marauder", "griffin" })
+        {
+            var run = Gait(id, MovementMode.Run);
+            Check(run.Airborne == 0 && run.Double >= .15f && run.FootfallRate < 4.5f,
+                $"a running {id}, below the cap, keeps its overlapping planted steps ({run.FootfallRate:F2} footfalls/s, {run.Double:P1} double support)");
+        }
         var walk = Gait("locust", MovementMode.Walk);
-        Check(walk.Double >= .25f && walk.Bounce < .03f, $"a walking Locust keeps its overlapping planted steps ({walk.Double:P1} double support)");
-        var jenner = Gait("jenner", MovementMode.Run);
-        Check(jenner.Double >= .15f, $"untuned runs keep their overlapping planted steps (Jenner {jenner.Double:P1} double support)");
+        Check(walk.Airborne == 0 && walk.Double >= .15f && walk.Sink >= -.01f,
+            $"a walking Locust keeps its overlapping planted steps ({walk.Double:P1} double support)");
         await Frames();
     }
 
     private sealed record GaitMeasure(float Single, float Double, float Airborne, float FootfallRate, float ExpectedRate, float Spacing,
-        float Bounce, float FootfallDip, float Height);
+        float Bounce, float FootfallDip, float Height, float Sink);
 
     /// <summary>Runs a chassis at a steady walk or run and measures foot support, cadence and body bounce at 1/600 s.</summary>
     private GaitMeasure Gait(string id, MovementMode mode)
@@ -38,12 +44,14 @@ public partial class SmokeTests
         const float delta = 1f / 600; const int samples = 6000;
         for (var sample = 0; sample < 1200; sample++) model.AnimateLocomotion(delta, speed, walk, run);
         int single = 0, both = 0, none = 0; var footfalls = model.Footfalls;
-        var heights = new List<float>(); var landings = new List<float>();
+        var heights = new List<float>(); var landings = new List<float>(); var sink = 0f;
         for (var sample = 0; sample < samples; sample++)
         {
             var before = model.Footfalls;
             model.AnimateLocomotion(delta, speed, walk, run);
-            var grounded = feet.Count(foot => Math.Abs(Enumerable.Range(0, 8).Min(i => (foot.GlobalTransform * foot.Mesh.GetAabb().GetEndpoint(i)).Y)) < .002f * CombatRules.BodyScale);
+            var bottoms = feet.Select(foot => Enumerable.Range(0, 8).Min(i => (foot.GlobalTransform * foot.Mesh.GetAabb().GetEndpoint(i)).Y)).ToArray();
+            var grounded = bottoms.Count(bottom => Math.Abs(bottom) < .002f * CombatRules.BodyScale);
+            sink = Math.Min(sink, bottoms.Min());
             if (grounded == 1) single++; else if (grounded == 0) none++; else both++;
             heights.Add(body.Position.Y);
             if (model.Footfalls != before) landings.Add(body.Position.Y);
@@ -55,6 +63,6 @@ public partial class SmokeTests
         var dip = landings.Count == 0 || high <= low ? 1 : landings.Max(height => (height - low) / (high - low));
         var height = model.Height;
         model.QueueFree();
-        return new(single / (float)samples, both / (float)samples, none / (float)samples, rate, expected, speed / rate, high - low, dip, height);
+        return new(single / (float)samples, both / (float)samples, none / (float)samples, rate, expected, speed / rate, high - low, dip, height, sink);
     }
 }
