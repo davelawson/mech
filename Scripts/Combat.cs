@@ -802,6 +802,7 @@ public sealed partial class CombatSimulation
         if (EnemyAiEnabled)
         {
             UpdateFleeing();
+            JoinStragglers();
             if (TakeAndHold is not null) UpdateTakeAndHoldAi(); else if (Patrol is not null) UpdatePatrolAi(); else UpdateAi();
             UpdateTactics();
         }
@@ -935,7 +936,11 @@ public sealed partial class CombatSimulation
             var destroyed = damage.Where(part => part.Destroyed).Select(part => part.Location).ToHashSet();
             var taken = damage.Sum(part => part.Armor + part.RearArmor + part.Structure);
             target.NerveDamage += taken;
-            if (taken > 0) { target.LastHitAt = Elapsed; target.LastAttackFrom = shot.From; target.RecentDamage.Add((Elapsed, taken)); }
+            if (taken > 0)
+            {
+                target.LastHitAt = Elapsed; target.LastAttackFrom = shot.From;
+                target.RecentDamage.RemoveAll(item => Elapsed - item.Time > CombatRules.PullBackWindowSeconds + 1e-9); target.RecentDamage.Add((Elapsed, taken));
+            }
             if (damage.Any(part => part.Location == MechLocation.Head)) target.HeadDamagedSinceCheck = true;
             if (!ejected && target.Ejected) NoteAutoEjections([target]);
             var systems = target.Spec.Weapons.Select(item => (item.Id, item.Name, item.Location))

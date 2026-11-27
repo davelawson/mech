@@ -172,7 +172,6 @@ public sealed partial class CombatSimulation
     /// pace.</summary>
     private void UpdateTactics()
     {
-        JoinStragglers();
         foreach (var group in _tacticalGroups)
         {
             var engaging = group.Engaging.Where(unit => unit.Active && unit.Fighting).Distinct().ToList();
@@ -204,7 +203,8 @@ public sealed partial class CombatSimulation
         }
     }
 
-    /// <summary>The last survivor of a group joins the nearest other group of its side whose anchor stands within reach.</summary>
+    /// <summary>The last survivor of a group joins the nearest other group of its side whose anchor stands within reach. This runs
+    /// before the mission AIs, so the survivor fights with its new group from the step it joins.</summary>
     private void JoinStragglers()
     {
         foreach (var group in _tacticalGroups.Where(group => group.Size > 1))
@@ -240,7 +240,7 @@ public sealed partial class CombatSimulation
             unit.Regrouping = false;
             var best = view.Choose(unit, focus.Id);
             if (best.Id != unit.TacticalTarget) { unit.TacticalTarget = best.Id; unit.TargetSince = Elapsed; }
-            EngageTarget(unit, best, targets, members, leash);
+            EngageTarget(unit, best, members, leash);
         }
     }
 
@@ -255,7 +255,7 @@ public sealed partial class CombatSimulation
 
     /// <summary>Attacks a target: closing or backing off to the preferred distance, strafing around it once in range, or standing
     /// still beyond every visible enemy's reach. Runs while closing, repositioning or under fire, and walks when hot.</summary>
-    private void EngageTarget(CombatUnit unit, CombatUnit target, List<CombatUnit> targets, CombatUnit[] members, (Vector2 Center, float Radius)? leash)
+    private void EngageTarget(CombatUnit unit, CombatUnit target, CombatUnit[] members, (Vector2 Center, float Radius)? leash)
     {
         AttackWith(unit, target); unit.PriorityTarget = null;
         var distance = unit.Position.DistanceTo(target.Position);
@@ -263,12 +263,22 @@ public sealed partial class CombatSimulation
         unit.AiMove = AiMovement.Keep;
         if (!Sight(unit, target) || distance > unit.PreferredDistance + CombatRules.RangeBand) run = true;
         else if (distance < unit.PreferredDistance - CombatRules.RangeBand || CombatRules.IsCorporal(unit.Warrior)) { }
-        else if (targets.All(enemy => unit.Position.DistanceTo(enemy.Position) > enemy.Weapons.Select(weapon => weapon.LongRange).DefaultIfEmpty(0).Max() + CombatRules.SniperMargin))
+        else if (Units.Where(enemy => enemy.Side != unit.Side && !enemy.Defeated && Detected(unit.Side, enemy.Id))
+            .All(enemy => unit.Position.DistanceTo(enemy.Position) > StockReach(enemy) + CombatRules.SniperMargin))
             unit.AiMove = AiMovement.Still;
         else { unit.AiMove = AiMovement.Point; unit.AiGoal = StrafeGoal(unit, target, members, leash); }
-        if (unit.AiMove == AiMovement.Keep) { unit.AiRangeGoal = RangeGoal(unit, target, out var reverse); unit.AiReverse = reverse; }
+        if (unit.AiMove == AiMovement.Keep)
+        {
+            // A firing position keeps its spot, which was chosen for its sight of the target; any other goal keeps clear of mates.
+            var goal = RangeGoal(unit, target, out var reverse);
+            if (goal is { } point && Sight(unit, target)) goal = Spaced(unit, point, members);
+            unit.AiRangeGoal = goal is { } kept ? Leashed(kept, leash) : null; unit.AiReverse = reverse;
+        }
         SetGait(unit, run || UnderFire(unit));
     }
+    /// <summary>How far a mech's chassis can shoot: the longest weapon range of its stock loadout, which identifying it reveals.</summary>
+    private static float StockReach(CombatUnit unit) =>
+        unit.Spec.Weapons.Select(weapon => weapon.Long * CombatRules.WeaponRangeScale).DefaultIfEmpty(0).Max();
 
     /// <summary>A point ahead along the circle at the preferred distance around the target, on the side the mech is strafing.</summary>
     private Vector2 StrafeGoal(CombatUnit unit, CombatUnit target, CombatUnit[] members, (Vector2 Center, float Radius)? leash)
