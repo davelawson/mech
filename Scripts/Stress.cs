@@ -73,14 +73,14 @@ public sealed partial class CombatUnit
     public bool Surrendered { get; internal set; }
     /// <summary>Has offered to surrender this battle; a mech offers once.</summary>
     public bool SurrenderOffered { get; internal set; }
-    /// <summary>Running from the battle after a refused surrender.</summary>
+    /// <summary>Running from the battle: after a refused surrender, or after a rout (<see cref="Routed"/>).</summary>
     public bool Fleeing { get; internal set; }
     /// <summary>Left the battle over the arena edge while fleeing.</summary>
     public bool Fled { get; internal set; }
     /// <summary>Every weapon lost. An unarmed mech is not disabled: it can still walk off, flee or surrender.</summary>
     public bool Unarmed => !Weapons.Any(WeaponIntact);
-    /// <summary>Still in the fight: on the field and able to shoot.</summary>
-    public bool Fighting => !Defeated && !Unarmed;
+    /// <summary>Still in the fight: on the field, able to shoot and not running away.</summary>
+    public bool Fighting => !Defeated && !Unarmed && !Fleeing;
 
     /// <summary>The pilot leaves the cockpit, injured. A head already lost or a struck cockpit has no pilot left to eject.</summary>
     internal bool Eject()
@@ -192,18 +192,19 @@ public sealed partial class CombatSimulation
         Note(unit, check.Text, unit.Side == CombatSide.Friendly && (unit.Stress != before || pushed));
         if (unit.Stress == StressLevel.Panicked && !unit.PanicHighlighted) { unit.PanicHighlighted = true; Highlight(unit, $"{Name(unit)} panicked."); }
         if (broke) Eject(unit, "panics and ejects", $"{unit.Warrior.Callsign} panicked and ejected from the {unit.Spec.DisplayName}.");
-        else if (unit.Side == CombatSide.Enemy && EnemyAiEnabled) ConsiderSurrender(unit);
+        // A crippled center torso is settled by surrender or ejection; any other badly damaged enemy may rout.
+        else if (unit.Side == CombatSide.Enemy && EnemyAiEnabled)
+        {
+            if (CombatRules.CenterTorsoCrippled(unit)) ConsiderSurrender(unit); else ConsiderRout(unit);
+        }
         return check;
     }
 
     /// <summary>The fighting strength a side's pilot sees: its own side's fighting mechs, and the enemy mechs it has detected, each
     /// by tonnage × the share of its stock structure left.</summary>
-    internal (float Own, float Enemy) SideStrength(CombatSide side)
-    {
-        static float Strength(CombatUnit unit) => unit.Spec.Tonnage * unit.Locations.Values.Sum(part => part.Structure) / (float)unit.Spec.StructureTotal;
-        return (Units.Where(item => item.Side == side && item.Fighting).Sum(Strength),
-            Units.Where(item => item.Side != side && item.Fighting && Detected(side, item.Id)).Sum(Strength));
-    }
+    internal (float Own, float Enemy) SideStrength(CombatSide side) =>
+        (Units.Where(item => item.Side == side && item.Fighting).Sum(CombatRules.Strength),
+            Units.Where(item => item.Side != side && item.Fighting && Detected(side, item.Id)).Sum(CombatRules.Strength));
     internal bool ExpectsDefeat(CombatSide side) { var (own, enemy) = SideStrength(side); return enemy > own; }
 
     /// <summary>After an enemy's nerve check: a crippled center torso makes it surrender if it expects to lose, and eject if it

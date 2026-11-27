@@ -698,6 +698,7 @@ public sealed partial class CombatSimulation
         _criticalRandom = new Random(unchecked(seed ^ CriticalSeedSalt));
         _pilotingRandom = new Random(unchecked(seed ^ PilotingSeedSalt));
         _stressRandom = new Random(unchecked(seed ^ StressSeedSalt)); StartNerveClocks(); RefreshDetection();
+        AssignTacticalGroups();
         var players = Units.Where(item => item.Side == CombatSide.Friendly).Select(item => item.Lance!.Value).Distinct().Order().ToArray();
         Players = players.Length > 0 ? players : [Campaign.LeaderSlot];
         Paused = true;
@@ -753,7 +754,7 @@ public sealed partial class CombatSimulation
     {
         var target = Unit(targetId);
         foreach (var unit in ids.Distinct().Select(Unit).Where(item => !item.Defeated && item.Side != target.Side && Detected(item.Side, targetId) && !target.Defeated))
-        { unit.Order = CombatOrder.Attack; unit.AttackTarget = targetId; unit.FollowTarget = null; unit.NextFiringSearch = 0; }
+        { unit.Order = CombatOrder.Attack; unit.AttackTarget = targetId; unit.FollowTarget = null; unit.NextFiringSearch = 0; unit.AiMove = AiMovement.Range; }
     }
     public void Follow(IEnumerable<string> ids, string targetId)
     {
@@ -783,7 +784,7 @@ public sealed partial class CombatSimulation
             unit.Destination = unit.Position; unit.Route = Array.Empty<Vector2>();
         }
     }
-    public void End() { if (Outcome == CombatOutcome.Ongoing) { Outcome = CombatOutcome.Ended; Paused = true; } }
+    public void End() { if (Outcome == CombatOutcome.Ongoing) { Outcome = CombatOutcome.Ended; Paused = true; SettleRouts(); } }
     public void Advance(double delta)
     {
         if (!double.IsFinite(delta) || delta < 0) throw new ArgumentOutOfRangeException(nameof(delta));
@@ -801,8 +802,8 @@ public sealed partial class CombatSimulation
         if (EnemyAiEnabled)
         {
             UpdateFleeing();
-            if (TakeAndHold is not null) UpdateTakeAndHoldAi(); else UpdateAi();
-            if (Patrol is not null) UpdatePatrolAi();
+            if (TakeAndHold is not null) UpdateTakeAndHoldAi(); else if (Patrol is not null) UpdatePatrolAi(); else UpdateAi();
+            UpdateTactics();
         }
         StopInvalidFollows();
         foreach (var unit in Units) { unit.Moving = unit.TorsoTurning = false; unit.AngularVelocity = 0; }
@@ -892,7 +893,7 @@ public sealed partial class CombatSimulation
                     Missiles = missiles, MissileDamage = salvo ? weapon.Spec.DamageProfile.PerProjectile : 0,
                     Indirect = spotter is not null, SpotterId = spotter?.Id, Splashes = ppc && hit ? RollSplash(location, CombatRules.PpcSplash(weapon.Damage)) : []
                 };
-                shots.Add(shot); target.ShotAtSinceCheck = true;
+                shots.Add(shot); target.ShotAtSinceCheck = true; target.LastShotAt = Elapsed;
                 if (Patrol is not null) HeardFire(unit, target, shot);
                 if (laser) _burns.Add((shot, Elapsed + CombatRules.LaserSecondHalfDelay));
                 if (shot.InFlight && hit) _projectiles.Add((shot, Elapsed + shot.FlightSeconds));
@@ -932,7 +933,9 @@ public sealed partial class CombatSimulation
                 before[part.Location].Structure - part.Structure, before[part.Location].Structure > 0 && part.Structure == 0))
                 .Where(part => part.Armor + part.RearArmor + part.Structure > 0).ToArray();
             var destroyed = damage.Where(part => part.Destroyed).Select(part => part.Location).ToHashSet();
-            target.NerveDamage += damage.Sum(part => part.Armor + part.RearArmor + part.Structure);
+            var taken = damage.Sum(part => part.Armor + part.RearArmor + part.Structure);
+            target.NerveDamage += taken;
+            if (taken > 0) { target.LastHitAt = Elapsed; target.LastAttackFrom = shot.From; target.RecentDamage.Add((Elapsed, taken)); }
             if (damage.Any(part => part.Location == MechLocation.Head)) target.HeadDamagedSinceCheck = true;
             if (!ejected && target.Ejected) NoteAutoEjections([target]);
             var systems = target.Spec.Weapons.Select(item => (item.Id, item.Name, item.Location))
@@ -982,9 +985,14 @@ public sealed partial class CombatSimulation
         RefreshDetection();
         RecordSkillUse();
         if (_zones.Count > 0) AdvanceControlZones();
-        if (Patrol is not null) { UpdatePatrolObjectives(); return; }
-        if (TakeAndHold is not null) { UpdateTakeAndHoldObjectives(); return; }
-        // A side with only unarmed mechs left is beaten: they can walk off, but no longer fight.
+        if (Patrol is not null) UpdatePatrolObjectives();
+        else if (TakeAndHold is not null) UpdateTakeAndHoldObjectives();
+        else UpdateOutcome();
+        if (Outcome != CombatOutcome.Ongoing) SettleRouts();
+    }
+    private void UpdateOutcome()
+    {
+        // A side with only unarmed or routed mechs left is beaten: they can walk off, but no longer fight.
         var friendly = Units.Any(item => item.Side == CombatSide.Friendly && item.Fighting);
         var enemy = Units.Any(item => item.Side == CombatSide.Enemy && item.Fighting);
         // The first defeat starts an irrevocable wind-down; effects already in flight may still turn it into a draw.
@@ -1002,15 +1010,23 @@ public sealed partial class CombatSimulation
         Hold(Units.Where(unit => !unit.Defeated && unit.Order == CombatOrder.Follow
             && (unit.FollowTarget is null || Unit(unit.FollowTarget).Defeated)).Select(unit => unit.Id));
     }
+    /// <summary>A standard battle's lances engage every enemy their side detects. Out of contact each advances on the centre line in
+    /// its anchor's lane, its members side by side; a member still chasing a lost contact's last known position carries on.</summary>
     private void UpdateAi()
     {
-        foreach (var unit in Units.Where(item => item.Side == CombatSide.Enemy && item.Active && item.Group is null && !item.Fleeing && !item.Unarmed))
+        foreach (var group in _tacticalGroups)
         {
-            var nearest = Units.Where(item => item.Side != unit.Side && !item.Defeated && Detected(unit.Side, item.Id))
-                .OrderBy(item => item.Position.DistanceSquaredTo(unit.Position)).FirstOrDefault();
-            if (nearest is not null) { unit.Order = CombatOrder.Attack; unit.AttackTarget = nearest.Id; }
-            else if (unit.Order != CombatOrder.Attack && unit.Position.Length() > 2)
-            { unit.Order = CombatOrder.Move; unit.Destination = new Vector2(unit.Position.X * .1f, 0); }
+            var members = Units.Where(item => item.TacticalGroup == group.Index && item.Active && item.Fighting).ToArray();
+            if (members.Length == 0) continue;
+            var targets = Units.Where(item => item.Side != group.Side && !item.Defeated && Detected(group.Side, item.Id)).ToArray();
+            if (targets.Length > 0) { foreach (var unit in members) Engage(unit, targets); continue; }
+            var lane = new Vector2(Anchor(members).Position.X * .1f, 0);
+            for (var i = 0; i < members.Length; i++)
+            {
+                var unit = members[i];
+                var goal = lane + new Vector2((i - (members.Length - 1) / 2f) * CombatRules.AdvanceSpacing, 0);
+                if (unit.Order != CombatOrder.Attack && unit.Position.DistanceTo(goal) > 6) { unit.Order = CombatOrder.Move; unit.Destination = goal; }
+            }
         }
     }
     /// <summary>Where <paramref name="unit"/> goes to keep its preferred distance from a detected <paramref name="target"/>: along the
@@ -1065,7 +1081,8 @@ public sealed partial class CombatSimulation
             {
                 var target = Unit(id);
                 if (target.Defeated) { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
-                else goal = RangeGoal(unit, target, out reverse);
+                // The AI's tactics may steer an attack: strafing toward a point, or standing still to fire.
+                else goal = unit.AiMove switch { AiMovement.Point => unit.AiGoal, AiMovement.Still => null, _ => RangeGoal(unit, target, out reverse) };
             }
             else if (_contacts[unit.Side].TryGetValue(id, out var contact)) goal = contact.LastKnownPosition;
             else { unit.Order = CombatOrder.Hold; unit.AttackTarget = null; }
@@ -1081,9 +1098,12 @@ public sealed partial class CombatSimulation
         {
             // A slightly stale route is kept while travelling, but its end is refreshed so a moving goal cannot strand the unit short of it.
             var finishing = unit.Route.Count > 0 && unit.Position.DistanceTo(unit.Route[^1]) < 16.5f && unit.RouteGoal != desired;
-            if (unit.Route.Count == 0 || !float.IsFinite(unit.RouteGoal.X) || unit.RouteGoal.DistanceTo(desired) > 22.5f || finishing)
+            // A search that found no route is retried at most once a second, rather than on every step.
+            if ((unit.Route.Count == 0 || !float.IsFinite(unit.RouteGoal.X) || unit.RouteGoal.DistanceTo(desired) > 22.5f || finishing)
+                && (!unit.PathFailed || Elapsed + 1e-9 >= unit.NextPathAt))
             {
                 unit.Route = Terrain.FindPath(unit.Position, desired); unit.RouteIndex = 0; unit.RouteGoal = desired;
+                unit.PathPlans++; unit.PathFailed = unit.Route.Count == 0; unit.NextPathAt = Elapsed + CombatRules.PathRetrySeconds;
             }
             while (unit.RouteIndex < unit.Route.Count - 1 && unit.Position.DistanceTo(unit.Route[unit.RouteIndex]) < 16.5f)
                 unit.RouteIndex++;

@@ -279,6 +279,9 @@ internal static class NetworkChecks
         for (var tick = 0; tick < 9000 && battle.Outcome == CombatOutcome.Ongoing; tick++)
         {
             if (tick == 300) battle.Execute(new JumpCommand(force, new Vector2(0, CombatRules.DeploymentDepth - 400)));
+            // An enemy lance advances at its slowest mech's walk, so the company goes to meet it.
+            if (tick == 450) battle.Execute(new MoveCommand(force, battle.Units.Where(unit => unit.Side == CombatSide.Enemy)
+                .Aggregate(Vector2.Zero, (sum, unit) => sum + unit.Position) / battle.Units.Count(unit => unit.Side == CombatSide.Enemy)));
             battle.Advance(CombatSimulation.StateInterval);
             var data = NetProtocol.Encode(new BattleStateMessage(battle.State(sent, sentEvents, sentHighlights))); largest = Math.Max(largest, data.Length);
             var state = ((BattleStateMessage)NetProtocol.Decode(data)!).State; sent += state.History.Length; sentEvents += state.Events!.Length; sentHighlights += state.Highlights!.Length;
@@ -303,6 +306,9 @@ internal static class NetworkChecks
     private static readonly HashSet<string> LeaderOnlyState = ["Route", "RouteIndex", "BlockedSeconds", "RouteGoal", "FiringPosition", "NextFiringSearch", "Spec", "Warrior", "Climate",
         "NerveRemaining", "NerveDamage", "ShotAtSinceCheck", "KnockedDownSinceCheck", "HeadDamagedSinceCheck", "InjuriesAtLastCheck", "AlliesDefeatedAtLastCheck",
         "AbsorbedArmor", "AbsorbedStructure", "ShutdownHighlighted", "PanicHighlighted", "CountedPosition",
+        // Route-search throttling and the enemy tactics' working state stay with the leader, which alone runs the AI.
+        "PathPlans", "PathFailed", "NextPathAt", "TacticalTarget", "TargetSince", "AiMove", "AiGoal", "StrafeSign", "NextStrafeFlip", "PullingBack",
+        "PulledBackAt", "Regrouping", "BreachesSeen", "LastShotAt", "LastHitAt", "LastAttackFrom", "RecentDamage", "Routed",
         // Service-history notes go only into the leader's mission report.
         "AutoEjected", "KillLog", "Death", "InjuryCauses"];
     private static IEnumerable<string> Differences(CombatSimulation a, CombatSimulation b)

@@ -192,7 +192,7 @@ public sealed partial class CombatSimulation
         {
             var random = new Random(unchecked(_seed ^ 0x3E7D20));
             var lances = Units.Where(unit => unit.Side == CombatSide.Enemy).Select((unit, i) => (unit, i))
-                .GroupBy(item => item.i / CombatRules.EnemyDropLanceSize, item => item.unit).ToArray();
+                .GroupBy(item => item.unit.TacticalGroup ?? item.i / CombatRules.EnemyDropLanceSize, item => item.unit).ToArray();
             var taken = new List<Vector2>();
             foreach (var lance in lances)
             {

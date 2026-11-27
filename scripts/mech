@@ -125,7 +125,7 @@ unit_classes() {
     missions) echo Missions Reputation SalvageAndInsurance ;;
     finance) echo Campaign ;;
     catalog) echo Catalog ;;
-    combat-sim) echo Combat Patrol TakeAndHold 'Terrain*' ;;
+    combat-sim) echo Combat Patrol TakeAndHold Tactics 'Terrain*' ;;
     multiplayer) echo 'Network*' ;;
   esac
 }

@@ -251,7 +251,7 @@ public sealed partial class CombatSimulation
         return observer.Position.DistanceSquaredTo(target.Position) <= radius * radius && Sight(observer, target);
     }
 
-    /// <summary>Active groups attack the nearest company mech their side detects. With none detected they head for the latest
+    /// <summary>Active groups engage the company mechs their side detects, under the group tactics. With none detected they head for the latest
     /// lead, a last known position or the source of fire, then search around it; after a fruitless search they return to their
     /// posts, still alert.</summary>
     private void UpdatePatrolAi()
@@ -265,11 +265,7 @@ public sealed partial class CombatSimulation
             if (detected.Length > 0)
             {
                 group.Search = null;
-                foreach (var member in members)
-                {
-                    var nearest = detected.MinBy(unit => unit.Position.DistanceSquaredTo(member.Position))!;
-                    member.Order = CombatOrder.Attack; member.AttackTarget = nearest.Id;
-                }
+                foreach (var member in members) Engage(member, detected);
                 continue;
             }
             var lead = Lead(group);

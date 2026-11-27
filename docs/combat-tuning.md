@@ -92,7 +92,7 @@ Terrain is an immutable, seeded heightfield shared by combat, navigation, render
 
 Generation permits unrestricted asymmetry while reserving clear spawn bands and a clear central rendezvous: relief fades to flat within 400 metres of them, though a river trench may cross them. Lakes keep 150 metres from spawns and settlements, and other features 60 metres from spawns and 150 metres from settlements; rocks and vegetation also keep 30 metres from liquid and river trenches. Buildings whose footprint reaches liquid or a river trench are left out. Generation validates paths between all possible spawn slots and the center, retries disconnected candidates, and requires every rock and vegetation kind and a lake of its biome's kind. Patch placement avoids overlapping patches. A point's liquid surface interpolates over the same triangles as the ground, so shorelines follow the ground's contour. Hand-built test terrain may still use cosine hills. The 30-metre navigation and heightfield grid is 193 × 193.
 
-Move orders resolve inaccessible destinations to the nearest reachable navigation point in the unit's connected component. A unit held up by an obstacle for 1.5 seconds replans its route from where it stands. Steering checks the first half metre of each heading as well as its look-ahead, so a sliver of steep ground between the look-ahead's samples cannot wedge a mech. Paths detour around rocks, buildings and steep slopes, with terrain speed weighting for detours; direct clear routes remain direct. Waypoints feed the existing acceleration, braking, turning, and occupied-space avoidance. A unit nearing the end of its route while its goal has moved replans to the current goal, so a moving Follow leader cannot strand it short. Both sides seek a reachable clear firing position when a detected attack target is behind terrain, reconsidering at most once per simulated second. There is no deliberate cover-seeking AI. Shared detection cannot authorize a shot through solid terrain.
+Move orders resolve inaccessible destinations to the nearest reachable navigation point in the unit's connected component. A unit held up by an obstacle for 1.5 seconds replans its route from where it stands. Steering checks the first half metre of each heading as well as its look-ahead, so a sliver of steep ground between the look-ahead's samples cannot wedge a mech. Paths detour around rocks, buildings and steep slopes, with terrain speed weighting for detours; direct clear routes remain direct. Waypoints feed the existing acceleration, braking, turning, and occupied-space avoidance. A unit nearing the end of its route while its goal has moved replans to the current goal, so a moving Follow leader cannot strand it short. Both sides seek a reachable clear firing position when a detected attack target is behind terrain, reconsidering at most once per simulated second. A unit whose last route search found no route searches again at most once a second. There is no deliberate cover-seeking AI. Shared detection cannot authorize a shot through solid terrain.
 
 ## System biomes
 
@@ -324,6 +324,37 @@ The rules are in [combat design](combat-design.md#stress-surrender-and-ejection-
 | Ransom (`SalvageTuning.Ransom`) | Corporal 20,000 · Sergeant 40,000 · Lieutenant 80,000 · Captain 150,000 C-bills |
 
 A Regular-Grit (5) pilot with nothing happening rolls 2d6 + 4 and calms on 10 or less; under fire at heat 12 (+2) they hold on 8–10 and grow stressed on 11 or more, about one check in twelve.
+
+## Enemy tactics
+
+The [enemy tactics](combat-design.md#enemy-tactics-confirmed-november-27-2026) use these starting values, in `CombatRules` (`Scripts/EnemyTactics.cs`).
+
+| Value | Setting |
+|---|---|
+| Enemy lances | Up to 4 mechs; as few lances as hold the force, dealt heaviest first |
+| Decisions | Every 0.5 s in contact, and at once on first contact |
+| Target score | 100 base, +60 in reach, +40 × rank factor for the focus, +10 per mate in reach, +40 × visible damage share, +20 down or shut down, +0.1 per ton, −4 per 100 m; never below 1 |
+| Target switching | Kept at least 8 s; replaced only by a target scoring 1.25 times as much |
+| In range | Within 150 m of the preferred distance |
+| Strafing | Aims 80 m ahead along the circle at the preferred distance; reverses after 10–20 s, or when the goal it can reach lies more than 40 m off |
+| Standing still | Beyond every visible enemy's longest stock weapon range plus 60 m |
+| Under fire | Shot at within the last 5 s |
+| Spacing | Movement goals at least 60 m from mates |
+| Advance | Out of contact, the anchor's lane on the centre line: 10% of its x position, mechs 100 m apart |
+| Separated | Over 300 m from the anchor with no mate within 300 m; regrouping runs to 100 m from the anchor and ends within 150 m |
+| Joining | The last fighting mech of a group joins another whose anchor stands within 1,000 m |
+| Pull-back | 200 m behind the group's front; damage window 15 s; return after 20 s back without a hit |
+| Routing | Lost a location, or armor plus structure at half stock or less; Panicked pilots rout at 1.5 |
+| Route searches | A unit that found no route searches again after 1 s |
+
+| Rank | Focus factor | Pull-back damage share | Pulls back when | Strafes | Rout ratio |
+|---|---|---|---|---|---|
+| Corporal (or below) | 0.25 | 35% | Panicked | No | 2.0 |
+| Sergeant | 0.5 | 30% | Stressed | Yes | 2.5 |
+| Lieutenant | 1 | 25% | Stressed | Yes | 3.0 |
+| Captain | 1.25 | 20% | Stressed | Yes | 3.5 |
+
+Enemies keep the default heat limit of 10 and an ammo economy of 0.
 
 ## Skill gain lottery
 

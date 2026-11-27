@@ -141,22 +141,22 @@ public sealed partial class CombatSimulation
         var zone = Objective!;
         var company = Units.Where(unit => unit.Side == CombatSide.Friendly && !unit.Defeated && Detected(CombatSide.Enemy, unit.Id)).ToArray();
         var reach = zone.Radius + CombatRules.GarrisonLeash;
+        var inReach = company.Where(target => target.Position.DistanceTo(zone.Center) <= reach).ToArray();
+        (Vector2, float)? leash = (zone.Center, reach);
         var index = 0;
         foreach (var unit in Units.Where(item => item.Side == CombatSide.Enemy && item.Active && !item.Fleeing && !item.Unarmed && item.Wave is not null))
         {
             index++;
             var distance = unit.Position.DistanceTo(zone.Center);
-            CombatUnit? Nearest(float within) => company.Where(target => target.Position.DistanceTo(zone.Center) <= within)
-                .MinBy(target => target.Position.DistanceSquaredTo(unit.Position));
             if (unit.Wave == 0)
             {
-                if (distance <= reach && Nearest(reach) is { } target) AttackWith(unit, target);
+                if (distance <= reach && inReach.Length > 0) Engage(unit, inReach, leash);
                 else Head(unit, unit.Post);
                 continue;
             }
             var goal = zone.Center + Vector2.FromAngle(index * 2.4f) * (40 * MathF.Sqrt(index % 8));
             if (distance > zone.Radius) Head(unit, goal);
-            else if (Nearest(reach) is { } target) AttackWith(unit, target);
+            else if (inReach.Length > 0) Engage(unit, inReach, leash);
             else if (distance > CombatRules.WaveHoldDistance) Head(unit, goal);
         }
     }
@@ -259,7 +259,7 @@ public sealed partial class CombatSimulation
             if (Terrain.Passable(point) && Terrain.Component(point) == component) break;
         }
         var placed = Units.Where(unit => unit.Solid).Select(unit => unit.Position).ToList();
-        foreach (var lance in members.Chunk(CombatRules.EnemyDropLanceSize))
+        foreach (var lance in members.GroupBy(unit => unit.TacticalGroup).Select(lance => lance.ToArray()))
         {
             Vector2[]? points = null;
             for (var attempt = 0; attempt < 400 && points is null; attempt++)
