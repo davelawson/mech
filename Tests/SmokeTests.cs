@@ -907,6 +907,7 @@ public partial class SmokeTests : Node
         {
             var preview = _app.Drafting.Choices[pool, choice].GetChildren().OfType<MechPreview>().Single();
             Check(preview.Model?.ChassisId == initialDraft.MechCandidate(pool, choice).Id, "draft card displays its randomized candidate model");
+            Check(preview.FramedHeightFraction > .45f, $"draft card frames its mech large enough to read ({preview.Model?.ChassisId} spans {preview.FramedHeightFraction:P0} of the view)");
         }
         Check(initialDraft.Complete && initialDraft.SelectedCount == 8 && !_app.Drafting.EstablishButton.Disabled,
             "new draft defaults are ready to establish");

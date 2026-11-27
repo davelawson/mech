@@ -8,11 +8,16 @@ public enum PreviewGait { Idle, Walk, Run, StandUp }
 public partial class MechPreview : Control
 {
     public const float SpinDegreesPerPixel = .5f, SpringBackSeconds = .3f;
+    /// <summary>The turntable floor, in world metres: sized to the mechs' battlefield scale so the floor never dwarfs them.</summary>
+    public const float FloorRadius = 26.25f * CombatRules.BodyScale, RingRadius = 24.75f * CombatRules.BodyScale,
+        FloorThickness = 1.5f * CombatRules.BodyScale, FloorTop = -.15f * CombatRules.BodyScale;
     public MechModel? Model { get; private set; }
     public PreviewGait Gait { get; set; }
     /// <summary>Front-on, tinted and gridded; turns only while dragged and springs back to the front when released.</summary>
     public bool Blueprint { get; init; }
     public float Yaw { get; private set; }
+    /// <summary>The share of the view's height the model's standing height spans at its framed distance.</summary>
+    public float FramedHeightFraction { get; private set; }
     private Node3D _world = null!;
     private Camera3D _camera = null!;
     private OwnedMech? _owned;
@@ -31,7 +36,7 @@ public partial class MechPreview : Control
             Msaa3D = Viewport.Msaa.Msaa4X, RenderTargetUpdateMode = SubViewport.UpdateMode.WhenVisible,
             HandleInputLocally = false };
         surface.AddChild(viewport); _world = new Node3D(); viewport.AddChild(_world);
-        _camera = new Camera3D { Current = true, Fov = 32, Near = 1.5f, Far = 1200 };
+        _camera = new Camera3D { Current = true, Fov = 32, Near = .3f, Far = 1200 };
         _world.AddChild(_camera);
         _world.AddChild(new WorldEnvironment { Environment = new Godot.Environment
         {
@@ -42,8 +47,8 @@ public partial class MechPreview : Control
         } });
         _world.AddChild(new DirectionalLight3D { RotationDegrees = new(-42, -32, 0), LightEnergy = 1.5f });
         _world.AddChild(new DirectionalLight3D { RotationDegrees = new(-20, 145, 0), LightColor = new("a4bec9"), LightEnergy = .7f });
-        var floor = new MeshInstance3D { Position = new(0, -.9f, 0),
-            Mesh = new CylinderMesh { TopRadius = 26.25f, BottomRadius = 26.25f, Height = 1.5f, RadialSegments = 64 },
+        var floor = new MeshInstance3D { Position = new(0, FloorTop - FloorThickness / 2, 0),
+            Mesh = new CylinderMesh { TopRadius = FloorRadius, BottomRadius = FloorRadius, Height = FloorThickness, RadialSegments = 64 },
             MaterialOverride = new StandardMaterial3D { AlbedoColor = new("26302b"), Roughness = .9f } };
         _world.AddChild(floor); _floor = floor;
         var ring = new ImmediateMesh();
@@ -52,7 +57,7 @@ public partial class MechPreview : Control
         for (var i = 0; i < 64; i++)
         {
             foreach (var angle in new[] { i * Mathf.Tau / 64, (i + 1) * Mathf.Tau / 64 })
-                ring.SurfaceAddVertex(new(Mathf.Cos(angle) * 24.75f, .075f, Mathf.Sin(angle) * 24.75f));
+                ring.SurfaceAddVertex(new(Mathf.Cos(angle) * RingRadius, -FloorTop / 2, Mathf.Sin(angle) * RingRadius));
         }
         ring.SurfaceEnd(); _ring = new MeshInstance3D { Mesh = ring }; _world.AddChild(_ring);
         _floor.Visible = _ring.Visible = !Blueprint;
@@ -134,9 +139,9 @@ public partial class MechPreview : Control
     {
         if (_camera is null) return;
         var aspect = Math.Max(.1f, Size.X / Math.Max(1, Size.Y));
-        var bounds = Model is null ? new Aabb(Vector3.Zero, new(30, 45, 30))
+        var bounds = Model is null ? new Aabb(Vector3.Zero, new Vector3(30, 45, 30) * CombatRules.BodyScale)
             : new Aabb(Model.RestBounds.Position * Model.Scale, Model.RestBounds.Size * Model.Scale);
-        var target = Blueprint ? bounds.GetCenter() with { X = 0, Z = 0 } : new Vector3(0, (Model?.Height ?? 45) * .48f, 0);
+        var target = Blueprint ? bounds.GetCenter() with { X = 0, Z = 0 } : new Vector3(0, (Model?.Height ?? 45 * CombatRules.BodyScale) * .48f, 0);
         var direction = (Blueprint ? new Vector3(0, .08f, -1) : new Vector3(.40f, .18f, -.90f)).Normalized();
         var right = Vector3.Up.Cross(direction).Normalized(); var up = direction.Cross(right);
         var tangent = Mathf.Tan(Mathf.DegToRad(_camera.Fov / 2));
@@ -153,10 +158,11 @@ public partial class MechPreview : Control
         {
             for (var corner = 0; corner < 8; corner++)
                 Fit(bounds.GetEndpoint(corner).Rotated(Vector3.Up, angle * Mathf.Tau / 32));
-            Fit(new Vector3(Mathf.Cos(angle * Mathf.Tau / 32) * 26.25f, -1.65f, Mathf.Sin(angle * Mathf.Tau / 32) * 26.25f));
+            Fit(new Vector3(Mathf.Cos(angle * Mathf.Tau / 32) * FloorRadius, FloorTop - FloorThickness, Mathf.Sin(angle * Mathf.Tau / 32) * FloorRadius));
         }
-        _camera.Position = target + direction * (distance * (Blueprint ? 1.04f : 1.10f) + 1.5f);
+        _camera.Position = target + direction * (distance * (Blueprint ? 1.04f : 1.10f) + 1.5f * CombatRules.BodyScale);
         _camera.LookAt(target);
+        FramedHeightFraction = (Model?.Height ?? 0) / (2 * _camera.Position.DistanceTo(target) * tangent);
     }
     public override void _Process(double delta)
     {
