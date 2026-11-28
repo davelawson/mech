@@ -1,8 +1,12 @@
 # MECH GAME PROJECT OUTSTANDING IDEAS
 This file serves as a repository for ideas that await implementation or further design at a later point.  This is not the plan for the next development task, but rather a wishlist of future features and a repository for issues that will require fixes.
 
+## Lobby
+Right click shouldn't go back a screen here.
+
 ## Strategy Layer
 ### Drafting Interface
+Right clicking shouldn't go back
 
 ### Deployment Interface
 
@@ -50,6 +54,10 @@ This file serves as a repository for ideas that await implementation or further 
 - damage to the terrain should accumulate for a while, resulting in the battlefield looking scarred after long fights
 - jumping over rocks makes weird
 - enemy pilots should tend to be better in bigger mechs
+
+### Take and Hold
+- Dropship drops off reinforcements
+- When you take the point, some npc units spawn and they infiltrate the buildings.  That's why you can't immediately lose control of the zone.
 
 ### Top Bar
 
