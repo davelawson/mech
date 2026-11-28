@@ -126,7 +126,13 @@ An enemy MechWarrior giving up their BattleMech, which the leader accepts or ref
 An enemy MechWarrior whose surrender was accepted, ransomed after a victory. Their BattleMech cannot be salvaged.
 
 **Fled**:
-An enemy BattleMech that ran from the battle over the arena edge after a refused surrender. It counts as defeated.
+An enemy BattleMech that ran from the battle over the arena edge after a refused surrender or a rout, or that was still running from a rout when the battle ended. It counts as defeated.
+
+**Rout**:
+An armed enemy MechWarrior, badly damaged and clearly outmatched, giving up the fight and fleeing without offering to surrender.
+
+**Enemy lance**:
+Up to four enemy BattleMechs that fight together under the enemy AI, dealt out heaviest first from a standard battle's opposition, a Take and Hold's garrison or one of its waves. A patrol's enemy groups fight together the same way.
 
 **Unarmed**:
 A BattleMech that has lost every weapon. It is not disabled: it can still move, extract, flee or surrender.

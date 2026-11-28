@@ -37,3 +37,4 @@ public sealed class TerrainSeedMinus41 { [Fact] public void Checks() => Suite.Ru
 public sealed class TerrainFeatures { [Fact] public void Checks() => Suite.Run(TerrainChecks.RunFeatures); }
 public sealed class TerrainEngagements { [Fact] public void Checks() => Suite.Run(TerrainChecks.RunEngagements); }
 public sealed class TerrainLanceEngagement { [Fact] public void Checks() => Suite.Run(TerrainChecks.RunLanceEngagement); }
+public sealed class Tactics { [Fact] public void Checks() => Suite.Run(TacticsChecks.Run); }

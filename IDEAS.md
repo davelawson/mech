@@ -54,7 +54,9 @@ This file serves as a repository for ideas that await implementation or further 
 ### Top Bar
 
 ### Unit AI
-- Sometimes, due to map features, mechs find themselves unable to path where they want to go.  In this situation, the game suffers a massive slowdown.  I expect this is due to continuous pathing attempts.  Limit the number of attempts per second.
+- Firing-position searches take about 20 ms each when a mech's target is hidden, and repeat every second for each mech that can't see its target. On hilly maps this dominates long battles: in one probe, 80 s of a 94 s run. Cache the result while neither mech has moved far, or cap the candidates checked.
+- Enemy tactics to tune later: twisting the torso to show healthy armour, jump jets to break line of sight or cross obstacles, cover-seeking, and searching a lost contact's last position in standard battles.
+- Supporting forces fighting alongside the company could use the enemy tactics layer, which is written for any AI-controlled side.
 
 ### Mech Cards
 
