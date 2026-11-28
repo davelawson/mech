@@ -55,6 +55,10 @@ Right clicking shouldn't go back
 - jumping over rocks makes weird
 - enemy pilots should tend to be better in bigger mechs
 
+### Map Generation
+- It seems like roads going over bridges make for problems.  Don't have the road itself go over the bridge, but just meat it at either end, and give the bridge a speed boost equivalent to the road.
+- Make the roads look more like asphalt than dirt.
+
 ### Take and Hold
 - Dropship drops off reinforcements
 - When you take the point, some npc units spawn and they infiltrate the buildings.  That's why you can't immediately lose control of the zone.
